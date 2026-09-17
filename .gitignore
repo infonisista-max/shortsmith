@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# Media and job data (never commit video)
+uploads/
+outputs/
+work/
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.m4a
+
+# Local-only tool state
+.claude/settings.local.json
+reviews/
