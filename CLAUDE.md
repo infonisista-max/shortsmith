@@ -17,3 +17,6 @@ Turns a raw video + one-sentence prompt into a finished 9:16 YouTube Short.
 - Editing styles are specs in `styles/<name>.md`; the planner may only use a style that exists there. A style word in the prompt maps to one spec; unknown → `explainer`.
 - Asset rights: default `ASSET_POLICY=rights_safe` with a per-asset rights log; `any` is operator-only and never the default on a shared deployment.
 - Tickets live in `issues/`; done tickets move to `issues/done/`. Board rules are in `ralph/prompt.md`.
+- Quality bar: editing at the level of top YouTube Shorts (Dhruv Rathee-style, CapCut-level polish); the concrete standard is "match the two approved old-engine shorts". Bar, evidence pointers and frame captions: `docs/reference/README.md`.
+- The reference videos and frames are git-ignored under `work/reference/` (`*.mp4`, `frames/*.jpg`); the README has the ffmpeg commands to regenerate the frames.
+- Before changing a style spec, a planner prompt, or the renderer's look, check the change against the reference frames and beat tables, not your own taste; Shubham's phone verdict is the final judge.
