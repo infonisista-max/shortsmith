@@ -15,7 +15,7 @@ Turns a raw video + a short written brief and a style choice into a finished 9:1
 - Use `pathlib.Path`; never hard-code absolute paths.
 - Secrets live only in `.env` (see `.env.example`). Never print or commit them.
 - Editing styles are specs in `styles/<name>.md`; the planner may only use a style that exists there. A style word in the prompt maps to one spec; unknown → `explainer`.
-- Asset rights: default `ASSET_POLICY=rights_safe` with a per-asset rights log; `any` is operator-only and never the default on a shared deployment.
+- Asset rights (grill decisions 5.1/5.2, overriding the brief): source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration. `ASSET_POLICY=any` (the default) uses the full order; `rights_safe` removes web image search. No licence filtering in v1; every asset gets a rights-log row with its source URL, and web images are always re-dressed, never shown raw.
 - Tickets live in `issues/`; done tickets move to `issues/done/`. Board rules are in `ralph/prompt.md`.
 - Quality bar: editing at the level of top YouTube Shorts (Dhruv Rathee-style, CapCut-level polish); the concrete standard is "match the two approved old-engine shorts". Bar, evidence pointers and frame captions: `docs/reference/README.md`.
 - The reference videos and frames are git-ignored under `work/reference/` (`*.mp4`, `frames/*.jpg`); the README has the ffmpeg commands to regenerate the frames.
