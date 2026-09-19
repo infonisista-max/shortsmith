@@ -1,6 +1,6 @@
 # Shortsmith
 
-Turns a raw video + one-sentence prompt into a finished 9:16 YouTube Short.
+Turns a raw video + a short written brief and a style choice into a finished 9:16 YouTube Short.
 
 ## Commands (always via uv)
 - Run app: `uv run uvicorn shortsmith.app:app --reload --port 8000`
