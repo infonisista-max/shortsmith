@@ -211,3 +211,15 @@ Each item names its consumer. GLOBAL unless tagged.
 5. One house style hard-coded in Remotion components: no prompt-to-style mapping. Replaced by `styles/<name>.md`.
 6. No asset cache and no per-job cost record: revisions re-fetched, tokens never measured. Replaced by per-job caching and cost accounting in the product layer.
 7. n8n bridges for ASR, scraping, downloads, image generation and file relay: an external orchestrator dependency conflicts with a self-contained, shareable product. Replacement to be decided in the PRD.
+
+## 12. Prototype findings (18 Sep 2026; laptop 8 cores, Node v24.19.0, ffmpeg 9.0.1, Remotion 4.0.526)
+Measured in this repo, not archive claims; the five tags do not apply here. Inputs: work/sample.mp4 (1080x1920, 30 fps, 57 s), cut 20–50 s, PIP over a CC BY-SA still at output 10–20 s, section-4 captions, section-5 sound chain.
+- Version A, ffmpeg (proto/ffmpeg_proto.py): 0.069 s/frame, 62 s wall for 900 frames, x264 medium CRF 18, 39.3 MB; one filter_complex (geq circle mask, zoompan 1.10→1.16 with explicit s= and fps=, libass captions via fontsdir); master −13.95 LUFS / −1.50 dBTP.
+- Version B, Remotion (proto/remotion-captions/): 0.170 s/frame, 153 s wall at concurrency 4; toolchain 699 MB incl. 270 MB headless Chrome. First render failed on the phone clip's H.264 B-frame pyramid (OffthreadVideo "No frame found at position"); fixed with @remotion/media Video (WebCodecs). Audio muxed from A, byte-identical.
+- ASS cannot express four section-4 items: line-height 1.35, page-enter scale 0.94→1, exact keyword rectangle (needs text measurement outside ASS), true 86 % unspoken opacity. Remotion does all four.
+- Phone verdict, arm's length, same segment and audio: no visible difference on readability, keyword box, word spacing, line spacing, circle edge or still motion. The four ASS gaps are invisible at this size for explainer captions.
+- Both used hard cuts into and out of the PIP; animated transitions untested. ffmpeg: per-frame expressions on overlay/scale. Remotion: one interpolate call.
+- Presenter framing: hair top ≈300 to collar ≈1500 (1200 px) exceeds the 1080 px source square, so the GLOBAL "whole head + collar" rule cannot hold on close framing; collar was cut. PRD must set a priority (keep chin) and/or a recording guideline.
+- Active-word scale 1.08 eats the inter-word gap on long words in both engines; the old engine's word gap is NOT RECORDED. Spec item for styles/explainer.md, not an engine point.
+- Remotion tags full-range yuvj420p, ffmpeg limited-range yuv420p; pass --color-space bt709 if outputs must match.
+- Verdict: Remotion for the visual layer (captions, PIP, stills, transitions); ffmpeg for cut, stems, mix and mux. Reason: parity on explainer today, and the animated/hitech styles and transitions are where ffmpeg's ceiling is. Constraint: plan JSON stays engine-agnostic so the renderer can be swapped. Accepted costs: 2.5× render time, ~1 GB toolchain, TypeScript in the renderer module, re-encode the cut clip before Remotion.

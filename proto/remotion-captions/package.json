@@ -1,0 +1,17 @@
+{
+  "name": "remotion-captions-proto",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Throwaway prototype: section-4 captions + round PIP in Remotion, Version B of proto/ffmpeg_proto.py",
+  "scripts": {
+    "render": "remotion render src/index.ts Short out/proto_remotion_video.mp4 --codec h264 --crf 18"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.526",
+    "@remotion/fonts": "^4.0.526",
+    "@remotion/media": "^4.0.526",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.526"
+  }
+}
