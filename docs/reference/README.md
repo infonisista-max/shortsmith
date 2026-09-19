@@ -96,6 +96,27 @@ only the sound effects need to be updated".
   4 kHz at least 20 dB above the bed. Stems for voice, music and SFX written
   alongside the mix so balance can be measured.
 
+## Patterns on record beyond the two references
+
+Added 19 Sep 2026 from the grill (decision 5.2). Not evidenced by the NKB or
+Dyson frames; recorded here so the `card` kind grows toward it.
+
+### News-card composite (Startuppedia style)
+
+The re-dress that makes raw web-sourced portraits look professional. For a
+two-entity beat (two people, a person and a company, two products):
+- Two portraits side by side inside one framed card, equal height, each
+  cropped to head plus collar, thin divider or seam between them.
+- A circular logo badge (company, channel or subject mark) overlapping one
+  corner of the card, white ring, drop shadow.
+- A title strip along the bottom of the card: bold sans, two to six words,
+  key words highlighted in the style's accent colour on a box.
+- Card obeys the archival-card rules: white border, slight rotate, blurred
+  darkened cover behind, slow push in, sits above the caption line.
+
+Card-kind support required: 2-up composite, badge overlay, highlight strip.
+Tier 2 if it does not fit day 14, but on record now.
+
 ## Frames
 
 Stored in `work/reference/frames/` (git-ignored), 540x960 JPEG, all under
