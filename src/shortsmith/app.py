@@ -3,7 +3,13 @@
 Pages are stdlib `string.Template` files under `templates/`; every user-supplied or
 model-generated string passes through `html.escape` before it is substituted. The
 worker (`pipeline.Worker`) starts in the lifespan and runs jobs one at a time in
-submission order. Passcode (040), queue limits (041), sweeper (042) come later.
+submission order. Queue limits (041) and the sweeper (042) come later.
+
+Passcode (decision 11.2): `PasscodeGuard` is a pure ASGI middleware in front of every
+route except `/health` and `POST /passcode`. Without a valid cookie (see `auth`) an
+HTML request gets the passcode form (200 on `/`, 401 elsewhere, carrying the path as
+`next` so a shared job link survives the login) and a JSON request gets 401 JSON.
+The app refuses to start without a passcode: an open link would be a public problem.
 
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
@@ -11,11 +17,13 @@ the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 
 from __future__ import annotations
 
+import asyncio
 import html
+import math
 import re
 import shutil
 import tempfile
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,25 +34,34 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from shortsmith import config, ingest, jobs, pipeline
+from shortsmith import auth, config, ingest, jobs, pipeline
 from shortsmith import planner as planner_module
+from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
-from shortsmith.jobs import STATUS_ORDER, TERMINAL, Job
+from shortsmith.jobs import STATUS_ORDER, TERMINAL, Clock, Job
 from shortsmith.planner import Planner
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
 TEMPLATES = Path(__file__).parent / "templates"
 MAX_REFERENCE_FIELDS = 8
 POLL_MS = 3000
+PASSCODE_PATH = "/passcode"
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _REFS = TypeAdapter(list[ReferenceRecord])
+
+Delay = Callable[[float], Awaitable[None]]
 
 
 def _template(name: str) -> Template:
     return Template((TEMPLATES / name).read_text(encoding="utf-8"))
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 def create_app(
@@ -54,6 +71,8 @@ def create_app(
     planner: Planner | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
+    clock: Clock = _utc_now,
+    delay: Delay = asyncio.sleep,
 ) -> FastAPI:
     settings = settings or config.load()
     # The Groq transcriber arrives with ticket 012; until then the fake is the only one.
@@ -63,9 +82,16 @@ def create_app(
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
     worker = pipeline.Worker(transcriber=transcriber, planner=planner)
     data_dir = settings.shortsmith_data_dir
+    secret = settings.shortsmith_passcode
+    passcode = secret.get_secret_value() if secret is not None else ""
+    failures = FailureLog(clock)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+        if not passcode:
+            raise RuntimeError(
+                "SHORTSMITH_PASSCODE is not set: add one to .env before serving (decision 11.2)"
+            )
         (data_dir / "jobs").mkdir(parents=True, exist_ok=True)
         if start_worker:
             worker.start()
@@ -78,10 +104,38 @@ def create_app(
     app.state.data_dir = data_dir
     app.state.worker = worker
     app.state.limits = limits
+    app.state.failures = failures
+    app.add_middleware(PasscodeGuard, passcode=passcode, clock=clock)
 
     @app.get("/health")
     async def health() -> dict[str, bool]:
         return {"ok": True}
+
+    @app.post(PASSCODE_PATH)
+    async def enter_passcode(request: Request) -> Response:
+        form = await request.form()
+        given = _text(form.get("passcode"))
+        next_url = _local_path(_text(form.get("next")))
+        ip = request.client.host if request.client else "unknown"
+        remaining = failures.blocked_for(ip)
+        if remaining is not None:
+            page = render_passcode_form(_blocked(remaining), next_url)
+            return HTMLResponse(page, status_code=429)
+        if passcode and auth.passcode_matches(given, passcode):
+            response = RedirectResponse(next_url, status_code=303)
+            response.set_cookie(
+                COOKIE_NAME,
+                auth.issue_cookie(passcode, now=clock()),
+                max_age=auth.COOKIE_MAX_AGE_S,
+                path="/",
+                httponly=True,
+                samesite="lax",
+                secure=request.url.scheme == "https",
+            )
+            return response
+        failures.record_failure(ip)
+        await delay(auth.WRONG_PASSCODE_DELAY_S)
+        return HTMLResponse(render_passcode_form("Wrong passcode.", next_url), status_code=401)
 
     @app.get("/", response_class=HTMLResponse)
     async def upload_form() -> HTMLResponse:
@@ -152,6 +206,61 @@ def create_app(
     return app
 
 
+# --- passcode guard -------------------------------------------------------------
+
+
+class PasscodeGuard:
+    """ASGI middleware: every HTTP request except `/health` and `POST /passcode` needs a
+    cookie signed with the current passcode. Non-HTTP scopes (lifespan) pass through."""
+
+    def __init__(self, app: ASGIApp, *, passcode: str, clock: Clock) -> None:
+        self._app = app
+        self._passcode = passcode
+        self._clock = clock
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        request = Request(scope)
+        path = request.url.path
+        exempt = path == "/health" or (path == PASSCODE_PATH and request.method == "POST")
+        if exempt or auth.verify_cookie(
+            request.cookies.get(COOKIE_NAME), self._passcode, now=self._clock()
+        ):
+            await self._app(scope, receive, send)
+            return
+        await _unauthorized(request)(scope, receive, send)
+
+
+def _unauthorized(request: Request) -> Response:
+    if _wants_json(request):
+        return JSONResponse({"error": "passcode required"}, status_code=401)
+    target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    if target == "/" and request.method == "GET":
+        return HTMLResponse(render_passcode_form("", "/"), status_code=200)
+    return HTMLResponse(render_passcode_form("", _local_path(target)), status_code=401)
+
+
+def _wants_json(request: Request) -> bool:
+    if request.url.path.endswith(".json"):
+        return True
+    accept = request.headers.get("accept", "")
+    return "application/json" in accept and "text/html" not in accept
+
+
+def _local_path(value: str) -> str:
+    """Only a same-site absolute path may be a post-login target; anything else is `/`."""
+    if value.startswith("/") and not value.startswith("//") and "\\" not in value:
+        return value
+    return "/"
+
+
+def _blocked(remaining_s: float) -> str:
+    minutes = max(1, math.ceil(remaining_s / 60))
+    return f"Too many wrong passcodes from this address. Try again in {minutes} minutes."
+
+
 # --- form handling --------------------------------------------------------------
 
 
@@ -184,6 +293,13 @@ def _rejection(
 
 
 # --- rendering ------------------------------------------------------------------
+
+
+def render_passcode_form(message: str, next_url: str) -> str:
+    return _template("passcode.html").substitute(
+        message=f'<p class="reject">{html.escape(message)}</p>' if message else "",
+        next=html.escape(next_url),
+    )
 
 
 def render_upload_form(
