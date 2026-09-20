@@ -1,10 +1,10 @@
 # ISSUES
 
-Local issue files from `issues/` are provided at start of context. Parse them to understand the open issues.
+Read every open issue file in `issues/` (ignore `issues/done/`).
 
 You will work on the AFK issues only, not the HITL ones.
 
-You've also been passed a file containing the last few commits. Review these to understand what work has been done.
+Run `git log -n 5` to review recent work.
 
 If all AFK tasks are complete, output <promise>NO MORE TASKS</promise>.
 
@@ -32,7 +32,7 @@ Explore the repo.
 
 # IMPLEMENTATION
 
-Use /tdd to complete the task.
+Implement with strict TDD: write a failing test first, run it and watch it fail, write the minimal code to pass, refactor, repeat.
 
 # FEEDBACK LOOPS
 

@@ -20,3 +20,5 @@ Turns a raw video + a short written brief and a style choice into a finished 9:1
 - Quality bar: editing at the level of top YouTube Shorts (Dhruv Rathee-style, CapCut-level polish); the concrete standard is "match the two approved old-engine shorts". Bar, evidence pointers and frame captions: `docs/reference/README.md`.
 - The reference videos and frames are git-ignored under `work/reference/` (`*.mp4`, `frames/*.jpg`); the README has the ffmpeg commands to regenerate the frames.
 - Before changing a style spec, a planner prompt, or the renderer's look, check the change against the reference frames and beat tables, not your own taste; Shubham's phone verdict is the final judge.
+
+Never commit media files (video/audio/images, rendered outputs) or node_modules/; add .gitignore entries if they are missing.
