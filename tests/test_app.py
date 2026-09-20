@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from shortsmith import app as app_module
 from shortsmith import jobs
 from shortsmith.config import Settings
+from shortsmith.planner import FakePlanner
 from shortsmith.transcriber import FakeTranscriber
 from tests.conftest import Media
 
@@ -32,7 +33,10 @@ def _settings(tmp_path: Path) -> Settings:
 @pytest.fixture
 def app(tmp_path: Path) -> FastAPI:
     return app_module.create_app(
-        _settings(tmp_path), transcriber=FakeTranscriber(), start_worker=False
+        _settings(tmp_path),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(),
+        start_worker=False,
     )
 
 
@@ -213,8 +217,8 @@ def test_job_page_after_the_worker_ran(client: TestClient, app: FastAPI, media: 
     location = _post(client, media.clip()).headers["location"]
     assert app.state.worker.run_next() is True
     body = client.get(location).text
-    assert 'data-step="planning" class="step current"' in body
-    assert client.get(f"{location}.json").json()["status"] == "planning"
+    assert 'data-step="sourcing" class="step current"' in body
+    assert client.get(f"{location}.json").json()["status"] == "sourcing"
 
 
 def test_unknown_or_malformed_job_id_is_404(client: TestClient) -> None:
@@ -244,20 +248,43 @@ def test_user_strings_are_escaped_everywhere(client: TestClient, media: Media) -
 def test_second_submission_waits_uploaded_while_the_first_runs(
     tmp_path: Path, media: Media
 ) -> None:
-    """The real worker thread via the lifespan: two uploads, both end at planning,
+    """The real worker thread via the lifespan: two uploads, both end at sourcing,
     and the second is still `uploaded` right after submission."""
-    app = app_module.create_app(_settings(tmp_path), transcriber=FakeTranscriber())
+    app = app_module.create_app(
+        _settings(tmp_path), transcriber=FakeTranscriber(), planner=FakePlanner()
+    )
     with TestClient(app) as client:
         first = _post(client, media.clip()).headers["location"]
         second = _post(client, media.clip()).headers["location"]
         assert client.get(f"{second}.json").json()["status"] in ("uploaded", "transcribing")
         deadline = time.monotonic() + 20
         statuses: set[str] = set()
-        while time.monotonic() < deadline and statuses != {"planning"}:
+        while time.monotonic() < deadline and statuses != {"sourcing"}:
             statuses = {client.get(f"{u}.json").json()["status"] for u in (first, second)}
             time.sleep(0.05)
-        assert statuses == {"planning"}
+        assert statuses == {"sourcing"}
 
 
 def test_module_level_app_exists_for_uvicorn() -> None:
     assert isinstance(app_module.app, FastAPI)
+
+
+def test_default_planner_from_settings_fails_the_job_visibly_not_silently(
+    tmp_path: Path, media: Media
+) -> None:
+    """`PLANNER=claude_code` (the .env default) is ticket 014: until then a job fails at
+    `planning` with the ticket named; nothing pretends the fake is the real planner."""
+    settings = Settings(
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+        shortsmith_data_dir=tmp_path / "data",
+        planner="claude_code",
+    )
+    app = app_module.create_app(settings, transcriber=FakeTranscriber(), start_worker=False)
+    with TestClient(app) as client:
+        location = _post(client, media.clip()).headers["location"]
+        assert app.state.worker.run_next() is True
+        record = client.get(f"{location}.json").json()
+        assert record["status"] == "failed"
+        assert record["error"]["step"] == "planning"
+        assert "014" in record["error"]["detail"]
+        assert "Failed at planning" in client.get(location).text

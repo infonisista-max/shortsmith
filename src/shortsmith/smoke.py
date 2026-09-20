@@ -3,8 +3,10 @@
 Walks the same path the tests walk, end to end, with every fake and no network:
 generate the 12.1 fixture, ingest it the way the upload route does (`ingest.accept`,
 not HTTP), run the job through the worker (`pipeline.Worker.run_next`, the same code
-the web app's thread runs), assert `work/asr.json` and the job's
-`uploaded -> transcribing -> planning` trail, print one summary line and exit 0. Any
+the web app's thread runs) with the fake transcriber and the fake planner, assert
+`work/asr.json`, `work/plan.json`, `work/sound.json`, `work/captions.json` and the
+job's `uploaded -> transcribing -> planning -> sourcing` trail, print one summary line
+and exit 0. Any
 failed assertion exits non-zero with the failing check on stderr. Later tickets extend
 this walk step by step until it asserts T1-T13 (decision 12.1); over ninety seconds is
 a bug.
@@ -23,13 +25,23 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import TypeAdapter
+
 from shortsmith import fixture, ingest, jobs, pipeline
-from shortsmith.contracts import Transcript
+from shortsmith.contracts import TIER1_KINDS, CaptionPage, PicturePlan, SoundStory, Transcript
 from shortsmith.ingest import Limits, VideoUpload
+from shortsmith.planner import FakePlanner, Planner, kinds_named
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
 EXPECTED_WORDS = 12
-LAST_STATUS: jobs.Status = "planning"  # the first step with no implementation yet (003)
+LAST_STATUS: jobs.Status = "sourcing"  # the first step with no implementation yet (016)
+TRAIL = [
+    "created uploaded",
+    "uploaded -> transcribing",
+    "transcribing -> planning",
+    "planning -> sourcing",
+]
+_PAGES = TypeAdapter(list[CaptionPage])
 SMOKE_BRIEF = (
     "Topic: a six-second synthetic clip. Angle: prove the pipeline end to end. "
     "Must-say: twelve words on six tone bursts. Hook wish: none."
@@ -52,9 +64,12 @@ class SmokeResult:
     summary: str
 
 
-def run_smoke(root: Path, *, transcriber: Transcriber | None = None) -> SmokeResult:
+def run_smoke(
+    root: Path, *, transcriber: Transcriber | None = None, planner: Planner | None = None
+) -> SmokeResult:
     started = time.perf_counter()
     transcriber = transcriber or FakeTranscriber()
+    planner = planner or FakePlanner()
 
     clip = fixture.make_fixture(root / "fixture" / "fixture.mp4")
     check(clip.stat().st_size < 1_000_000, "fixture must be under 1 MB (12.1)")
@@ -72,7 +87,7 @@ def run_smoke(root: Path, *, transcriber: Transcriber | None = None) -> SmokeRes
     check((job.input_dir / "brief.md").is_file(), "ingest did not write input/brief.md")
     check((job.input_dir / "refs.json").is_file(), "ingest did not write input/refs.json")
 
-    worker = pipeline.Worker(transcriber=transcriber)
+    worker = pipeline.Worker(transcriber=transcriber, planner=planner)
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
 
@@ -97,25 +112,53 @@ def run_smoke(root: Path, *, transcriber: Transcriber | None = None) -> SmokeRes
                 f"word {w.text!r} [{w.start}, {w.end}] is outside burst {i} "
                 f"[{burst_start}, {burst_end}]",
             )
+    plan_path, sound_path, captions_path = (
+        job.work_dir / name for name in ("plan.json", "sound.json", "captions.json")
+    )
+    for path in (plan_path, sound_path, captions_path):
+        check(path.is_file(), f"planning did not write work/{path.name}")
+    plan = PicturePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+    story = SoundStory.model_validate_json(sound_path.read_text(encoding="utf-8"))
+    pages = _PAGES.validate_json(captions_path.read_text(encoding="utf-8"))
+    check(
+        plan.beats[0].start == 0.0 and plan.beats[-1].end == fixture.DURATION_S,
+        "plan beats do not tile the fixture",
+    )
+    check(
+        all(a.end == b.start for a, b in zip(plan.beats, plan.beats[1:], strict=False)),
+        "plan beats have a gap or overlap",
+    )
+    missing = set(TIER1_KINDS) - kinds_named(plan)
+    check(not missing, f"plan does not name every tier-1 kind: {sorted(missing)}")
+    beat_ids = {b.id for b in plan.beats}
+    check(all(c.beat_id in beat_ids for c in story.cues), "a sound cue names an unknown beat")
+    check(all(2 <= len(p.word_indices) <= 4 for p in pages), "a caption page is not 2-4 words")
+    check(
+        sum(len(p.word_indices) for p in pages) == EXPECTED_WORDS,
+        "caption pages do not cover every word",
+    )
     log_lines = reloaded.log_path.read_text(encoding="utf-8").splitlines()
     trail = [line.split(" ", 1)[1] for line in log_lines]
-    check(
-        trail == ["created uploaded", "uploaded -> transcribing", "transcribing -> planning"],
-        f"unexpected job.log trail {trail}",
-    )
+    check(trail == TRAIL, f"unexpected job.log trail {trail}")
 
     elapsed = time.perf_counter() - started
     summary = (
-        f"smoke ok: job {job.id} -> {reloaded.status}, {len(on_disk.words)} words in "
-        f"work/asr.json, fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
+        f"smoke ok: job {job.id} -> {reloaded.status}, {len(on_disk.words)} words, "
+        f"{len(plan.beats)} beats, {len(story.cues)} cues, {len(pages)} caption pages, "
+        f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
     return SmokeResult(job_dir=job.path, summary=summary)
 
 
-def main(argv: list[str] | None = None, *, transcriber: Transcriber | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    transcriber: Transcriber | None = None,
+    planner: Planner | None = None,
+) -> int:
     with tempfile.TemporaryDirectory(prefix="shortsmith-smoke-") as tmp:
         try:
-            result = run_smoke(Path(tmp), transcriber=transcriber)
+            result = run_smoke(Path(tmp), transcriber=transcriber, planner=planner)
         except Exception as exc:  # noqa: BLE001 - the smoke reports every failure the same way
             print(f"smoke FAILED: {exc}", file=sys.stderr)
             return 1

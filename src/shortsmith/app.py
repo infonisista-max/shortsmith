@@ -5,7 +5,7 @@ model-generated string passes through `html.escape` before it is substituted. Th
 worker (`pipeline.Worker`) starts in the lifespan and runs jobs one at a time in
 submission order. Passcode (040), queue limits (041), sweeper (042) come later.
 
-`create_app` is the factory tests use with their own settings and a fake transcriber;
+`create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 """
 
@@ -28,10 +28,12 @@ from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
 
 from shortsmith import config, ingest, jobs, pipeline
+from shortsmith import planner as planner_module
 from shortsmith.config import Settings
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
 from shortsmith.jobs import STATUS_ORDER, TERMINAL, Job
+from shortsmith.planner import Planner
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -49,14 +51,17 @@ def create_app(
     settings: Settings | None = None,
     *,
     transcriber: Transcriber | None = None,
+    planner: Planner | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
 ) -> FastAPI:
     settings = settings or config.load()
     # The Groq transcriber arrives with ticket 012; until then the fake is the only one.
     transcriber = transcriber or FakeTranscriber()
+    # `PLANNER` selects the adapter (8.3); the unbuilt ones fail the job at `planning`.
+    planner = planner or planner_module.from_settings(settings)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
-    worker = pipeline.Worker(transcriber=transcriber)
+    worker = pipeline.Worker(transcriber=transcriber, planner=planner)
     data_dir = settings.shortsmith_data_dir
 
     @asynccontextmanager

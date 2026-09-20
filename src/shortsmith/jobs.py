@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -243,10 +244,24 @@ def fail(job: Job, *, step: str, message: str, detail: str = "", now: Clock = _u
     )
 
 
+REPLACE_ATTEMPTS = 100
+REPLACE_RETRY_S = 0.01
+
+
 def _write_json(job: Job) -> None:
+    """Atomic rewrite of job.json. On Windows the replace fails with PermissionError
+    while another handle (the job page poll, a test) has the file open for reading, so
+    it is retried for up to about a second before giving up."""
     tmp = job.json_path.with_suffix(".json.tmp")
     tmp.write_text(job.record.model_dump_json(indent=2), encoding="utf-8")
-    tmp.replace(job.json_path)
+    for attempt in range(REPLACE_ATTEMPTS):
+        try:
+            tmp.replace(job.json_path)
+            return
+        except PermissionError:
+            if attempt == REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(REPLACE_RETRY_S)
 
 
 def _append_log(job: Job, stamp: datetime, line: str) -> None:

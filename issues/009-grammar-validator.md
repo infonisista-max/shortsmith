@@ -24,6 +24,10 @@ Covers PRD `grammar`, `contracts.ValidatedPlan`, the retry loop in `planner`/`pi
 - [ ] Boundary tests, `tests/test_grammar.py`: snap within 0.15 s and not at 0.16 s, beat 0.69/0.70 s, mean 1.99/3.21 s, full fraction exactly 0.25 passes, seventh consecutive PIP rejected, duplicated cold-open span, whip spacing (second whip within three beats rejected, two whips in a row rejected), ramp < 1.5 s rejected, 21st cue dropped.
 - [ ] FakePlanner's canned plan passes validation with zero violations; smoke asserts `work/plan.validated.json` exists.
 
+## Note from 003 (21 Sep 2026)
+
+The acceptance line "FakePlanner's canned plan passes validation with zero violations" conflicts with 003 / decision 12.1 ("exercising every tier-1 kind across the 6 s"): naming all nineteen kinds needs twelve 0.5 s beats, which breaks the explainer beat minimum (0.7 s), plan mean (2.0–3.2 s), hook-cards length (2–4 s) and finale length (0.8–1.2 s). Decide here how the validator treats the fixture: 3.2 says every count is a style number, so a fixture-scaled rule set (or a per-60 s scaling of the counts, which the unique-asset and entity rules already imply) is the likely answer; shrinking the fake's coverage is not, since smoke has to exercise every kind.
+
 ## Blocked by
 
 - Blocked by `issues/008-style-specs-loader-resolver.md`

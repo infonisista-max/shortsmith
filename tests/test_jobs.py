@@ -147,3 +147,41 @@ def test_load_round_trips(tmp_path: Path, clock: Clock) -> None:
     assert loaded.input_dir == job.path / "input"
     assert loaded.work_dir == job.path / "work"
     assert loaded.out_dir == job.path / "out"
+
+
+def test_write_survives_a_concurrent_reader(tmp_path: Path) -> None:
+    """The job page polls job.json while the worker rewrites it. On Windows the atomic
+    replace fails with PermissionError while a reader holds the file open, so the
+    writer retries; neither side may ever see an error or a half-written file."""
+    import threading
+
+    created = [jobs.create(tmp_path) for _ in range(40)]
+    stop = threading.Event()
+    reads = 0
+    errors: list[BaseException] = []
+
+    def reader() -> None:
+        nonlocal reads
+        while not stop.is_set():
+            for job in created:
+                try:
+                    jobs.load(job.path)
+                    reads += 1
+                except BaseException as exc:  # noqa: BLE001 - collected for the assertion
+                    errors.append(exc)
+                    return
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    try:
+        for job in created:
+            current = job
+            for status in STATUS_ORDER[1:]:
+                current = jobs.transition(current, status)
+            jobs.transition(current, "passed")
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+    assert not errors, errors[0]
+    assert reads > 0
+    assert all(jobs.load(j.path).status == "passed" for j in created)
