@@ -7,6 +7,7 @@ binaries are resolved from PATH at call time so tests and smoke share one path.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,39 @@ def probe(path: Path) -> dict[str, Any]:
         ]
     )
     return json.loads(proc.stdout.decode("utf-8"))
+
+
+_MEAN_VOLUME = re.compile(r"mean_volume:\s*(-?[\d.]+|-inf)\s*dB")
+
+
+def mean_volume_db(path: Path) -> float | None:
+    """Mean volume of the first audio stream via `volumedetect`; None when silent or absent."""
+    proc = subprocess.run(
+        [
+            FFMPEG,
+            "-v",
+            "info",
+            "-nostats",
+            "-i",
+            str(path),
+            "-map",
+            "0:a:0",
+            "-af",
+            "volumedetect",
+            "-vn",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        timeout=600,
+    )
+    if proc.returncode != 0:
+        return None
+    match = _MEAN_VOLUME.search(proc.stderr.decode("utf-8", errors="replace"))
+    if match is None or match.group(1) == "-inf":
+        return None
+    return float(match.group(1))
 
 
 def frame_rgb(path: Path, *, at_s: float) -> tuple[int, int, bytes]:

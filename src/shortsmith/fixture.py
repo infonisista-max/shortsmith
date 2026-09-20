@@ -103,3 +103,70 @@ def make_fixture(path: Path) -> Path:
         ]
     )
     return path
+
+
+def make_clip(
+    path: Path,
+    *,
+    duration_s: float,
+    width: int = 1080,
+    height: int = 1920,
+    amplitude: float = 0.3,
+    audio: bool = True,
+    fps: int = 30,
+) -> Path:
+    """A cheap synthetic clip for boundary tests: flat colour, one sine tone (or none).
+
+    `.mov` outputs carry PCM audio so a tiny `amplitude` survives encoding exactly;
+    `.mp4` outputs use AAC. `audio=False` writes a clip with no audio stream at all.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    argv = [
+        FFMPEG,
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=0x3355AA:s={width}x{height}:r={fps}:d={duration_s}",
+    ]
+    if audio:
+        argv += [
+            "-f",
+            "lavfi",
+            "-i",
+            f"aevalsrc=exprs='{amplitude}*sin(2*PI*440*t)':s=48000:c=mono:d={duration_s}",
+            "-map",
+            "0:v",
+            "-map",
+            "1:a",
+        ]
+    argv += ["-t", f"{duration_s}", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35"]
+    argv += ["-pix_fmt", "yuv420p"]
+    if audio:
+        argv += ["-c:a", "pcm_s16le"] if path.suffix.lower() == ".mov" else ["-c:a", "aac"]
+    argv.append(str(path))
+    run(argv)
+    return path
+
+
+def make_image(path: Path, *, width: int, height: int) -> Path:
+    """A flat-colour still in the format named by `path`'s suffix (png, jpg, webp)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    run(
+        [
+            FFMPEG,
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=0xAA5533:s={width}x{height}",
+            "-frames:v",
+            "1",
+            str(path),
+        ]
+    )
+    return path

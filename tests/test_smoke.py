@@ -21,6 +21,9 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     job = load(result.job_dir)
     assert job.status == "planning"
     assert (job.input_dir / "raw.mp4").is_file()
+    assert (job.input_dir / "brief.md").is_file()
+    assert (job.input_dir / "refs.json").is_file()
+    assert job.record.input is not None and job.record.input.width == 1080
     asr = Transcript.model_validate_json((job.work_dir / "asr.json").read_text(encoding="utf-8"))
     assert len(asr.words) == 12
     log = job.log_path.read_text(encoding="utf-8").splitlines()

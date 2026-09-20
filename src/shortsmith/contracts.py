@@ -7,6 +7,8 @@ JSON schema generated from them is the single source of truth (decisions 2.3, 8.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
@@ -52,3 +54,24 @@ class Transcript(StrictModel):
     duration_s: float
     segments: list[Segment]
     words: list[Word]
+
+
+ReferenceKind = Literal["image", "clip"]
+
+
+class ReferenceRecord(StrictModel):
+    """One row of `input/refs.json` (decision 2.2): the first rows of the rights log.
+
+    `file` is relative to the job's `input/` directory. Reference clips are stills in
+    v1 (1.3); their `kind` is `clip` here and `clip_frame` once a frame is extracted.
+    """
+
+    id: str
+    file: str
+    kind: ReferenceKind
+    caption: str
+    original_name: str
+    width: int
+    height: int
+    size_bytes: int
+    rights: Literal["owner_supplied"] = "owner_supplied"

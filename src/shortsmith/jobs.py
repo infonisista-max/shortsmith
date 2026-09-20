@@ -13,6 +13,7 @@ Illegal transitions raise `IllegalTransition` and touch nothing on disk.
 
 from __future__ import annotations
 
+import re
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -71,6 +72,20 @@ class JobError(BaseModel):
     detail: str = ""
 
 
+class InputSummary(BaseModel):
+    """What was uploaded (decision 2.2: job.json records the inputs)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    file: str  # raw.mp4 or raw.mov, relative to input/
+    original_name: str
+    duration_s: float
+    width: int
+    height: int
+    size_bytes: int
+    references: int = 0
+
+
 class JobRecord(BaseModel):
     """Contents of job.json."""
 
@@ -81,6 +96,8 @@ class JobRecord(BaseModel):
     created_at: datetime
     updated_at: datetime
     style_line: str = ""
+    input: InputSummary | None = None
+    warnings: list[str] = []
     error: JobError | None = None
     cost: list[dict[str, Any]] = []
 
@@ -124,7 +141,14 @@ def new_job_id(now: datetime) -> str:
     return f"{now:%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
 
 
-def create(data_dir: Path, *, style_line: str = "", now: Clock = _utc_now) -> Job:
+def create(
+    data_dir: Path,
+    *,
+    style_line: str = "",
+    input: InputSummary | None = None,
+    warnings: list[str] | None = None,
+    now: Clock = _utc_now,
+) -> Job:
     stamp = now()
     job_id = new_job_id(stamp)
     path = data_dir / "jobs" / job_id
@@ -134,7 +158,13 @@ def create(data_dir: Path, *, style_line: str = "", now: Clock = _utc_now) -> Jo
     for sub in ("input", "work", "out"):
         (path / sub).mkdir(parents=True, exist_ok=False)
     record = JobRecord(
-        id=job_id, status="uploaded", created_at=stamp, updated_at=stamp, style_line=style_line
+        id=job_id,
+        status="uploaded",
+        created_at=stamp,
+        updated_at=stamp,
+        style_line=style_line,
+        input=input,
+        warnings=list(warnings or []),
     )
     job = Job(path=path, record=record)
     _write_json(job)
@@ -145,6 +175,34 @@ def create(data_dir: Path, *, style_line: str = "", now: Clock = _utc_now) -> Jo
 def load(job_dir: Path) -> Job:
     record = JobRecord.model_validate_json((job_dir / "job.json").read_text(encoding="utf-8"))
     return Job(path=job_dir, record=record)
+
+
+JOB_ID = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{6}$")
+
+
+def find(data_dir: Path, job_id: str) -> Job | None:
+    """Load a job by id; None for an unknown or malformed id (never a path lookup)."""
+    if not JOB_ID.match(job_id):
+        return None
+    job_dir = data_dir / "jobs" / job_id
+    if not (job_dir / "job.json").is_file():
+        return None
+    return load(job_dir)
+
+
+def list_jobs(data_dir: Path, *, limit: int = 50) -> list[Job]:
+    """The most recent `limit` jobs, newest first (11.1: the job list page)."""
+    root = data_dir / "jobs"
+    if not root.is_dir():
+        return []
+    dirs = sorted((d for d in root.iterdir() if JOB_ID.match(d.name)), reverse=True)
+    found: list[Job] = []
+    for d in dirs:
+        if (d / "job.json").is_file():
+            found.append(load(d))
+        if len(found) == limit:
+            break
+    return found
 
 
 def can_transition(current: Status, requested: Status) -> bool:
