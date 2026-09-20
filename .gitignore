@@ -13,6 +13,7 @@ wheels/
 .env
 
 # Media and job data (never commit video)
+data/
 uploads/
 outputs/
 work/
