@@ -1,6 +1,8 @@
 """`python -m shortsmith.smoke`: fixture -> job -> fake transcriber -> fake planner ->
-work/{asr,plan,sound,captions}.json, uploaded -> transcribing -> planning -> sourcing,
-exit 0 with one summary line, non-zero on a failed assertion."""
+work/{asr,plan,sound,captions}.json -> Remotion -> work/picture.mp4, uploaded ->
+transcribing -> planning -> sourcing -> rendering -> qa, exit 0 with one summary line,
+non-zero on a failed assertion. The render is the real engine (12.1), so the walk is
+the slow test in the suite."""
 
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import smoke
+from shortsmith import ffmpeg, smoke
 from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
 from shortsmith.jobs import load
 from shortsmith.planner import FakePlanner
@@ -20,7 +22,7 @@ from shortsmith.transcriber import FakeTranscriber, Transcriber
 def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     result = smoke.run_smoke(tmp_path)
     job = load(result.job_dir)
-    assert job.status == "sourcing"
+    assert job.status == "qa"
     assert (job.input_dir / "raw.mp4").is_file()
     assert (job.input_dir / "brief.md").is_file()
     assert (job.input_dir / "refs.json").is_file()
@@ -31,14 +33,21 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     SoundStory.model_validate_json((job.work_dir / "sound.json").read_text("utf-8"))
     assert (job.work_dir / "captions.json").is_file()
     assert plan.beats[-1].end == 6.0
+    picture = job.work_dir / "picture.mp4"
+    assert picture.is_file() and (job.work_dir / "render_spec.json").is_file()
+    (video,) = ffmpeg.probe(picture)["streams"]
+    assert video["codec_name"] == "h264" and int(video["nb_frames"]) == 180
     log = job.log_path.read_text(encoding="utf-8").splitlines()
     assert [line.split(" ", 1)[1] for line in log] == [
         "created uploaded",
         "uploaded -> transcribing",
         "transcribing -> planning",
         "planning -> sourcing",
+        "sourcing -> rendering",
+        "rendering -> qa",
     ]
     assert "ok" in result.summary and job.id in result.summary
+    assert "180 frames" in result.summary
 
 
 def test_main_prints_one_line_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:

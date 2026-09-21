@@ -304,3 +304,108 @@ class CaptionPage(StrictModel):
     start: float
     end: float
     keyword: int | None = None
+
+
+# --- render spec (ticket 004; decisions 6.2, 6.3, 9.1) -------------------------------
+#
+# The engine-specific input the Remotion composition reads as its props. Everything
+# is resolved: frames not seconds for beats, pixel boxes for words, one palette. The
+# composition draws what it is given and measures nothing.
+
+
+class WordBox(StrictModel):
+    """One caption word in its fixed-advance box (6.2): `x`,`y` top-left in composition
+    pixels, `width` the 1.08-scaled width (plus the keyword padding when boxed)."""
+
+    text: str
+    start: float
+    end: float
+    x: float
+    y: float
+    width: float
+    height: float
+    keyword: bool = False
+
+
+class CaptionPageSpec(StrictModel):
+    index: int
+    start: float
+    end: float
+    lines: int
+    words: list[WordBox]
+
+
+class BeatSpec(StrictModel):
+    """A plan beat as frame range; `end_frame` is exclusive."""
+
+    id: str
+    start_frame: int
+    end_frame: int
+    mode: Mode
+    kind: Kind
+    enter: Transition = "cut"
+
+
+class PipGeometry(StrictModel):
+    """The presenter circle (composition pixels) and the square crop window it shows
+    (source pixels). Fixed geometry until ticket 013 measures the face."""
+
+    left: int
+    top: int
+    diameter: int
+    ring_px: int
+    ring_color: str
+    window_left: int
+    window_top: int
+    window_size: int
+
+
+class Palette(StrictModel):
+    """The style's gradient for `off` beats and rescued beats (4.4) plus the accent."""
+
+    gradient: list[str]
+    angle_deg: int
+    accent: str
+
+
+class CaptionStyle(StrictModel):
+    """The 6.2 typography numbers the composition applies verbatim."""
+
+    font_family: str
+    font_weight: int
+    size_px: int
+    line_height: float
+    letter_spacing_px: float
+    anchor_y: int
+    max_lines: int
+    max_width_px: int
+    word_gap_px: int
+    unspoken_alpha: float
+    active_color: str
+    active_scale: float
+    active_scale_s: float
+    keyword_fg: str
+    keyword_bg: str
+    keyword_pad_px: int
+    keyword_radius_px: int
+    enter_scale_from: float
+    enter_s: float
+    enter_opacity_s: float
+    stroke_px: int
+    drop_px: int
+    glow_px: int
+
+
+class RenderSpec(StrictModel):
+    width: int = 1080
+    height: int = 1920
+    fps: int
+    frames: int
+    presenter: str
+    source_width: int
+    source_height: int
+    beats: list[BeatSpec]
+    captions: list[CaptionPageSpec]
+    pip: PipGeometry
+    palette: Palette
+    caption_style: CaptionStyle

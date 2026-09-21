@@ -19,8 +19,11 @@ import threading
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
+from typing import IO
 
 Clock = Callable[[], datetime]
+LineSink = Callable[[str, str], None]  # (stream: "out" | "err", line without its newline)
 
 
 class Killed(Exception):
@@ -124,3 +127,55 @@ def run(argv: list[str], *, timeout_s: float | None = None) -> subprocess.Comple
     if watchdog is not None and watchdog.expired:
         raise Killed(f"{argv[0]} was stopped: the job ran past its time limit")
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)
+
+
+def stream(
+    argv: list[str],
+    on_line: LineSink,
+    *,
+    timeout_s: float | None = None,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[bytes]:
+    """Like `run`, but every stdout and stderr line reaches `on_line` as it arrives
+    (the render driver reports frame progress this way). Output is not returned; the
+    caller keeps what it needs from the lines."""
+    watchdog = current()
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+    if watchdog is not None:
+        watchdog.register(proc)
+    assert proc.stdout is not None and proc.stderr is not None
+    err_thread = threading.Thread(
+        target=_pump, args=(proc.stderr, "err", on_line), name="shortsmith-stderr", daemon=True
+    )
+    err_thread.start()
+    timer: threading.Timer | None = None
+    timed_out = False
+
+    def expire() -> None:
+        nonlocal timed_out
+        timed_out = True
+        proc.kill()
+
+    if timeout_s is not None:
+        timer = threading.Timer(timeout_s, expire)
+        timer.start()
+    try:
+        _pump(proc.stdout, "out", on_line)
+        proc.wait()
+        err_thread.join()
+    finally:
+        if timer is not None:
+            timer.cancel()
+        if watchdog is not None:
+            watchdog.unregister(proc)
+    if watchdog is not None and watchdog.expired:
+        raise Killed(f"{argv[0]} was stopped: the job ran past its time limit")
+    if timed_out:
+        raise subprocess.TimeoutExpired(argv, timeout_s or 0)
+    return subprocess.CompletedProcess(argv, proc.returncode, b"", b"")
+
+
+def _pump(pipe: IO[bytes], name: str, on_line: LineSink) -> None:
+    with pipe:
+        for raw in iter(pipe.readline, b""):
+            on_line(name, raw.decode("utf-8", errors="replace").rstrip("\r\n"))

@@ -24,6 +24,7 @@ from shortsmith import auth, jobs
 from shortsmith.config import Settings
 from shortsmith.ingest import MIB, Limits
 from shortsmith.planner import FakePlanner
+from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber
 from tests.conftest import Media
 from tests.test_auth import Ticker
@@ -56,6 +57,7 @@ def app(tmp_path: Path) -> FastAPI:
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
+        renderer=FakeRenderer(),
         start_worker=False,
     )
 
@@ -243,8 +245,8 @@ def test_job_page_after_the_worker_ran(client: TestClient, app: FastAPI, media: 
     location = _post(client, media.clip()).headers["location"]
     assert app.state.worker.run_next() is True
     body = client.get(location).text
-    assert 'data-step="sourcing" class="step current"' in body
-    assert client.get(f"{location}.json").json()["status"] == "sourcing"
+    assert 'data-step="qa" class="step current"' in body
+    assert client.get(f"{location}.json").json()["status"] == "qa"
 
 
 def test_unknown_or_malformed_job_id_is_404(client: TestClient) -> None:
@@ -274,10 +276,13 @@ def test_user_strings_are_escaped_everywhere(client: TestClient, media: Media) -
 def test_second_submission_waits_uploaded_while_the_first_runs(
     tmp_path: Path, media: Media
 ) -> None:
-    """The real worker thread via the lifespan: two uploads, both end at sourcing,
+    """The real worker thread via the lifespan: two uploads, both end at qa,
     and the second is still `uploaded` right after submission."""
     app = app_module.create_app(
-        _settings(tmp_path), transcriber=FakeTranscriber(), planner=FakePlanner()
+        _settings(tmp_path),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(),
+        renderer=FakeRenderer(),
     )
     with TestClient(app) as client:
         login(client)
@@ -286,10 +291,10 @@ def test_second_submission_waits_uploaded_while_the_first_runs(
         assert client.get(f"{second}.json").json()["status"] in ("uploaded", "transcribing")
         deadline = time.monotonic() + 20
         statuses: set[str] = set()
-        while time.monotonic() < deadline and statuses != {"sourcing"}:
+        while time.monotonic() < deadline and statuses != {"qa"}:
             statuses = {client.get(f"{u}.json").json()["status"] for u in (first, second)}
             time.sleep(0.05)
-        assert statuses == {"sourcing"}
+        assert statuses == {"qa"}
 
 
 def test_module_level_app_exists_for_uvicorn() -> None:
@@ -307,7 +312,9 @@ def test_default_planner_from_settings_fails_the_job_visibly_not_silently(
         shortsmith_passcode=SecretStr(PASSCODE),
         planner="claude_code",
     )
-    app = app_module.create_app(settings, transcriber=FakeTranscriber(), start_worker=False)
+    app = app_module.create_app(
+        settings, transcriber=FakeTranscriber(), renderer=FakeRenderer(), start_worker=False
+    )
     with TestClient(app) as client:
         login(client)
         location = _post(client, media.clip()).headers["location"]
@@ -365,6 +372,7 @@ def test_day_limit_closes_the_form_until_midnight_ist(tmp_path: Path, media: Med
         _settings(tmp_path, max_jobs_per_day=2),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
+        renderer=FakeRenderer(),
         start_worker=False,
         clock=clock,
     )
@@ -394,6 +402,7 @@ def test_max_job_minutes_reaches_the_worker_from_settings(tmp_path: Path) -> Non
         _settings(tmp_path, max_job_minutes=7, max_queue=2),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
+        renderer=FakeRenderer(),
         start_worker=False,
     )
     worker = app.state.worker
@@ -409,6 +418,7 @@ def _small_limits_app(tmp_path: Path) -> FastAPI:
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
+        renderer=FakeRenderer(),
         limits=SMALL,
         start_worker=False,
     )
@@ -483,6 +493,7 @@ def _guarded_app(
         _settings(tmp_path, passcode),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
+        renderer=FakeRenderer(),
         start_worker=False,
         clock=clock,
         delay=delay,

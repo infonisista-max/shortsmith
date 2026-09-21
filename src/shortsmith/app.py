@@ -55,6 +55,7 @@ from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
 from shortsmith.jobs import STATUS_ORDER, TERMINAL, Clock, Job
 from shortsmith.pipeline import QueueFull
 from shortsmith.planner import Planner
+from shortsmith.render import Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -120,6 +121,7 @@ def create_app(
     *,
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
+    renderer: Renderer | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
     clock: Clock = _utc_now,
@@ -131,9 +133,11 @@ def create_app(
     # `PLANNER` selects the adapter (8.3); the unbuilt ones fail the job at `planning`.
     planner = planner or planner_module.from_settings(settings)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
+    # `renderer` None means Remotion (ticket 004); tests pass `FakeRenderer`.
     worker = pipeline.Worker(
         transcriber=transcriber,
         planner=planner,
+        renderer=renderer,
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
         clock=clock,

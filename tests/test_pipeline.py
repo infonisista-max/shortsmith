@@ -1,6 +1,8 @@
 """pipeline: the worker runs a job's steps in order (11.1), one job at a time in
-submission order (9.1). Transcribing and planning exist; a job stops at `sourcing`.
-A failing step marks the job `failed` with the step named and a fixed message."""
+submission order (9.1). Transcribing, planning, the sourcing placeholder and
+rendering exist; a job stops at `qa`. A failing step marks the job `failed` with the
+step named and a fixed message. Tests render through `FakeRenderer`; the real
+Remotion path is covered by test_render and smoke."""
 
 from __future__ import annotations
 
@@ -9,14 +11,16 @@ import shutil
 import sys
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from shortsmith import jobs, pipeline, subproc
+from shortsmith import jobs, pipeline, render, subproc
 from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
 from shortsmith.planner import FakePlanner, Planner, PlannerUnavailable, UnavailablePlanner
+from shortsmith.render import FakeRenderer, Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 from tests.conftest import Media
 
@@ -26,6 +30,8 @@ TRAIL = [
     "uploaded -> transcribing",
     "transcribing -> planning",
     "planning -> sourcing",
+    "sourcing -> rendering",
+    "rendering -> qa",
 ]
 
 
@@ -38,26 +44,93 @@ def _uploaded(data_dir: Path, clip: Path) -> jobs.Job:
 
 
 def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
-         planner: Planner | None = None) -> jobs.Job:  # fmt: skip
+         planner: Planner | None = None, renderer: Renderer | None = None) -> jobs.Job:  # fmt: skip
     return pipeline.run_job(
-        job, transcriber=transcriber or FakeTranscriber(), planner=planner or FakePlanner()
+        job,
+        transcriber=transcriber or FakeTranscriber(),
+        planner=planner or FakePlanner(),
+        renderer=renderer or FakeRenderer(),
     )
+
+
+def _worker(transcriber: Transcriber | None = None, **kwargs: object) -> pipeline.Worker:
+    return pipeline.Worker(
+        transcriber=transcriber or FakeTranscriber(), planner=FakePlanner(),
+        renderer=FakeRenderer(), **kwargs,  # pyright: ignore[reportArgumentType]
+    )  # fmt: skip
 
 
 def _pages(job: jobs.Job) -> list[dict[str, object]]:
     return json.loads((job.work_dir / "captions.json").read_text(encoding="utf-8"))
 
 
-def test_run_job_transcribes_plans_and_stops_at_sourcing(
+def test_run_job_transcribes_plans_renders_and_stops_at_qa(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
     job = _uploaded(tmp_path, fixture_clip)
     done = _run(job)
-    assert done.status == "sourcing"
+    assert done.status == "qa"
     asr = Transcript.model_validate_json((job.work_dir / "asr.json").read_text(encoding="utf-8"))
     assert len(asr.words) == 12
     log = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
     assert log == TRAIL
+
+
+class _Watching(FakeRenderer):
+    """Reads job.json while progress is reported, the way the job page's poll does."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.on_disk: list[int | None] = []
+
+    def render(self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+        def spy(pct: int) -> None:
+            if on_progress is not None:
+                on_progress(pct)
+            self.on_disk.append(jobs.load(job.path).record.progress)
+
+        return super().render(job, on_progress=spy)
+
+
+def test_rendering_step_reports_progress_into_job_json(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    renderer = _Watching()
+    done = _run(job, renderer=renderer)
+    assert done.status == "qa"
+    assert renderer.jobs == [job.path]
+    assert renderer.on_disk == [0, 50, 100]  # each report landed in job.json before the next
+    assert jobs.load(job.path).record.status == "qa"
+    assert (job.work_dir / "picture.mp4").is_file()
+
+
+class _BrokenRenderer(FakeRenderer):
+    def render(self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+        raise render.RenderError("remotion driver exited 1:\nno frame found")
+
+
+def test_a_failing_render_fails_the_job_at_rendering(tmp_path: Path, fixture_clip: Path) -> None:
+    done = _run(_uploaded(tmp_path, fixture_clip), renderer=_BrokenRenderer())
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert done.record.error.step == "rendering"
+    assert done.record.error.message == pipeline.STEP_MESSAGES["rendering"]
+    assert "no frame found" in done.record.error.detail
+
+
+def test_sourcing_is_a_placeholder_that_writes_nothing_until_016(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    _run(job)
+    assert not (job.work_dir / "assets").exists()
+    assert pipeline.LAST_IMPLEMENTED_STEP == "rendering"
+
+
+def test_the_worker_renders_through_remotion_by_default() -> None:
+    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
+    assert isinstance(worker._renderer, render.RemotionRenderer)  # pyright: ignore[reportPrivateUsage]
 
 
 def test_planning_writes_plan_sound_and_captions(tmp_path: Path, fixture_clip: Path) -> None:
@@ -154,18 +227,18 @@ def test_worker_runs_submissions_in_order_one_at_a_time(
 ) -> None:
     first = _uploaded(tmp_path, fixture_clip)
     second = _uploaded(tmp_path, fixture_clip)
-    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
+    worker = _worker()
     worker.submit(first.path)
     worker.submit(second.path)
     assert worker.pending() == [first.path, second.path]
 
     assert worker.run_next() is True
-    assert jobs.load(first.path).status == "sourcing"
+    assert jobs.load(first.path).status == "qa"
     assert jobs.load(second.path).status == "uploaded"
     assert worker.pending() == [second.path]
 
     assert worker.run_next() is True
-    assert jobs.load(second.path).status == "sourcing"
+    assert jobs.load(second.path).status == "qa"
     assert worker.run_next() is False
 
 
@@ -184,7 +257,7 @@ def test_worker_thread_keeps_the_second_job_uploaded_while_the_first_runs(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
     transcriber = _Blocking()
-    worker = pipeline.Worker(transcriber=transcriber, planner=FakePlanner())
+    worker = _worker(transcriber=transcriber)
     first = _uploaded(tmp_path, fixture_clip)
     second = _uploaded(tmp_path, fixture_clip)
     worker.start()
@@ -196,17 +269,17 @@ def test_worker_thread_keeps_the_second_job_uploaded_while_the_first_runs(
         assert jobs.load(second.path).status == "uploaded"
         transcriber.release.set()
         deadline = time.monotonic() + 10
-        while time.monotonic() < deadline and jobs.load(second.path).status != "sourcing":
+        while time.monotonic() < deadline and jobs.load(second.path).status != "qa":
             time.sleep(0.05)
-        assert jobs.load(first.path).status == "sourcing"
-        assert jobs.load(second.path).status == "sourcing"
+        assert jobs.load(first.path).status == "qa"
+        assert jobs.load(second.path).status == "qa"
     finally:
         transcriber.release.set()
         worker.stop()
 
 
 def test_worker_survives_a_failing_job(tmp_path: Path, fixture_clip: Path) -> None:
-    worker = pipeline.Worker(transcriber=_Broken(), planner=FakePlanner())
+    worker = _worker(transcriber=_Broken())
     job = _uploaded(tmp_path, fixture_clip)
     worker.submit(job.path)
     assert worker.run_next() is True
@@ -214,7 +287,7 @@ def test_worker_survives_a_failing_job(tmp_path: Path, fixture_clip: Path) -> No
 
 
 def test_worker_skips_a_job_that_vanished(tmp_path: Path) -> None:
-    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
+    worker = _worker()
     worker.submit(tmp_path / "jobs" / "20260920-090000-abcdef")
     assert worker.run_next() is True
     assert worker.pending() == []
@@ -226,7 +299,7 @@ def test_worker_skips_a_job_that_vanished(tmp_path: Path) -> None:
 def test_fourth_submission_is_refused_at_max_queue_three(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner(), max_queue=3)
+    worker = _worker(max_queue=3)
     submitted = [_uploaded(tmp_path, fixture_clip) for _ in range(4)]
     for job in submitted[:3]:
         worker.submit(job.path)
@@ -243,7 +316,7 @@ def test_a_reservation_counts_toward_the_depth_until_released(
 ) -> None:
     """The upload route reserves before it reads the body so a refused upload costs
     nothing; a rejected upload releases, an accepted one hands the slot to submit."""
-    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner(), max_queue=2)
+    worker = _worker(max_queue=2)
     worker.reserve()
     worker.reserve()
     with pytest.raises(pipeline.QueueFull):
@@ -262,7 +335,7 @@ def test_a_reservation_counts_toward_the_depth_until_released(
 def test_waiting_jobs_know_their_position_and_it_moves_as_jobs_finish(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
+    worker = _worker()
     first, second, third = (_uploaded(tmp_path, fixture_clip) for _ in range(3))
     for job in (first, second, third):
         worker.submit(job.path)
@@ -278,7 +351,7 @@ def test_the_running_job_has_no_position_but_still_counts_toward_the_depth(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
     transcriber = _Blocking()
-    worker = pipeline.Worker(transcriber=transcriber, planner=FakePlanner(), max_queue=3)
+    worker = _worker(transcriber=transcriber, max_queue=3)
     first, second, third, fourth = (_uploaded(tmp_path, fixture_clip) for _ in range(4))
     worker.start()
     try:
@@ -332,12 +405,8 @@ def test_past_max_job_minutes_the_step_process_is_killed_and_the_next_job_starts
 ) -> None:
     clock = _JumpingClock(minutes=31)
     transcriber = _SleepsInAChild(clock)
-    worker = pipeline.Worker(
-        transcriber=transcriber,
-        planner=FakePlanner(),
-        max_job_minutes=30,
-        clock=clock,
-        watchdog_interval_s=0.02,
+    worker = _worker(
+        transcriber=transcriber, max_job_minutes=30, clock=clock, watchdog_interval_s=0.02
     )
     first, second = _uploaded(tmp_path, fixture_clip), _uploaded(tmp_path, fixture_clip)
     worker.submit(first.path)
@@ -355,7 +424,7 @@ def test_past_max_job_minutes_the_step_process_is_killed_and_the_next_job_starts
 
     worker._transcriber = FakeTranscriber()  # pyright: ignore[reportPrivateUsage]
     assert worker.run_next() is True
-    assert jobs.load(second.path).status == "sourcing"
+    assert jobs.load(second.path).status == "qa"
 
 
 class _SlowInProcess(Transcriber):
@@ -378,6 +447,7 @@ def test_a_step_that_returns_after_the_deadline_still_fails_the_job(
         job,
         transcriber=_SlowInProcess(clock),
         planner=FakePlanner(),
+        renderer=FakeRenderer(),
         max_job_minutes=30,
         clock=clock,
     )
@@ -392,7 +462,7 @@ def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path)
     clock = _JumpingClock(minutes=29.9)
     job = _uploaded(tmp_path, fixture_clip)
     result = pipeline.run_job(
-        job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), max_job_minutes=30,
-        clock=clock,
-    )
-    assert result.status == "sourcing"
+        job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), renderer=FakeRenderer(),
+        max_job_minutes=30, clock=clock,
+    )  # fmt: skip
+    assert result.status == "qa"

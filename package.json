@@ -1,0 +1,24 @@
+{
+  "name": "shortsmith-render",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Shortsmith picture engine: the Remotion composition under src/remotion/ and the render driver the Python bridge calls (decision 9.1, ticket 004).",
+  "scripts": {
+    "test": "node --test \"src/remotion/tests/*.test.mjs\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "studio": "remotion studio src/remotion/index.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.526",
+    "@remotion/fonts": "4.0.526",
+    "@remotion/media": "4.0.526",
+    "@remotion/renderer": "4.0.526",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.526"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "typescript": "7.0.2"
+  }
+}

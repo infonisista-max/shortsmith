@@ -77,6 +77,22 @@ def test_every_transition_writes_json_and_one_log_line(tmp_path: Path, clock: Cl
         assert lines[-1].endswith(f" {chain[i - 2] if i > 1 else 'uploaded'} -> {status}")
 
 
+def test_progress_is_written_without_a_log_line_and_cleared_by_the_next_transition(
+    tmp_path: Path, clock: Clock
+) -> None:
+    """11.1: a percentage during `rendering` from Remotion frame progress (ticket 004)."""
+    job = jobs.create(tmp_path, now=clock)
+    assert job.record.progress is None
+    for status in ("transcribing", "planning", "sourcing", "rendering"):
+        job = jobs.transition(job, status, now=clock)
+    lines_before = len((job.path / "job.log").read_text(encoding="utf-8").splitlines())
+    job = jobs.set_progress(job, 42, now=clock)
+    assert jobs.load(job.path).record.progress == 42
+    assert len((job.path / "job.log").read_text(encoding="utf-8").splitlines()) == lines_before
+    job = jobs.transition(job, "qa", now=clock)
+    assert jobs.load(job.path).record.progress is None
+
+
 def test_delivered_can_be_rejected(tmp_path: Path, clock: Clock) -> None:
     job = jobs.create(tmp_path, now=clock)
     for status in STATUS_ORDER[1:]:

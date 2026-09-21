@@ -2,10 +2,10 @@
 in submission order (9.1).
 
 `run_job` is the synchronous path: it takes an `uploaded` job through every step that
-exists (today: transcribing, planning) and stops at the first status whose step has
-no implementation yet (today: `sourcing`, ticket 016). Any exception inside a step
-marks the job `failed` at that step with the fixed user-facing sentence from
-`STEP_MESSAGES` and the exception text as `detail` (11.1).
+exists (today: transcribing, planning, the sourcing placeholder, rendering) and stops
+at the first status whose step has no implementation yet (today: `qa`, ticket 006).
+Any exception inside a step marks the job `failed` at that step with the fixed
+user-facing sentence from `STEP_MESSAGES` and the exception text as `detail` (11.1).
 
 The `planning` step builds the PlanRequest from `job.json`, `brief.md`, `refs.json`
 and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1), pages
@@ -13,6 +13,11 @@ the captions (6.1) and writes `work/plan.json`, `work/sound.json`,
 `work/captions.json`. The grammar validator between the two calls is ticket 009; the
 style loader and resolver are ticket 008, so until then the style is always
 `explainer` with its prose read from `styles/explainer.md`.
+
+`sourcing` is a pass-through until ticket 016 builds the asset step. `rendering`
+runs the picture engine (`render.Renderer`, Remotion by default; ticket 004) and
+writes its frame progress into `job.json.progress` as the job page's percentage
+(11.1); the ffmpeg cut, voice stem and mux join the step with ticket 005.
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
@@ -50,6 +55,7 @@ from shortsmith.contracts import (
 )
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.planner import Planner
+from shortsmith.render import RemotionRenderer, Renderer
 from shortsmith.transcriber import Transcriber
 
 log = logging.getLogger(__name__)
@@ -73,7 +79,8 @@ STEP_MESSAGES: dict[str, str] = {
     "rendering": "We could not render the short.",
     "qa": "The short failed a technical check.",
 }
-LAST_IMPLEMENTED_STEP: Status = "planning"
+LAST_IMPLEMENTED_STEP: Status = "rendering"
+NEXT_STATUS: Status = "qa"  # the first step with no implementation yet (006)
 
 STYLES_DIR = Path(__file__).resolve().parents[2] / "styles"
 DEFAULT_STYLE = "explainer"  # the resolver (1.1) arrives with ticket 008
@@ -99,15 +106,19 @@ def run_job(
     *,
     transcriber: Transcriber,
     planner: Planner,
+    renderer: Renderer | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
 ) -> Job:
     if job.status != "uploaded":
         raise NotRunnable(f"job {job.id} is {job.status!r}, not 'uploaded'")
+    renderer = renderer or RemotionRenderer()
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber)),
         ("planning", lambda j: _plan(j, planner)),
+        ("sourcing", _source),
+        ("rendering", lambda j: _render(j, renderer, clock)),
     ]
     watchdog: subproc.Watchdog | None = None
     if max_job_minutes is not None:
@@ -133,7 +144,7 @@ def run_job(
     finally:
         if watchdog is not None:
             watchdog.stop()
-    return jobs.transition(job, "sourcing")
+    return jobs.transition(job, NEXT_STATUS)
 
 
 def _transcribe(job: Job, transcriber: Transcriber) -> None:
@@ -195,6 +206,17 @@ def _plan(job: Job, planner: Planner) -> None:
     )
 
 
+def _source(job: Job) -> None:
+    """Placeholder: the asset step is ticket 016; nothing is fetched or written."""
+
+
+def _render(job: Job, renderer: Renderer, clock: Clock) -> None:
+    def on_progress(pct: int) -> None:
+        jobs.set_progress(job, pct, now=clock)
+
+    renderer.render(job, on_progress=on_progress)
+
+
 class Worker:
     """One thread, one job at a time, submission order, `max_queue` deep."""
 
@@ -203,6 +225,7 @@ class Worker:
         *,
         transcriber: Transcriber,
         planner: Planner,
+        renderer: Renderer | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
         clock: Clock = _utc_now,
@@ -210,6 +233,7 @@ class Worker:
     ) -> None:
         self._transcriber = transcriber
         self._planner = planner
+        self._renderer = renderer or RemotionRenderer()
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
         self._clock = clock
@@ -298,6 +322,7 @@ class Worker:
                 job,
                 transcriber=self._transcriber,
                 planner=self._planner,
+                renderer=self._renderer,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,

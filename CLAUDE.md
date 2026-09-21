@@ -5,6 +5,7 @@ Turns a raw video + a short written brief and a style choice into a finished 9:1
 ## Commands (always via uv)
 - Run app: `uv run uvicorn shortsmith.app:app --reload --port 8000`
 - Lint / types / tests / smoke: `uv run ruff check .` · `uv run pyright` · `uv run pytest -q` · `uv run python -m shortsmith.smoke`
+- Picture engine (Node, pinned in `package.json`; sources in `src/remotion/`, fonts in `assets/fonts/`): `npm test` · `npm run typecheck` · `uv run python -m shortsmith.bench`. Python calls `src/remotion/driver.mjs`; never `npm install` new packages without the operator.
 
 ## Rules
 - Python 3.12, src layout: code in `src/shortsmith/`, tests in `tests/`.

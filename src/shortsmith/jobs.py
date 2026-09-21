@@ -101,6 +101,7 @@ class JobRecord(BaseModel):
     warnings: list[str] = []
     error: JobError | None = None
     cost: list[dict[str, Any]] = []
+    progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
 
 
 @dataclass(frozen=True)
@@ -237,13 +238,25 @@ def transition(
     if status != "failed" and error is not None:
         raise ValueError(f"an error payload is only allowed on 'failed', not {status!r}")
     stamp = now()
-    record = job.record.model_copy(update={"status": status, "updated_at": stamp, "error": error})
+    record = job.record.model_copy(
+        update={"status": status, "updated_at": stamp, "error": error, "progress": None}
+    )
     updated = Job(path=job.path, record=record)
     _write_json(updated)
     line = f"{job.status} -> {status}"
     if error is not None:
         line += f" step={error.step} message={error.message!r}"
     _append_log(updated, stamp, line)
+    return updated
+
+
+def set_progress(job: Job, percent: int, *, now: Clock = _utc_now) -> Job:
+    """Record step progress in job.json (no log line: it changes every few frames)."""
+    record = job.record.model_copy(
+        update={"progress": max(0, min(100, percent)), "updated_at": now()}
+    )
+    updated = Job(path=job.path, record=record)
+    _write_json(updated)
     return updated
 
 

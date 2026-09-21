@@ -3,13 +3,13 @@
 Walks the same path the tests walk, end to end, with every fake and no network:
 generate the 12.1 fixture, ingest it the way the upload route does (`ingest.accept`,
 not HTTP), run the job through the worker (`pipeline.Worker.run_next`, the same code
-the web app's thread runs) with the fake transcriber and the fake planner, assert
-`work/asr.json`, `work/plan.json`, `work/sound.json`, `work/captions.json` and the
-job's `uploaded -> transcribing -> planning -> sourcing` trail, print one summary line
-and exit 0. Any
-failed assertion exits non-zero with the failing check on stderr. Later tickets extend
-this walk step by step until it asserts T1-T13 (decision 12.1); over ninety seconds is
-a bug.
+the web app's thread runs) with the fake transcriber, the fake planner and the real
+Remotion renderer, assert `work/asr.json`, `work/plan.json`, `work/sound.json`,
+`work/captions.json`, `work/picture.mp4` (H.264, 1080x1920, round(6 x 30) frames,
+silent) and the job's `uploaded -> ... -> rendering -> qa` trail, print one summary
+line and exit 0. Any failed assertion exits non-zero with the failing check on stderr.
+Later tickets extend this walk step by step until it asserts T1-T13 (decision 12.1);
+over ninety seconds is a bug.
 
 The fixture is six seconds long, so smoke lowers only `Limits.min_duration_s`; every
 other 2.1 limit stays at its default.
@@ -27,19 +27,23 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from shortsmith import fixture, ingest, jobs, pipeline
+from shortsmith import ffmpeg, fixture, ingest, jobs, pipeline
 from shortsmith.contracts import TIER1_KINDS, CaptionPage, PicturePlan, SoundStory, Transcript
 from shortsmith.ingest import Limits, VideoUpload
 from shortsmith.planner import FakePlanner, Planner, kinds_named
+from shortsmith.render import Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
 EXPECTED_WORDS = 12
-LAST_STATUS: jobs.Status = "sourcing"  # the first step with no implementation yet (016)
+EXPECTED_FRAMES = round(fixture.DURATION_S * fixture.FPS)
+LAST_STATUS: jobs.Status = "qa"  # the first step with no implementation yet (006)
 TRAIL = [
     "created uploaded",
     "uploaded -> transcribing",
     "transcribing -> planning",
     "planning -> sourcing",
+    "sourcing -> rendering",
+    "rendering -> qa",
 ]
 _PAGES = TypeAdapter(list[CaptionPage])
 SMOKE_BRIEF = (
@@ -65,7 +69,11 @@ class SmokeResult:
 
 
 def run_smoke(
-    root: Path, *, transcriber: Transcriber | None = None, planner: Planner | None = None
+    root: Path,
+    *,
+    transcriber: Transcriber | None = None,
+    planner: Planner | None = None,
+    renderer: Renderer | None = None,
 ) -> SmokeResult:
     started = time.perf_counter()
     transcriber = transcriber or FakeTranscriber()
@@ -87,7 +95,7 @@ def run_smoke(
     check((job.input_dir / "brief.md").is_file(), "ingest did not write input/brief.md")
     check((job.input_dir / "refs.json").is_file(), "ingest did not write input/refs.json")
 
-    worker = pipeline.Worker(transcriber=transcriber, planner=planner)
+    worker = pipeline.Worker(transcriber=transcriber, planner=planner, renderer=renderer)
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
 
@@ -137,6 +145,11 @@ def run_smoke(
         sum(len(p.word_indices) for p in pages) == EXPECTED_WORDS,
         "caption pages do not cover every word",
     )
+    picture = job.work_dir / "picture.mp4"
+    check(picture.is_file(), "rendering did not write work/picture.mp4")
+    check((job.work_dir / "render_spec.json").is_file(), "rendering did not write render_spec.json")
+    check((job.work_dir / "render.log").is_file(), "rendering did not keep work/render.log")
+    frames = check_picture(picture)
     log_lines = reloaded.log_path.read_text(encoding="utf-8").splitlines()
     trail = [line.split(" ", 1)[1] for line in log_lines]
     check(trail == TRAIL, f"unexpected job.log trail {trail}")
@@ -145,9 +158,24 @@ def run_smoke(
     summary = (
         f"smoke ok: job {job.id} -> {reloaded.status}, {len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(story.cues)} cues, {len(pages)} caption pages, "
+        f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
     return SmokeResult(job_dir=job.path, summary=summary)
+
+
+def check_picture(picture: Path) -> int:
+    """`work/picture.mp4` per ticket 004: silent H.264, 1080x1920, round(6 x 30) frames."""
+    streams = ffmpeg.probe(picture)["streams"]
+    kinds = [s.get("codec_type") for s in streams]
+    check(kinds == ["video"], f"picture.mp4 streams are {kinds}, expected one silent video")
+    video = streams[0]
+    check(video.get("codec_name") == "h264", f"picture.mp4 codec is {video.get('codec_name')}")
+    size = (int(video.get("width", 0)), int(video.get("height", 0)))
+    check(size == (fixture.WIDTH, fixture.HEIGHT), f"picture.mp4 is {size[0]}x{size[1]}")
+    frames = int(video.get("nb_frames", 0))
+    check(frames == EXPECTED_FRAMES, f"picture.mp4 has {frames} frames, expected {EXPECTED_FRAMES}")
+    return frames
 
 
 def main(
