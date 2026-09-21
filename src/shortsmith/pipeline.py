@@ -1,11 +1,11 @@
 """The worker (PRD `pipeline`): runs a job's steps in the 11.1 order, one job at a time
 in submission order (9.1).
 
-`run_job` is the synchronous path: it takes an `uploaded` job through every step that
-exists (today: transcribing, planning, the sourcing placeholder, rendering) and stops
-at the first status whose step has no implementation yet (today: `qa`, ticket 006).
-Any exception inside a step marks the job `failed` at that step with the fixed
-user-facing sentence from `STEP_MESSAGES` and the exception text as `detail` (11.1).
+`run_job` is the synchronous path: it takes an `uploaded` job through every step
+(transcribing, planning, the sourcing placeholder, rendering, qa) and ends it
+`delivered`. Any exception inside a step marks the job `failed` at that step with the
+fixed user-facing sentence from `STEP_MESSAGES` and the exception text as `detail`
+(11.1); a failed technical check adds its name to the sentence (10.1).
 
 The `planning` step builds the PlanRequest from `job.json`, `brief.md`, `refs.json`
 and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1), pages
@@ -19,6 +19,12 @@ runs the whole render (`render.Renderer`, Remotion plus ffmpeg by default; ticke
 004 and 005): the presenter cut, the voice stem, the picture, the master and the mux
 to `out/short.mp4`, writing the picture render's frame progress into
 `job.json.progress` as the job page's percentage (11.1).
+
+`qa` runs the technical gate (`qa.gate.Gate`: T1-T4 today, T13 eventually) which
+writes `out/qa.json`; a failing check fails the job at `qa` naming the check. When
+every check passes the gate composes `out/contact.jpg`, and the job is `delivered`
+once `short.mp4` and `contact.jpg` exist (10.4; `rights.json` and `credits.md` join
+the rule with 016).
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
@@ -56,6 +62,7 @@ from shortsmith.contracts import (
 )
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.planner import Planner
+from shortsmith.qa.gate import Gate, TechnicalGate
 from shortsmith.render import RemotionRenderer, Renderer
 from shortsmith.transcriber import Transcriber
 
@@ -80,8 +87,7 @@ STEP_MESSAGES: dict[str, str] = {
     "rendering": "We could not render the short.",
     "qa": "The short failed a technical check.",
 }
-LAST_IMPLEMENTED_STEP: Status = "rendering"
-NEXT_STATUS: Status = "qa"  # the first step with no implementation yet (006)
+DELIVERABLES = ("short.mp4", "contact.jpg")  # 10.4; rights.json and credits.md with 016
 
 STYLES_DIR = Path(__file__).resolve().parents[2] / "styles"
 DEFAULT_STYLE = "explainer"  # the resolver (1.1) arrives with ticket 008
@@ -108,6 +114,7 @@ def run_job(
     transcriber: Transcriber,
     planner: Planner,
     renderer: Renderer | None = None,
+    gate: Gate | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
@@ -115,11 +122,13 @@ def run_job(
     if job.status != "uploaded":
         raise NotRunnable(f"job {job.id} is {job.status!r}, not 'uploaded'")
     renderer = renderer or RemotionRenderer()
+    gate = gate or TechnicalGate()
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber)),
         ("planning", lambda j: _plan(j, planner)),
         ("sourcing", _source),
         ("rendering", lambda j: _render(j, renderer, clock)),
+        ("qa", lambda j: _qa(j, gate)),
     ]
     watchdog: subproc.Watchdog | None = None
     if max_job_minutes is not None:
@@ -136,7 +145,9 @@ def run_job(
             except Exception as exc:  # noqa: BLE001 - every step failure lands in job.json the same way
                 detail = f"{exc}\n{traceback.format_exc()}"
                 if watchdog is None or not watchdog.check():
-                    return jobs.fail(job, step=status, message=STEP_MESSAGES[status], detail=detail)
+                    return jobs.fail(
+                        job, step=status, message=failure_message(status, exc), detail=detail
+                    )
             if watchdog is not None and watchdog.check():
                 assert max_job_minutes is not None
                 return jobs.fail(
@@ -145,7 +156,15 @@ def run_job(
     finally:
         if watchdog is not None:
             watchdog.stop()
-    return jobs.transition(job, NEXT_STATUS)
+    return jobs.transition(job, "delivered")
+
+
+def failure_message(status: Status, exc: Exception) -> str:
+    """The fixed sentence for the step; a failed check appends its name (10.1)."""
+    message = STEP_MESSAGES[status]
+    if isinstance(exc, QaFailed):
+        return f"{message[:-1]} ({exc.check})."
+    return message
 
 
 def _transcribe(job: Job, transcriber: Transcriber) -> None:
@@ -218,6 +237,27 @@ def _render(job: Job, renderer: Renderer, clock: Clock) -> None:
     renderer.render(job, on_progress=on_progress)
 
 
+class QaFailed(Exception):
+    """A technical check failed, or a deliverable is missing after the gate passed."""
+
+    def __init__(self, check: str, detail: str) -> None:
+        super().__init__(f"{check}: {detail}")
+        self.check = check
+        self.detail = detail
+
+
+def _qa(job: Job, gate: Gate) -> None:
+    report = gate.check(job)
+    failed = report.failed
+    if failed is not None or not report.passed:
+        name = failed.name if failed is not None else "qa"
+        raise QaFailed(name, failed.detail if failed is not None else "no checks ran")
+    gate.contact_sheet(job)
+    missing = [name for name in DELIVERABLES if not (job.out_dir / name).is_file()]
+    if missing:
+        raise QaFailed("deliverables", f"missing out/{', out/'.join(missing)}")
+
+
 class Worker:
     """One thread, one job at a time, submission order, `max_queue` deep."""
 
@@ -227,6 +267,7 @@ class Worker:
         transcriber: Transcriber,
         planner: Planner,
         renderer: Renderer | None = None,
+        gate: Gate | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
         clock: Clock = _utc_now,
@@ -235,6 +276,7 @@ class Worker:
         self._transcriber = transcriber
         self._planner = planner
         self._renderer = renderer or RemotionRenderer()
+        self._gate = gate or TechnicalGate()
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
         self._clock = clock
@@ -324,6 +366,7 @@ class Worker:
                 transcriber=self._transcriber,
                 planner=self._planner,
                 renderer=self._renderer,
+                gate=self._gate,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,

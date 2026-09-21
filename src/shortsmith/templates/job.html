@@ -20,6 +20,12 @@
   dt { color: var(--muted); }
   pre { white-space: pre-wrap; background: #8881; padding: .75rem; border-radius: 8px; }
   a { color: inherit; }
+  video { display: block; max-width: 270px; width: 100%; background: #000; border-radius: 8px; }
+  img.sheet { display: block; max-width: 100%; height: auto; border-radius: 8px; }
+  ul.checks { list-style: none; padding: 0; }
+  .check { padding: .3rem .6rem; border-left: 4px solid #8886; margin: .25rem 0; }
+  .check.pass { border-color: #2e7d32; }
+  .check.fail { border-color: #c0392b; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -35,6 +41,7 @@ $error
   <dt>Style line</dt><dd>$style_line</dd>
   <dt>References</dt><dd>$references</dd>
 </dl>
+$result
 <h2>Brief</h2>
 <pre>$brief</pre>
 <p><a href="/">Upload another</a></p>

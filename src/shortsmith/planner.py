@@ -8,8 +8,9 @@ selecting either today yields a planner that fails the job at `planning` with th
 ticket named, never a silent fallback to the fake.
 
 `FakePlanner` is co-located so fake and real share one type. Its canned plan is shaped
-for the 6 s fixture: twelve 0.5 s beats tiling 0-6 s with every boundary on a word end
-or in silence, a `full` cold open, an `off` hook-cards beat, `pip` beats, and every
+for the 6 s fixture: eleven beats tiling 0-6 s (ten of 0.5 s and a 1.0 s finale, so
+T3's finale rule holds; ticket 006) with every boundary on a word end or in silence,
+a `full` cold open, an `off` hook-cards beat, `pip` beats, and every
 tier-1 kind (4.1 as amended by 9.2) named at least once across beat kinds, overlays,
 events and presenter modes. Kinds the renderer cannot draw yet are still valid plan
 data. NOTE for 009: the explainer numbers (beat min 0.7 s, plan mean 2.0-3.2 s, hook
@@ -144,11 +145,9 @@ class FakePlanner(Planner):
             B(id="b10", start=4.5, end=5.0, mode="off", kind="wall", motion="pan_right",
               subject_kind="concept", depicts="scene", query="grid of colour gradients",
               query_fallback="colour swatches", source_intent="generate", asset_id="a9"),
-            B(id="b11", start=5.0, end=5.5, mode="pip", kind="photo", motion="ken_burns_out",
-              subject_kind="number", query="slow colour gradient sky",
-              query_fallback="abstract gradient", source_intent="reuse", asset_id="a1",
-              event=Event(kind="stamp", text="6 s")),
-            B(id="b12", start=5.5, end=6.0, mode="off", kind="finale", asset_id="a1"),
+            # 006: the finale is one 1.0 s beat so T3 (finale 0.8-1.2 s) holds on the
+            # fixture; the former b11 (photo, ken_burns_out, stamp "6 s") folded into it.
+            B(id="b11", start=5.0, end=6.0, mode="off", kind="finale", asset_id="a1"),
         ]  # fmt: skip
         return PicturePlan(
             prompt_version=self.PROMPT_VERSION,
@@ -160,7 +159,7 @@ class FakePlanner(Planner):
                 original_position="drop",  # lifted from the head: a no-op reorder (005)
                 card_asset_ids=["a1", "a2", "a4"],
             ),
-            finale=Finale(beat_id="b12", text="Made from nothing"),
+            finale=Finale(beat_id="b11", text="Made from nothing"),
             keywords=[5, 10, 1, 7],
             title="A short about nothing",
             description="Six seconds, twelve words, every kind of picture.",

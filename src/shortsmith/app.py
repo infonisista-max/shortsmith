@@ -41,7 +41,13 @@ from string import Template
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -52,9 +58,11 @@ from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
-from shortsmith.jobs import STATUS_ORDER, TERMINAL, Clock, Job
+from shortsmith.jobs import STATUS_ORDER, TERMINAL, Clock, Job, Status
 from shortsmith.pipeline import QueueFull
 from shortsmith.planner import Planner
+from shortsmith.qa import technical
+from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
@@ -62,6 +70,17 @@ TEMPLATES = Path(__file__).parent / "templates"
 MAX_REFERENCE_FIELDS = 8
 POLL_MS = 3000
 PASSCODE_PATH = "/passcode"
+# The deliverables a job page may serve from `out/` (10.4), by media type; nothing else
+# under the job directory is reachable over HTTP.
+OUT_FILES: dict[str, str] = {
+    "short.mp4": "video/mp4",
+    "contact.jpg": "image/jpeg",
+    "qa.json": "application/json",
+}
+# Statuses whose elapsed clock has stopped: the terminal ones and `delivered`, which
+# only changes again by a rating (034).
+SETTLED: frozenset[Status] = TERMINAL | frozenset[Status]({"delivered"})
+SHOWS_SHORT: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 QUEUE_RETRY_S = 3600  # "try in an hour"
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: no tzdata needed on Windows
 BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
@@ -122,6 +141,7 @@ def create_app(
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
     renderer: Renderer | None = None,
+    gate: Gate | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
     clock: Clock = _utc_now,
@@ -133,11 +153,13 @@ def create_app(
     # `PLANNER` selects the adapter (8.3); the unbuilt ones fail the job at `planning`.
     planner = planner or planner_module.from_settings(settings)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
-    # `renderer` None means Remotion (ticket 004); tests pass `FakeRenderer`.
+    # `renderer` None means Remotion (ticket 004) and `gate` None the technical gate
+    # (006); tests pass `FakeRenderer` and `FakeGate`.
     worker = pipeline.Worker(
         transcriber=transcriber,
         planner=planner,
         renderer=renderer,
+        gate=gate,
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
         clock=clock,
@@ -315,6 +337,18 @@ def create_app(
             return HTMLResponse("<h1>No such job</h1>", status_code=404)
         return HTMLResponse(render_job_page(job, position=_queue_position(job, worker)))
 
+    @app.get("/jobs/{job_id}/{name}")
+    async def job_file(job_id: str, name: str, download: bool = False) -> Response:
+        """One of the `out/` deliverables (10.4); `?download=1` makes it an attachment."""
+        job = jobs.find(data_dir, job_id)
+        media_type = OUT_FILES.get(name)
+        if job is None or media_type is None or not (job.out_dir / name).is_file():
+            return JSONResponse({"error": "no such file"}, status_code=404)
+        headers = None
+        if download:
+            headers = {"Content-Disposition": f'attachment; filename="{job.id}-{name}"'}
+        return FileResponse(job.out_dir / name, media_type=media_type, headers=headers)
+
     return app
 
 
@@ -465,7 +499,7 @@ def render_upload_form(
 
 
 def _elapsed(job: Job, now: datetime) -> str:
-    end = job.record.updated_at if job.status in TERMINAL else now
+    end = job.record.updated_at if job.status in SETTLED else now
     seconds = max(0, int((end - job.record.created_at).total_seconds()))
     return f"{seconds // 60}m {seconds % 60}s"
 
@@ -527,13 +561,33 @@ def render_job_page(job: Job, *, now: datetime | None = None, position: int | No
         style_line=html.escape(record.style_line) or "–",
         references=references,
         brief=html.escape(brief),
+        result=_result_block(job),
         json_url=f"/jobs/{html.escape(job.id)}.json",
         created_at=record.created_at.isoformat(),
-        terminal="true" if record.status in TERMINAL else "false",
+        terminal="true" if record.status in SETTLED else "false",
         poll_ms=POLL_MS,
         position=f" (queued, position {position})" if position is not None else "",
         position_json=json.dumps(position),
     )
+
+
+def _result_block(job: Job) -> str:
+    """The short, the contact sheet and the download links once the job is `delivered`
+    (11.1, 10.4), and the technical check list whenever `out/qa.json` exists, so a job
+    that failed at `qa` still shows which check stopped it."""
+    report = technical.load_report(job)
+    if report is None:
+        return ""
+    base = f"/jobs/{html.escape(job.id)}"
+    items = "\n".join(
+        f'  <li class="check {"pass" if c.passed else "fail"}">{html.escape(c.name)} '
+        f'{"pass" if c.passed else "FAIL"} · {html.escape(c.detail)}</li>'
+        for c in report.checks
+    )
+    media = ""
+    if job.status in SHOWS_SHORT and (job.out_dir / "short.mp4").is_file():
+        media = _template("result.html").substitute(base=base)
+    return f"{media}<h2>Technical checks</h2>\n<ul class=\"checks\">\n{items}\n</ul>\n"
 
 
 def _reference_lines(job: Job) -> str:

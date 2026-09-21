@@ -1,8 +1,10 @@
 """pipeline: the worker runs a job's steps in order (11.1), one job at a time in
-submission order (9.1). Transcribing, planning, the sourcing placeholder and
-rendering exist; a job stops at `qa`. A failing step marks the job `failed` with the
-step named and a fixed message. Tests render through `FakeRenderer`; the real
-Remotion path is covered by test_render and smoke."""
+submission order (9.1). Transcribing, planning, the sourcing placeholder, rendering
+and the technical gate exist; a job that passes the gate with its deliverables on
+disk is `delivered` (10.4). A failing step marks the job `failed` with the step named
+and a fixed message; a failed check names itself in the message. Tests render through
+`FakeRenderer` and gate through `FakeGate`; the real paths are covered by
+test_render, test_qa_technical, test_contact_sheet and smoke."""
 
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ import pytest
 from shortsmith import jobs, pipeline, render, subproc
 from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
 from shortsmith.planner import FakePlanner, Planner, PlannerUnavailable, UnavailablePlanner
+from shortsmith.qa.gate import FakeGate, Gate
 from shortsmith.render import FakeRenderer, Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 from tests.conftest import Media
@@ -32,6 +35,7 @@ TRAIL = [
     "planning -> sourcing",
     "sourcing -> rendering",
     "rendering -> qa",
+    "qa -> delivered",
 ]
 
 
@@ -44,19 +48,21 @@ def _uploaded(data_dir: Path, clip: Path) -> jobs.Job:
 
 
 def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
-         planner: Planner | None = None, renderer: Renderer | None = None) -> jobs.Job:  # fmt: skip
+         planner: Planner | None = None, renderer: Renderer | None = None,
+         gate: Gate | None = None) -> jobs.Job:  # fmt: skip
     return pipeline.run_job(
         job,
         transcriber=transcriber or FakeTranscriber(),
         planner=planner or FakePlanner(),
         renderer=renderer or FakeRenderer(),
+        gate=gate or FakeGate(),
     )
 
 
 def _worker(transcriber: Transcriber | None = None, **kwargs: object) -> pipeline.Worker:
     return pipeline.Worker(
         transcriber=transcriber or FakeTranscriber(), planner=FakePlanner(),
-        renderer=FakeRenderer(), **kwargs,  # pyright: ignore[reportArgumentType]
+        renderer=FakeRenderer(), gate=FakeGate(), **kwargs,  # pyright: ignore[reportArgumentType]
     )  # fmt: skip
 
 
@@ -64,12 +70,14 @@ def _pages(job: jobs.Job) -> list[dict[str, object]]:
     return json.loads((job.work_dir / "captions.json").read_text(encoding="utf-8"))
 
 
-def test_run_job_transcribes_plans_renders_and_stops_at_qa(
+def test_run_job_transcribes_plans_renders_gates_and_delivers(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
     job = _uploaded(tmp_path, fixture_clip)
     done = _run(job)
-    assert done.status == "qa"
+    assert done.status == "delivered"
+    assert (job.out_dir / "qa.json").is_file()
+    assert (job.out_dir / "contact.jpg").is_file()
     asr = Transcript.model_validate_json((job.work_dir / "asr.json").read_text(encoding="utf-8"))
     assert len(asr.words) == 12
     log = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
@@ -98,10 +106,10 @@ def test_rendering_step_reports_progress_into_job_json(
     job = _uploaded(tmp_path, fixture_clip)
     renderer = _Watching()
     done = _run(job, renderer=renderer)
-    assert done.status == "qa"
+    assert done.status == "delivered"
     assert renderer.jobs == [job.path]
     assert renderer.on_disk == [0, 50, 100]  # each report landed in job.json before the next
-    assert jobs.load(job.path).record.status == "qa"
+    assert jobs.load(job.path).record.status == "delivered"
     assert (job.work_dir / "picture.mp4").is_file()
     # 005: the fake stands in for the whole step, so every file the step leaves exists.
     assert (job.work_dir / "cut.mp4").is_file()
@@ -130,7 +138,41 @@ def test_sourcing_is_a_placeholder_that_writes_nothing_until_016(
     job = _uploaded(tmp_path, fixture_clip)
     _run(job)
     assert not (job.work_dir / "assets").exists()
-    assert pipeline.LAST_IMPLEMENTED_STEP == "rendering"
+
+
+def test_a_failed_check_fails_the_job_at_qa_and_names_the_check(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    done = _run(job, gate=FakeGate(fail="T2"))
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert done.record.error.step == "qa"
+    assert done.record.error.message == "The short failed a technical check (T2)."
+    assert (job.out_dir / "qa.json").is_file()  # the report is written either way (10.1)
+    assert not (job.out_dir / "contact.jpg").exists()  # no sheet from a failed short
+    log = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
+    assert log[-1].startswith("qa -> failed step=qa")
+
+
+class _SheetlessGate(FakeGate):
+    def contact_sheet(self, job: jobs.Job) -> Path:
+        return job.out_dir / "contact.jpg"  # never written
+
+
+def test_missing_deliverables_fail_the_job_at_qa(tmp_path: Path, fixture_clip: Path) -> None:
+    done = _run(_uploaded(tmp_path, fixture_clip), gate=_SheetlessGate())
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert done.record.error.step == "qa"
+    assert "contact.jpg" in done.record.error.detail
+
+
+def test_the_worker_gates_through_the_technical_gate_by_default() -> None:
+    from shortsmith.qa.gate import TechnicalGate
+
+    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
+    assert isinstance(worker._gate, TechnicalGate)  # pyright: ignore[reportPrivateUsage]
 
 
 def test_the_worker_renders_through_remotion_by_default() -> None:
@@ -238,12 +280,12 @@ def test_worker_runs_submissions_in_order_one_at_a_time(
     assert worker.pending() == [first.path, second.path]
 
     assert worker.run_next() is True
-    assert jobs.load(first.path).status == "qa"
+    assert jobs.load(first.path).status == "delivered"
     assert jobs.load(second.path).status == "uploaded"
     assert worker.pending() == [second.path]
 
     assert worker.run_next() is True
-    assert jobs.load(second.path).status == "qa"
+    assert jobs.load(second.path).status == "delivered"
     assert worker.run_next() is False
 
 
@@ -274,10 +316,10 @@ def test_worker_thread_keeps_the_second_job_uploaded_while_the_first_runs(
         assert jobs.load(second.path).status == "uploaded"
         transcriber.release.set()
         deadline = time.monotonic() + 10
-        while time.monotonic() < deadline and jobs.load(second.path).status != "qa":
+        while time.monotonic() < deadline and jobs.load(second.path).status != "delivered":
             time.sleep(0.05)
-        assert jobs.load(first.path).status == "qa"
-        assert jobs.load(second.path).status == "qa"
+        assert jobs.load(first.path).status == "delivered"
+        assert jobs.load(second.path).status == "delivered"
     finally:
         transcriber.release.set()
         worker.stop()
@@ -429,7 +471,7 @@ def test_past_max_job_minutes_the_step_process_is_killed_and_the_next_job_starts
 
     worker._transcriber = FakeTranscriber()  # pyright: ignore[reportPrivateUsage]
     assert worker.run_next() is True
-    assert jobs.load(second.path).status == "qa"
+    assert jobs.load(second.path).status == "delivered"
 
 
 class _SlowInProcess(Transcriber):
@@ -468,6 +510,6 @@ def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path)
     job = _uploaded(tmp_path, fixture_clip)
     result = pipeline.run_job(
         job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), renderer=FakeRenderer(),
-        max_job_minutes=30, clock=clock,
+        gate=FakeGate(), max_job_minutes=30, clock=clock,
     )  # fmt: skip
-    assert result.status == "qa"
+    assert result.status == "delivered"

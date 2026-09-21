@@ -20,10 +20,11 @@ occur; the composition reads this cut, never the raw upload. `voice_stem` runs t
 span graph on the raw audio through the 7.3 voice chain verbatim (mono fold inside the
 graph, high-pass 80 Hz, compressor -18 dB ratio 2.5, two-pass loudnorm -19 LUFS /
 -3 dBTP) into `work/stems/voice.wav`. `mux` masters the mix (voice only until 022:
-two-pass loudnorm -14 LUFS / -1.5 dBTP, then the 0.891 limiter with auto-level off so
-the target holds) into `work/stems/mix.wav` and muxes it with the picture stream
-copied bit-for-bit into `out/short.mp4` (revision proof (a), 10.1). Stems always sit
-beside the mix under `work/stems/`. `render_short` is the whole `rendering` step.
+two-pass loudnorm -14 LUFS / -1.5 dBTP less `AAC_HEADROOM_DB` so the encoded file
+still meets -1.5 dBTP, then the 0.891 limiter with auto-level off so the target holds)
+into `work/stems/mix.wav` and muxes it with the picture stream copied bit-for-bit into
+`out/short.mp4` (revision proof (a), 10.1). Stems always sit beside the mix under
+`work/stems/`. `render_short` is the whole `rendering` step.
 
 Style numbers: the loader (008) does not exist yet, so `EXPLAINER` holds the 6.2, 6.3
 and 3.3 numbers as one typed constant, the way `pipeline` holds the pager numbers.
@@ -79,6 +80,10 @@ FFMPEG_TIMEOUT_S = 1800.0
 # Decision 7.3 (research §5) sound numbers.
 VOICE_LUFS, VOICE_TP = -19.0, -3.0
 MASTER_LUFS, MASTER_TP = -14.0, -1.5
+# T4 (10.1) measures the delivered AAC, and the encoder overshoots the mastered WAV's
+# true peak by a few tenths of a dB (the fixture: -1.50 -> -1.42 dBTP), so loudnorm is
+# asked for the ceiling less this headroom and the delivered file meets MASTER_TP (006).
+AAC_HEADROOM_DB = 0.5
 LIMITER = 0.891
 SAMPLE_RATE = 48000
 
@@ -580,10 +585,12 @@ def voice_stem(job: Job) -> Path:
 
 
 def master_chain(measured: ffmpeg.Loudness, *, request_lufs: float = MASTER_LUFS) -> str:
-    """Master: two-pass loudnorm to `request_lufs` / -1.5 dBTP then the 0.891 limiter.
-    The limiter's auto-level is off; on, it would re-gain the output to 0 dB and break
-    T4."""
-    second = loudnorm_second_pass(measured, target_lufs=request_lufs, target_tp=MASTER_TP)
+    """Master: two-pass loudnorm to `request_lufs` / (-1.5 dBTP less the AAC headroom)
+    then the 0.891 limiter. The limiter's auto-level is off; on, it would re-gain the
+    output to 0 dB and break T4."""
+    second = loudnorm_second_pass(
+        measured, target_lufs=request_lufs, target_tp=MASTER_TP - AAC_HEADROOM_DB
+    )
     return f"{second},alimiter=limit={LIMITER}:level=false,aresample={SAMPLE_RATE}"
 
 
@@ -603,7 +610,9 @@ def master(source: Path, mix: Path) -> ffmpeg.Loudness:
     request = MASTER_LUFS
     got: ffmpeg.Loudness | None = None
     for _ in range(MASTER_PASSES):
-        measured = ffmpeg.measure_loudness(source, target_lufs=request, target_tp=MASTER_TP)
+        measured = ffmpeg.measure_loudness(
+            source, target_lufs=request, target_tp=MASTER_TP - AAC_HEADROOM_DB
+        )
         ffmpeg.run(
             [
                 ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(source),

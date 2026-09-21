@@ -1,8 +1,9 @@
 """`python -m shortsmith.smoke`: fixture -> job -> fake transcriber -> fake planner ->
-work/{asr,plan,sound,captions}.json -> Remotion -> work/picture.mp4, uploaded ->
-transcribing -> planning -> sourcing -> rendering -> qa, exit 0 with one summary line,
-non-zero on a failed assertion. The render is the real engine (12.1), so the walk is
-the slow test in the suite."""
+work/{asr,plan,sound,captions}.json -> Remotion -> work/picture.mp4 -> out/short.mp4
+-> T1-T4 in out/qa.json -> out/contact.jpg, uploaded -> transcribing -> planning ->
+sourcing -> rendering -> qa -> delivered, exit 0 with one summary line, non-zero on a
+failed assertion. The render is the real engine (12.1), so the walk is the slow test
+in the suite."""
 
 from __future__ import annotations
 
@@ -11,18 +12,20 @@ import sys
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
-from shortsmith import ffmpeg, smoke
+from shortsmith import contact_sheet, ffmpeg, smoke
 from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
 from shortsmith.jobs import load
 from shortsmith.planner import FakePlanner
+from shortsmith.qa import technical
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
 
 def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     result = smoke.run_smoke(tmp_path)
     job = load(result.job_dir)
-    assert job.status == "qa"
+    assert job.status == "delivered"
     assert (job.input_dir / "raw.mp4").is_file()
     assert (job.input_dir / "brief.md").is_file()
     assert (job.input_dir / "refs.json").is_file()
@@ -49,6 +52,14 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     assert ffmpeg.video_md5(short) == ffmpeg.video_md5(picture)
     assert float(ffmpeg.probe(short)["format"]["duration"]) == pytest.approx(6.0, abs=0.1)
     assert ffmpeg.measure_loudness(short).integrated == pytest.approx(-14.0, abs=1.0)
+    # 006: the technical gate and the contact sheet, then `delivered`.
+    report = technical.load_report(job)
+    assert report is not None and report.passed
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4"]
+    sheet = job.out_dir / "contact.jpg"
+    assert sheet.is_file() and sheet.stat().st_size < contact_sheet.MAX_BYTES
+    with Image.open(sheet) as image:
+        assert image.format == "JPEG" and image.width == contact_sheet.SHEET_W
     log = job.log_path.read_text(encoding="utf-8").splitlines()
     assert [line.split(" ", 1)[1] for line in log] == [
         "created uploaded",
@@ -57,9 +68,11 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
         "planning -> sourcing",
         "sourcing -> rendering",
         "rendering -> qa",
+        "qa -> delivered",
     ]
     assert "ok" in result.summary and job.id in result.summary
     assert "180 frames" in result.summary and "short" in result.summary
+    assert "T1-T4 pass" in result.summary and "contact" in result.summary
 
 
 def test_main_prints_one_line_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:

@@ -179,22 +179,47 @@ def frame_rgb(path: Path, *, at_s: float) -> tuple[int, int, bytes]:
     return _parse_ppm(proc.stdout)
 
 
+def frames_rgb(
+    path: Path, *, fps: float, width: int, duration_s: float | None = None
+) -> list[tuple[int, int, bytes]]:
+    """Decode frames at `fps` (the `fps` filter: t = 0, 1/fps, 2/fps, ...) scaled to
+    `width` with an even height, the first `duration_s` seconds only when given, in one
+    ffmpeg pass. Each frame is (width, height, packed RGB24)."""
+    argv = [FFMPEG, "-v", "error", "-i", str(path)]
+    if duration_s is not None:
+        argv += ["-t", f"{duration_s:.3f}"]
+    argv += ["-vf", f"fps={fps:g},scale={width}:-2", "-f", "image2pipe", "-c:v", "ppm", "-"]
+    proc = run(argv, timeout_s=MEASURE_TIMEOUT_S)
+    frames: list[tuple[int, int, bytes]] = []
+    data, pos = proc.stdout, 0
+    while pos < len(data):
+        w, h, pixels, pos = _parse_ppm_at(data, pos)
+        frames.append((w, h, pixels))
+    return frames
+
+
 def _parse_ppm(data: bytes) -> tuple[int, int, bytes]:
-    # Binary PPM: "P6\n<w> <h>\n255\n<pixels>" ; ffmpeg writes no comments.
+    width, height, pixels, _ = _parse_ppm_at(data, 0)
+    return width, height, pixels
+
+
+def _parse_ppm_at(data: bytes, pos: int) -> tuple[int, int, bytes, int]:
+    # Binary PPM: "P6\n<w> <h>\n255\n<pixels>" ; ffmpeg writes no comments. Returns the
+    # frame and the offset just past it, so concatenated PPMs from image2pipe parse too.
     fields: list[bytes] = []
-    pos = 0
     while len(fields) < 4:
         while data[pos : pos + 1].isspace():
             pos += 1
         start = pos
-        while not data[pos : pos + 1].isspace():
+        while pos < len(data) and not data[pos : pos + 1].isspace():
             pos += 1
         fields.append(data[start:pos])
     pos += 1  # the single whitespace byte after maxval
     if fields[0] != b"P6" or fields[3] != b"255":
         raise FFmpegError(f"unexpected PPM header {fields!r}")
     width, height = int(fields[1]), int(fields[2])
-    pixels = data[pos : pos + width * height * 3]
+    end = pos + width * height * 3
+    pixels = data[pos:end]
     if len(pixels) != width * height * 3:
         raise FFmpegError("short PPM payload")
-    return width, height, pixels
+    return width, height, pixels, end

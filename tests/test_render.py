@@ -372,7 +372,21 @@ def test_mux_copies_the_picture_stream_and_masters_the_voice(
     loud = ffmpeg.measure_loudness(mix)
     assert loud.integrated == pytest.approx(render.MASTER_LUFS, abs=0.5)  # T4
     assert loud.true_peak <= render.MASTER_TP
-    assert ffmpeg.measure_loudness(out).integrated == pytest.approx(render.MASTER_LUFS, abs=1.0)
+    # T4 is measured on the delivered file (10.1): the AAC encode overshoots the WAV's
+    # peaks by a few tenths of a dB, so the master leaves it headroom (006).
+    delivered = ffmpeg.measure_loudness(out)
+    assert delivered.integrated == pytest.approx(render.MASTER_LUFS, abs=0.5)
+    assert delivered.true_peak <= render.MASTER_TP
+
+
+def test_master_chain_leaves_aac_headroom_under_the_true_peak_ceiling() -> None:
+    measured = ffmpeg.Loudness(
+        integrated=-19.3, true_peak=-6.1, lra=4.0, threshold=-29.5, offset=5.3
+    )
+    chain = render.master_chain(measured)
+    assert f"TP={render.MASTER_TP - render.AAC_HEADROOM_DB:g}" in chain
+    assert f"TP={render.MASTER_TP:g}:" not in chain
+    assert render.MASTER_TP == -1.5 and 0 < render.AAC_HEADROOM_DB <= 1.0
 
 
 def test_spec_for_job_reads_the_cut_as_the_presenter_source(

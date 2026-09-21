@@ -24,6 +24,7 @@ from shortsmith import auth, jobs
 from shortsmith.config import Settings
 from shortsmith.ingest import MIB, Limits
 from shortsmith.planner import FakePlanner
+from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber
 from tests.conftest import Media
@@ -57,7 +58,7 @@ def app(tmp_path: Path) -> FastAPI:
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
     )
 
@@ -241,12 +242,84 @@ def test_job_page_shows_steps_and_polls_json(client: TestClient, media: Media) -
     assert as_json.json()["id"] == location.rsplit("/", 1)[1]
 
 
-def test_job_page_after_the_worker_ran(client: TestClient, app: FastAPI, media: Media) -> None:
+def test_job_page_after_the_worker_ran_shows_the_delivered_short(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
     location = _post(client, media.clip()).headers["location"]
     assert app.state.worker.run_next() is True
     body = client.get(location).text
-    assert 'data-step="qa" class="step current"' in body
-    assert client.get(f"{location}.json").json()["status"] == "qa"
+    assert 'data-step="delivered" class="step current"' in body
+    assert client.get(f"{location}.json").json()["status"] == "delivered"
+    # 11.1 / 10.4: the short inline, the contact sheet, download links, the T1-T4 results.
+    assert f'<video controls playsinline src="{location}/short.mp4"' in body
+    assert f'<img class="sheet" src="{location}/contact.jpg"' in body
+    assert f'href="{location}/short.mp4?download=1"' in body
+    assert f'href="{location}/contact.jpg?download=1"' in body
+    for name in ("T1", "T2", "T3", "T4"):
+        assert f'<li class="check pass">{name} pass' in body
+    assert "FAIL" not in body
+
+
+def test_delivered_files_are_served_from_out_only(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    assert app.state.worker.run_next() is True
+    short = client.get(f"{location}/short.mp4")
+    assert short.status_code == 200
+    assert short.headers["content-type"].startswith("video/mp4")
+    assert "content-disposition" not in short.headers
+    download = client.get(f"{location}/short.mp4?download=1")
+    assert download.status_code == 200
+    job_id = location.rsplit("/", 1)[1]
+    assert download.headers["content-disposition"] == f'attachment; filename="{job_id}-short.mp4"'
+    sheet = client.get(f"{location}/contact.jpg")
+    assert sheet.status_code == 200 and sheet.headers["content-type"].startswith("image/jpeg")
+    qa = client.get(f"{location}/qa.json")
+    assert qa.status_code == 200
+    assert [c["name"] for c in qa.json()["checks"]] == ["T1", "T2", "T3", "T4"]
+    # Only the whitelisted deliverables: never job.json, the inputs or a path trick.
+    assert client.get(f"{location}/job.json").status_code == 404
+    assert client.get(f"{location}/raw.mov").status_code == 404
+    assert client.get(f"{location}/..%2Fjob.json").status_code == 404
+    assert client.get("/jobs/20260920-090000-abcdef/short.mp4").status_code == 404
+
+
+def test_delivered_files_need_the_cookie(client: TestClient, app: FastAPI, media: Media) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    assert app.state.worker.run_next() is True
+    with TestClient(app) as other:
+        assert other.get(f"{location}/short.mp4").status_code == 401
+        assert other.get(f"{location}/contact.jpg").status_code == 401
+        assert other.get(f"{location}/qa.json").status_code == 401
+
+
+def test_files_are_404_before_the_short_exists(client: TestClient, media: Media) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    assert client.get(f"{location}/short.mp4").status_code == 404
+    assert "<video" not in client.get(location).text
+
+
+def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
+    tmp_path: Path, media: Media
+) -> None:
+    app = app_module.create_app(
+        _settings(tmp_path),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(),
+        renderer=FakeRenderer(),
+        gate=FakeGate(fail="T3"),
+        start_worker=False,
+    )
+    with TestClient(app) as client:
+        login(client)
+        location = _post(client, media.clip()).headers["location"]
+        assert app.state.worker.run_next() is True
+        body = client.get(location).text
+        assert "Failed at qa: The short failed a technical check (T3)." in body
+        assert 'data-step="qa" class="step failed"' in body
+        assert '<li class="check fail">T3 FAIL' in body
+        assert "<video" not in body and "contact.jpg" not in body
 
 
 def test_unknown_or_malformed_job_id_is_404(client: TestClient) -> None:
@@ -276,13 +349,13 @@ def test_user_strings_are_escaped_everywhere(client: TestClient, media: Media) -
 def test_second_submission_waits_uploaded_while_the_first_runs(
     tmp_path: Path, media: Media
 ) -> None:
-    """The real worker thread via the lifespan: two uploads, both end at qa,
+    """The real worker thread via the lifespan: two uploads, both end `delivered`,
     and the second is still `uploaded` right after submission."""
     app = app_module.create_app(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), gate=FakeGate(),
     )
     with TestClient(app) as client:
         login(client)
@@ -291,10 +364,10 @@ def test_second_submission_waits_uploaded_while_the_first_runs(
         assert client.get(f"{second}.json").json()["status"] in ("uploaded", "transcribing")
         deadline = time.monotonic() + 20
         statuses: set[str] = set()
-        while time.monotonic() < deadline and statuses != {"qa"}:
+        while time.monotonic() < deadline and statuses != {"delivered"}:
             statuses = {client.get(f"{u}.json").json()["status"] for u in (first, second)}
             time.sleep(0.05)
-        assert statuses == {"qa"}
+        assert statuses == {"delivered"}
 
 
 def test_module_level_app_exists_for_uvicorn() -> None:
@@ -313,7 +386,11 @@ def test_default_planner_from_settings_fails_the_job_visibly_not_silently(
         planner="claude_code",
     )
     app = app_module.create_app(
-        settings, transcriber=FakeTranscriber(), renderer=FakeRenderer(), start_worker=False
+        settings,
+        transcriber=FakeTranscriber(),
+        renderer=FakeRenderer(),
+        gate=FakeGate(),
+        start_worker=False,
     )
     with TestClient(app) as client:
         login(client)
@@ -372,7 +449,7 @@ def test_day_limit_closes_the_form_until_midnight_ist(tmp_path: Path, media: Med
         _settings(tmp_path, max_jobs_per_day=2),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
         clock=clock,
     )
@@ -402,7 +479,7 @@ def test_max_job_minutes_reaches_the_worker_from_settings(tmp_path: Path) -> Non
         _settings(tmp_path, max_job_minutes=7, max_queue=2),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
     )
     worker = app.state.worker
@@ -418,7 +495,7 @@ def _small_limits_app(tmp_path: Path) -> FastAPI:
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), gate=FakeGate(),
         limits=SMALL,
         start_worker=False,
     )
@@ -493,7 +570,7 @@ def _guarded_app(
         _settings(tmp_path, passcode),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(),
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
         clock=clock,
         delay=delay,
