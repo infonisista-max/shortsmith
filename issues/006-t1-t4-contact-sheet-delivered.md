@@ -24,6 +24,11 @@ Covers PRD `qa.technical` (T1–T4), `contact_sheet` (frames), `app` job page on
 - [ ] `GET /jobs/<id>` on `delivered` shows the short inline, the contact sheet, download links for the short, and the T1–T4 results; on `failed` shows the plain sentence for the step.
 - [ ] Smoke runs the whole path on the fixture and asserts T1–T4 pass and the job is `delivered`; total under 90 s.
 
+## Notes from 005
+
+- `ffmpeg.measure_loudness(path)` (loudnorm analysis pass: integrated, true peak, LRA) and `ffmpeg.video_md5(path)` exist; T4 and revision proof (a) can build on them or on `ebur128` directly.
+- The mix is voice only until 022; smoke already asserts the short is within ±1.0 LUFS of −14 and the picture md5 matches.
+
 ## Blocked by
 
 - Blocked by `issues/005-ffmpeg-cut-voice-mux.md`

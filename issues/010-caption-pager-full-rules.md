@@ -18,7 +18,7 @@ Covers PRD `captions`. Decisions 6.1, 6.2, 6.3.
 
 - [ ] `captions.page(...)` reads `words_per_page`, `emphasis_max_ratio`, `word_gap_px`, font, size, `anchor_y`, `max_lines` from the style spec, never constants in code.
 - [ ] Marked name/number runs are never split across pages; segment punctuation and gaps > 0.35 s break pages; verbatim spoken language with trailing punctuation stripped.
-- [ ] Planner-cut spans are removed from the word list before paging and the same spans are absent from the audio cut list (shared function with `presenter.cut_list`).
+- [ ] Planner-cut spans are removed from the word list before paging and the same spans are absent from the audio cut list (shared function with `presenter.cut_list`). Word times move onto the cut timeline with `presenter.output_time(spans, t)`: the cold-open lift reorders, so subtracting cut spans alone is not enough.
 - [ ] Keywords: priority order from the plan, cap 0.25 of words by dropping lowest priority, at most one keyword per page (the first).
 - [ ] Each word gets a box at its scaled width plus fixed advance measured with Pillow ImageFont on the bundled Poppins at the spec size; page width measured once; wrapped before render if over 960 px; a page needing three lines raises.
 - [ ] Two-line pages produce `beats_with_two_lines` on the caption output; RenderSpec carries it for lower-third suppression (used by 026).
