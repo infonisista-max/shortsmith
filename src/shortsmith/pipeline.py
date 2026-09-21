@@ -16,7 +16,14 @@ style loader and resolver are ticket 008, so until then the style is always
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
-without threads. Queue depth, job-minute kill and restart recovery are ticket 041.
+without threads.
+
+Limits (11.2): the queue depth counts the running job, the waiting jobs and the
+slots the upload route has reserved; `submit`/`reserve` raise `QueueFull` at
+`max_queue`. A waiting job's position is its 1-based place among the waiting jobs.
+`max_job_minutes` arms a `subproc.Watchdog` per job that kills the running step's
+subprocesses at the deadline; whichever way the step then ends, the job is `failed`
+at that step with "job exceeded N minutes" and the worker moves on.
 """
 
 from __future__ import annotations
@@ -26,11 +33,12 @@ import queue
 import threading
 import traceback
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from shortsmith import captions, jobs
+from shortsmith import captions, jobs, subproc
 from shortsmith.captions import PagerNumbers
 from shortsmith.contracts import (
     Constraints,
@@ -40,11 +48,23 @@ from shortsmith.contracts import (
     ReferenceRecord,
     Transcript,
 )
-from shortsmith.jobs import Job, Status
+from shortsmith.jobs import Clock, Job, Status
 from shortsmith.planner import Planner
 from shortsmith.transcriber import Transcriber
 
 log = logging.getLogger(__name__)
+
+DEFAULT_MAX_QUEUE = 3
+DEFAULT_MAX_JOB_MINUTES = 30
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def timeout_message(max_job_minutes: float) -> str:
+    minutes = int(max_job_minutes) if float(max_job_minutes).is_integer() else max_job_minutes
+    return f"The job exceeded {minutes} minutes and was stopped."
 
 STEP_MESSAGES: dict[str, str] = {
     "transcribing": "We could not transcribe the recording.",
@@ -67,23 +87,52 @@ class NotRunnable(Exception):
     """The job is not `uploaded`, so the worker has nothing to start."""
 
 
+class QueueFull(Exception):
+    """`max_queue` jobs are running, waiting or reserved; the submission is refused."""
+
+
 Step = Callable[[Job], None]
 
 
-def run_job(job: Job, *, transcriber: Transcriber, planner: Planner) -> Job:
+def run_job(
+    job: Job,
+    *,
+    transcriber: Transcriber,
+    planner: Planner,
+    max_job_minutes: float | None = None,
+    clock: Clock = _utc_now,
+    watchdog_interval_s: float = 1.0,
+) -> Job:
     if job.status != "uploaded":
         raise NotRunnable(f"job {job.id} is {job.status!r}, not 'uploaded'")
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber)),
         ("planning", lambda j: _plan(j, planner)),
     ]
-    for status, step in steps:
-        job = jobs.transition(job, status)
-        try:
-            step(job)
-        except Exception as exc:  # noqa: BLE001 - every step failure lands in job.json the same way
-            detail = f"{exc}\n{traceback.format_exc()}"
-            return jobs.fail(job, step=status, message=STEP_MESSAGES[status], detail=detail)
+    watchdog: subproc.Watchdog | None = None
+    if max_job_minutes is not None:
+        deadline = clock() + timedelta(minutes=max_job_minutes)
+        watchdog = subproc.Watchdog(deadline=deadline, clock=clock, interval_s=watchdog_interval_s)
+        watchdog.start()
+    try:
+        for status, step in steps:
+            job = jobs.transition(job, status)
+            detail = ""
+            try:
+                with subproc.guarded(watchdog):
+                    step(job)
+            except Exception as exc:  # noqa: BLE001 - every step failure lands in job.json the same way
+                detail = f"{exc}\n{traceback.format_exc()}"
+                if watchdog is None or not watchdog.check():
+                    return jobs.fail(job, step=status, message=STEP_MESSAGES[status], detail=detail)
+            if watchdog is not None and watchdog.check():
+                assert max_job_minutes is not None
+                return jobs.fail(
+                    job, step=status, message=timeout_message(max_job_minutes), detail=detail
+                )
+    finally:
+        if watchdog is not None:
+            watchdog.stop()
     return jobs.transition(job, "sourcing")
 
 
@@ -147,24 +196,75 @@ def _plan(job: Job, planner: Planner) -> None:
 
 
 class Worker:
-    """One thread, one job at a time, submission order."""
+    """One thread, one job at a time, submission order, `max_queue` deep."""
 
-    def __init__(self, *, transcriber: Transcriber, planner: Planner) -> None:
+    def __init__(
+        self,
+        *,
+        transcriber: Transcriber,
+        planner: Planner,
+        max_queue: int = DEFAULT_MAX_QUEUE,
+        max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
+        clock: Clock = _utc_now,
+        watchdog_interval_s: float = 1.0,
+    ) -> None:
         self._transcriber = transcriber
         self._planner = planner
+        self._max_queue = max_queue
+        self._max_job_minutes = max_job_minutes
+        self._clock = clock
+        self._watchdog_interval_s = watchdog_interval_s
         self._queue: queue.Queue[Path | None] = queue.Queue()
-        self._pending: list[Path] = []
+        self._waiting: list[Path] = []
+        self._running: Path | None = None
+        self._reserved = 0
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
 
-    def submit(self, job_dir: Path) -> None:
+    # -- admission (11.2) --
+
+    def _depth_locked(self) -> int:
+        return len(self._waiting) + (1 if self._running is not None else 0) + self._reserved
+
+    def depth(self) -> int:
+        """Running + waiting + reserved slots."""
         with self._lock:
-            self._pending.append(job_dir)
+            return self._depth_locked()
+
+    def reserve(self) -> None:
+        """Hold a slot before the upload is read; `release` it or `submit(reserved=True)`."""
+        with self._lock:
+            if self._depth_locked() >= self._max_queue:
+                raise QueueFull(self._max_queue)
+            self._reserved += 1
+
+    def release(self) -> None:
+        with self._lock:
+            self._reserved = max(0, self._reserved - 1)
+
+    def submit(self, job_dir: Path, *, reserved: bool = False) -> None:
+        with self._lock:
+            if reserved:
+                self._reserved = max(0, self._reserved - 1)
+            elif self._depth_locked() >= self._max_queue:
+                raise QueueFull(self._max_queue)
+            self._waiting.append(job_dir)
         self._queue.put(job_dir)
 
     def pending(self) -> list[Path]:
+        """The running job (if any) followed by the waiting ones, in submission order."""
         with self._lock:
-            return list(self._pending)
+            running = [self._running] if self._running is not None else []
+            return running + list(self._waiting)
+
+    def position(self, job_dir: Path) -> int | None:
+        """1-based place among the waiting jobs; None when running or not queued."""
+        with self._lock:
+            if job_dir in self._waiting:
+                return self._waiting.index(job_dir) + 1
+            return None
+
+    # -- running --
 
     def run_next(self, *, timeout_s: float = 0.0) -> bool:
         """Run the next queued job synchronously; False when the queue is empty."""
@@ -174,21 +274,34 @@ class Worker:
             return False
         if item is None:
             return False
-        try:
-            self._run(item)
-        finally:
-            with self._lock:
-                if item in self._pending:
-                    self._pending.remove(item)
+        self._run(item)
         return True
 
     def _run(self, job_dir: Path) -> None:
+        with self._lock:
+            if job_dir in self._waiting:
+                self._waiting.remove(job_dir)
+            self._running = job_dir
+        try:
+            self._run_unguarded(job_dir)
+        finally:
+            with self._lock:
+                self._running = None
+
+    def _run_unguarded(self, job_dir: Path) -> None:
         if not (job_dir / "job.json").is_file():
             log.warning("job %s vanished before it ran", job_dir.name)
             return
         job = jobs.load(job_dir)
         try:
-            run_job(job, transcriber=self._transcriber, planner=self._planner)
+            run_job(
+                job,
+                transcriber=self._transcriber,
+                planner=self._planner,
+                max_job_minutes=self._max_job_minutes,
+                clock=self._clock,
+                watchdog_interval_s=self._watchdog_interval_s,
+            )
         except NotRunnable as exc:
             log.warning("%s", exc)
         except Exception:  # noqa: BLE001 - the worker thread must never die
@@ -205,12 +318,7 @@ class Worker:
             item = self._queue.get()
             if item is None:
                 return
-            try:
-                self._run(item)
-            finally:
-                with self._lock:
-                    if item in self._pending:
-                        self._pending.remove(item)
+            self._run(item)
 
     def stop(self, *, timeout_s: float = 30.0) -> None:
         if self._thread is None:

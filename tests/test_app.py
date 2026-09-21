@@ -5,6 +5,7 @@ behind the 11.2 passcode cookie; `client` is logged in, `anon` is not."""
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import time
@@ -21,6 +22,7 @@ from pydantic import SecretStr
 from shortsmith import app as app_module
 from shortsmith import auth, jobs
 from shortsmith.config import Settings
+from shortsmith.ingest import MIB, Limits
 from shortsmith.planner import FakePlanner
 from shortsmith.transcriber import FakeTranscriber
 from tests.conftest import Media
@@ -32,11 +34,12 @@ PASSCODE = "test-only-passcode"
 T0 = datetime(2026, 9, 21, 12, 0, 0, tzinfo=UTC)
 
 
-def _settings(tmp_path: Path, passcode: str | None = PASSCODE) -> Settings:
+def _settings(tmp_path: Path, passcode: str | None = PASSCODE, **overrides: Any) -> Settings:
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         shortsmith_data_dir=tmp_path / "data",
         shortsmith_passcode=None if passcode is None else SecretStr(passcode),
+        **overrides,
     )
 
 
@@ -314,6 +317,157 @@ def test_default_planner_from_settings_fails_the_job_visibly_not_silently(
         assert record["error"]["step"] == "planning"
         assert "014" in record["error"]["detail"]
         assert "Failed at planning" in client.get(location).text
+
+
+# --- queue, day limit, job minutes, upload size (ticket 041, decision 11.2) ------
+
+
+def _job_dirs(app: FastAPI) -> list[Path]:
+    root = app.state.data_dir / "jobs"
+    return sorted(root.iterdir()) if root.is_dir() else []
+
+
+def test_fourth_submission_is_refused_with_try_in_an_hour(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    clip = media.clip()
+    for _ in range(3):
+        assert _post(client, clip).status_code == 303
+    refused = _post(client, clip)
+    assert refused.status_code == 503
+    assert "try in an hour" in refused.text
+    assert refused.headers["retry-after"] == "3600"
+    assert len(_job_dirs(app)) == 3
+    assert app.state.worker.depth() == 3  # the refused upload held no slot
+    assert app.state.worker.run_next() is True
+    assert _post(client, clip).status_code == 303
+
+
+def test_waiting_job_page_shows_its_position_and_it_moves_as_jobs_finish(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    clip = media.clip()
+    first, second, third = (_post(client, clip).headers["location"] for _ in range(3))
+    assert "queued, position 1" in client.get(first).text
+    assert "queued, position 3" in client.get(third).text
+    assert client.get(f"{third}.json").json()["queue_position"] == 3
+    assert app.state.worker.run_next() is True
+    assert "queued, position 2" in client.get(third).text
+    assert client.get(f"{third}.json").json()["queue_position"] == 2
+    assert "queued" not in client.get(first).text
+    assert client.get(f"{first}.json").json()["queue_position"] is None
+    assert "queued, position 1" in client.get(second).text
+
+
+def test_day_limit_closes_the_form_until_midnight_ist(tmp_path: Path, media: Media) -> None:
+    clock = Ticker(T0)  # 12:00 UTC = 17:30 IST
+    app = app_module.create_app(
+        _settings(tmp_path, max_jobs_per_day=2),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(),
+        start_worker=False,
+        clock=clock,
+    )
+    with TestClient(app) as client:
+        login(client)
+        clip = media.clip()
+        assert _post(client, clip).status_code == 303
+        assert 'name="video"' in client.get("/").text
+        assert _post(client, clip).status_code == 303
+        closed = client.get("/")
+        assert closed.status_code == 200
+        assert 'name="video"' not in closed.text and "<form" not in closed.text
+        assert "limit of 2 shorts" in closed.text and "midnight IST" in closed.text
+        refused = _post(client, clip)
+        assert refused.status_code == 503 and "midnight IST" in refused.text
+        assert len(_job_dirs(app)) == 2
+        clock.now = datetime(2026, 9, 21, 18, 29, 59, tzinfo=UTC)  # 23:59:59 IST
+        assert 'name="video"' not in client.get("/").text
+        clock.now = datetime(2026, 9, 21, 18, 30, 0, tzinfo=UTC)  # 00:00:00 IST next day
+        assert 'name="video"' in client.get("/").text
+        assert _post(client, clip).status_code == 303
+        assert app.state.worker.depth() == 3
+
+
+def test_max_job_minutes_reaches_the_worker_from_settings(tmp_path: Path) -> None:
+    app = app_module.create_app(
+        _settings(tmp_path, max_job_minutes=7, max_queue=2),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(),
+        start_worker=False,
+    )
+    worker = app.state.worker
+    assert worker._max_job_minutes == 7  # pyright: ignore[reportPrivateUsage]
+    assert worker._max_queue == 2  # pyright: ignore[reportPrivateUsage]
+
+
+SMALL = Limits(max_upload_bytes=MIB, max_reference_bytes=MIB // 8)
+
+
+def _small_limits_app(tmp_path: Path) -> FastAPI:
+    return app_module.create_app(
+        _settings(tmp_path),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(),
+        limits=SMALL,
+        start_worker=False,
+    )
+
+
+def test_upload_past_the_limit_is_refused_mid_stream_before_any_probe(tmp_path: Path) -> None:
+    """A 4 MB body against a 1 MB video limit: 413 with the form, no job directory, no
+    ffprobe (the bytes are not a video), and the queue slot released."""
+    app = _small_limits_app(tmp_path)
+    big = tmp_path / "big.mp4"
+    big.write_bytes(b"\0" * (4 * MIB))
+    with TestClient(app) as client:
+        login(client)
+        resp = _post(client, big)
+        assert resp.status_code == 413
+        assert "The recording must be 1 MB or smaller." in resp.text
+        assert 'name="video"' in resp.text
+        assert _job_dirs(app) == []
+        assert app.state.worker.depth() == 0
+
+
+def test_content_length_past_the_limit_is_refused_before_the_body(tmp_path: Path) -> None:
+    app = _small_limits_app(tmp_path)
+    with TestClient(app) as client:
+        login(client)
+        resp = client.post(
+            "/jobs",
+            data={"brief": GOOD_BRIEF, "style": "explainer"},
+            files=[("video", ("tiny.mp4", b"\0" * 16))],
+            headers={"content-length": str(50 * MIB)},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 413
+        assert "The recording must be 1 MB or smaller." in resp.text
+        assert app.state.worker.depth() == 0
+
+
+def test_limited_receive_stops_reading_once_the_limit_is_crossed() -> None:
+    """The limiter raises on the chunk that crosses the limit and never asks the
+    server for the chunks after it, so an oversized body is not buffered anywhere."""
+    chunks = [b"x" * 1024] * 8
+    pulled: list[int] = []
+
+    async def receive() -> dict[str, Any]:
+        pulled.append(len(pulled))
+        body = chunks[len(pulled) - 1]
+        return {"type": "http.request", "body": body, "more_body": len(pulled) < len(chunks)}
+
+    limited = app_module.limited_receive(receive, limit=2560)
+
+    async def drain() -> None:
+        while True:
+            message = await limited()
+            if not message.get("more_body"):
+                return
+
+    with pytest.raises(app_module.BodyTooLarge):
+        asyncio.run(drain())
+    assert pulled == [0, 1, 2]
 
 
 # --- passcode (ticket 040, decision 11.2) ----------------------------------------

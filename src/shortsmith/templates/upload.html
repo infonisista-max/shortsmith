@@ -17,6 +17,7 @@
   .hint { color: var(--muted); font-size: .9rem; margin: .25rem 0 0; }
   .ref { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; align-items: center; margin-top: .5rem; }
   .reject { background: #c0392b; color: #fff; padding: .75rem 1rem; border-radius: 8px; margin: 1rem 0; }
+  .closed { background: #fff3cd; color: #5c4400; padding: .75rem 1rem; border-radius: 8px; margin: 1rem 0; }
   button { font: inherit; font-weight: 700; padding: .75rem 1.5rem; border: 0; border-radius: 8px;
            background: var(--accent); color: #111; cursor: pointer; }
 </style>
@@ -25,29 +26,6 @@
 <h1>Shortsmith</h1>
 <p class="sub">A raw recording, a short brief and a style word in; a finished 9:16 Short out.</p>
 $rejection
-<form method="post" action="/jobs" enctype="multipart/form-data">
-  <fieldset>
-    <legend>Recording</legend>
-    <label for="video">Video file (mp4 or mov, 20 s to 8 min, up to $max_upload_mb MB)</label>
-    <input id="video" name="video" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" required>
-    <p class="hint">Sit about an arm and a half from the phone, face in the top third. Vertical works best for PIP.</p>
-  </fieldset>
-
-  <fieldset>
-    <legend>Brief</legend>
-    <label for="brief">What this Short is about (40 to 1500 characters)</label>
-    <textarea id="brief" name="brief" placeholder="topic / angle / must-say facts / hook wish" required>$brief</textarea>
-    <label for="style">Style</label>
-    <input id="style" name="style" type="text" value="$style" placeholder="explainer">
-    <p class="hint">One style word, plus anything the style leaves open: length, caption language, energy.</p>
-  </fieldset>
-
-  <fieldset>
-    <legend>References (optional, up to 8: jpg, png, webp, mp4, mov; images at least 600 px on the short side; 20 MB each)</legend>
-$references
-  </fieldset>
-
-  <button type="submit">Make the Short</button>
-</form>
+$body
 </body>
 </html>

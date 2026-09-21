@@ -3,13 +3,22 @@
 Pages are stdlib `string.Template` files under `templates/`; every user-supplied or
 model-generated string passes through `html.escape` before it is substituted. The
 worker (`pipeline.Worker`) starts in the lifespan and runs jobs one at a time in
-submission order. Queue limits (041) and the sweeper (042) come later.
+submission order. The sweeper (042) comes later.
 
 Passcode (decision 11.2): `PasscodeGuard` is a pure ASGI middleware in front of every
 route except `/health` and `POST /passcode`. Without a valid cookie (see `auth`) an
 HTML request gets the passcode form (200 on `/`, 401 elsewhere, carrying the path as
 `next` so a shared job link survives the login) and a JSON request gets 401 JSON.
 The app refuses to start without a passcode: an open link would be a public problem.
+
+Limits (11.2, ticket 041): `POST /jobs` first checks the day limit (jobs created
+since midnight IST), then reserves a queue slot (`MAX_QUEUE` counts the running job,
+the waiting ones and reservations) so a refused upload costs nothing, then reads the
+multipart body through `limited_receive`, which stops the read on the chunk that
+crosses the size limit instead of spooling the whole file. Refusals: 503 with
+Retry-After for the queue and the day limit, 413 for the size. A waiting job's page
+shows "queued, position N" and the JSON carries `queue_position` so the poll reloads
+as jobs finish. `MAX_JOB_MINUTES` reaches the worker.
 
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
@@ -19,13 +28,14 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import math
 import re
 import shutil
 import tempfile
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from string import Template
 
@@ -34,7 +44,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from shortsmith import auth, config, ingest, jobs, pipeline
 from shortsmith import planner as planner_module
@@ -43,6 +53,7 @@ from shortsmith.config import Settings
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
 from shortsmith.jobs import STATUS_ORDER, TERMINAL, Clock, Job
+from shortsmith.pipeline import QueueFull
 from shortsmith.planner import Planner
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
@@ -50,10 +61,50 @@ TEMPLATES = Path(__file__).parent / "templates"
 MAX_REFERENCE_FIELDS = 8
 POLL_MS = 3000
 PASSCODE_PATH = "/passcode"
+QUEUE_RETRY_S = 3600  # "try in an hour"
+IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: no tzdata needed on Windows
+BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _REFS = TypeAdapter(list[ReferenceRecord])
 
 Delay = Callable[[float], Awaitable[None]]
+
+
+class BodyTooLarge(Exception):
+    """The request body crossed the upload limit; the read stopped there."""
+
+
+def limited_receive(receive: Receive, *, limit: int) -> Receive:
+    """Wrap an ASGI `receive` so the body read raises `BodyTooLarge` on the chunk that
+    takes the running total past `limit`; nothing after that chunk is ever pulled."""
+    seen = 0
+
+    async def limited() -> Message:
+        nonlocal seen
+        message = await receive()
+        if message["type"] == "http.request":
+            seen += len(message.get("body", b""))
+            if seen > limit:
+                raise BodyTooLarge(seen)
+        return message
+
+    return limited
+
+
+def body_limit(limits: Limits) -> int:
+    """The most a well-formed submission can carry: the video, up to nine references
+    (so the ninth still gets the count sentence, not this one) and framing slack."""
+    return (
+        limits.max_upload_bytes
+        + (MAX_REFERENCE_FIELDS + 1) * limits.max_reference_bytes
+        + BODY_SLACK
+    )
+
+
+def midnight_ist(now: datetime) -> datetime:
+    """The most recent midnight in IST at or before `now` (11.2: jobs per day)."""
+    local = now.astimezone(IST)
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _template(name: str) -> Template:
@@ -80,7 +131,14 @@ def create_app(
     # `PLANNER` selects the adapter (8.3); the unbuilt ones fail the job at `planning`.
     planner = planner or planner_module.from_settings(settings)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
-    worker = pipeline.Worker(transcriber=transcriber, planner=planner)
+    worker = pipeline.Worker(
+        transcriber=transcriber,
+        planner=planner,
+        max_queue=settings.max_queue,
+        max_job_minutes=settings.max_job_minutes,
+        clock=clock,
+    )
+    max_jobs_per_day = settings.max_jobs_per_day
     data_dir = settings.shortsmith_data_dir
     secret = settings.shortsmith_passcode
     passcode = secret.get_secret_value() if secret is not None else ""
@@ -137,13 +195,60 @@ def create_app(
         await delay(auth.WRONG_PASSCODE_DELAY_S)
         return HTMLResponse(render_passcode_form("Wrong passcode.", next_url), status_code=401)
 
+    def day_limit_reached() -> bool:
+        return jobs.created_since(data_dir, midnight_ist(clock())) >= max_jobs_per_day
+
+    def day_closed_sentence() -> str:
+        return (
+            f"Today's limit of {max_jobs_per_day} shorts is reached. "
+            "Try again after midnight IST."
+        )
+
     @app.get("/", response_class=HTMLResponse)
     async def upload_form() -> HTMLResponse:
+        if await run_in_threadpool(day_limit_reached):
+            return HTMLResponse(render_upload_form(limits, closed=day_closed_sentence()))
         return HTMLResponse(render_upload_form(limits))
 
     @app.post("/jobs")
     async def submit(request: Request) -> Response:
-        form = await request.form()
+        if await run_in_threadpool(day_limit_reached):
+            return HTMLResponse(
+                render_upload_form(limits, closed=day_closed_sentence()),
+                status_code=503,
+                headers={"Retry-After": str(_seconds_to_next_midnight_ist(clock()))},
+            )
+        try:
+            worker.reserve()
+        except QueueFull:
+            return HTMLResponse(
+                render_upload_form(
+                    limits,
+                    rejection=f"{worker.depth()} shorts are already in the queue; try in an hour.",
+                ),
+                status_code=503,
+                headers={"Retry-After": str(QUEUE_RETRY_S)},
+            )
+        submitted = False
+        try:
+            response = await _submit_reserved(request)
+            submitted = response.status_code == 303
+            return response
+        finally:
+            if not submitted:
+                worker.release()
+
+    async def _submit_reserved(request: Request) -> Response:
+        too_large = _too_large(limits)
+        declared = request.headers.get("content-length")
+        if declared is not None and declared.isdigit() and int(declared) > body_limit(limits):
+            return too_large
+        try:
+            form = await Request(
+                request.scope, limited_receive(request.receive, limit=body_limit(limits))
+            ).form()
+        except BodyTooLarge:
+            return too_large
         brief = _text(form.get("brief"))
         style_line = _text(form.get("style"))
         captions = [_text(form.get(f"caption_{n}")) for n in range(1, MAX_REFERENCE_FIELDS + 1)]
@@ -183,10 +288,11 @@ def create_app(
                     style_line=style_line,
                     references=references,
                     limits=limits,
+                    now=clock,
                 )
             except Rejected as exc:
                 return _rejection(limits, str(exc), brief, style_line, captions)
-        worker.submit(job.path)
+        worker.submit(job.path, reserved=True)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
     @app.get("/jobs/{job_id}.json")
@@ -194,16 +300,33 @@ def create_app(
         job = jobs.find(data_dir, job_id)
         if job is None:
             return JSONResponse({"error": "no such job"}, status_code=404)
-        return Response(job.record.model_dump_json(indent=2), media_type="application/json")
+        payload = json.loads(job.record.model_dump_json())
+        payload["queue_position"] = _queue_position(job, worker)
+        return Response(json.dumps(payload, indent=2), media_type="application/json")
 
     @app.get("/jobs/{job_id}", response_class=HTMLResponse)
     async def job_page(job_id: str) -> Response:
         job = jobs.find(data_dir, job_id)
         if job is None:
             return HTMLResponse("<h1>No such job</h1>", status_code=404)
-        return HTMLResponse(render_job_page(job))
+        return HTMLResponse(render_job_page(job, position=_queue_position(job, worker)))
 
     return app
+
+
+def _queue_position(job: Job, worker: pipeline.Worker) -> int | None:
+    """Only an `uploaded` job that is waiting has a position (11.1 "queued, position N")."""
+    return worker.position(job.path) if job.status == "uploaded" else None
+
+
+def _seconds_to_next_midnight_ist(now: datetime) -> int:
+    next_midnight = midnight_ist(now) + timedelta(days=1)
+    return max(1, int((next_midnight - now).total_seconds()))
+
+
+def _too_large(limits: Limits) -> HTMLResponse:
+    sentence = f"The recording must be {limits.max_upload_bytes // ingest.MIB} MB or smaller."
+    return HTMLResponse(render_upload_form(limits, rejection=sentence), status_code=413)
 
 
 # --- passcode guard -------------------------------------------------------------
@@ -309,23 +432,31 @@ def render_upload_form(
     brief: str = "",
     style_line: str = "",
     captions: list[str] | None = None,
+    closed: str = "",
 ) -> str:
-    captions = captions or []
-    refs: list[str] = []
-    for n in range(1, MAX_REFERENCE_FIELDS + 1):
-        caption = captions[n - 1] if n - 1 < len(captions) else ""
-        refs.append(
-            f'    <div class="ref"><input name="ref_{n}" type="file" '
-            f'accept=".jpg,.jpeg,.png,.webp,.mp4,.mov">'
-            f'<input name="caption_{n}" type="text" placeholder="one-line caption" '
-            f'value="{html.escape(caption)}"></div>'
+    """The upload page; with `closed` set, the notice replaces the form (11.2 day limit)."""
+    if closed:
+        body = f'<p class="closed">{html.escape(closed)}</p>'
+    else:
+        captions = captions or []
+        refs: list[str] = []
+        for n in range(1, MAX_REFERENCE_FIELDS + 1):
+            caption = captions[n - 1] if n - 1 < len(captions) else ""
+            refs.append(
+                f'    <div class="ref"><input name="ref_{n}" type="file" '
+                f'accept=".jpg,.jpeg,.png,.webp,.mp4,.mov">'
+                f'<input name="caption_{n}" type="text" placeholder="one-line caption" '
+                f'value="{html.escape(caption)}"></div>'
+            )
+        body = _template("upload_form.html").substitute(
+            max_upload_mb=limits.max_upload_bytes // ingest.MIB,
+            brief=html.escape(brief),
+            style=html.escape(style_line),
+            references="\n".join(refs),
         )
     return _template("upload.html").substitute(
         rejection=f'<p class="reject">{html.escape(rejection)}</p>' if rejection else "",
-        max_upload_mb=limits.max_upload_bytes // ingest.MIB,
-        brief=html.escape(brief),
-        style=html.escape(style_line),
-        references="\n".join(refs),
+        body=body,
     )
 
 
@@ -360,7 +491,7 @@ def _step_items(job: Job) -> str:
     return "\n".join(items)
 
 
-def render_job_page(job: Job, *, now: datetime | None = None) -> str:
+def render_job_page(job: Job, *, now: datetime | None = None, position: int | None = None) -> str:
     now = now or datetime.now(UTC)
     record = job.record
     brief_path = job.input_dir / "brief.md"
@@ -396,6 +527,8 @@ def render_job_page(job: Job, *, now: datetime | None = None) -> str:
         created_at=record.created_at.isoformat(),
         terminal="true" if record.status in TERMINAL else "false",
         poll_ms=POLL_MS,
+        position=f" (queued, position {position})" if position is not None else "",
+        position_json=json.dumps(position),
     )
 
 

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr | None = None
     shortsmith_passcode: SecretStr | None = None
     shortsmith_max_upload_mb: int = 500
+    max_queue: int = 3  # 11.2: running + waiting jobs; one more is refused
+    max_jobs_per_day: int = 10  # 11.2: global, counted since midnight IST
+    max_job_minutes: int = 30  # 11.2: the worker kills the step and fails the job
     asset_policy: AssetPolicy = "any"
     image_gen: ImageGen = "none"
     gemini_api_key: SecretStr | None = None

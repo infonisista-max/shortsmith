@@ -6,13 +6,15 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from shortsmith import jobs, pipeline
+from shortsmith import jobs, pipeline, subproc
 from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
 from shortsmith.planner import FakePlanner, Planner, PlannerUnavailable, UnavailablePlanner
 from shortsmith.transcriber import FakeTranscriber, Transcriber
@@ -216,3 +218,181 @@ def test_worker_skips_a_job_that_vanished(tmp_path: Path) -> None:
     worker.submit(tmp_path / "jobs" / "20260920-090000-abcdef")
     assert worker.run_next() is True
     assert worker.pending() == []
+
+
+# --- ticket 041: queue depth, positions, job-minute kill (decisions 9.1, 11.2) -----
+
+
+def test_fourth_submission_is_refused_at_max_queue_three(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner(), max_queue=3)
+    submitted = [_uploaded(tmp_path, fixture_clip) for _ in range(4)]
+    for job in submitted[:3]:
+        worker.submit(job.path)
+    with pytest.raises(pipeline.QueueFull):
+        worker.submit(submitted[3].path)
+    assert worker.pending() == [j.path for j in submitted[:3]]
+    assert worker.run_next() is True
+    worker.submit(submitted[3].path)  # a slot is free again
+    assert worker.pending() == [j.path for j in submitted[1:]]
+
+
+def test_a_reservation_counts_toward_the_depth_until_released(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """The upload route reserves before it reads the body so a refused upload costs
+    nothing; a rejected upload releases, an accepted one hands the slot to submit."""
+    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner(), max_queue=2)
+    worker.reserve()
+    worker.reserve()
+    with pytest.raises(pipeline.QueueFull):
+        worker.reserve()
+    job, other = _uploaded(tmp_path, fixture_clip), _uploaded(tmp_path, fixture_clip)
+    worker.submit(job.path, reserved=True)  # one reservation became a waiting job
+    assert worker.depth() == 2
+    with pytest.raises(pipeline.QueueFull):
+        worker.submit(other.path)
+    worker.release()  # the other upload was rejected
+    worker.submit(other.path)
+    assert worker.pending() == [job.path, other.path]
+    assert worker.depth() == 2
+
+
+def test_waiting_jobs_know_their_position_and_it_moves_as_jobs_finish(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
+    first, second, third = (_uploaded(tmp_path, fixture_clip) for _ in range(3))
+    for job in (first, second, third):
+        worker.submit(job.path)
+    assert [worker.position(j.path) for j in (first, second, third)] == [1, 2, 3]
+    assert worker.run_next() is True
+    assert worker.position(first.path) is None
+    assert [worker.position(j.path) for j in (second, third)] == [1, 2]
+    assert worker.run_next() is True
+    assert worker.position(third.path) == 1
+
+
+def test_the_running_job_has_no_position_but_still_counts_toward_the_depth(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    transcriber = _Blocking()
+    worker = pipeline.Worker(transcriber=transcriber, planner=FakePlanner(), max_queue=3)
+    first, second, third, fourth = (_uploaded(tmp_path, fixture_clip) for _ in range(4))
+    worker.start()
+    try:
+        worker.submit(first.path)
+        assert transcriber.started.wait(timeout=10)
+        worker.submit(second.path)
+        worker.submit(third.path)
+        assert worker.position(first.path) is None
+        assert [worker.position(j.path) for j in (second, third)] == [1, 2]
+        with pytest.raises(pipeline.QueueFull):
+            worker.submit(fourth.path)
+    finally:
+        transcriber.release.set()
+        worker.stop()
+
+
+T0 = datetime(2026, 9, 21, 12, 0, 0, tzinfo=UTC)
+
+
+class _JumpingClock:
+    """T0 until `jump` is set, then T0 plus `minutes`: the fake clock for the kill."""
+
+    def __init__(self, minutes: float) -> None:
+        self.jump = threading.Event()
+        self.after = T0 + timedelta(minutes=minutes)
+
+    def __call__(self) -> datetime:
+        return self.after if self.jump.is_set() else T0
+
+
+class _SleepsInAChild(Transcriber):
+    """A step that spends its time in a subprocess, the way ffmpeg and Remotion will."""
+
+    def __init__(self, clock: _JumpingClock) -> None:
+        self.clock = clock
+        self.outcome: str = "not run"
+
+    def transcribe(self, audio: Path) -> Transcript:
+        self.clock.jump.set()
+        try:
+            subproc.run([sys.executable, "-c", "import time; time.sleep(60)"])
+        except subproc.Killed:
+            self.outcome = "killed"
+            raise
+        self.outcome = "finished"
+        return FakeTranscriber().transcribe(audio)
+
+
+def test_past_max_job_minutes_the_step_process_is_killed_and_the_next_job_starts(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    clock = _JumpingClock(minutes=31)
+    transcriber = _SleepsInAChild(clock)
+    worker = pipeline.Worker(
+        transcriber=transcriber,
+        planner=FakePlanner(),
+        max_job_minutes=30,
+        clock=clock,
+        watchdog_interval_s=0.02,
+    )
+    first, second = _uploaded(tmp_path, fixture_clip), _uploaded(tmp_path, fixture_clip)
+    worker.submit(first.path)
+    worker.submit(second.path)
+
+    started = time.monotonic()
+    assert worker.run_next() is True
+    assert time.monotonic() - started < 20  # the child slept for 60 s; it was killed
+    assert transcriber.outcome == "killed"
+    failed = jobs.load(first.path)
+    assert failed.status == "failed"
+    assert failed.record.error is not None
+    assert failed.record.error.step == "transcribing"
+    assert "job exceeded 30 minutes" in failed.record.error.message
+
+    worker._transcriber = FakeTranscriber()  # pyright: ignore[reportPrivateUsage]
+    assert worker.run_next() is True
+    assert jobs.load(second.path).status == "sourcing"
+
+
+class _SlowInProcess(Transcriber):
+    """A step with no subprocess cannot be interrupted; it fails on return."""
+
+    def __init__(self, clock: _JumpingClock) -> None:
+        self.clock = clock
+
+    def transcribe(self, audio: Path) -> Transcript:
+        self.clock.jump.set()
+        return FakeTranscriber().transcribe(audio)
+
+
+def test_a_step_that_returns_after_the_deadline_still_fails_the_job(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    clock = _JumpingClock(minutes=30)  # exactly the limit counts as exceeded
+    job = _uploaded(tmp_path, fixture_clip)
+    result = pipeline.run_job(
+        job,
+        transcriber=_SlowInProcess(clock),
+        planner=FakePlanner(),
+        max_job_minutes=30,
+        clock=clock,
+    )
+    assert result.status == "failed"
+    assert result.record.error is not None
+    assert result.record.error.step == "transcribing"
+    assert "job exceeded 30 minutes" in result.record.error.message
+    assert not (job.work_dir / "plan.json").exists()
+
+
+def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path) -> None:
+    clock = _JumpingClock(minutes=29.9)
+    job = _uploaded(tmp_path, fixture_clip)
+    result = pipeline.run_job(
+        job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), max_job_minutes=30,
+        clock=clock,
+    )
+    assert result.status == "sourcing"

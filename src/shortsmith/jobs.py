@@ -206,6 +206,15 @@ def list_jobs(data_dir: Path, *, limit: int = 50) -> list[Job]:
     return found
 
 
+def created_since(data_dir: Path, since: datetime) -> int:
+    """How many jobs were created at or after `since` (11.2: the per-day limit)."""
+    root = data_dir / "jobs"
+    if not root.is_dir():
+        return 0
+    dirs = (d for d in root.iterdir() if JOB_ID.match(d.name) and (d / "job.json").is_file())
+    return sum(1 for d in dirs if load(d).record.created_at >= since)
+
+
 def can_transition(current: Status, requested: Status) -> bool:
     if current in TERMINAL or requested == current:
         return False

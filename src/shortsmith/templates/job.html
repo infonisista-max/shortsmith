@@ -24,7 +24,7 @@
 </head>
 <body>
 <h1>Job $job_id</h1>
-<p class="sub">Status: <strong data-status>$status</strong> · Elapsed: <span data-elapsed>$elapsed</span></p>
+<p class="sub">Status: <strong data-status>$status</strong><span data-position>$position</span> · Elapsed: <span data-elapsed>$elapsed</span></p>
 <ol class="steps">
 $steps
 </ol>
@@ -42,6 +42,7 @@ $error
 (function () {
   var url = "$json_url";
   var status = "$status";
+  var position = $position_json;
   var createdAt = new Date("$created_at").getTime();
   function fmt(ms) {
     var s = Math.max(0, Math.floor(ms / 1000));
@@ -51,7 +52,7 @@ $error
     fetch(url, { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (job) {
-        if (job.status !== status) { location.reload(); return; }
+        if (job.status !== status || job.queue_position !== position) { location.reload(); return; }
         var end = $terminal ? new Date(job.updated_at).getTime() : Date.now();
         document.querySelector("[data-elapsed]").textContent = fmt(end - createdAt);
       })

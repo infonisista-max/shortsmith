@@ -149,6 +149,20 @@ def test_load_round_trips(tmp_path: Path, clock: Clock) -> None:
     assert loaded.out_dir == job.path / "out"
 
 
+def test_created_since_counts_jobs_at_and_after_the_instant(tmp_path: Path) -> None:
+    """11.2: MAX_JOBS_PER_DAY counts jobs created since midnight IST; the caller
+    supplies the instant, this counts on `created_at` from job.json."""
+    midnight = datetime(2026, 9, 20, 18, 30, 0, tzinfo=UTC)  # 2026-09-21 00:00 IST
+    stamps = [midnight - timedelta(seconds=1), midnight, midnight + timedelta(hours=5)]
+    for stamp in stamps:
+        jobs.create(tmp_path, now=lambda stamp=stamp: stamp)
+    (tmp_path / "jobs" / "not-a-job").mkdir()
+    assert jobs.created_since(tmp_path, midnight) == 2
+    assert jobs.created_since(tmp_path, midnight - timedelta(days=1)) == 3
+    assert jobs.created_since(tmp_path, midnight + timedelta(days=1)) == 0
+    assert jobs.created_since(tmp_path / "elsewhere", midnight) == 0
+
+
 def test_write_survives_a_concurrent_reader(tmp_path: Path) -> None:
     """The job page polls job.json while the worker rewrites it. On Windows the atomic
     replace fails with PermissionError while a reader holds the file open, so the

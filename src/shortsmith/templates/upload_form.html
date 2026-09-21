@@ -1,0 +1,24 @@
+<form method="post" action="/jobs" enctype="multipart/form-data">
+  <fieldset>
+    <legend>Recording</legend>
+    <label for="video">Video file (mp4 or mov, 20 s to 8 min, up to $max_upload_mb MB)</label>
+    <input id="video" name="video" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" required>
+    <p class="hint">Sit about an arm and a half from the phone, face in the top third. Vertical works best for PIP.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Brief</legend>
+    <label for="brief">What this Short is about (40 to 1500 characters)</label>
+    <textarea id="brief" name="brief" placeholder="topic / angle / must-say facts / hook wish" required>$brief</textarea>
+    <label for="style">Style</label>
+    <input id="style" name="style" type="text" value="$style" placeholder="explainer">
+    <p class="hint">One style word, plus anything the style leaves open: length, caption language, energy.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>References (optional, up to 8: jpg, png, webp, mp4, mov; images at least 600 px on the short side; 20 MB each)</legend>
+$references
+  </fieldset>
+
+  <button type="submit">Make the Short</button>
+</form>

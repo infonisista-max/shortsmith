@@ -49,6 +49,10 @@ def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.groq_api_key is None
     assert s.gemini_api_key is None
     assert s.shortsmith_passcode is None
+    # 11.2 limits
+    assert s.max_queue == 3
+    assert s.max_jobs_per_day == 10
+    assert s.max_job_minutes == 30
 
 
 def test_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,10 +63,14 @@ def test_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
         SHORTSMITH_MAX_UPLOAD_MB="42",
         SHORTSMITH_DATA_DIR="C:/tmp/shortsmith-data",
         GROQ_API_KEY="gsk_secret_value",
+        MAX_QUEUE="5",
+        MAX_JOBS_PER_DAY="2",
+        MAX_JOB_MINUTES="1",
     )
     assert s.planner == "fake"
     assert s.asset_policy == "rights_safe"
     assert s.shortsmith_max_upload_mb == 42
+    assert (s.max_queue, s.max_jobs_per_day, s.max_job_minutes) == (5, 2, 1)
     assert s.shortsmith_data_dir == Path("C:/tmp/shortsmith-data")
     assert s.groq_api_key is not None
     assert s.groq_api_key.get_secret_value() == "gsk_secret_value"

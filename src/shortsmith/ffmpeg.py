@@ -12,6 +12,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from shortsmith import subproc
+
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
 
@@ -21,7 +23,8 @@ class FFmpegError(RuntimeError):
 
 
 def run(argv: list[str], *, timeout_s: float = 120.0) -> subprocess.CompletedProcess[bytes]:
-    proc = subprocess.run(argv, capture_output=True, timeout=timeout_s)
+    """Runs through `subproc.run`, so a job's watchdog can kill it (11.2)."""
+    proc = subproc.run(argv, timeout_s=timeout_s)
     if proc.returncode != 0:
         tail = proc.stderr.decode("utf-8", errors="replace")[-4000:]
         raise FFmpegError(f"{argv[0]} exited {proc.returncode}:\n{tail}")
