@@ -103,6 +103,11 @@ def test_rendering_step_reports_progress_into_job_json(
     assert renderer.on_disk == [0, 50, 100]  # each report landed in job.json before the next
     assert jobs.load(job.path).record.status == "qa"
     assert (job.work_dir / "picture.mp4").is_file()
+    # 005: the fake stands in for the whole step, so every file the step leaves exists.
+    assert (job.work_dir / "cut.mp4").is_file()
+    assert (job.work_dir / "stems" / "voice.wav").is_file()
+    assert (job.work_dir / "stems" / "mix.wav").is_file()
+    assert (job.out_dir / "short.mp4").is_file()
 
 
 class _BrokenRenderer(FakeRenderer):

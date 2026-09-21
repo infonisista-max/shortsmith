@@ -15,9 +15,10 @@ style loader and resolver are ticket 008, so until then the style is always
 `explainer` with its prose read from `styles/explainer.md`.
 
 `sourcing` is a pass-through until ticket 016 builds the asset step. `rendering`
-runs the picture engine (`render.Renderer`, Remotion by default; ticket 004) and
-writes its frame progress into `job.json.progress` as the job page's percentage
-(11.1); the ffmpeg cut, voice stem and mux join the step with ticket 005.
+runs the whole render (`render.Renderer`, Remotion plus ffmpeg by default; tickets
+004 and 005): the presenter cut, the voice stem, the picture, the master and the mux
+to `out/short.mp4`, writing the picture render's frame progress into
+`job.json.progress` as the job page's percentage (11.1).
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path

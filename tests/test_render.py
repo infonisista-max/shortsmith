@@ -1,7 +1,10 @@
 """render (ticket 004): the pure RenderSpec builder (frames, beats, fixed-advance
 caption boxes anchored at y 1460, fixed PIP geometry, palette), the component
 registry the Node project exports, the driver's progress lines, and one real render
-of the fixture through the Remotion composition checked with ffprobe."""
+of the fixture through the Remotion composition checked with ffprobe.
+
+Ticket 005 adds the ffmpeg half: the CFR no-B-frame presenter cut with the 1.5x crop
+rule, the voice stem through the 7.3 chain, and the mux with `-c:v copy`."""
 
 from __future__ import annotations
 
@@ -11,18 +14,21 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import captions, ffmpeg, fixture, jobs, render
+from shortsmith import captions, ffmpeg, fixture, jobs, presenter, render
 from shortsmith.contracts import (
     CaptionPage,
     Constraints,
+    CutPlan,
     PicturePlan,
     PlanRequest,
     PlanStyle,
     RenderSpec,
+    Span,
     Word,
 )
 from shortsmith.planner import FakePlanner
 from shortsmith.transcriber import FakeTranscriber
+from tests.conftest import Media
 
 WORDS = FakeTranscriber().transcribe(Path("unused.mp4")).words
 
@@ -50,10 +56,29 @@ def _spec() -> RenderSpec:
         plan,
         _pages(plan),
         WORDS,
-        presenter=Path("input/raw.mp4"),
+        presenter=Path("work/cut.mp4"),
         source_size=(fixture.WIDTH, fixture.HEIGHT),
         duration_s=fixture.DURATION_S,
     )
+
+
+def _job_with(tmp_path: Path, clip: Path, plan: PicturePlan | None = None) -> jobs.Job:
+    """A job past `sourcing` on disk: raw.mp4, plan.json, asr.json, captions.json."""
+    job = jobs.create(tmp_path)
+    shutil.copyfile(clip, job.input_dir / "raw.mp4")
+    plan = plan or _plan()
+    (job.work_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    (job.work_dir / "asr.json").write_text(
+        FakeTranscriber().transcribe(clip).model_dump_json(indent=2), encoding="utf-8"
+    )
+    (job.work_dir / "captions.json").write_text(
+        json.dumps([p.model_dump() for p in _pages(plan)]), encoding="utf-8"
+    )
+    return job
+
+
+def _streams(path: Path) -> dict[str, dict[str, object]]:
+    return {s["codec_type"]: s for s in ffmpeg.probe(path)["streams"]}
 
 
 # --- registry (decision 9.2) ----------------------------------------------------------
@@ -79,7 +104,7 @@ def test_spec_has_round_duration_times_fps_frames_and_beats_tile_them() -> None:
         assert a.end_frame == b.start_frame
     modes = [b.mode for b in spec.beats]
     assert modes[0] == "full" and "pip" in modes and "off" in modes
-    assert spec.presenter.endswith("raw.mp4")
+    assert spec.presenter.endswith("cut.mp4")
 
 
 def test_beat_frames_round_to_the_nearest_frame() -> None:
@@ -212,33 +237,186 @@ def test_parse_progress(line: str, expected: tuple[int, int] | None) -> None:
     assert render.parse_progress(line) == expected
 
 
+# --- ticket 005: the presenter cut (decisions 2.1, 9.1) ------------------------------
+
+
+def _with_cut(
+    plan: PicturePlan, *, keep: list[Span], drop: list[Span] | None = None
+) -> PicturePlan:
+    return plan.model_copy(update={"cut": CutPlan(keep=keep, drop=drop or [])})
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ((1080, 1920), (1080, 1920, 0, 0)),  # already 9:16: no crop
+        ((3840, 2160), (1216, 2160, 1312, 0)),  # 4K landscape: full height, centred width
+        ((1080, 2400), (1080, 1920, 0, 240)),  # too tall: full width, centred height
+        ((720, 1280), (720, 1280, 0, 0)),  # exactly 1.5x: allowed
+    ],
+)
+def test_crop_window_is_the_largest_centred_9_16_with_even_edges(
+    source: tuple[int, int], expected: tuple[int, int, int, int]
+) -> None:
+    assert presenter.crop_window(source) == expected
+
+
+@pytest.mark.parametrize("source", [(640, 1136), (1920, 1080), (1280, 720), (1000, 1000)])
+def test_crop_window_refuses_a_source_needing_more_than_1_5x_upscale(
+    source: tuple[int, int],
+) -> None:
+    with pytest.raises(presenter.UpscaleExceeded, match="1.5x"):
+        presenter.crop_window(source)
+
+
+def test_span_filter_trims_and_concatenates_video_and_audio() -> None:
+    spans = [Span(start=3.0, end=3.5), Span(start=0.0, end=3.0)]
+    graph = render.span_filter(spans, video=True, audio=True)
+    assert "[0:v]trim=start=3.000:end=3.500,setpts=PTS-STARTPTS[v0]" in graph
+    assert "[0:a]atrim=start=0.000:end=3.000,asetpts=PTS-STARTPTS[a1]" in graph
+    assert graph.endswith("[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][ac]")
+    audio_only = render.span_filter(spans, video=False, audio=True)
+    assert "trim=" not in audio_only.replace("atrim=", "")
+    assert audio_only.endswith("[a0][a1]concat=n=2:v=0:a=1[ac]")
+
+
+def test_cut_presenter_writes_a_cfr_h264_cut_with_no_b_frames_and_the_audio(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _job_with(tmp_path, fixture_clip)
+    out = render.cut_presenter(job)
+    assert out == job.work_dir / "cut.mp4" and out.is_file()
+    streams = _streams(out)
+    assert set(streams) == {"video", "audio"}
+    video = streams["video"]
+    assert video["codec_name"] == "h264"
+    assert int(video["has_b_frames"]) == 0  # type: ignore[call-overload]
+    assert video["r_frame_rate"] == "30/1" and video["avg_frame_rate"] == "30/1"  # CFR
+    assert (video["width"], video["height"]) == (1080, 1920)
+    assert int(video["nb_frames"]) == 180  # type: ignore[call-overload]
+
+
+def test_cut_presenter_applies_the_cut_list(tmp_path: Path, fixture_clip: Path) -> None:
+    plan = _with_cut(_plan(), keep=[Span(start=0.0, end=6.0)], drop=[Span(start=1.0, end=2.0)])
+    job = _job_with(tmp_path, fixture_clip, plan)
+    out = render.cut_presenter(job)
+    streams = _streams(out)
+    assert int(streams["video"]["nb_frames"]) == 150  # type: ignore[call-overload]
+    assert float(streams["audio"]["duration"]) == pytest.approx(5.0, abs=0.05)  # type: ignore[arg-type]
+
+
+def test_cut_presenter_centre_crops_a_landscape_source_to_1080x1920(
+    tmp_path: Path, media: Media
+) -> None:
+    clip = media.clip(duration_s=2.0, width=2560, height=1440)  # crop 810x1440, 1.33x up
+    plan = _with_cut(_plan(), keep=[Span(start=0.0, end=2.0)])
+    job = _job_with(tmp_path, clip, plan)
+    out = render.cut_presenter(job)
+    video = _streams(out)["video"]
+    assert (video["width"], video["height"]) == (1080, 1920)
+    assert int(video["nb_frames"]) == 60  # type: ignore[call-overload]
+
+
+def test_cut_presenter_refuses_a_source_over_the_1_5x_rule(tmp_path: Path, media: Media) -> None:
+    clip = media.clip(duration_s=2.0, width=640, height=1136)  # 1.69x up
+    plan = _with_cut(_plan(), keep=[Span(start=0.0, end=2.0)])
+    job = _job_with(tmp_path, clip, plan)
+    with pytest.raises(presenter.UpscaleExceeded, match="1.5x"):
+        render.cut_presenter(job)
+    assert not (job.work_dir / "cut.mp4").exists()
+
+
+# --- ticket 005: voice stem, master and mux (decisions 7.3, 9.1, 10.1) ----------------
+
+
+def test_voice_stem_is_mono_48k_pcm_at_minus_19_lufs(tmp_path: Path, fixture_clip: Path) -> None:
+    job = _job_with(tmp_path, fixture_clip)
+    out = render.voice_stem(job)
+    assert out == job.work_dir / "stems" / "voice.wav" and out.is_file()
+    audio = _streams(out)["audio"]
+    assert audio["codec_name"] == "pcm_s16le"
+    assert int(audio["channels"]) == 1 and int(audio["sample_rate"]) == 48000  # type: ignore[call-overload]
+    assert float(audio["duration"]) == pytest.approx(6.0, abs=0.05)  # type: ignore[arg-type]
+    loud = ffmpeg.measure_loudness(out)
+    assert loud.integrated == pytest.approx(render.VOICE_LUFS, abs=1.0)
+    assert loud.true_peak <= render.VOICE_TP + 0.1
+
+
+def test_voice_chain_is_the_7_3_graph_verbatim() -> None:
+    chain = render.voice_chain()
+    assert chain.startswith("aformat=channel_layouts=stereo,pan=mono|c0=0.5*c0+0.5*c1")
+    assert ",highpass=f=80," in chain
+    assert chain.endswith("acompressor=threshold=-18dB:ratio=2.5")
+
+
+def _synthetic_picture(job: jobs.Job, media: Media) -> Path:
+    """A silent 6 s 1080x1920 H.264 standing in for the Remotion output."""
+    picture = job.work_dir / "picture.mp4"
+    shutil.copyfile(media.clip(duration_s=6.0, audio=False, ext=".mp4"), picture)
+    return picture
+
+
+def test_mux_copies_the_picture_stream_and_masters_the_voice(
+    tmp_path: Path, fixture_clip: Path, media: Media
+) -> None:
+    job = _job_with(tmp_path, fixture_clip)
+    picture = _synthetic_picture(job, media)
+    render.voice_stem(job)
+    out = render.mux(job)
+    assert out == job.out_dir / "short.mp4" and out.is_file()
+    streams = _streams(out)
+    assert set(streams) == {"video", "audio"}
+    assert ffmpeg.video_md5(out) == ffmpeg.video_md5(picture)  # revision proof (a)
+    mix = job.work_dir / "stems" / "mix.wav"
+    assert mix.is_file() and (job.work_dir / "stems" / "voice.wav").is_file()
+    loud = ffmpeg.measure_loudness(mix)
+    assert loud.integrated == pytest.approx(render.MASTER_LUFS, abs=0.5)  # T4
+    assert loud.true_peak <= render.MASTER_TP
+    assert ffmpeg.measure_loudness(out).integrated == pytest.approx(render.MASTER_LUFS, abs=1.0)
+
+
+def test_spec_for_job_reads_the_cut_as_the_presenter_source(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _job_with(tmp_path, fixture_clip)
+    render.cut_presenter(job)
+    spec = render.spec_for_job(job)
+    assert Path(spec.presenter) == job.work_dir / "cut.mp4"
+    assert (spec.source_width, spec.source_height) == (1080, 1920)
+    assert spec.frames == 180
+
+
+def test_spec_for_job_without_a_cut_names_the_missing_file(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _job_with(tmp_path, fixture_clip)
+    with pytest.raises(render.RenderError, match="cut.mp4"):
+        render.spec_for_job(job)
+
+
 # --- the real thing -------------------------------------------------------------------
 
 
-def test_render_writes_a_silent_h264_picture_with_progress(
+def test_remotion_renderer_runs_the_whole_step_to_out_short_mp4(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    job = jobs.create(tmp_path)
-    shutil.copyfile(fixture_clip, job.input_dir / "raw.mp4")
-    plan = _plan()
-    (job.work_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
-    (job.work_dir / "asr.json").write_text(
-        FakeTranscriber().transcribe(fixture_clip).model_dump_json(indent=2), encoding="utf-8"
-    )
-    (job.work_dir / "captions.json").write_text(
-        json.dumps([p.model_dump() for p in _pages(plan)]), encoding="utf-8"
-    )
+    job = _job_with(tmp_path, fixture_clip)
     seen: list[int] = []
-    out = render.render(job, on_progress=seen.append)
-    assert out == job.work_dir / "picture.mp4" and out.is_file()
+    out = render.RemotionRenderer().render(job, on_progress=seen.append)
+    assert out == job.out_dir / "short.mp4" and out.is_file()
+    picture = job.work_dir / "picture.mp4"
+    assert picture.is_file() and (job.work_dir / "cut.mp4").is_file()
     assert (job.work_dir / "render_spec.json").is_file()
     assert (job.work_dir / "render.log").is_file()
     assert seen and seen[-1] == 100 and seen == sorted(seen)
-    info = ffmpeg.probe(out)
-    streams = info["streams"]
+    streams = ffmpeg.probe(picture)["streams"]
     assert [s["codec_type"] for s in streams] == ["video"]  # silent: no audio stream
     video = streams[0]
     assert video["codec_name"] == "h264"
     assert (video["width"], video["height"]) == (1080, 1920)
     assert int(video["nb_frames"]) == 180
     assert video["r_frame_rate"] == "30/1"
+    short = _streams(out)
+    assert set(short) == {"video", "audio"}
+    assert int(short["video"]["nb_frames"]) == 180  # type: ignore[call-overload]
+    assert ffmpeg.video_md5(out) == ffmpeg.video_md5(picture)

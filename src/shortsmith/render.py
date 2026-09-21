@@ -6,12 +6,24 @@ words it resolves everything the Remotion composition needs into a `RenderSpec`
 palette, the 6.2 typography numbers). The composition under `src/remotion/` draws
 what it is given and measures nothing.
 
-`render(job)` writes `work/render_spec.json`, runs `src/remotion/driver.mjs` (which
-bundles once into `build/remotion/` and renders through `@remotion/renderer` with
-concurrency 2 and bt709), streams the driver's `progress N/M` lines to the caller,
-keeps the full driver output in `work/render.log` and leaves `work/picture.mp4`,
-silent H.264. The presenter source is `input/raw.mp4` until ticket 005 supplies the
-CFR cut.
+`render_picture(job)` writes `work/render_spec.json`, runs `src/remotion/driver.mjs`
+(which bundles once into `build/remotion/` and renders through `@remotion/renderer`
+with concurrency 2 and bt709), streams the driver's `progress N/M` lines to the
+caller, keeps the full driver output in `work/render.log` and leaves
+`work/picture.mp4`, silent H.264.
+
+The ffmpeg half (ticket 005, decision 9.1) wraps it. `cut_presenter` builds
+`work/cut.mp4` from the plan's cut list (`presenter.cut_list`): one trim/concat graph,
+the largest centred 9:16 window under the 1.5x rule scaled to 1080x1920, re-encoded
+once to constant-frame-rate H.264 with `-bf 0` so the B-frame pyramid failure cannot
+occur; the composition reads this cut, never the raw upload. `voice_stem` runs the same
+span graph on the raw audio through the 7.3 voice chain verbatim (mono fold inside the
+graph, high-pass 80 Hz, compressor -18 dB ratio 2.5, two-pass loudnorm -19 LUFS /
+-3 dBTP) into `work/stems/voice.wav`. `mux` masters the mix (voice only until 022:
+two-pass loudnorm -14 LUFS / -1.5 dBTP, then the 0.891 limiter with auto-level off so
+the target holds) into `work/stems/mix.wav` and muxes it with the picture stream
+copied bit-for-bit into `out/short.mp4` (revision proof (a), 10.1). Stems always sit
+beside the mix under `work/stems/`. `render_short` is the whole `rendering` step.
 
 Style numbers: the loader (008) does not exist yet, so `EXPLAINER` holds the 6.2, 6.3
 and 3.3 numbers as one typed constant, the way `pipeline` holds the pager numbers.
@@ -38,7 +50,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from shortsmith import ffmpeg, subproc
+from shortsmith import ffmpeg, presenter, subproc
 from shortsmith.contracts import (
     BeatSpec,
     CaptionPage,
@@ -48,6 +60,7 @@ from shortsmith.contracts import (
     PicturePlan,
     PipGeometry,
     RenderSpec,
+    Span,
     Transcript,
     Word,
     WordBox,
@@ -61,6 +74,13 @@ REGISTRY_PATH = REMOTION_DIR / "registry.json"
 WIDTH, HEIGHT, FPS = 1080, 1920, 30
 CONCURRENCY = 2  # decision 9.1
 DRIVER_TIMEOUT_S = 3600.0
+FFMPEG_TIMEOUT_S = 1800.0
+
+# Decision 7.3 (research §5) sound numbers.
+VOICE_LUFS, VOICE_TP = -19.0, -3.0
+MASTER_LUFS, MASTER_TP = -14.0, -1.5
+LIMITER = 0.891
+SAMPLE_RATE = 48000
 
 _PAGES = TypeAdapter(list[CaptionPage])
 
@@ -389,25 +409,37 @@ def run_driver(
     )
 
 
+def _load_plan(job: Job) -> PicturePlan:
+    return PicturePlan.model_validate_json(
+        (job.work_dir / "plan.json").read_text(encoding="utf-8")
+    )
+
+
+def _raw_path(job: Job) -> Path:
+    return job.input_dir / (job.record.input.file if job.record.input else "raw.mp4")
+
+
+def _cut_path(job: Job) -> Path:
+    return job.work_dir / "cut.mp4"
+
+
 def spec_for_job(job: Job, *, numbers: StyleNumbers = EXPLAINER) -> RenderSpec:
     """The RenderSpec from the job's files: plan.json, asr.json, captions.json and the
-    presenter source (input/raw.mp4 until 005)."""
+    presenter cut (`work/cut.mp4`, 005). The short is as long as the cut list."""
     work = job.work_dir
-    plan = PicturePlan.model_validate_json((work / "plan.json").read_text(encoding="utf-8"))
+    plan = _load_plan(job)
     transcript = Transcript.model_validate_json((work / "asr.json").read_text(encoding="utf-8"))
     pages = _PAGES.validate_json((work / "captions.json").read_text(encoding="utf-8"))
-    presenter = job.input_dir / (job.record.input.file if job.record.input else "raw.mp4")
-    if job.record.input is not None:
-        source_size = (job.record.input.width, job.record.input.height)
-    else:
-        source_size = _probe_size(presenter)
+    cut = _cut_path(job)
+    if not cut.is_file():
+        raise RenderError("work/cut.mp4 is missing: cut_presenter runs before the picture")
     return build_spec(
         plan,
         pages,
         transcript.words,
-        presenter=presenter,
-        source_size=source_size,
-        duration_s=transcript.duration_s,
+        presenter=cut,
+        source_size=_probe_size(cut),
+        duration_s=presenter.total_duration(presenter.cut_list(plan)),
         numbers=numbers,
     )
 
@@ -419,7 +451,7 @@ def _probe_size(path: Path) -> tuple[int, int]:
     raise RenderError(f"{path.name} has no video stream")
 
 
-def render(job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+def render_picture(job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
     """The `rendering` step's picture half: `work/picture.mp4`, silent H.264."""
     spec = spec_for_job(job)
     out = job.work_dir / "picture.mp4"
@@ -433,40 +465,249 @@ def render(job: Job, *, on_progress: Callable[[int], None] | None = None) -> Pat
     return out
 
 
+# --- the ffmpeg half (ticket 005; decisions 2.1, 7.3, 9.1, 10.1) -----------------------
+
+
+def span_filter(spans: Sequence[Span], *, video: bool, audio: bool) -> str:
+    """A filter graph that trims each span of input 0 and concatenates them in order;
+    the outputs are `[vc]` and/or `[ac]`. Both streams use the same span times, so the
+    cut and the voice stem stay sample-aligned."""
+    parts: list[str] = []
+    inputs = ""
+    for i, span in enumerate(spans):
+        if video:
+            parts.append(
+                f"[0:v]trim=start={span.start:.3f}:end={span.end:.3f},setpts=PTS-STARTPTS[v{i}]"
+            )
+            inputs += f"[v{i}]"
+        if audio:
+            parts.append(
+                f"[0:a]atrim=start={span.start:.3f}:end={span.end:.3f},asetpts=PTS-STARTPTS[a{i}]"
+            )
+            inputs += f"[a{i}]"
+    outs = ("[vc]" if video else "") + ("[ac]" if audio else "")
+    parts.append(f"{inputs}concat=n={len(spans)}:v={int(video)}:a={int(audio)}{outs}")
+    return ";".join(parts)
+
+
+def crop_filter(source_size: tuple[int, int]) -> str:
+    """Centre crop to the largest 9:16 window (1.5x rule enforced by `crop_window`),
+    scale to the composition size, constant 30 fps, 4:2:0."""
+    crop_w, crop_h, x, y = presenter.crop_window(source_size)
+    return (
+        f"crop={crop_w}:{crop_h}:{x}:{y},scale={WIDTH}:{HEIGHT}:flags=lanczos,"
+        f"fps={FPS},format=yuv420p"
+    )
+
+
+def cut_presenter(job: Job) -> Path:
+    """`work/cut.mp4`: the cut list applied to the raw upload, CFR 30 fps H.264 with no
+    B-frames, 1080x1920, its audio carried along as AAC."""
+    plan = _load_plan(job)
+    raw = _raw_path(job)
+    if job.record.input is not None:
+        source_size = (job.record.input.width, job.record.input.height)
+    else:
+        source_size = _probe_size(raw)
+    picture = crop_filter(source_size)  # raises UpscaleExceeded before ffmpeg starts
+    spans = presenter.cut_list(plan)
+    graph = f"{span_filter(spans, video=True, audio=True)};[vc]{picture}[v]"
+    out = _cut_path(job)
+    ffmpeg.run(
+        [
+            ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(raw),
+            "-filter_complex", graph, "-map", "[v]", "-map", "[ac]",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-bf", "0",
+            "-fps_mode", "cfr", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k", "-ar", str(SAMPLE_RATE),
+            "-movflags", "+faststart", str(out),
+        ],  # fmt: skip
+        timeout_s=FFMPEG_TIMEOUT_S,
+    )
+    return out
+
+
+def voice_chain() -> str:
+    """Research §5 / decision 7.3 voice chain before loudnorm: the mono fold inside the
+    graph (never `-ac 1`), high-pass 80 Hz, compressor -18 dB ratio 2.5."""
+    return (
+        "aformat=channel_layouts=stereo,pan=mono|c0=0.5*c0+0.5*c1,"
+        "highpass=f=80,acompressor=threshold=-18dB:ratio=2.5"
+    )
+
+
+def loudnorm_second_pass(measured: ffmpeg.Loudness, *, target_lufs: float, target_tp: float) -> str:
+    """The linear second pass of two-pass loudnorm from the first pass's measurement."""
+    return (
+        f"{ffmpeg.loudnorm_filter(target_lufs=target_lufs, target_tp=target_tp)}"
+        f":measured_I={measured.integrated:g}:measured_TP={measured.true_peak:g}"
+        f":measured_LRA={measured.lra:g}:measured_thresh={measured.threshold:g}"
+        f":offset={measured.offset:g}:linear=true:print_format=summary"
+    )
+
+
+def _stems_dir(job: Job) -> Path:
+    stems = job.work_dir / "stems"
+    stems.mkdir(parents=True, exist_ok=True)
+    return stems
+
+
+def voice_stem(job: Job) -> Path:
+    """`work/stems/voice.wav`: the cut list's audio through the voice chain and
+    two-pass loudnorm to -19 LUFS / -3 dBTP, mono 48 kHz PCM."""
+    plan = _load_plan(job)
+    raw = _raw_path(job)
+    graph = span_filter(presenter.cut_list(plan), video=False, audio=True)
+    measured = ffmpeg.measure_loudness(
+        raw,
+        prefilter=voice_chain(),
+        target_lufs=VOICE_LUFS,
+        target_tp=VOICE_TP,
+        filter_complex=graph,
+        label="ac",
+    )
+    second = loudnorm_second_pass(measured, target_lufs=VOICE_LUFS, target_tp=VOICE_TP)
+    out = _stems_dir(job) / "voice.wav"
+    ffmpeg.run(
+        [
+            ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(raw),
+            "-filter_complex", f"{graph};[ac]{voice_chain()},{second},aresample={SAMPLE_RATE}[out]",
+            "-map", "[out]", "-c:a", "pcm_s16le", str(out),
+        ],  # fmt: skip
+        timeout_s=FFMPEG_TIMEOUT_S,
+    )
+    return out
+
+
+def master_chain(measured: ffmpeg.Loudness, *, request_lufs: float = MASTER_LUFS) -> str:
+    """Master: two-pass loudnorm to `request_lufs` / -1.5 dBTP then the 0.891 limiter.
+    The limiter's auto-level is off; on, it would re-gain the output to 0 dB and break
+    T4."""
+    second = loudnorm_second_pass(measured, target_lufs=request_lufs, target_tp=MASTER_TP)
+    return f"{second},alimiter=limit={LIMITER}:level=false,aresample={SAMPLE_RATE}"
+
+
+MASTER_TOLERANCE_LU = 0.2
+MASTER_PASSES = 4
+
+
+def master(source: Path, mix: Path) -> ffmpeg.Loudness:
+    """Render `source` through the master chain into `mix` and converge on -14 LUFS.
+
+    loudnorm's linear mode is impossible whenever the gain to target would push the
+    peaks past the -1.5 dBTP ceiling (any voice stem peaking above about -6.5 dBTP, so
+    most speech), and its dynamic mode lands a few tenths of an LU off a fresh
+    measurement. The requested target is corrected by the measured error and the pass
+    re-run, at most `MASTER_PASSES` times, so T4 (-14 +- 0.5) holds on every recording
+    while the chain itself stays the 7.3 graph."""
+    request = MASTER_LUFS
+    got: ffmpeg.Loudness | None = None
+    for _ in range(MASTER_PASSES):
+        measured = ffmpeg.measure_loudness(source, target_lufs=request, target_tp=MASTER_TP)
+        ffmpeg.run(
+            [
+                ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(source),
+                "-af", master_chain(measured, request_lufs=request),
+                "-c:a", "pcm_s16le", str(mix),
+            ],  # fmt: skip
+            timeout_s=FFMPEG_TIMEOUT_S,
+        )
+        got = ffmpeg.measure_loudness(mix)
+        error = MASTER_LUFS - got.integrated
+        if abs(error) <= MASTER_TOLERANCE_LU:
+            break
+        request += error
+    assert got is not None
+    return got
+
+
+def mux(job: Job) -> Path:
+    """`work/stems/mix.wav` (the mastered mix; voice only until 022) and
+    `out/short.mp4`: the picture stream copied, the mix as AAC."""
+    stems = _stems_dir(job)
+    voice = stems / "voice.wav"
+    picture = job.work_dir / "picture.mp4"
+    for needed in (voice, picture):
+        if not needed.is_file():
+            raise RenderError(f"{needed.relative_to(job.path).as_posix()} is missing before mux")
+    mix = stems / "mix.wav"
+    master(voice, mix)
+    job.out_dir.mkdir(parents=True, exist_ok=True)
+    out = job.out_dir / "short.mp4"
+    ffmpeg.run(
+        [
+            ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(picture), "-i", str(mix),
+            "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out),
+        ],  # fmt: skip
+        timeout_s=FFMPEG_TIMEOUT_S,
+    )
+    return out
+
+
+def render_short(job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+    """The whole `rendering` step (9.1): cut, voice stem, picture, master and mux."""
+    cut_presenter(job)
+    voice_stem(job)
+    render_picture(job, on_progress=on_progress)
+    return mux(job)
+
+
 # --- the interface the pipeline uses ---------------------------------------------------
 
 
 class Renderer(ABC):
-    """The picture engine as the pipeline sees it. Remotion is local, not a paid
-    service, but a render costs seconds, so the fake keeps the pipeline and app tests
-    fast; the real path is covered by test_render and smoke (12.1)."""
+    """The render engine as the pipeline sees it: the whole `rendering` step from the
+    job's plan to `out/short.mp4`. Remotion and ffmpeg are local, not paid, but a
+    render costs seconds, so the fake keeps the pipeline and app tests fast; the real
+    path is covered by test_render and smoke (12.1)."""
 
     @abstractmethod
     def render(self, job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
-        """Write `work/picture.mp4` and return it; `on_progress` gets 0-100."""
+        """Write `work/cut.mp4`, `work/stems/*`, `work/picture.mp4` and `out/short.mp4`;
+        return the short. `on_progress` gets the picture render's 0-100."""
 
 
 class RemotionRenderer(Renderer):
     def render(self, job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
-        return render(job, on_progress=on_progress)
+        return render_short(job, on_progress=on_progress)
 
 
 class FakeRenderer(Renderer):
     """Builds the same RenderSpec (so a bad plan still fails here), reports 0, 50 and
-    100, and writes a placeholder `picture.mp4` that is not a video."""
+    100, and writes placeholders for every file the step leaves; none is media."""
 
     def __init__(self) -> None:
         self.jobs: list[Path] = []
 
     def render(self, job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
         self.jobs.append(job.path)
-        spec = spec_for_job(job)
+        cut = _cut_path(job)
+        cut.write_bytes(b"")
+        plan = _load_plan(job)
+        transcript = Transcript.model_validate_json(
+            (job.work_dir / "asr.json").read_text(encoding="utf-8")
+        )
+        pages = _PAGES.validate_json((job.work_dir / "captions.json").read_text(encoding="utf-8"))
+        spec = build_spec(
+            plan,
+            pages,
+            transcript.words,
+            presenter=cut,
+            source_size=(WIDTH, HEIGHT),
+            duration_s=presenter.total_duration(presenter.cut_list(plan)),
+        )
         (job.work_dir / "render_spec.json").write_text(
             spec.model_dump_json(indent=2), encoding="utf-8"
         )
+        stems = _stems_dir(job)
+        (stems / "voice.wav").write_bytes(b"")
         for pct in (0, 50, 100):
             if on_progress is not None:
                 on_progress(pct)
-        out = job.work_dir / "picture.mp4"
+        (job.work_dir / "picture.mp4").write_bytes(b"")
+        (stems / "mix.wav").write_bytes(b"")
+        job.out_dir.mkdir(parents=True, exist_ok=True)
+        out = job.out_dir / "short.mp4"
         out.write_bytes(b"")
         return out

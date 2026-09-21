@@ -55,6 +55,7 @@ def run_bench(root: Path, *, concurrency: int = render.CONCURRENCY) -> DriverRes
     (job.work_dir / "captions.json").write_text(
         json.dumps([p.model_dump() for p in pages]), encoding="utf-8"
     )
+    render.cut_presenter(job)  # the composition reads work/cut.mp4 (005); not timed
     out_dir = root / "bench"
     out_dir.mkdir(parents=True, exist_ok=True)
     return render.run_driver(

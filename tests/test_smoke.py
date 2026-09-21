@@ -37,6 +37,18 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     assert picture.is_file() and (job.work_dir / "render_spec.json").is_file()
     (video,) = ffmpeg.probe(picture)["streams"]
     assert video["codec_name"] == "h264" and int(video["nb_frames"]) == 180
+    # 005: the cut, the stems and the muxed short with the picture stream untouched.
+    cut = ffmpeg.probe(job.work_dir / "cut.mp4")["streams"]
+    assert [s["codec_type"] for s in cut] == ["video", "audio"]
+    assert int(cut[0]["has_b_frames"]) == 0 and cut[0]["avg_frame_rate"] == "30/1"
+    assert (job.work_dir / "stems" / "voice.wav").is_file()
+    assert (job.work_dir / "stems" / "mix.wav").is_file()
+    short = job.out_dir / "short.mp4"
+    assert short.is_file()
+    assert {s["codec_type"] for s in ffmpeg.probe(short)["streams"]} == {"video", "audio"}
+    assert ffmpeg.video_md5(short) == ffmpeg.video_md5(picture)
+    assert float(ffmpeg.probe(short)["format"]["duration"]) == pytest.approx(6.0, abs=0.1)
+    assert ffmpeg.measure_loudness(short).integrated == pytest.approx(-14.0, abs=1.0)
     log = job.log_path.read_text(encoding="utf-8").splitlines()
     assert [line.split(" ", 1)[1] for line in log] == [
         "created uploaded",
@@ -47,7 +59,7 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
         "rendering -> qa",
     ]
     assert "ok" in result.summary and job.id in result.summary
-    assert "180 frames" in result.summary
+    assert "180 frames" in result.summary and "short" in result.summary
 
 
 def test_main_prints_one_line_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:

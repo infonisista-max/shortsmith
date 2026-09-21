@@ -22,8 +22,8 @@ from typing import Literal
 from shortsmith import ffmpeg, jobs
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.jobs import InputSummary, Job
+from shortsmith.presenter import TARGET_HEIGHT, TARGET_WIDTH, upscale_factor  # one geometry (005)
 
-TARGET_WIDTH, TARGET_HEIGHT = 1080, 1920
 VIDEO_EXTENSIONS = frozenset({".mp4", ".mov"})
 IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 MIB = 1024 * 1024
@@ -88,12 +88,6 @@ class ReferenceUpload:
 
 
 # --- pure checks ----------------------------------------------------------------
-
-
-def upscale_factor(width: int, height: int) -> float:
-    """Scale needed to fill 1080x1920 from the largest 9:16 centre crop of the source."""
-    crop_height = min(height, width * TARGET_HEIGHT / TARGET_WIDTH)
-    return TARGET_HEIGHT / crop_height
 
 
 def _duration_words(limits: Limits) -> str:

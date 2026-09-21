@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from shortsmith import subproc
 
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
+MEASURE_TIMEOUT_S = 600.0
 
 
 class FFmpegError(RuntimeError):
@@ -79,6 +81,79 @@ def mean_volume_db(path: Path) -> float | None:
     if match is None or match.group(1) == "-inf":
         return None
     return float(match.group(1))
+
+
+def video_md5(path: Path) -> str:
+    """MD5 of the first video stream's packets, bit-exact (`-c copy`): equal for two
+    files whose video was muxed without re-encoding (revision proof (a), 10.1)."""
+    proc = run(
+        [FFMPEG, "-v", "error", "-i", str(path), "-map", "0:v:0", "-c", "copy", "-f", "md5", "-"],
+        timeout_s=MEASURE_TIMEOUT_S,
+    )
+    text = proc.stdout.decode("utf-8", errors="replace").strip()
+    if not text.startswith("MD5="):
+        raise FFmpegError(f"unexpected md5 output {text!r}")
+    return text[len("MD5=") :]
+
+
+@dataclass(frozen=True)
+class Loudness:
+    """What `loudnorm` measures in its first pass (EBU R128): integrated loudness in
+    LUFS, true peak in dBTP, loudness range in LU, the gate threshold and the offset
+    `loudnorm` would apply to reach the target."""
+
+    integrated: float
+    true_peak: float
+    lra: float
+    threshold: float
+    offset: float
+
+
+def loudnorm_filter(*, target_lufs: float, target_tp: float, lra: float = 11.0) -> str:
+    return f"loudnorm=I={target_lufs:g}:TP={target_tp:g}:LRA={lra:g}"
+
+
+_LOUDNORM_JSON = re.compile(r"\{[^{}]*\"input_i\"[^{}]*\}", re.DOTALL)
+
+
+def parse_loudnorm(stderr: str) -> Loudness:
+    """The JSON block `loudnorm=print_format=json` prints on stderr."""
+    match = _LOUDNORM_JSON.search(stderr)
+    if match is None:
+        raise FFmpegError(f"no loudnorm measurement in ffmpeg output:\n{stderr[-2000:]}")
+    data = json.loads(match.group(0))
+    return Loudness(
+        integrated=float(data["input_i"]),
+        true_peak=float(data["input_tp"]),
+        lra=float(data["input_lra"]),
+        threshold=float(data["input_thresh"]),
+        offset=float(data["target_offset"]),
+    )
+
+
+def measure_loudness(
+    path: Path,
+    *,
+    prefilter: str = "",
+    target_lufs: float = -14.0,
+    target_tp: float = -1.5,
+    filter_complex: str | None = None,
+    label: str = "0:a",
+) -> Loudness:
+    """Measure the audio of `path` (after `prefilter`, or the `filter_complex` output
+    labelled `label`) with a `loudnorm` analysis pass toward the given target."""
+    measure = loudnorm_filter(target_lufs=target_lufs, target_tp=target_tp)
+    measure += ":print_format=json"
+    argv = [FFMPEG, "-v", "info", "-nostats", "-i", str(path)]
+    if filter_complex is not None:
+        chain = f"{prefilter}," if prefilter else ""
+        argv += ["-filter_complex", f"{filter_complex};[{label}]{chain}{measure}[m]", "-map", "[m]"]
+    else:
+        chain = f"{prefilter}," if prefilter else ""
+        argv += ["-map", "0:a:0", "-af", f"{chain}{measure}"]
+    argv += ["-vn", "-f", "null", "-"]
+    proc = run(argv, timeout_s=MEASURE_TIMEOUT_S)
+    return parse_loudnorm(proc.stderr.decode("utf-8", errors="replace"))
 
 
 def frame_rgb(path: Path, *, at_s: float) -> tuple[int, int, bytes]:

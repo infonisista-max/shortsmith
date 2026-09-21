@@ -157,7 +157,7 @@ class FakePlanner(Planner):
             hook=Hook(
                 title="A Short About Nothing",
                 cold_open_span=Span(start=0.0, end=0.5),
-                original_position="keep",
+                original_position="drop",  # lifted from the head: a no-op reorder (005)
                 card_asset_ids=["a1", "a2", "a4"],
             ),
             finale=Finale(beat_id="b12", text="Made from nothing"),

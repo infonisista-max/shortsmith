@@ -150,6 +150,12 @@ def run_smoke(
     check((job.work_dir / "render_spec.json").is_file(), "rendering did not write render_spec.json")
     check((job.work_dir / "render.log").is_file(), "rendering did not keep work/render.log")
     frames = check_picture(picture)
+    check_cut(job.work_dir / "cut.mp4")
+    for stem in ("voice.wav", "mix.wav"):
+        check((job.work_dir / "stems" / stem).is_file(), f"rendering did not write stems/{stem}")
+    short = job.out_dir / "short.mp4"
+    check(short.is_file(), "rendering did not write out/short.mp4")
+    short_s, short_lufs = check_short(short, picture)
     log_lines = reloaded.log_path.read_text(encoding="utf-8").splitlines()
     trail = [line.split(" ", 1)[1] for line in log_lines]
     check(trail == TRAIL, f"unexpected job.log trail {trail}")
@@ -159,9 +165,45 @@ def run_smoke(
         f"smoke ok: job {job.id} -> {reloaded.status}, {len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(story.cues)} cues, {len(pages)} caption pages, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
+        f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
     return SmokeResult(job_dir=job.path, summary=summary)
+
+
+def check_cut(cut: Path) -> None:
+    """`work/cut.mp4` per ticket 005: CFR 30 fps H.264 with no B-frames, plus audio."""
+    check(cut.is_file(), "rendering did not write work/cut.mp4")
+    streams = ffmpeg.probe(cut)["streams"]
+    kinds = [s.get("codec_type") for s in streams]
+    check(kinds == ["video", "audio"], f"cut.mp4 streams are {kinds}, expected video + audio")
+    video = streams[0]
+    check(video.get("codec_name") == "h264", f"cut.mp4 codec is {video.get('codec_name')}")
+    check(int(video.get("has_b_frames", 1)) == 0, "cut.mp4 has B-frames")
+    rates = (video.get("r_frame_rate"), video.get("avg_frame_rate"))
+    check(rates == ("30/1", "30/1"), f"cut.mp4 is not constant 30 fps: {rates}")
+    frames = int(video.get("nb_frames", 0))
+    check(frames == EXPECTED_FRAMES, f"cut.mp4 has {frames} frames, expected {EXPECTED_FRAMES}")
+
+
+def check_short(short: Path, picture: Path) -> tuple[float, float]:
+    """`out/short.mp4` per ticket 005: the picture stream copied bit-for-bit, audio
+    present, the fixture's length, the master near -14 LUFS (T4 proper is 006)."""
+    info = ffmpeg.probe(short)
+    kinds = sorted(s.get("codec_type") for s in info["streams"])
+    check(kinds == ["audio", "video"], f"short.mp4 streams are {kinds}, expected video + audio")
+    check(
+        ffmpeg.video_md5(short) == ffmpeg.video_md5(picture),
+        "short.mp4 video stream differs from picture.mp4 (mux re-encoded the picture)",
+    )
+    duration = float(info["format"]["duration"])
+    check(
+        abs(duration - fixture.DURATION_S) <= 0.1,
+        f"short.mp4 is {duration:.2f} s, expected {fixture.DURATION_S:g} s",
+    )
+    lufs = ffmpeg.measure_loudness(short).integrated
+    check(abs(lufs + 14.0) <= 1.0, f"short.mp4 master is {lufs:.1f} LUFS, expected about -14")
+    return duration, lufs
 
 
 def check_picture(picture: Path) -> int:
