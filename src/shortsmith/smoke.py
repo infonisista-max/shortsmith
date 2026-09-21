@@ -14,14 +14,20 @@ over ninety seconds is a bug.
 The fixture is six seconds long, so smoke lowers only `Limits.min_duration_s`; every
 other 2.1 limit stays at its default.
 
-Everything happens in a temp directory that is removed afterwards.
+Everything happens in a temp directory that is removed afterwards, unless
+`SHORTSMITH_SMOKE_KEEP=1` (ticket 049): then the run lands under `work/smoke/` beneath
+the current directory, survives, and the summary line ends with the absolute path of
+`picture.mp4` so the operator can watch the render. `work/` is git-ignored.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -62,10 +68,16 @@ def check(condition: bool, message: str) -> None:
         raise SmokeFailure(message)
 
 
+KEEP_ENV = "SHORTSMITH_SMOKE_KEEP"
+KEEP_DIR = Path("work") / "smoke"
+TMP_PREFIX = "shortsmith-smoke-"
+
+
 @dataclass(frozen=True)
 class SmokeResult:
     job_dir: Path
     summary: str
+    picture: Path
 
 
 def run_smoke(
@@ -168,7 +180,7 @@ def run_smoke(
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
-    return SmokeResult(job_dir=job.path, summary=summary)
+    return SmokeResult(job_dir=job.path, summary=summary, picture=picture)
 
 
 def check_cut(cut: Path) -> None:
@@ -220,19 +232,39 @@ def check_picture(picture: Path) -> int:
     return frames
 
 
+def keep_requested() -> bool:
+    return os.environ.get(KEEP_ENV) == "1"
+
+
+@contextmanager
+def workspace(keep: bool) -> Generator[Path]:
+    """The smoke's root: a system temp directory removed on exit, or, in keep mode,
+    a fresh directory under `work/smoke/` that is never removed."""
+    if keep:
+        KEEP_DIR.mkdir(parents=True, exist_ok=True)
+        yield Path(tempfile.mkdtemp(prefix=TMP_PREFIX, dir=KEEP_DIR))
+        return
+    with tempfile.TemporaryDirectory(prefix=TMP_PREFIX) as tmp:
+        yield Path(tmp)
+
+
 def main(
     argv: list[str] | None = None,
     *,
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
 ) -> int:
-    with tempfile.TemporaryDirectory(prefix="shortsmith-smoke-") as tmp:
+    keep = keep_requested()
+    with workspace(keep) as root:
         try:
-            result = run_smoke(Path(tmp), transcriber=transcriber, planner=planner)
+            result = run_smoke(root, transcriber=transcriber, planner=planner)
         except Exception as exc:  # noqa: BLE001 - the smoke reports every failure the same way
             print(f"smoke FAILED: {exc}", file=sys.stderr)
             return 1
-    print(result.summary)
+    summary = result.summary
+    if keep:
+        summary += f", kept {result.picture.resolve()}"
+    print(summary)
     return 0
 
 
