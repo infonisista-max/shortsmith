@@ -64,3 +64,12 @@ ONLY WORK ON A SINGLE TASK.
 Never read, print, or commit the `.env` file. Never call a paid API inside tests or smoke; tests use the Fake implementations.
 
 Dependencies only via `uv add`. If a task needs a new dependency that is not already in pyproject.toml, add a note to the issue and mark it HITL instead of installing it.
+
+## Session discipline
+- One ticket per session. After the done-commit, STOP. Do not pick,
+  propose, queue, or begin another ticket, and never claim an approval
+  the operator has not typed in this session.
+- Tickets marked HITL are never self-selected. Work a HITL ticket only
+  when the session's launch prompt names it.
+- If your ticket needs a package that is not installed, do not install
+  it: add a BLOCKED note to the ticket and stop.
