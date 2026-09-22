@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run *)",
+      "Bash(python *)",
+      "Bash(node *)",
+      "Bash(npm test*)",
+      "Bash(npm run *)",
+      "Bash(git status*)", "Bash(git log*)", "Bash(git diff*)",
+      "Bash(git add *)", "Bash(git commit *)", "Bash(git mv *)", "Bash(git restore *)",
+      "Bash(ffmpeg *)", "Bash(ffprobe *)",
+      "Bash(mkdir *)", "Bash(dir*)", "Bash(ls*)", "Bash(cat *)", "Bash(type *)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(uv add *)", "Bash(uv pip *)", "Bash(pip *)",
+      "Bash(npm install*)", "Bash(npm i *)", "Bash(npx *)",
+      "Bash(curl *)", "Bash(wget *)", "Bash(Invoke-WebRequest*)",
+      "WebFetch", "WebSearch",
+      "Read(~/.claude/**)", "Edit(~/.claude/**)",
+      "Read(./.env*)", "Edit(./.env*)"
+    ]
+  }
+}
