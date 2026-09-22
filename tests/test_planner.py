@@ -20,6 +20,7 @@ from shortsmith.contracts import (
     PlanStyle,
     SoundStory,
 )
+from shortsmith.ledger import Caps, Ledger, Prices
 from shortsmith.planner import FakePlanner, Planner
 from shortsmith.transcriber import FakeTranscriber
 
@@ -131,13 +132,14 @@ def test_plans_carry_the_prompt_version(request_: PlanRequest) -> None:
 
 
 def test_from_settings_selects_the_fake_only_for_planner_fake(request_: PlanRequest) -> None:
-    """`claude_code` (014) and `api` (015) are not built yet: selecting them must not
-    silently fall back to the fake; the job fails at `planning` with the ticket named."""
+    """`api` (015) is not built yet: selecting it must not silently fall back to the
+    fake; the job fails at `planning` with the ticket named. `claude_code` is 014's
+    adapter (test_planner_claude_code)."""
+    book = Ledger(Prices({}), Caps(per_job=None, hard=None, per_day=500))
     settings = Settings(_env_file=None, planner="fake")  # pyright: ignore[reportCallIssue]
-    assert isinstance(planner.from_settings(settings), FakePlanner)
-    for name in ("claude_code", "api"):
-        settings = Settings(_env_file=None, planner=name)  # pyright: ignore[reportCallIssue]
-        chosen = planner.from_settings(settings)
-        assert isinstance(chosen, Planner) and not isinstance(chosen, FakePlanner)
-        with pytest.raises(planner.PlannerUnavailable, match=name):
-            chosen.plan_picture(request_)
+    assert isinstance(planner.from_settings(settings, ledger=lambda: book), FakePlanner)
+    settings = Settings(_env_file=None, planner="api")  # pyright: ignore[reportCallIssue]
+    chosen = planner.from_settings(settings, ledger=lambda: book)
+    assert isinstance(chosen, Planner) and not isinstance(chosen, FakePlanner)
+    with pytest.raises(planner.PlannerUnavailable, match="api"):
+        chosen.plan_picture(request_)

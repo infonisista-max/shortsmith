@@ -170,8 +170,14 @@ def create_app(
     books: list[ledger.Ledger | None] = [book]
     # The Groq transcriber arrives with ticket 012; until then the fake is the only one.
     transcriber = transcriber or FakeTranscriber()
-    # `PLANNER` selects the adapter (8.3); the unbuilt ones fail the job at `planning`.
-    planner = planner or planner_module.from_settings(settings)
+    # `PLANNER` selects the adapter (8.3); the unbuilt one fails the job at `planning`.
+    # The CLI adapter reads the ledger when it records, so the lifespan's ledger is used.
+    def _book() -> ledger.Ledger:
+        if books[0] is None:
+            raise RuntimeError("the ledger is loaded when the server starts")
+        return books[0]
+
+    planner = planner or planner_module.from_settings(settings, ledger=_book)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
     # `renderer` None means Remotion (ticket 004) and `gate` None the technical gate
     # (006); tests pass `FakeRenderer` and `FakeGate`. The asset step follows
@@ -199,6 +205,7 @@ def create_app(
             raise RuntimeError(
                 "SHORTSMITH_PASSCODE is not set: add one to .env before serving (decision 11.2)"
             )
+        config.check_startup(settings)  # ConfigError says the fix (11.3)
         if books[0] is None:
             books[0] = ledger.from_settings(settings, clock=clock)  # LedgerError names the gap
         app.state.ledger = books[0]

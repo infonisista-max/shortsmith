@@ -27,6 +27,13 @@ Covers PRD `planner` (API adapter), `config` startup errors. Decisions 8.3, 11.3
 
 - Cash rows: `ledger.check_before_call(job, "planning", estimated_inr)` first, then `ledger.record(job, "planning", "planner", model, {"input_tokens": usage.input, "output_tokens": usage.output})`; the `planner` price (per 1k tokens) is required at startup when `PLANNER=api`.
 
+## Notes from 014
+
+- Prompt: `planner.prompt.build_prompt(request, call, *, picture=None, catalogue_tags=(), feedback=None)` is one string (instructions file, six 2.3 sections, the sound call's picture plan and tags, schema, retry block, the JSON-only line). For cache markers, split it at `## 1. Style numbers` / `## 3. Brief` rather than building a second prompt, so the strings stay identical.
+- Parse: `planner.parse.parse_reply(text, call, prompt_version=prompt.PROMPT_VERSION)`; it raises `PlanInvalid` (the pipeline retries it once like a grammar rejection). A call that cannot answer at all (HTTP error, refusal) should raise `PlannerError`.
+- Wiring: `planner.from_settings(settings, *, ledger)` takes a `Callable[[], Ledger]` (the app loads the ledger in its lifespan); `Planner.bind(job)` returns the per-job adapter the pipeline calls, which is where the ledger rows get their job. `config.check_startup(settings)` runs in the app lifespan; add the `api` key check there (`ConfigError`).
+- The CLI adapter strips `ANTHROPIC_API_KEY` from the `claude` child env so the subscription pays; nothing else reads that variable yet.
+
 ## Blocked by
 
 - Blocked by `issues/014-planner-prompt-cli-adapter.md`

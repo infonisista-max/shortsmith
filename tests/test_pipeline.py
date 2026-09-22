@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -32,7 +33,14 @@ from shortsmith.contracts import (
     ValidatedPlan,
 )
 from shortsmith.ledger import BudgetExceeded, Caps, Ledger, Prices
-from shortsmith.planner import FakePlanner, Planner, PlannerUnavailable, UnavailablePlanner
+from shortsmith.planner import (
+    ClaudeCodePlanner,
+    FakePlanner,
+    Planner,
+    PlannerUnavailable,
+    UnavailablePlanner,
+    prompt,
+)
 from shortsmith.qa.gate import FakeGate, Gate
 from shortsmith.render import FakeRenderer, Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
@@ -479,6 +487,99 @@ def test_a_plan_rejected_twice_fails_the_job_at_planning_with_the_list(
     assert not (job.work_dir / "plan.validated.json").exists()
     assert (job.work_dir / "plan.raw.json").is_file()  # the rejected output stays on disk
     assert jobs.load(job.path).record.error == done.record.error
+
+
+# --- ticket 014: the CLI adapter through the planning step (decisions 8.1-8.3) -------
+
+
+CLI_REPLIES = Path(__file__).parent / "fixtures" / "claude_cli"
+EQUIVALENT = Prices({"api_equivalent": {"input_tokens": 0.25, "output_tokens": 1.25}})
+
+
+class _Cli:
+    """Stubbed `claude` CLI: answers each call with the next queued envelope."""
+
+    def __init__(self, *names: str, first_reply: str | None = None) -> None:
+        self.replies = [(CLI_REPLIES / f"{n}.json").read_bytes() for n in names]
+        if first_reply is not None:
+            envelope = json.loads(self.replies[0])
+            envelope["result"] = first_reply
+            self.replies[0] = json.dumps(envelope).encode()
+        self.stdins: list[str] = []
+
+    def __call__(
+        self, argv: list[str], stdin: str, cwd: Path, env: Mapping[str, str]
+    ) -> subprocess.CompletedProcess[bytes]:
+        self.stdins.append(stdin)
+        return subprocess.CompletedProcess(argv, 0, self.replies.pop(0), b"")
+
+
+def _cli_planner(cli: _Cli) -> ClaudeCodePlanner:
+    book = Ledger(EQUIVALENT, Caps(per_job=None, hard=None, per_day=500))
+    return ClaudeCodePlanner(lambda: book, run=cli)
+
+
+def test_the_cli_planner_plans_a_job_picture_then_sound_with_a_row_per_call(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """8.1 / 8.3: the pipeline binds the adapter to the job; the sound call carries the
+    snapped picture plan and the catalogue tags (none until 022); the prompt version
+    lands on the plans and in job.json."""
+    job = _uploaded(tmp_path, fixture_clip)
+    cli = _Cli("picture", "sound")
+    done = _run(job, planner=_cli_planner(cli))
+    assert done.status == "delivered", done.record.error
+    picture_prompt, sound_prompt = cli.stdins
+    assert "## JSON schema (PicturePlan)" in picture_prompt
+    snapped = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    assert snapped.model_dump_json(indent=2) in sound_prompt
+    assert "(no catalogue yet" in sound_prompt
+    assert (job.work_dir / "planner" / "request_picture.md").is_file()
+    assert (job.work_dir / "planner" / "request_sound.md").is_file()
+    record = jobs.load(job.path).record
+    assert [(r.step, r.provider, r.inr) for r in record.cost] == [
+        ("planning", "claude_code", 0.0),
+        ("planning", "claude_code", 0.0),
+    ]
+    assert record.prompt_version == prompt.PROMPT_VERSION
+    assert snapped.prompt_version == prompt.PROMPT_VERSION
+
+
+def test_a_reply_that_fails_the_models_is_retried_once_like_a_grammar_rejection(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """8.2: a Pydantic failure takes the same single retry, with the reply as the
+    previous output; the retry is its own ledger row."""
+    job = _uploaded(tmp_path, fixture_clip)
+    cli = _Cli("picture", "picture", "sound", first_reply='{"beats": "soon"}')
+    assert _run(job, planner=_cli_planner(cli)).status == "delivered"
+    retry = cli.stdins[1]
+    assert "## Your previous reply was rejected" in retry
+    assert '{"beats": "soon"}' in retry
+    assert "- plan (8.2): beats: Input should be a valid list" in retry
+    assert len(jobs.load(job.path).record.cost) == 3
+    assert "picture plan rejected" in job.log_path.read_text("utf-8")
+
+
+def test_a_reply_that_fails_the_models_twice_fails_the_job_with_the_errors(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    cli = _Cli("picture", "picture", first_reply="no plan today")
+    cli.replies[1] = cli.replies[0]
+    done = _run(job, planner=_cli_planner(cli))
+    assert done.status == "failed"
+    assert done.record.error is not None and done.record.error.step == "planning"
+    assert done.record.error.violations == ["plan (8.2): the reply holds no JSON object"]
+    assert len(done.record.cost) == 2
+    assert not (job.work_dir / "plan.json").exists()
+
+
+def test_the_fake_plans_prompt_version_is_recorded_in_job_json(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    assert _run(job).record.prompt_version == FakePlanner.PROMPT_VERSION
 
 
 def test_unavailable_planner_fails_the_job_at_planning_naming_the_ticket(

@@ -2,7 +2,9 @@
 
 Secrets are `SecretStr` so they never appear in logs or reprs. Tests construct
 `Settings(_env_file=None)` so no `.env` is ever read under pytest (board rules).
-Startup validation of planner/key combinations (decision 11.3) comes with ticket 015.
+`check_startup` is the 11.3 startup validation the app runs in its lifespan:
+`PLANNER=claude_code` (the default) needs `SHORTSMITH_SINGLE_OPERATOR=true`, since
+it runs on the operator's own subscription; the `api` key check joins it with 015.
 """
 
 from __future__ import annotations
@@ -22,6 +24,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     planner: Planner = "claude_code"
+    # 8.3 / 11.3: the subscription planner is for a single-operator deployment only.
+    shortsmith_single_operator: bool = False
     anthropic_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
     shortsmith_passcode: SecretStr | None = None
@@ -44,6 +48,19 @@ class Settings(BaseSettings):
     budget_inr_per_job: float | None = None  # soft: flags only
     budget_inr_hard: float | None = None  # hard: fails the job before the next paid call
     budget_inr_per_day: float = 500.0  # closes the upload form until midnight IST (044)
+
+
+class ConfigError(Exception):
+    """A setting combination the server must not start with; the message says the fix."""
+
+
+def check_startup(settings: Settings) -> None:
+    if settings.planner == "claude_code" and not settings.shortsmith_single_operator:
+        raise ConfigError(
+            "PLANNER=claude_code runs on the operator's own Claude subscription and is for "
+            "a single-operator deployment only: set SHORTSMITH_SINGLE_OPERATOR=true in .env, "
+            "or use PLANNER=api (decision 11.3)"
+        )
 
 
 def load(env_file: str | Path | None = ".env") -> Settings:

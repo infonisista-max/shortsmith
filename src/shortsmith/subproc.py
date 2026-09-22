@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -104,19 +104,35 @@ def guarded(watchdog: Watchdog | None) -> Generator[None]:
         _current.watchdog = previous
 
 
-def run(argv: list[str], *, timeout_s: float | None = None) -> subprocess.CompletedProcess[bytes]:
+def run(
+    argv: list[str],
+    *,
+    timeout_s: float | None = None,
+    input: str | None = None,  # noqa: A002 - subprocess's own name for stdin text
+    cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[bytes]:
     """Run `argv` with captured output; the return code is the caller's to judge.
+    `input` is written to stdin as UTF-8; `env` replaces the inherited environment.
 
     Raises `Killed` when the current watchdog stopped the child, and
     `subprocess.TimeoutExpired` past `timeout_s` (the child is killed first).
     """
     watchdog = current()
-    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(
+        argv,
+        stdin=subprocess.PIPE if input is not None else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=cwd,
+        env=dict(env) if env is not None else None,
+    )
     if watchdog is not None:
         watchdog.register(proc)
     try:
         try:
-            out, err = proc.communicate(timeout=timeout_s)
+            data = input.encode("utf-8") if input is not None else None
+            out, err = proc.communicate(input=data, timeout=timeout_s)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.communicate()

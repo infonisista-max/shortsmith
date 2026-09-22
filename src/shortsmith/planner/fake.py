@@ -1,15 +1,7 @@
-"""Planner interface and its fake (decisions 8.1, 8.2, 8.3, 12.1).
+"""The fake planner (decision 12.1), in the planner package so fake and real share one
+type and return the same model classes.
 
-Two sequential calls per job on one adapter: `plan_picture` then `plan_sound`, the
-sound call receiving the validated, snapped picture plan (ticket 009) and the audio
-catalogue tags (an empty list until 022). A call the grammar rejects is re-sent once
-with `feedback`: the previous output as JSON and the violation list (8.2); the
-adapter appends both to the same prompt. The prompt builder, the `claude_code` CLI
-adapter (014) and the `api` adapter (015) arrive with their tickets; selecting either
-today yields a planner that fails the job at `planning` with the ticket named, never
-a silent fallback to the fake.
-
-`FakePlanner` is co-located so fake and real share one type. Its canned plan is shaped
+`FakePlanner`'s canned plan is shaped
 for the 6 s fixture: eleven beats tiling 0-6 s (ten of 0.5 s and a 1.0 s finale, so
 T3's finale rule holds; ticket 006) with every boundary on a word end or in silence,
 a `full` cold open, an `off` hook-cards beat, `pip` beats, and every
@@ -22,10 +14,8 @@ it uses only the explainer's five transitions (9.4). The fake ignores `feedback`
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from shortsmith.config import Settings
 from shortsmith.contracts import (
     Beat as B,
 )
@@ -43,66 +33,7 @@ from shortsmith.contracts import (
     SoundStory,
     Span,
 )
-
-
-class PlannerUnavailable(Exception):
-    """The selected planner adapter is not built yet (or cannot run here)."""
-
-
-class Planner(ABC):
-    @abstractmethod
-    def plan_picture(
-        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
-    ) -> PicturePlan:
-        """The picture call (8.1): beats, hook, finale, keywords, title, description.
-        `feedback` is set on the one retry after a rejection (8.2)."""
-
-    @abstractmethod
-    def plan_sound(
-        self,
-        request: PlanRequest,
-        picture: PicturePlan,
-        catalogue_tags: Sequence[str] = (),
-        *,
-        feedback: PlanFeedback | None = None,
-    ) -> SoundStory:
-        """The sound call (8.1), second because cues need the picture plan's beats."""
-
-
-class UnavailablePlanner(Planner):
-    """Stands in for an adapter that a later ticket delivers; every call raises."""
-
-    def __init__(self, name: str, ticket: str) -> None:
-        self.name = name
-        self.ticket = ticket
-
-    def _refuse(self) -> PlannerUnavailable:
-        return PlannerUnavailable(
-            f"PLANNER={self.name} is not implemented yet (ticket {self.ticket}); "
-            "set PLANNER=fake to run without a paid planner"
-        )
-
-    def plan_picture(
-        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
-    ) -> PicturePlan:
-        raise self._refuse()
-
-    def plan_sound(
-        self,
-        request: PlanRequest,
-        picture: PicturePlan,
-        catalogue_tags: Sequence[str] = (),
-        *,
-        feedback: PlanFeedback | None = None,
-    ) -> SoundStory:
-        raise self._refuse()
-
-
-def from_settings(settings: Settings) -> Planner:
-    if settings.planner == "fake":
-        return FakePlanner()
-    ticket = {"claude_code": "014", "api": "015"}[settings.planner]
-    return UnavailablePlanner(settings.planner, ticket)
+from shortsmith.planner.base import Planner
 
 
 def kinds_named(plan: PicturePlan) -> set[str]:

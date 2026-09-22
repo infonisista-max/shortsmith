@@ -39,6 +39,10 @@ Covers PRD `sound`, the mix half of `render`, rights rows for audio. Decisions 7
 
 - `rights.write(job_dir, manifest, plan)` regenerates `out/rights.json` and `out/credits.md` from the asset manifest at every `sourcing` run; the music/SFX rows this ticket appends must be written after sourcing (the renderer) and survive a re-run, or `rights.write` must learn to carry them. `RightsRow.kind` already allows `music` / `sfx` and `origin` `library`.
 
+## Notes from 014
+
+- The sound call's catalogue tags come from `pipeline.CATALOGUE_TAGS` (an empty tuple today); replace it with the tags read from `assets/audio/catalog.yaml` (theme, mood, intent). The prompt renders them as `## 8. Audio catalogue tags`; with none it tells the planner to describe theme and mood in plain words.
+
 ## User stories addressed
 
 - User story 29

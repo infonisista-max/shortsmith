@@ -14,8 +14,12 @@ and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1) wi
 the grammar (`grammar`, ticket 009) after each call: a rejected call is re-sent
 exactly once with the previous output and the violation list (`PlanFeedback`), a
 second rejection fails the job at `planning` with the list in `job.json.error` and
-on the page, and the retry is logged in `job.log` (8.2). The sound call receives the
-snapped picture plan. The step builds the captions (`captions.build`, 6.1-6.3: cut,
+on the page, and the retry is logged in `job.log` (8.2); a reply the models refuse
+(`PlanInvalid`) takes the same path. The planner is bound to the job first so a real
+adapter writes its prompt under `work/planner/` and records a ledger row per call and
+retry (8.3), and the picture plan's `prompt_version` is recorded in `job.json`. The
+sound call receives the snapped picture plan and the catalogue tags. The step builds
+the captions (`captions.build`, 6.1-6.3: cut,
 hidden from the finale, paged, laid out) from the snapped plan and its clamped
 keywords and writes `work/plan.raw.json` and `work/sound.raw.json` (the planner's last
 output), `work/plan.json` and `work/sound.json` (snapped and clamped: what the
@@ -67,19 +71,17 @@ from pydantic import BaseModel, TypeAdapter
 from shortsmith import assets, captions, grammar, jobs, render, subproc
 from shortsmith.contracts import (
     Constraints,
-    PicturePlan,
     PlanFeedback,
     PlanReference,
     PlanRequest,
     PlanStyle,
     ReferenceRecord,
-    SoundStory,
     Transcript,
     ValidatedPlan,
 )
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.ledger import BudgetExceeded
-from shortsmith.planner import Planner
+from shortsmith.planner import PlanInvalid, Planner
 from shortsmith.qa.gate import Gate, TechnicalGate
 from shortsmith.render import RemotionRenderer, Renderer
 from shortsmith.styles import StyleError, StyleSpec
@@ -109,6 +111,8 @@ STEP_MESSAGES: dict[str, str] = {
 DELIVERABLES = ("short.mp4", "contact.jpg", "rights.json", "credits.md")  # 10.4
 
 MAX_DURATION_S = 60.0  # 3.1 / T3 (global, not a style number)
+# 7.2 / 8.1: the audio catalogue's tags for the sound call; empty until 022 seeds it.
+CATALOGUE_TAGS: tuple[str, ...] = ()
 
 _REFS = TypeAdapter(list[ReferenceRecord])
 Specs = Mapping[str, StyleSpec]
@@ -261,13 +265,37 @@ class PlanRejected(Exception):
         )
 
 
-def _feedback(previous: PicturePlan | SoundStory, rejected: grammar.Violations) -> PlanFeedback:
-    previous_json = previous.model_dump_json(indent=2)
-    return PlanFeedback(previous=previous_json, violations=rejected.lines())
-
-
 def _write(job: Job, name: str, model: BaseModel) -> None:
     (job.work_dir / name).write_text(model.model_dump_json(indent=2), encoding="utf-8")
+
+
+def _with_one_retry[Raw: BaseModel, Checked](
+    job: Job,
+    label: str,
+    call: Callable[[PlanFeedback | None], Raw],
+    raw_name: str,
+    validate: Callable[[Raw], Checked | grammar.Violations],
+) -> Checked:
+    """One planner call, validated; a rejection (the grammar's, or a reply the models
+    refuse: `PlanInvalid`) is re-sent once with the previous output and the list (8.2),
+    and a second rejection raises `PlanRejected` with the list."""
+    feedback: PlanFeedback | None = None
+    for attempt in (1, 2):
+        try:
+            raw = call(feedback)
+        except PlanInvalid as exc:
+            previous, lines = exc.reply, exc.violations
+        else:
+            _write(job, raw_name, raw)
+            checked = validate(raw)
+            if not isinstance(checked, grammar.Violations):
+                return checked
+            previous, lines = raw.model_dump_json(indent=2), checked.lines()
+        if attempt == 2:
+            raise PlanRejected(label.split()[0], lines)
+        jobs.note(job, f"{label} rejected, re-sending once: {'; '.join(lines)}")
+        feedback = PlanFeedback(previous=previous, violations=lines)
+    raise AssertionError("unreachable")
 
 
 def _plan(job: Job, planner: Planner, specs: Specs) -> None:
@@ -275,33 +303,29 @@ def _plan(job: Job, planner: Planner, specs: Specs) -> None:
     spec = style_of(job, specs)
     transcript = request.transcript
     must_use = grammar.must_use_ids(request.brief, request.references)
+    planner = planner.bind(job)
 
-    raw = planner.plan_picture(request)
-    _write(job, "plan.raw.json", raw)
-    checked = grammar.validate_picture(
-        raw, transcript, spec, brief=request.brief, must_use=must_use
-    )
-    if isinstance(checked, grammar.Violations):
-        jobs.note(job, f"picture plan rejected, re-sending once: {'; '.join(checked.lines())}")
-        raw = planner.plan_picture(request, feedback=_feedback(raw, checked))
-        _write(job, "plan.raw.json", raw)
-        checked = grammar.validate_picture(
+    checked = _with_one_retry(
+        job,
+        "picture plan",
+        lambda feedback: planner.plan_picture(request, feedback=feedback),
+        "plan.raw.json",
+        lambda raw: grammar.validate_picture(
             raw, transcript, spec, brief=request.brief, must_use=must_use
-        )
-        if isinstance(checked, grammar.Violations):
-            raise PlanRejected("picture", checked.lines())
+        ),
+    )
     picture = checked.picture
+    jobs.amend(job, prompt_version=picture.prompt_version)
 
-    raw_story = planner.plan_sound(request, picture)
-    _write(job, "sound.raw.json", raw_story)
-    sound = grammar.validate_sound(raw_story, picture, spec)
-    if isinstance(sound, grammar.Violations):
-        jobs.note(job, f"sound story rejected, re-sending once: {'; '.join(sound.lines())}")
-        raw_story = planner.plan_sound(request, picture, feedback=_feedback(raw_story, sound))
-        _write(job, "sound.raw.json", raw_story)
-        sound = grammar.validate_sound(raw_story, picture, spec)
-        if isinstance(sound, grammar.Violations):
-            raise PlanRejected("sound", sound.lines())
+    sound = _with_one_retry(
+        job,
+        "sound story",
+        lambda feedback: planner.plan_sound(
+            request, picture, CATALOGUE_TAGS, feedback=feedback
+        ),
+        "sound.raw.json",
+        lambda raw: grammar.validate_sound(raw, picture, spec),
+    )
 
     validated = ValidatedPlan(
         picture=picture,

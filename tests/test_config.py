@@ -25,7 +25,7 @@ def _example_keys() -> set[str]:
 
 
 def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
-    for key in _example_keys() | {"SHORTSMITH_DATA_DIR"}:
+    for key in _example_keys() | {"SHORTSMITH_DATA_DIR", "SHORTSMITH_SINGLE_OPERATOR"}:
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
@@ -88,6 +88,19 @@ def test_secrets_are_masked_in_repr(monkeypatch: pytest.MonkeyPatch) -> None:
     text = repr(s) + str(s) + s.model_dump_json()
     assert "gsk_secret_value" not in text
     assert "hunter2" not in text
+
+
+def test_the_subscription_planner_needs_a_declared_single_operator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """8.3 / 11.3: `PLANNER=claude_code` (the default) runs on the operator's own
+    subscription, so startup refuses it unless SHORTSMITH_SINGLE_OPERATOR=true."""
+    default = _settings(monkeypatch)
+    assert default.shortsmith_single_operator is False
+    with pytest.raises(config.ConfigError, match="SHORTSMITH_SINGLE_OPERATOR=true"):
+        config.check_startup(default)
+    config.check_startup(_settings(monkeypatch, SHORTSMITH_SINGLE_OPERATOR="true"))
+    config.check_startup(_settings(monkeypatch, PLANNER="fake"))
 
 
 @pytest.mark.parametrize(

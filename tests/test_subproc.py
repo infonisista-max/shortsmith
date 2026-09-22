@@ -3,8 +3,10 @@ registration as `subproc.run` (ticket 004 needs it for render progress)."""
 
 from __future__ import annotations
 
+import os
 import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -32,6 +34,25 @@ def test_stream_delivers_stdout_lines_in_order_and_tags_stderr() -> None:
         "done",
     ]
     assert ("err", "warn") in seen
+
+
+def test_run_feeds_stdin_and_honours_cwd_and_env(tmp_path: Path) -> None:
+    """014: the Claude CLI gets its prompt on stdin, runs in the job's planner
+    directory and sees only the environment the adapter hands it."""
+    script = (
+        "import os, sys\n"
+        "print(sys.stdin.read().upper())\n"
+        "print(os.getcwd())\n"
+        "print(os.environ.get('SHORTSMITH_PROBE', 'absent'))\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k != "SHORTSMITH_PROBE"}
+    done = subproc.run(
+        [sys.executable, "-c", script], input="plan this", cwd=tmp_path, env=env, timeout_s=30
+    )
+    lines = done.stdout.decode().splitlines()
+    assert lines[0] == "PLAN THIS"
+    assert Path(lines[1]).resolve() == tmp_path.resolve()
+    assert lines[2] == "absent"
 
 
 def test_stream_is_killed_by_an_expired_watchdog() -> None:

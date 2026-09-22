@@ -137,6 +137,7 @@ class JobRecord(BaseModel):
     cost: list[CostRow] = []
     over_soft_cap: bool = False  # 11.3: a flag for the page and the sheet, nothing more
     progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
+    prompt_version: str | None = None  # 8.3: the planner prompt the job's plans came from
 
     @model_validator(mode="before")
     @classmethod

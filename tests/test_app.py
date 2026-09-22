@@ -22,11 +22,11 @@ from pydantic import SecretStr
 
 from shortsmith import app as app_module
 from shortsmith import auth, fixture, jobs, render, styles
-from shortsmith.config import Settings
+from shortsmith.config import ConfigError, Settings
 from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest
 from shortsmith.ingest import MIB, Limits
 from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
-from shortsmith.planner import FakePlanner
+from shortsmith.planner import ClaudeCodePlanner, FakePlanner
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber
@@ -48,6 +48,8 @@ def _settings(tmp_path: Path, passcode: str | None = PASSCODE, **overrides: Any)
     # The default planner is `claude_code`, which the ledger requires a priced
     # api-equivalent rate for at startup (5.6); the committed example file covers it.
     overrides.setdefault("prices_file", EXAMPLE_PRICES)
+    # ...and a declared single operator (11.3), or the server refuses to start.
+    overrides.setdefault("shortsmith_single_operator", True)
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         shortsmith_data_dir=tmp_path / "data",
@@ -484,13 +486,13 @@ def test_module_level_app_exists_for_uvicorn() -> None:
     assert isinstance(app_module.app, FastAPI)
 
 
-def test_default_planner_from_settings_fails_the_job_visibly_not_silently(
+def test_an_unbuilt_planner_from_settings_fails_the_job_visibly_not_silently(
     tmp_path: Path, media: Media
 ) -> None:
-    """`PLANNER=claude_code` (the .env default) is ticket 014: until then a job fails at
-    `planning` with the ticket named; nothing pretends the fake is the real planner."""
+    """`PLANNER=api` is ticket 015: until then a job fails at `planning` with the
+    ticket named; nothing pretends the fake is the real planner."""
     app = app_module.create_app(
-        _settings(tmp_path, planner="claude_code"),
+        _settings(tmp_path, planner="api"),
         transcriber=FakeTranscriber(),
         renderer=FakeRenderer(),
         gate=FakeGate(),
@@ -503,8 +505,36 @@ def test_default_planner_from_settings_fails_the_job_visibly_not_silently(
         record = client.get(f"{location}.json").json()
         assert record["status"] == "failed"
         assert record["error"]["step"] == "planning"
-        assert "014" in record["error"]["detail"]
+        assert "015" in record["error"]["detail"]
         assert "Failed at planning" in client.get(location).text
+
+
+def test_the_default_planner_builds_the_cli_adapter_on_the_loaded_ledger(
+    tmp_path: Path,
+) -> None:
+    """8.3: `PLANNER=claude_code` is the CLI adapter; its rows go to the ledger the
+    lifespan loads."""
+    app = app_module.create_app(
+        _settings(tmp_path), transcriber=FakeTranscriber(), renderer=FakeRenderer(),
+        gate=FakeGate(), start_worker=False,
+    )  # fmt: skip
+    with TestClient(app):
+        worker_planner = app.state.worker._planner  # pyright: ignore[reportPrivateUsage]
+        assert isinstance(worker_planner, ClaudeCodePlanner)
+        assert worker_planner._ledger() is app.state.ledger  # pyright: ignore[reportPrivateUsage]
+
+
+def test_startup_refuses_the_subscription_planner_without_a_single_operator(
+    tmp_path: Path,
+) -> None:
+    """11.3: subscription use is single-operator only, enforced when the server starts."""
+    settings = _settings(tmp_path, shortsmith_single_operator=False)
+    app = app_module.create_app(
+        settings, transcriber=FakeTranscriber(), planner=FakePlanner(),
+        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+    )  # fmt: skip
+    with pytest.raises(ConfigError, match="SHORTSMITH_SINGLE_OPERATOR"), TestClient(app):
+        pass
 
 
 # --- queue, day limit, job minutes, upload size (ticket 041, decision 11.2) ------
