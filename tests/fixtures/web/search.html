@@ -1,0 +1,61 @@
+<!doctype html>
+<!--
+  A recorded-shape image-search results page (ticket 017). Hand-built in the documented
+  markup: one `<a class="iusc">` per hit whose `m` attribute is HTML-escaped JSON with
+  `murl` (the image), `purl` (the page it sits on) and `turl` (the thumbnail), and the
+  printed `W x H` beside it in the hit's info span. Five hits, in this order:
+
+  1. india-gate-dusk.jpg   1600 x 1200  a clean hit
+  2. india-gate-thumb.jpg   640 x  480  hard reject: short side under 800 px
+  3. india-gate-banner.jpg 3600 x  900  hard reject: aspect 4:1
+  4. (no murl)             1400 x 1050  page follow: the image comes from page.html
+  5. india-gate-night.jpg  1200 x 1200  a clean hit
+
+  Replace this with a real recorded page from the first live job; nothing here has
+  ever been on the wire.
+-->
+<html>
+<head><title>india gate delhi archival photo - Image Search</title></head>
+<body>
+<div class="dgControl">
+  <ul class="dgControl_list">
+
+    <li>
+      <div class="imgpt">
+        <a class="iusc" style="height:180px" href="/images/search?view=detailV2&amp;id=1" m="{&quot;cid&quot;:&quot;1&quot;,&quot;turl&quot;:&quot;https://thumbs.example.net/th?id=OIP.one&amp;pid=Api&quot;,&quot;purl&quot;:&quot;https://photos.example.org/india-gate-dusk&quot;,&quot;murl&quot;:&quot;https://photos.example.org/full/india-gate-dusk.jpg&quot;,&quot;md5&quot;:&quot;aaa&quot;}"><img class="mimg" src="https://thumbs.example.net/th?id=OIP.one&amp;pid=Api"/></a>
+      </div>
+      <div class="img_info"><span class="nowrap">1600 x 1200 &#183; jpeg &#183; 240&#160;kB</span><a class="richImgLnk" href="https://photos.example.org/india-gate-dusk">photos.example.org</a></div>
+    </li>
+
+    <li>
+      <div class="imgpt">
+        <a class="iusc" style="height:180px" href="/images/search?view=detailV2&amp;id=2" m="{&quot;cid&quot;:&quot;2&quot;,&quot;turl&quot;:&quot;https://thumbs.example.net/th?id=OIP.two&amp;pid=Api&quot;,&quot;purl&quot;:&quot;https://blog.example.com/delhi-trip&quot;,&quot;murl&quot;:&quot;https://blog.example.com/img/india-gate-thumb.jpg&quot;,&quot;md5&quot;:&quot;bbb&quot;}"><img class="mimg" src="https://thumbs.example.net/th?id=OIP.two&amp;pid=Api"/></a>
+      </div>
+      <div class="img_info"><span class="nowrap">640 x 480 &#183; jpeg &#183; 41&#160;kB</span><a class="richImgLnk" href="https://blog.example.com/delhi-trip">blog.example.com</a></div>
+    </li>
+
+    <li>
+      <div class="imgpt">
+        <a class="iusc" style="height:180px" href="/images/search?view=detailV2&amp;id=3" m="{&quot;cid&quot;:&quot;3&quot;,&quot;turl&quot;:&quot;https://thumbs.example.net/th?id=OIP.three&amp;pid=Api&quot;,&quot;purl&quot;:&quot;https://banners.example.net/delhi&quot;,&quot;murl&quot;:&quot;https://banners.example.net/img/india-gate-banner.jpg&quot;,&quot;md5&quot;:&quot;ccc&quot;}"><img class="mimg" src="https://thumbs.example.net/th?id=OIP.three&amp;pid=Api"/></a>
+      </div>
+      <div class="img_info"><span class="nowrap">3600 x 900 &#183; jpeg &#183; 510&#160;kB</span><a class="richImgLnk" href="https://banners.example.net/delhi">banners.example.net</a></div>
+    </li>
+
+    <li>
+      <div class="imgpt">
+        <a class="iusc" style="height:180px" href="/images/search?view=detailV2&amp;id=4" m="{&quot;cid&quot;:&quot;4&quot;,&quot;turl&quot;:&quot;https://thumbs.example.net/th?id=OIP.four&amp;pid=Api&quot;,&quot;purl&quot;:&quot;https://www.archive.example.org/gallery/india-gate&quot;,&quot;md5&quot;:&quot;ddd&quot;}"><img class="mimg" src="https://thumbs.example.net/th?id=OIP.four&amp;pid=Api"/></a>
+      </div>
+      <div class="img_info"><span class="nowrap">1400 x 1050 &#183; jpeg &#183; 180&#160;kB</span><a class="richImgLnk" href="https://www.archive.example.org/gallery/india-gate">archive.example.org</a></div>
+    </li>
+
+    <li>
+      <div class="imgpt">
+        <a class="iusc" style="height:180px" href="/images/search?view=detailV2&amp;id=5" m="{&quot;cid&quot;:&quot;5&quot;,&quot;turl&quot;:&quot;https://thumbs.example.net/th?id=OIP.five&amp;pid=Api&quot;,&quot;purl&quot;:&quot;https://photos.example.org/india-gate-night&quot;,&quot;murl&quot;:&quot;https://photos.example.org/full/india-gate-night.jpg&quot;,&quot;md5&quot;:&quot;eee&quot;}"><img class="mimg" src="https://thumbs.example.net/th?id=OIP.five&amp;pid=Api"/></a>
+      </div>
+      <div class="img_info"><span class="nowrap">1200 x 1200 &#183; jpeg &#183; 310&#160;kB</span><a class="richImgLnk" href="https://photos.example.org/india-gate-night">photos.example.org</a></div>
+    </li>
+
+  </ul>
+</div>
+</body>
+</html>

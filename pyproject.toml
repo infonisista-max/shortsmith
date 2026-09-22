@@ -11,6 +11,9 @@ dependencies = [
     "anthropic>=1.6.0",
     "fastapi>=0.141.1",
     "groq>=1.7.0",
+    # 017: the image-source adapters call HTTP directly (13.1), so httpx is a direct
+    # dependency of the product, not only of the tests.
+    "httpx>=0.28.1",
     "pillow==12.3.0",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
@@ -28,7 +31,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "ruff>=0.16.8",

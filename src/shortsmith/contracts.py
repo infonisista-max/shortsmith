@@ -369,6 +369,7 @@ class Candidate(StrictModel):
 
     url: str
     page_url: str = ""
+    thumb_url: str = ""  # the small preview the relevance judge looks at (5.2)
     width: int
     height: int
     author: str | None = None
@@ -385,7 +386,8 @@ class Generated(StrictModel):
 
 
 class JudgeVerdict(StrictModel):
-    """The relevance judge's verdict on the chosen candidate (5.2; ticket 017)."""
+    """The relevance judge's verdict on the chosen candidate (5.2; ticket 017):
+    `score` 0-3, `reasons` only from the fixed list in `assets.judge.REASONS`."""
 
     model: str
     score: int
@@ -438,6 +440,10 @@ class BeatAsset(StrictModel):
     redressed_from: str | None = None
     crop: Crop = Field(default_factory=Crop)
     stamp: str | None = None
+    # 5.2: nothing judged this beat's candidates - no judge configured, the style's
+    # `judge_max_calls` spent, or the judge could not answer. The ladder ran on the
+    # source's own order instead; the beat is never rejected for it.
+    judge_skipped: bool = False
 
     @property
     def rescued(self) -> bool:
@@ -455,6 +461,9 @@ class AssetManifest(StrictModel):
     aliases: dict[str, str | None] = {}
     runtime_s: float
     rescued_max: int
+    # 5.2 / 5.6: relevance-judge calls made and the style's `judge_max_calls` ceiling.
+    judge_calls: int = 0
+    judge_max: int = 0
 
     def asset(self, asset_id: str) -> AssetRecord | None:
         return next((a for a in self.assets if a.id == asset_id), None)

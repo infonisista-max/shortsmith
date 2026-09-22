@@ -691,6 +691,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "fastapi" },
     { name = "groq" },
+    { name = "httpx" },
     { name = "pillow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -701,7 +702,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "ruff" },
@@ -712,6 +712,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=1.6.0" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "groq", specifier = ">=1.7.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pillow", specifier = "==12.3.0" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
@@ -722,7 +723,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.8" },

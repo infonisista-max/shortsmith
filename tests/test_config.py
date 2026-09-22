@@ -24,9 +24,18 @@ def _example_keys() -> set[str]:
     return keys
 
 
+def _startup(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
+    """Settings for a `check_startup` case: the judge defaults to `api`, which needs a
+    key of its own (5.2, 017), so a case not about the judge turns it off."""
+    env.setdefault("RELEVANCE_JUDGE", "none")
+    return _settings(monkeypatch, **env)
+
+
 def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
     unlisted = {
         "PLANNER_MODEL",
+        "RELEVANCE_JUDGE",
+        "RELEVANCE_JUDGE_MODEL",
         "SHORTSMITH_DATA_DIR",
         "SHORTSMITH_SINGLE_OPERATOR",
         "TRANSCRIBER",
@@ -103,14 +112,14 @@ def test_the_subscription_planner_needs_a_declared_single_operator(
 ) -> None:
     """8.3 / 11.3: `PLANNER=claude_code` (the default) runs on the operator's own
     subscription, so startup refuses it unless SHORTSMITH_SINGLE_OPERATOR=true."""
-    default = _settings(monkeypatch)
+    default = _startup(monkeypatch)
     assert default.shortsmith_single_operator is False
     with pytest.raises(config.ConfigError, match="SHORTSMITH_SINGLE_OPERATOR=true"):
-        config.check_startup(_settings(monkeypatch, TRANSCRIBER="fake"))
+        config.check_startup(_startup(monkeypatch, TRANSCRIBER="fake"))
     config.check_startup(
-        _settings(monkeypatch, SHORTSMITH_SINGLE_OPERATOR="true", TRANSCRIBER="fake")
+        _startup(monkeypatch, SHORTSMITH_SINGLE_OPERATOR="true", TRANSCRIBER="fake")
     )
-    config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+    config.check_startup(_startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
 
 
 def test_the_transcriber_defaults_to_groq_on_whisper_large_v3_in_hindi(
@@ -130,9 +139,9 @@ def test_the_groq_transcriber_needs_a_key_at_startup(monkeypatch: pytest.MonkeyP
     """12.1 / 11.3: `TRANSCRIBER=groq` (the default) without GROQ_API_KEY stops the
     server with the fix named; `fake` needs nothing."""
     with pytest.raises(config.ConfigError, match="GROQ_API_KEY"):
-        config.check_startup(_settings(monkeypatch, PLANNER="fake"))
-    config.check_startup(_settings(monkeypatch, PLANNER="fake", GROQ_API_KEY="gsk_x"))
-    config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+        config.check_startup(_startup(monkeypatch, PLANNER="fake"))
+    config.check_startup(_startup(monkeypatch, PLANNER="fake", GROQ_API_KEY="gsk_x"))
+    config.check_startup(_startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
 
 
 def test_the_api_planner_needs_an_anthropic_key_at_startup(
@@ -141,16 +150,36 @@ def test_the_api_planner_needs_an_anthropic_key_at_startup(
     """8.3 / 11.3, the three planner outcomes: `api` needs ANTHROPIC_API_KEY, `claude_code`
     needs SHORTSMITH_SINGLE_OPERATOR=true, `fake` needs neither."""
     with pytest.raises(config.ConfigError, match="ANTHROPIC_API_KEY"):
-        config.check_startup(_settings(monkeypatch, PLANNER="api", TRANSCRIBER="fake"))
+        config.check_startup(_startup(monkeypatch, PLANNER="api", TRANSCRIBER="fake"))
     config.check_startup(
-        _settings(monkeypatch, PLANNER="api", TRANSCRIBER="fake", ANTHROPIC_API_KEY="sk-x")
+        _startup(monkeypatch, PLANNER="api", TRANSCRIBER="fake", ANTHROPIC_API_KEY="sk-x")
     )
     with pytest.raises(config.ConfigError, match="SHORTSMITH_SINGLE_OPERATOR=true"):
         config.check_startup(
-            _settings(monkeypatch, PLANNER="claude_code", TRANSCRIBER="fake",
+            _startup(monkeypatch, PLANNER="claude_code", TRANSCRIBER="fake",
                       ANTHROPIC_API_KEY="sk-x")
         )  # fmt: skip
-    config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+    config.check_startup(_startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+
+
+def test_the_relevance_judge_is_on_by_default_on_haiku_and_needs_a_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """5.2: the judge filters every searched beat by default, on the current Haiku with
+    the model swappable by config; `api` without ANTHROPIC_API_KEY stops the server,
+    and `none` sources every beat on its source's own order."""
+    s = _settings(monkeypatch)
+    assert (s.relevance_judge, s.relevance_judge_model) == ("api", "claude-haiku-4-5-20251001")
+    swapped = _settings(monkeypatch, RELEVANCE_JUDGE_MODEL="claude-sonnet-5")
+    assert swapped.relevance_judge_model == "claude-sonnet-5"
+    with pytest.raises(config.ConfigError, match="RELEVANCE_JUDGE=none"):
+        config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+    config.check_startup(
+        _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", ANTHROPIC_API_KEY="sk-x")
+    )
+    config.check_startup(
+        _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", RELEVANCE_JUDGE="fake")
+    )
 
 
 def test_the_planner_model_defaults_to_the_current_sonnet(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,6 +193,7 @@ def test_the_planner_model_defaults_to_the_current_sonnet(monkeypatch: pytest.Mo
         ("PLANNER", "gpt"),
         ("ASSET_POLICY", "everything"),
         ("IMAGE_GEN", "dalle"),
+        ("RELEVANCE_JUDGE", "gpt4v"),
         ("TRANSCRIBER", "whisper_local"),
     ],
 )

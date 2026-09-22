@@ -347,10 +347,10 @@ def _source(job: Job, sourcing: assets.Sourcing, specs: Specs, clock: Clock) -> 
     if missing:
         jobs.note(
             job,
-            f"no image source adapter yet for: {', '.join(missing)} (tickets 017, 018)",
+            f"no image source adapter yet for: {', '.join(missing)} (ticket 018)",
             now=clock,
         )
-    sourcing.run(job.path, style_of(job, specs), clock=clock)
+    sourcing.run(job, style_of(job, specs), clock=clock)
 
 
 def _render(job: Job, renderer: Renderer, clock: Clock) -> None:

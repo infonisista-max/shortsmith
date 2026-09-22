@@ -1,0 +1,20 @@
+<!doctype html>
+<!--
+  The result page hit 4 of `search.html` names but has no direct image URL for
+  (ticket 017): the page follow reads its `og:image`, which is relative here so the
+  adapter has to resolve it against the page URL. Hand-built; replace with a real
+  recorded page from the first live job.
+-->
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>India Gate, Delhi — archive gallery</title>
+  <meta property="og:title" content="India Gate, Delhi"/>
+  <meta property="og:image" content="/media/full/india-gate-archive.jpg"/>
+  <meta name="twitter:image" content="https://www.archive.example.org/media/small.jpg"/>
+</head>
+<body>
+  <h1>India Gate, Delhi</h1>
+  <img src="/media/thumb/india-gate-archive.jpg" alt="India Gate"/>
+</body>
+</html>

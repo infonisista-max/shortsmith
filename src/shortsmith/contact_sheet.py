@@ -9,8 +9,9 @@ library, - none), with a red corner mark on a rescued (4.4) or downgraded (5.3) 
 The 6.3 platform safe-area zones are drawn as thin outlines on the
 first frame of every row. The last row is the summary panel: one dot per technical
 check (green pass, red fail, grey not run), the critic scores as a placeholder until
-033, and the ledger line (cash total, subscription tokens with their api-equivalent
-value, the soft-cap flag; 11.3). The file stays under 2 MB: `encode` steps the JPEG
+033, the relevance judge's spent calls against the style's ceiling (5.2), and the
+ledger line (cash total, subscription tokens with their api-equivalent value, the
+soft-cap flag; 11.3). The file stays under 2 MB: `encode` steps the JPEG
 quality down and, as a last resort, scales the whole sheet.
 
 `layout` is pure geometry so the tests pin every position; `compose_image` draws from
@@ -247,6 +248,17 @@ def ledger_line(record: JobRecord) -> str:
     return line
 
 
+def judge_line(manifest: AssetManifest | None) -> str:
+    """The 5.2 judge line: calls spent against the style's ceiling, and whether the
+    ceiling stopped it (the beats after it were sourced unjudged)."""
+    if manifest is None or manifest.judge_max == 0:
+        return "judge: off"
+    line = f"judge: {manifest.judge_calls}/{manifest.judge_max} calls"
+    if manifest.judge_calls >= manifest.judge_max:
+        line += " CAP REACHED"
+    return line
+
+
 def _draw_summary(
     draw: ImageDraw.ImageDraw,
     box: Box,
@@ -340,7 +352,7 @@ def compose(job: Job) -> Path:
     hook_strips = [strip_line(c.time_s, plan, manifest) for c in lay.hook]
     frame_strips = [strip_line(c.time_s, plan, manifest) for c in lay.frames]
     # Re-read: the ledger appends rows to job.json behind the worker's Job value.
-    cost = ledger_line(jobs.load(job.path).record)
+    cost = f"{judge_line(manifest)} · {ledger_line(jobs.load(job.path).record)}"
     image = compose_image(hook, frames, report, title, cost, hook_strips=hook_strips,
                           frame_strips=frame_strips)  # fmt: skip
     return encode(image, job.out_dir / "contact.jpg")

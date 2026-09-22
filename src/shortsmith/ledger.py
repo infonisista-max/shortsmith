@@ -45,7 +45,8 @@ TOKEN_SUFFIX = "_tokens"
 API_EQUIVALENT = "api_equivalent"  # the display-only rate for subscription rows
 SUBSCRIPTION_PROVIDERS: frozenset[str] = frozenset({"claude_code"})
 # What each priced provider must carry; a provider in use without one of these fails
-# startup. `judge` and `search` join `providers_in_use` with ticket 017.
+# startup. `search` joins `providers_in_use` when a metered search adapter ships (018);
+# the 017 web adapter is scraped, so its queries cost nothing and write no row.
 REQUIRED_UNITS: Mapping[str, tuple[str, ...]] = {
     "groq": ("audio_minutes",),
     "gemini": ("images",),
@@ -135,6 +136,8 @@ def providers_in_use(settings: Settings) -> frozenset[str]:
         used.add("planner")
     elif settings.planner == "claude_code":
         used.add(API_EQUIVALENT)
+    if settings.relevance_judge == "api":
+        used.add("judge")
     if settings.image_gen == "gemini":
         used.add("gemini")
     if settings.transcriber == "groq":

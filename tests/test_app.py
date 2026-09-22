@@ -52,6 +52,11 @@ def _settings(tmp_path: Path, passcode: str | None = PASSCODE, **overrides: Any)
     overrides.setdefault("shortsmith_single_operator", True)
     # ...and the fake transcriber: `groq` (the default, 012) needs a key at startup.
     overrides.setdefault("transcriber", "fake")
+    # ...and the fake relevance judge: `api` (the default, 5.2) needs one too (017).
+    overrides.setdefault("relevance_judge", "fake")
+    # ...and the fake image source: the default order's `web` is a real HTTP adapter
+    # (017), and no test ever reaches the network (board rules).
+    overrides.setdefault("asset_sources", "fake")
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         shortsmith_data_dir=tmp_path / "data",

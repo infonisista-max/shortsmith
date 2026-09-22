@@ -27,14 +27,24 @@ an `AssetManifest` (`work/assets.json`):
   not a web image (web images are always re-dressed as cards, 5.1). Anything else is
   a `card`; a planned `photo` that became a card records `treatment_downgraded`.
 
+- Which candidate a source's hits give the beat (5.2, ticket 017): the code-only hard
+  rejects drop what is too small, too wide or not an image (`base`), and the survivors
+  go to the relevance judge (`judge`), which scores each 0-3. Best >= 2 wins, ties by
+  the source's own order, everything under 2 means the next source and then the
+  ladder. A candidate whose download is refused or rejected is dropped and the next
+  accepted one is taken; the beat is never rejected for a candidate. With no judge
+  configured, its call ceiling spent, or a judge that could not answer, the first
+  candidate the hard rejects kept wins and the beat records `judge_skipped`.
+
 Search results and fetched files are cached per job under
 `work/assets/<sha256(query + source)>/` (5.6), so re-running the step (a plan retry,
-a re-render) searches and fetches nothing. No relevance judge yet (017): the first
-candidate wins. Every source is a fake in this ticket; real adapters come with 017
-and 018.
+a re-render) searches, judges and fetches nothing; judge verdicts are additionally
+cached by candidate URL for the whole job, so the same candidate is never paid for
+twice. `web` is the only real source so far (017); the free libraries come with 018.
 
-`ImageSource` is the adapter interface; `FakeImageSource` (12.1) writes solid PNGs
-at the sizes it was given, with fake URLs, and has "nothing found" modes.
+`base` holds the `ImageSource` interface, the hard rejects and `FakeImageSource`
+(12.1), which writes solid PNGs at the sizes it was given behind fake URLs and has
+"nothing found" modes; `web` is the search adapter; `judge` the relevance judge.
 """
 
 from __future__ import annotations
@@ -43,17 +53,38 @@ import hashlib
 import json
 import math
 import re
-from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, get_args
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 from pydantic import TypeAdapter
 
-from shortsmith import ffmpeg, rights
+from shortsmith import ffmpeg, jobs, rights
+from shortsmith.assets.base import (
+    MAX_ASPECT,
+    MAX_BYTES,
+    MIN_SHORT_SIDE,
+    FakeImageSource,
+    ImageSource,
+    SourceError,
+    media_type,
+    parse_order,
+    reject_body,
+    reject_size,
+    source_order,
+)
+from shortsmith.assets.judge import (
+    FakeRelevanceJudge,
+    Judging,
+    RelevanceJudge,
+    Thumb,
+    Verdict,
+    VisionJudge,
+)
+from shortsmith.assets.web import WebImageSource
 from shortsmith.config import Settings
 from shortsmith.contracts import (
     AssetManifest,
@@ -64,13 +95,40 @@ from shortsmith.contracts import (
     Candidate,
     Crop,
     Generated,
+    JudgeVerdict,
     Origin,
     ReferenceRecord,
     SearchOrigin,
     Treatment,
     ValidatedPlan,
 )
+from shortsmith.jobs import Job
+from shortsmith.ledger import Ledger
 from shortsmith.styles import StyleSpec
+
+__all__ = [
+    "MAX_ASPECT",
+    "MAX_BYTES",
+    "MIN_SHORT_SIDE",
+    "AssetError",
+    "FakeImageSource",
+    "FakeRelevanceJudge",
+    "ImageSource",
+    "Judging",
+    "RelevanceJudge",
+    "SourceError",
+    "Sourcing",
+    "Thumb",
+    "Verdict",
+    "VisionJudge",
+    "WebImageSource",
+    "media_type",
+    "parse_order",
+    "reject_body",
+    "reject_size",
+    "source_assets",
+    "source_order",
+]
 
 MANIFEST_NAME = "assets.json"
 CACHE_DIR = "assets"
@@ -110,88 +168,6 @@ def _utc_now() -> datetime:
 
 class AssetError(RuntimeError):
     """The step cannot proceed (a missing reference file, an unreadable image)."""
-
-
-# --- sources (5.1, 5.2) ------------------------------------------------------------------
-
-
-class ImageSource(ABC):
-    """One searched source. `search` returns candidates in the source's own order;
-    `fetch` downloads one to `dest` plus the file's suffix and returns the path."""
-
-    origin: SearchOrigin
-
-    @abstractmethod
-    def search(self, query: str, n: int) -> list[Candidate]: ...
-
-    @abstractmethod
-    def fetch(self, candidate: Candidate, dest: Path) -> Path: ...
-
-
-def _slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "x"
-
-
-class FakeImageSource(ImageSource):
-    """Solid PNGs at `size` (or `sizes[query]`) behind `https://fake.invalid/` URLs.
-    `nothing_found` answers every query with nothing, `nothing_for` those queries.
-    `searches` and `fetches` count the calls so tests can prove the cache."""
-
-    def __init__(
-        self,
-        origin: SearchOrigin,
-        *,
-        size: tuple[int, int] = (1600, 1000),
-        sizes: Mapping[str, tuple[int, int]] | None = None,
-        nothing_for: Iterable[str] = (),
-        nothing_found: bool = False,
-    ) -> None:
-        self.origin = origin
-        self.size = size
-        self.sizes = dict(sizes or {})
-        self.nothing_for = frozenset(nothing_for)
-        self.nothing_found = nothing_found
-        self.searches = 0
-        self.fetches = 0
-
-    def search(self, query: str, n: int) -> list[Candidate]:
-        self.searches += 1
-        if self.nothing_found or query in self.nothing_for:
-            return []
-        width, height = self.sizes.get(query, self.size)
-        base = f"https://fake.invalid/{self.origin}/{_slug(query)}"
-        return [
-            Candidate(
-                url=f"{base}/{i}.png",
-                page_url=f"{base}/{i}",
-                width=width,
-                height=height,
-                author=f"fake {self.origin}",
-            )
-            for i in range(1, n + 1)
-        ]
-
-    def fetch(self, candidate: Candidate, dest: Path) -> Path:
-        self.fetches += 1
-        path = dest.with_suffix(".png")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        digest = hashlib.sha256(candidate.url.encode("utf-8")).digest()
-        image = Image.new("RGB", (candidate.width, candidate.height), tuple(digest[:3]))
-        label = candidate.url.removeprefix("https://fake.invalid/")
-        font = ImageFont.load_default(size=max(16, candidate.width // 24))
-        ImageDraw.Draw(image).text((24, 24), label, fill=(255, 255, 255), font=font)
-        image.save(path, format="PNG")
-        return path
-
-
-def parse_order(text: str) -> tuple[str, ...]:
-    """`ASSET_SOURCES` as a tuple of names, blanks dropped."""
-    return tuple(name.strip() for name in text.split(",") if name.strip())
-
-
-def source_order(order: Sequence[str], policy: AssetPolicy) -> list[str]:
-    """The searched sources for `policy` (5.2): `rights_safe` removes web search."""
-    return [name for name in order if not (policy == "rights_safe" and name == "web")]
 
 
 # --- generation (5.5; the generator itself is ticket 019) ---------------------------------
@@ -248,12 +224,65 @@ class _Fetched:
     candidate: Candidate | None
     fetched_at: str
     generated: Generated | None = None
+    verdict: JudgeVerdict | None = None
+    judge_skipped: bool = False
+
+
+@dataclass(frozen=True)
+class _Ranked:
+    """One surviving candidate with the judge's verdict on it, if it was judged."""
+
+    candidate: Candidate
+    verdict: Verdict | None = None
+
+
+def keep(
+    candidates: Sequence[Candidate], log: Callable[[str], None] = lambda _: None
+) -> list[Candidate]:
+    """5.2: the candidates the code-only hard rejects let through, before the judge
+    is asked for anything. A rejection is of the candidate, never of the beat."""
+    kept: list[Candidate] = []
+    for candidate in candidates:
+        why = reject_size(candidate.width, candidate.height)
+        if why is None:
+            kept.append(candidate)
+        else:
+            log(f"sourcing: {candidate.url} rejected: {why}")
+    return kept
+
+
+def rank(candidates: Sequence[Candidate], verdicts: Sequence[Verdict] | None) -> list[_Ranked]:
+    """5.2: the judge's accepted candidates best-first, ties by the source's own order
+    (the sort is stable). Unjudged, the source's order is kept exactly as it is."""
+    if verdicts is None:
+        return [_Ranked(c) for c in candidates]
+    scored = [
+        (verdict.score, _Ranked(candidate, verdict))
+        for candidate, verdict in zip(candidates, verdicts, strict=True)
+        if verdict.accepted
+    ]
+    return [ranked for _, ranked in sorted(scored, key=lambda pair: -pair[0])]
+
+
+def _verdict(model: str, verdict: Verdict | None) -> JudgeVerdict | None:
+    if verdict is None:
+        return None
+    return JudgeVerdict(model=model, score=verdict.score, reasons=list(verdict.reasons))
 
 
 def _search_cached(
-    source: ImageSource, name: str, query: str, cache: Path, clock: Clock
+    source: ImageSource,
+    name: str,
+    query: str,
+    cache: Path,
+    clock: Clock,
+    judging: Judging,
+    *,
+    subject_kind: str = "",
+    topic: str = "",
+    log: Callable[[str], None] = lambda _: None,
 ) -> _Fetched | None:
-    """The first candidate for `query` from `source`, fetched once per job."""
+    """The candidate `query` from `source` gives this beat (5.2), fetched once per job."""
     folder = cache / cache_key(query, name)
     result = folder / "result.json"
     if result.is_file():
@@ -261,29 +290,67 @@ def _search_cached(
         if data["file"] is None:
             return None
         candidate = Candidate.model_validate(data["candidate"])
-        return _Fetched(folder / data["file"], candidate, data["fetched_at"])
+        verdict = data.get("judge")
+        return _Fetched(
+            folder / data["file"],
+            candidate,
+            data["fetched_at"],
+            verdict=JudgeVerdict.model_validate(verdict) if verdict else None,
+            judge_skipped=bool(data.get("judge_skipped", False)),
+        )
     folder.mkdir(parents=True, exist_ok=True)
-    candidates = source.search(query, CANDIDATES)
+    candidates = keep(source.search(query, CANDIDATES), log)
+    verdicts = judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
     record: dict[str, object] = {
         "query": query,
         "source": name,
         "candidates": _CANDIDATES.dump_python(candidates, mode="json"),
+        "judged": verdicts is not None,
         "candidate": None,
+        "judge": None,
+        "judge_skipped": verdicts is None,
         "file": None,
         "fetched_at": None,
     }
     fetched: _Fetched | None = None
-    if candidates:
-        chosen = candidates[0]  # the relevance judge (017) picks among them
-        path = source.fetch(chosen, folder / "image")
-        fetched = _Fetched(path, chosen, clock().isoformat())
+    for ranked in rank(candidates, verdicts):
+        try:
+            path = source.fetch(ranked.candidate, folder / "image")
+        except SourceError as exc:
+            log(f"sourcing: {exc}")
+            continue
+        why = _reject_fetched(path)
+        if why is not None:
+            log(f"sourcing: {ranked.candidate.url} rejected: {why}")
+            path.unlink(missing_ok=True)
+            continue
+        fetched = _Fetched(
+            path,
+            ranked.candidate,
+            clock().isoformat(),
+            verdict=_verdict(judging.model, ranked.verdict),
+            judge_skipped=verdicts is None,
+        )
         record |= {
-            "candidate": chosen.model_dump(mode="json"),
+            "candidate": ranked.candidate.model_dump(mode="json"),
+            "judge": fetched.verdict.model_dump(mode="json") if fetched.verdict else None,
             "file": path.name,
             "fetched_at": fetched.fetched_at,
         }
+        break
     result.write_text(json.dumps(record, indent=2), encoding="utf-8")
     return fetched
+
+
+def _reject_fetched(path: Path) -> str | None:
+    """The 5.2 hard rejects on the downloaded file: the only size a source cannot
+    misreport, plus a body Pillow cannot open at all."""
+    try:
+        with Image.open(path) as image:
+            width, height = image.size
+    except OSError:
+        return "the downloaded file is not a readable image"
+    return reject_size(width, height)
 
 
 def _generate_cached(beat: Beat, generate: Generate, cache: Path, clock: Clock) -> _Fetched | None:
@@ -404,7 +471,8 @@ class _Walk:
 
     def add(self, asset_id: str, path: Path, *, origin: Origin, fetched_at: str,
             kind: Literal["image", "clip_frame"] = "image", candidate: Candidate | None = None,
-            generated: Generated | None = None) -> AssetRecord:  # fmt: skip
+            generated: Generated | None = None,
+            judge: JudgeVerdict | None = None) -> AssetRecord:  # fmt: skip
         width, height, digest = _measure(path)
         record = AssetRecord(
             id=asset_id,
@@ -416,6 +484,7 @@ class _Walk:
                 candidate.licence if candidate else "unknown"),
             author=candidate.author if candidate else None,
             generated=generated,
+            judge=judge,
             file=_rel(path, self.job_dir),
             sha256=digest,
             width=width,
@@ -431,7 +500,7 @@ class _Walk:
                         fetched_at=self.clock().isoformat())  # fmt: skip
 
     def show(self, beat: Beat, record: AssetRecord, rung: int, *,
-             redressed: bool = False) -> None:  # fmt: skip
+             redressed: bool = False, judge_skipped: bool = False) -> None:  # fmt: skip
         treatment, downgraded = classify(
             record.width, record.height, planned=_planned(beat), origin=record.origin
         )
@@ -450,6 +519,7 @@ class _Walk:
                 redressed_from=record.id if redressed else None,
                 crop=crop,
                 stamp=stamp_word(beat) if rung >= 3 else None,
+                judge_skipped=judge_skipped,
             )
         )
         self.subjects[beat.id] = beat.subject_kind or ""
@@ -489,6 +559,9 @@ def source_assets(
     order: Sequence[str] = DEFAULT_ORDER,
     job_dir: Path,
     generate: Generate | None = None,
+    judging: Judging | None = None,
+    topic: str = "",
+    log: Callable[[str], None] = lambda _: None,
     clock: Clock = _utc_now,
 ) -> AssetManifest:
     """Decide every sourced beat's asset per the rules in the module docstring."""
@@ -498,12 +571,16 @@ def source_assets(
     searched = [(name, sources[name]) for name in source_order(order, policy) if name in sources]
     by_id = {ref.id: ref for ref in references}
     walk = _Walk(job_dir=job_dir, cache=cache, clock=clock, references=references)
+    judging = judging if judging is not None else Judging()
 
-    def search(query: str) -> tuple[_Fetched, SearchOrigin] | None:
+    def search(beat: Beat, query: str) -> tuple[_Fetched, SearchOrigin] | None:
         if not query:
             return None
         for name, source in searched:
-            found = _search_cached(source, name, query, cache, clock)
+            found = _search_cached(
+                source, name, query, cache, clock, judging,
+                subject_kind=beat.subject_kind or "", topic=topic, log=log,
+            )  # fmt: skip
             if found is not None:
                 return found, source.origin
         return None
@@ -548,7 +625,7 @@ def source_assets(
                 continue
         found = None
         for rung, query in ((0, beat.query), (1, beat.query_fallback)):
-            hit = search(query)
+            hit = search(beat, query)
             if hit is not None:
                 found = (rung, hit)
                 break
@@ -557,8 +634,9 @@ def source_assets(
             record = walk.add(
                 _new_id(beat), fetched.path, origin=origin,
                 fetched_at=fetched.fetched_at, candidate=fetched.candidate,
+                judge=fetched.verdict,
             )  # fmt: skip
-            walk.show(beat, record, rung)
+            walk.show(beat, record, rung, judge_skipped=fetched.judge_skipped)
             continue
         record = None if tried_generation else generated(beat)
         if record is not None:
@@ -570,6 +648,8 @@ def source_assets(
             continue
         walk.gradient(beat)
 
+    for note in judging.notes:
+        log(note)
     runtime = picture.beats[-1].end if picture.beats else 0.0
     return AssetManifest(
         assets=list(walk.records.values()),
@@ -577,6 +657,8 @@ def source_assets(
         aliases=walk.aliases,
         runtime_s=runtime,
         rescued_max=rescued_max(spec, runtime),
+        judge_calls=judging.calls,
+        judge_max=judging.max_calls,
     )
 
 
@@ -586,23 +668,40 @@ def source_assets(
 _REFS = TypeAdapter(list[ReferenceRecord])
 
 
+def topic_line(job_dir: Path) -> str:
+    """The brief's topic line the judge is told about (5.2): the brief's first
+    non-blank line, headings stripped, capped so a whole brief never travels."""
+    brief = job_dir / "input" / "brief.md"
+    if not brief.is_file():
+        return ""
+    for line in brief.read_text(encoding="utf-8").splitlines():
+        text = line.lstrip("#").strip()
+        if text:
+            return text[:200]
+    return ""
+
+
 @dataclass
 class Sourcing:
     """The `sourcing` step's configuration: the adapters by config name, the 5.1
-    order (`ASSET_SOURCES`), the 5.2 policy and the generator (None: `IMAGE_GEN=none`).
+    order (`ASSET_SOURCES`), the 5.2 policy, the relevance judge (None: no judging,
+    the source's own order decides) and the generator (None: `IMAGE_GEN=none`).
     A configured name with no adapter is skipped and noted in the job log."""
 
     sources: Mapping[str, ImageSource] = field(default_factory=lambda: {})
     order: Sequence[str] = DEFAULT_ORDER
     policy: AssetPolicy = "any"
     generate: Generate | None = None
+    judge: RelevanceJudge | None = None
 
     def missing(self) -> list[str]:
         return [n for n in source_order(self.order, self.policy) if n not in self.sources]
 
-    def run(self, job_dir: Path, spec: StyleSpec, *, clock: Clock = _utc_now) -> AssetManifest:
+    def run(self, job: Job, spec: StyleSpec, *, clock: Clock = _utc_now) -> AssetManifest:
         """Source every beat of `work/plan.validated.json`, write `work/assets.json`,
-        `out/rights.json` and `out/credits.md`."""
+        `out/rights.json` and `out/credits.md`. Every candidate rejected, every judge
+        note and the spent judge budget are `job.log` lines."""
+        job_dir = job.path
         validated = ValidatedPlan.model_validate_json(
             (job_dir / "work" / "plan.validated.json").read_text(encoding="utf-8")
         )
@@ -611,6 +710,10 @@ class Sourcing:
             _REFS.validate_json(refs_path.read_text(encoding="utf-8"))
             if refs_path.is_file()
             else []
+        )
+        judging = Judging(
+            judge=self.judge.bind(job) if self.judge is not None else None,
+            max_calls=spec.budget.judge_max_calls,
         )
         manifest = source_assets(
             validated,
@@ -621,6 +724,9 @@ class Sourcing:
             order=self.order,
             job_dir=job_dir,
             generate=self.generate,
+            judging=judging,
+            topic=topic_line(job_dir),
+            log=lambda line: jobs.note(job, line, now=clock),
             clock=clock,
         )
         write_manifest(job_dir, manifest)
@@ -628,14 +734,34 @@ class Sourcing:
         return manifest
 
 
-def from_settings(settings: Settings) -> Sourcing:
-    """The configured step. No real adapter exists yet (017, 018): only `fake` in
-    `ASSET_SOURCES` maps to one, the fake web source, for local runs on fakes."""
+def judge_from_settings(settings: Settings, ledger: Callable[[], Ledger]) -> RelevanceJudge | None:
+    """The judge `RELEVANCE_JUDGE` names (5.2); `none` means the source's own order
+    decides, which is what the step did before ticket 017."""
+    if settings.relevance_judge == "none":
+        return None
+    if settings.relevance_judge == "fake":
+        return FakeRelevanceJudge()
+    return VisionJudge(
+        ledger, api_key=settings.anthropic_api_key, model=settings.relevance_judge_model
+    )
+
+
+def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourcing:
+    """The configured step. `web` is the only real adapter so far (017; the free
+    libraries are 018), and `fake` in `ASSET_SOURCES` names the fake source for local
+    runs. `ASSET_POLICY=rights_safe` drops `web` from the order and nothing else."""
     order = parse_order(settings.asset_sources)
     sources: dict[str, ImageSource] = {}
+    if "web" in source_order(order, settings.asset_policy):
+        sources["web"] = WebImageSource()
     if "fake" in order:
         sources["fake"] = FakeImageSource("web")
-    return Sourcing(sources=sources, order=order, policy=settings.asset_policy)
+    return Sourcing(
+        sources=sources,
+        order=order,
+        policy=settings.asset_policy,
+        judge=judge_from_settings(settings, ledger),
+    )
 
 
 # --- the manifest on disk ---------------------------------------------------------------------

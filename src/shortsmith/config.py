@@ -5,7 +5,8 @@ Secrets are `SecretStr` so they never appear in logs or reprs. Tests construct
 `check_startup` is the 11.3 startup validation the app runs in its lifespan:
 `PLANNER=claude_code` (the default) needs `SHORTSMITH_SINGLE_OPERATOR=true`, since
 it runs on the operator's own subscription; `TRANSCRIBER=groq` (the default) needs
-`GROQ_API_KEY`; `PLANNER=api` needs `ANTHROPIC_API_KEY`.
+`GROQ_API_KEY`; `PLANNER=api` and `RELEVANCE_JUDGE=api` (the default) need
+`ANTHROPIC_API_KEY`.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ Planner = Literal["fake", "claude_code", "api"]
 Transcriber = Literal["fake", "groq"]
 AssetPolicy = Literal["any", "rights_safe"]
 ImageGen = Literal["none", "gemini"]
+RelevanceJudge = Literal["none", "fake", "api"]
 
 
 class Settings(BaseSettings):
@@ -47,6 +49,10 @@ class Settings(BaseSettings):
     # removed here without code. Owner references always come first and generation
     # last; `rights_safe` drops `web` (5.2). `fake` names the FakeImageSource.
     asset_sources: str = "web,commons,openverse,pexels,pixabay"
+    # 5.2: the cheap filter above the searched sources, on by default. `none` sources
+    # every beat on its source's own order; `fake` is what tests and smoke run on.
+    relevance_judge: RelevanceJudge = "api"
+    relevance_judge_model: str = "claude-haiku-4-5-20251001"  # 5.2: swappable by config
     image_gen: ImageGen = "none"
     gemini_api_key: SecretStr | None = None
     shortsmith_data_dir: Path = Path("data")
@@ -74,6 +80,12 @@ def check_startup(settings: Settings) -> None:
         raise ConfigError(
             "PLANNER=api calls the Anthropic Messages API directly: set ANTHROPIC_API_KEY "
             "in .env, or PLANNER=fake to run on the canned plans (decision 8.3)"
+        )
+    if settings.relevance_judge == "api" and settings.anthropic_api_key is None:
+        raise ConfigError(
+            "RELEVANCE_JUDGE=api calls the Anthropic Messages API for the image judge: "
+            "set ANTHROPIC_API_KEY in .env, or RELEVANCE_JUDGE=none to source every beat "
+            "on its source's own order (decision 5.2)"
         )
     if settings.transcriber == "groq" and settings.groq_api_key is None:
         raise ConfigError(

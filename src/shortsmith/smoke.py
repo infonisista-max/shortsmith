@@ -96,6 +96,7 @@ def smoke_sourcing() -> assets.Sourcing:
             "commons": assets.FakeImageSource("commons", sizes={PHOTO_QUERY: (1080, 1920)}),
         },
         order=("web", "commons"),
+        judge=assets.FakeRelevanceJudge(),  # 017: the judge runs, on no paid call
     )
 
 
@@ -269,7 +270,8 @@ def run_smoke(
 def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
     """016: `work/assets.json` sources every labelled beat through the fakes with no
     rescue, the photo beat as a photo and the card beat as a card; the rights log is
-    complete and the credits exist; the render spec draws both."""
+    complete and the credits exist; the render spec draws both. 017: the fake
+    relevance judge scored the candidates and its verdict is on every searched row."""
     manifest = assets.load_manifest(job.path)
     check(manifest is not None, "sourcing did not write work/assets.json")
     assert manifest is not None
@@ -282,9 +284,24 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
         (treatments.get("b03"), treatments.get("b04")) == ("photo", "card"),
         f"b03/b04 drawn as {treatments.get('b03')}/{treatments.get('b04')}, not photo/card",
     )
+    # 017: the fake judge scored every candidate, so every searched asset carries a
+    # verdict, no beat was sourced unjudged, and the style's ceiling was not reached.
+    check(manifest.judge_calls > 0, "the relevance judge never ran")
+    check(manifest.judge_calls < manifest.judge_max, "the judge budget was spent")
+    unjudged = [b.beat_id for b in manifest.beats if b.judge_skipped]
+    check(not unjudged, f"beats sourced unjudged although the judge answers: {unjudged}")
+    searched = [a for a in manifest.assets if a.origin in ("web", "commons")]
+    check(
+        all(a.judge is not None and a.judge.score >= 2 for a in searched),
+        "a searched asset has no accepted judge verdict",
+    )
     rows = rights.load(job.path)
     check(rows is not None, "sourcing did not write out/rights.json")
     assert rows is not None
+    check(
+        all(r.judge is not None for r in rows if r.origin in ("web", "commons")),
+        "a searched rights row carries no judge verdict",
+    )
     problems = rights.completeness(rows, manifest, plan)
     check(not problems, f"rights log incomplete: {problems}")
     check((job.out_dir / "credits.md").is_file(), "sourcing did not write out/credits.md")

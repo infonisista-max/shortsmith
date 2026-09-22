@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from shortsmith import assets, config, render, styles
+from shortsmith import assets, config, render, rights, styles
 from shortsmith.contracts import (
     Beat,
     BedQuery,
@@ -32,10 +32,16 @@ from shortsmith.contracts import (
     Span,
     ValidatedPlan,
 )
+from shortsmith.ledger import Ledger
 from tests.conftest import Media
 
 SPEC = styles.load_all(render.registry())["explainer"]
 NOW = datetime(2026, 9, 22, 12, 0, tzinfo=UTC)
+
+
+def _no_ledger() -> Ledger:
+    """No adapter built by `from_settings` bills anything in these tests."""
+    raise AssertionError("the ledger is not needed here")
 
 
 def _clock() -> datetime:
@@ -105,6 +111,9 @@ def _run(
     generate: assets.Generate | None = None,
     job: Path | None = None,
     hook_cards: Sequence[str] = (),
+    judging: assets.Judging | None = None,
+    topic: str = "",
+    log: list[str] | None = None,
 ) -> assets.AssetManifest:
     return assets.source_assets(
         _plan(beats, hook_cards=hook_cards),
@@ -115,6 +124,9 @@ def _run(
         order=assets.DEFAULT_ORDER,
         job_dir=job or _job_dir(tmp_path),
         generate=generate,
+        judging=judging,
+        topic=topic,
+        log=(log if log is not None else []).append,
         clock=_clock,
     )
 
@@ -140,19 +152,44 @@ def test_order_parses_the_config_string() -> None:
     assert assets.parse_order(" commons, web ,,pexels ") == ("commons", "web", "pexels")
 
 
+def _settings(**overrides: object) -> config.Settings:
+    overrides.setdefault("relevance_judge", "none")
+    return config.Settings(_env_file=None, **overrides)  # pyright: ignore[reportCallIssue, reportArgumentType]
+
+
+def _sourcing(**overrides: object) -> assets.Sourcing:
+    return assets.from_settings(_settings(**overrides), ledger=_no_ledger)
+
+
 def test_from_settings_follows_asset_sources_and_policy() -> None:
-    settings = config.Settings(asset_sources="fake,commons", asset_policy="rights_safe",
-                               _env_file=None)  # pyright: ignore[reportCallIssue]  # fmt: skip
-    sourcing = assets.from_settings(settings)
+    sourcing = _sourcing(asset_sources="fake,commons", asset_policy="rights_safe")
     assert (tuple(sourcing.order), sourcing.policy) == (("fake", "commons"), "rights_safe")
     assert list(sourcing.sources) == ["fake"]
-    assert sourcing.missing() == ["commons"]  # no real adapter until 017 / 018
+    assert sourcing.missing() == ["commons"]  # no real adapter until 018
     assert sourcing.generate is None  # IMAGE_GEN=none until 019
 
 
-def test_default_settings_have_no_adapter_yet() -> None:
-    sourcing = assets.from_settings(config.Settings(_env_file=None))  # pyright: ignore[reportCallIssue]
-    assert sourcing.missing() == list(assets.DEFAULT_ORDER)
+def test_default_settings_build_the_web_adapter_only() -> None:
+    """017: `web` is the one real source; the free libraries come with 018."""
+    sourcing = _sourcing()
+    assert isinstance(sourcing.sources["web"], assets.WebImageSource)
+    assert sourcing.missing() == ["commons", "openverse", "pexels", "pixabay"]
+
+
+def test_rights_safe_removes_the_web_adapter_and_nothing_else() -> None:
+    """5.2: the policy switch is web-search on/off, in one config line."""
+    strict = _sourcing(asset_policy="rights_safe")
+    assert "web" not in strict.sources
+    assert strict.missing() == ["commons", "openverse", "pexels", "pixabay"]
+    assert tuple(strict.order) == assets.DEFAULT_ORDER  # the order itself is untouched
+
+
+def test_the_judge_follows_relevance_judge() -> None:
+    assert _sourcing().judge is None
+    assert isinstance(_sourcing(relevance_judge="fake").judge, assets.FakeRelevanceJudge)
+    api = _sourcing(relevance_judge="api", relevance_judge_model="claude-sonnet-5").judge
+    assert isinstance(api, assets.VisionJudge)
+    assert api.model == "claude-sonnet-5"
 
 
 def test_rights_safe_never_calls_web(tmp_path: Path) -> None:
@@ -553,3 +590,238 @@ def test_step_writes_the_manifest(tmp_path: Path) -> None:
     loaded = assets.load_manifest(job)
     assert loaded == manifest
     assert json.loads((job / "work" / "assets.json").read_text(encoding="utf-8"))["assets"]
+
+
+# --- the hard rejects and the judge inside the step (5.2; ticket 017) --------------------
+
+
+class Scripted(assets.ImageSource):
+    """A source answering fixed candidates, counting what was fetched and judged."""
+
+    def __init__(self, origin: str, candidates: Sequence[Candidate]) -> None:
+        self.origin = origin  # pyright: ignore[reportAttributeAccessIssue]
+        self.candidates = list(candidates)
+        self.fetched: list[str] = []
+        self.thumbed: list[str] = []
+        self.searches = 0
+
+    def search(self, query: str, n: int) -> list[Candidate]:
+        self.searches += 1
+        return self.candidates[:n]
+
+    def thumbnail(self, candidate: Candidate) -> bytes | None:
+        self.thumbed.append(candidate.url)
+        return None
+
+    def fetch(self, candidate: Candidate, dest: Path) -> Path:
+        self.fetched.append(candidate.url)
+        size = (candidate.width or 1600, candidate.height or 1200)
+        path = dest.with_suffix(".png")
+        _write_png(path, size)
+        return path
+
+
+class Scoring(assets.RelevanceJudge):
+    """Scores by candidate URL, and records what it was told about the beat."""
+
+    def __init__(self, scores: dict[str, int], *, default: int = 0) -> None:
+        self.model = "scripted"
+        self.scores = scores
+        self.default = default
+        self.asked: list[tuple[str, str, str, tuple[str, ...]]] = []
+
+    def score(self, query: str, subject_kind: str, topic: str,
+              thumbs: Sequence[assets.Thumb]) -> list[assets.Verdict]:  # fmt: skip
+        self.asked.append((query, subject_kind, topic, tuple(t.candidate.url for t in thumbs)))
+        return [assets.Verdict(self.scores.get(t.candidate.url, self.default)) for t in thumbs]
+
+
+def _candidates(*spec: tuple[str, int, int]) -> list[Candidate]:
+    return [
+        Candidate(url=f"https://e.example/{name}.png", page_url=f"https://e.example/{name}",
+                  width=w, height=h)
+        for name, w, h in spec
+    ]  # fmt: skip
+
+
+def _judging(scores: dict[str, int], *, max_calls: int = 40) -> tuple[assets.Judging, Scoring]:
+    judge = Scoring({f"https://e.example/{k}.png": v for k, v in scores.items()})
+    return assets.Judging(judge=judge, max_calls=max_calls), judge
+
+
+def test_the_hard_rejects_run_before_the_judge_is_asked_anything(tmp_path: Path) -> None:
+    """5.2: a candidate too small or too wide never reaches the judge, and rejecting
+    it is never rejecting the beat."""
+    source = Scripted("web", _candidates(
+        ("small", 640, 480), ("wide", 3600, 900), ("good", 1600, 1200),
+    ))  # fmt: skip
+    book, judge = _judging({"good": 3})
+    log: list[str] = []
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source},
+                    judging=book, log=log)  # fmt: skip
+    assert judge.asked[0][3] == ("https://e.example/good.png",)
+    assert source.fetched == ["https://e.example/good.png"]
+    assert manifest.beats[0].fallback_rung == 0
+    assert log[:2] == [
+        "sourcing: https://e.example/small.png rejected: short side 480 px < 800 px",
+        "sourcing: https://e.example/wide.png rejected: aspect 4.00:1 > 3:1",
+    ]
+
+
+def test_the_best_candidate_at_two_or_more_wins_ties_by_source_order(tmp_path: Path) -> None:
+    source = Scripted("web", _candidates(
+        ("first", 1600, 1200), ("best", 1600, 1200), ("tied", 1600, 1200),
+    ))  # fmt: skip
+    book, _ = _judging({"first": 2, "best": 3, "tied": 3})
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=book)
+    assert source.fetched == ["https://e.example/best.png"]  # 3 beats 2; `best` before `tied`
+    record = manifest.assets[0]
+    assert record.judge is not None
+    assert (record.judge.model, record.judge.score) == ("scripted", 3)
+    assert manifest.beats[0].judge_skipped is False
+
+
+def test_every_candidate_under_two_falls_to_the_next_source(tmp_path: Path) -> None:
+    """5.2: all < 2 -> the next source in the list -> the 4.4 ladder."""
+    web = Scripted("web", _candidates(("weak", 1600, 1200)))
+    commons = Scripted("commons", _candidates(("strong", 1600, 1200)))
+    book, _ = _judging({"weak": 1, "strong": 3})
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": web, "commons": commons},
+                    judging=book)  # fmt: skip
+    assert web.fetched == []
+    assert commons.fetched == ["https://e.example/strong.png"]
+    assert manifest.assets[0].origin == "commons"
+
+
+def test_nothing_the_judge_accepts_anywhere_ends_on_the_ladder(tmp_path: Path) -> None:
+    source = Scripted("web", _candidates(("weak", 1600, 1200)))
+    book, _ = _judging({"weak": 1})
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=book)
+    assert source.fetched == []
+    assert (manifest.beats[0].fallback_rung, manifest.beats[0].treatment) == (4, "gradient")
+
+
+def test_the_judge_is_told_the_query_subject_kind_and_the_briefs_topic(tmp_path: Path) -> None:
+    source = Scripted("web", _candidates(("good", 1600, 1200)))
+    book, judge = _judging({"good": 3})
+    _run(tmp_path, [_beat(1, "entity", query="India Gate Delhi")], sources={"web": source},
+         judging=book, topic="Why Delhi built India Gate")  # fmt: skip
+    assert judge.asked[0][:3] == ("India Gate Delhi", "entity", "Why Delhi built India Gate")
+
+
+def test_a_candidate_whose_download_is_refused_is_dropped_for_the_next_one(
+    tmp_path: Path,
+) -> None:
+    """5.2: a rejection is of the candidate, never of the beat."""
+
+    class Refusing(Scripted):
+        def fetch(self, candidate: Candidate, dest: Path) -> Path:
+            if "refused" in candidate.url:
+                self.fetched.append(candidate.url)
+                raise assets.SourceError(f"{candidate.url} rejected: the body is not an image")
+            return super().fetch(candidate, dest)
+
+    source = Refusing("web", _candidates(("refused", 1600, 1200), ("good", 1600, 1200)))
+    book, _ = _judging({"refused": 3, "good": 2})
+    log: list[str] = []
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=book,
+                    log=log)  # fmt: skip
+    assert source.fetched == ["https://e.example/refused.png", "https://e.example/good.png"]
+    assert manifest.beats[0].fallback_rung == 0
+    assert log == ["sourcing: https://e.example/refused.png rejected: the body is not an image"]
+
+
+def test_a_downloaded_file_smaller_than_it_claimed_is_dropped(tmp_path: Path) -> None:
+    """5.2: the real dimensions are the only size a source cannot misreport."""
+
+    class Lying(Scripted):
+        def fetch(self, candidate: Candidate, dest: Path) -> Path:
+            self.fetched.append(candidate.url)
+            path = dest.with_suffix(".png")
+            _write_png(path, (400, 300) if "lying" in candidate.url else (1600, 1200))
+            return path
+
+    source = Lying("web", _candidates(("lying", 1600, 1200), ("honest", 1600, 1200)))
+    book, _ = _judging({"lying": 3, "honest": 2})
+    log: list[str] = []
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=book,
+                    log=log)  # fmt: skip
+    assert manifest.assets[0].source_url == "https://e.example/honest.png"
+    assert log == ["sourcing: https://e.example/lying.png rejected: short side 300 px < 800 px"]
+
+
+def test_verdicts_are_cached_by_url_across_beats(tmp_path: Path) -> None:
+    """5.6: the same candidate on a second beat is never paid for twice."""
+    source = Scripted("web", _candidates(("good", 1600, 1200)))
+    book, judge = _judging({"good": 3})
+    beats = [_beat(1, "entity", query="one"), _beat(2, "entity", query="two")]
+    manifest = _run(tmp_path, beats, sources={"web": source}, judging=book)
+    assert source.searches == 2  # two queries, two searches
+    assert len(judge.asked) == 1  # one judge call: the second beat's candidate was cached
+    assert manifest.judge_calls == 1
+
+
+def test_the_judge_budget_stops_further_calls_and_the_beat_records_it(tmp_path: Path) -> None:
+    """5.2 / 5.6: `judge_max_calls` spent means unjudged beats, never failed beats."""
+    source = assets.FakeImageSource("web")  # a candidate set of its own per query
+    judge = Scoring({}, default=3)
+    book = assets.Judging(judge=judge, max_calls=1)
+    beats = [_beat(i, "entity", query=f"q{i}") for i in (1, 2, 3)]
+    log: list[str] = []
+    manifest = _run(tmp_path, beats, sources={"web": source}, judging=book, log=log)
+    assert len(judge.asked) == 1
+    assert [b.judge_skipped for b in manifest.beats] == [False, True, True]
+    assert (manifest.judge_calls, manifest.judge_max) == (1, 1)
+    assert all(b.fallback_rung == 0 for b in manifest.beats)  # the ladder carried on
+    assert log[-1].startswith("judge: the style's judge_max_calls (1) is spent")
+
+
+def test_with_no_judge_the_first_candidate_wins_and_the_beat_is_unjudged(
+    tmp_path: Path,
+) -> None:
+    """016's behaviour, kept: `RELEVANCE_JUDGE=none` changes nothing but the record."""
+    source = Scripted("web", _candidates(("first", 1600, 1200), ("second", 1600, 1200)))
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source})
+    assert source.fetched == ["https://e.example/first.png"]
+    assert source.thumbed == []
+    assert manifest.beats[0].judge_skipped is True
+    assert manifest.assets[0].judge is None
+    assert (manifest.judge_calls, manifest.judge_max) == (0, 0)
+
+
+def test_a_cached_search_makes_no_judge_call_at_all(tmp_path: Path) -> None:
+    """5.6: a plan retry or a re-render searches, judges and fetches nothing."""
+    job = _job_dir(tmp_path)
+    source = Scripted("web", _candidates(("good", 1600, 1200)))
+    book, judge = _judging({"good": 3})
+    first = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=book, job=job)
+    again_book, again_judge = _judging({"good": 3})
+    again = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=again_book,
+                 job=job)  # fmt: skip
+    assert (len(judge.asked), len(again_judge.asked)) == (1, 0)
+    assert source.searches == 1
+    assert again.assets[0].judge == first.assets[0].judge
+    assert again.beats[0].judge_skipped is False
+
+
+def test_the_verdict_reaches_the_rights_row(tmp_path: Path) -> None:
+    """5.2 / 5.4: every rights row carries `judge: {model, score, reasons}`."""
+    source = Scripted("web", _candidates(("good", 1600, 1200)))
+    judge = Scoring({"https://e.example/good.png": 2})
+    book = assets.Judging(judge=judge, max_calls=40)
+    job = _job_dir(tmp_path)
+    manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=book, job=job)
+    rights.write(job, manifest, _plan([_beat(1, "entity")]).picture)
+    rows = rights.load(job)
+    assert rows is not None
+    assert rows[0].judge is not None
+    assert (rows[0].judge.model, rows[0].judge.score) == ("scripted", 2)
+
+
+def test_the_topic_line_is_the_briefs_first_line(tmp_path: Path) -> None:
+    job = _job_dir(tmp_path)
+    assert assets.topic_line(job) == ""
+    (job / "input" / "brief.md").write_text(
+        "\n# Topic: why India Gate was built\n\nMust-say: 1931.\n", encoding="utf-8"
+    )
+    assert assets.topic_line(job) == "Topic: why India Gate was built"

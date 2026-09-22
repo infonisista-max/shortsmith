@@ -1,0 +1,21 @@
+{
+  "id": "msg_01ShortsmithJudge000",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"candidates\": [{\"index\": 1, \"score\": 2, \"reasons\": [\"watermark\"]}, {\"index\": 2, \"score\": 3, \"reasons\": []}, {\"index\": 3, \"score\": 0, \"reasons\": [\"wrong_subject\", \"meme\", \"hideous\"]}]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 80,
+    "service_tier": "standard"
+  }
+}
