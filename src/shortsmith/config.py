@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     max_jobs_per_day: int = 10  # 11.2: global, counted since midnight IST
     max_job_minutes: int = 30  # 11.2: the worker kills the step and fails the job
     asset_policy: AssetPolicy = "any"
+    # 5.1: the searched sources in order, comma-separated; a misbehaving source is
+    # removed here without code. Owner references always come first and generation
+    # last; `rights_safe` drops `web` (5.2). `fake` names the FakeImageSource.
+    asset_sources: str = "web,commons,openverse,pexels,pixabay"
     image_gen: ImageGen = "none"
     gemini_api_key: SecretStr | None = None
     shortsmith_data_dir: Path = Path("data")

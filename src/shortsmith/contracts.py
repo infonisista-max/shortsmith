@@ -2,11 +2,12 @@
 
 Transcript family, the planner-facing PlanRequest / PicturePlan / SoundStory (2.3,
 8.1), CaptionPage (6.1), the validator's ValidatedPlan with its clamps (8.2, ticket
-009) and the retry feedback a rejected call is re-sent with. Planner-facing models
-use `extra="forbid"` so the JSON schema generated from them is the single source of
-truth embedded in the planner prompt; plan JSON is engine-agnostic (no render-engine
-terms in field names or values). AssetManifest and RightsRow (016), RenderSpec (004),
-QaReport, CriticReport and Meta arrive with their tickets.
+009), the retry feedback a rejected call is re-sent with, the asset step's
+AssetManifest and the RightsRow of the rights log (016), and the RenderSpec (004).
+Planner-facing models use `extra="forbid"` so the JSON schema generated from them is
+the single source of truth embedded in the planner prompt; plan JSON is
+engine-agnostic (no render-engine terms in field names or values). QaReport lives in
+`qa.technical`; CriticReport and Meta arrive with their tickets.
 """
 
 from __future__ import annotations
@@ -332,6 +333,143 @@ class PlanFeedback(StrictModel):
 
     previous: str
     violations: list[str]
+
+
+# --- assets and rights (decisions 4.2, 4.4, 5.1, 5.3, 5.4, 5.6; ticket 016) ----------
+
+# Where an asset came from (5.4). `library` is the audio catalogue (022).
+Origin = Literal[
+    "owner_supplied", "web", "commons", "openverse", "pexels", "pixabay", "generated", "library"
+]
+SearchOrigin = Literal["web", "commons", "openverse", "pexels", "pixabay"]
+RightsKind = Literal["image", "clip_frame", "music", "sfx"]
+# How a beat's asset is drawn (5.3): full-bleed photo, framed card, or no asset at all
+# (rung 4: the presenter PIP over the style gradient with a stamp; 4.4).
+Treatment = Literal["photo", "card", "gradient"]
+
+
+class Candidate(StrictModel):
+    """One search hit from an `ImageSource` (5.1): where it lives and its reported size.
+    The fetched file's real dimensions are what classification reads (5.3)."""
+
+    url: str
+    page_url: str = ""
+    width: int
+    height: int
+    author: str | None = None
+    licence: str = "unknown"
+
+
+class Generated(StrictModel):
+    """The generation record of a generated asset (5.4, 5.5)."""
+
+    model: str
+    prompt: str
+    render: Literal["illustration", "photoreal"]
+    depicts: Depicts
+
+
+class JudgeVerdict(StrictModel):
+    """The relevance judge's verdict on the chosen candidate (5.2; ticket 017)."""
+
+    model: str
+    score: int
+    reasons: list[str] = []
+
+
+class AssetRecord(StrictModel):
+    """One unique asset the short uses; the rights row (5.4) is derived from it.
+    `file` is relative to the job directory."""
+
+    id: str
+    kind: Literal["image", "clip_frame"] = "image"
+    origin: Origin
+    source_url: str = ""
+    page_url: str = ""
+    licence: str = "unknown"
+    author: str | None = None
+    generated: Generated | None = None
+    judge: JudgeVerdict | None = None
+    file: str
+    sha256: str
+    width: int
+    height: int
+    fetched_at: str
+
+
+class Crop(StrictModel):
+    """The framing of an asset on a beat: `zoom` over the fitted image around the
+    focus point (fractions of the image). A re-dressed reuse never repeats a framing
+    (4.4)."""
+
+    zoom: float = 1.0
+    focus_x: float = 0.5
+    focus_y: float = 0.5
+
+
+class BeatAsset(StrictModel):
+    """What the asset step decided for one sourced beat (4.4, 5.3).
+
+    `asset_id` is the asset actually shown (None on rung 4). `fallback_rung`: 0 found
+    with `query` (or an owner reference, or the planned reuse), 1 with
+    `query_fallback`, 2 generated, 3 re-dressed reuse of an earlier asset, 4 PIP over
+    the gradient. Rungs 3 and 4 are rescues and carry the `stamp` word."""
+
+    beat_id: str
+    asset_id: str | None
+    treatment: Treatment
+    fallback_rung: int = Field(ge=0, le=4)
+    treatment_downgraded: bool = False
+    redressed_from: str | None = None
+    crop: Crop = Field(default_factory=Crop)
+    stamp: str | None = None
+
+    @property
+    def rescued(self) -> bool:
+        return self.fallback_rung >= 3
+
+
+class AssetManifest(StrictModel):
+    """`work/assets.json`: every unique asset, every sourced beat, and the planned
+    asset ids resolved to the ids actually used (`aliases`; None = no asset) so hook
+    cards and the finale can find theirs. `rescued_max` is the style's
+    `rescued_max_per_60s` scaled to `runtime_s` (ceil, as the grammar scales maxima)."""
+
+    assets: list[AssetRecord]
+    beats: list[BeatAsset]
+    aliases: dict[str, str | None] = {}
+    runtime_s: float
+    rescued_max: int
+
+    def asset(self, asset_id: str) -> AssetRecord | None:
+        return next((a for a in self.assets if a.id == asset_id), None)
+
+    def beat(self, beat_id: str) -> BeatAsset | None:
+        return next((b for b in self.beats if b.beat_id == beat_id), None)
+
+    @property
+    def rescued(self) -> int:
+        return sum(1 for b in self.beats if b.rescued)
+
+
+class RightsRow(StrictModel):
+    """One row of `out/rights.json` in the 5.4 shape; one per unique asset."""
+
+    id: str
+    beat_ids: list[str]
+    kind: RightsKind
+    origin: Origin
+    source_url: str = ""
+    page_url: str = ""
+    licence: str
+    author: str | None = None
+    generated: Generated | None = None
+    judge: JudgeVerdict | None = None
+    file: str
+    sha256: str
+    width: int
+    height: int
+    fetched_at: str
 
 
 # --- captions (decision 6.1) -------------------------------------------------------

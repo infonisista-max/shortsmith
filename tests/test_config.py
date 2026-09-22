@@ -53,6 +53,13 @@ def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.max_queue == 3
     assert s.max_jobs_per_day == 10
     assert s.max_job_minutes == 30
+    # 5.1 source order
+    assert s.asset_sources == "web,commons,openverse,pexels,pixabay"
+
+
+def test_asset_sources_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    s = _settings(monkeypatch, ASSET_SOURCES="commons,pexels")
+    assert s.asset_sources == "commons,pexels"
 
 
 def test_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
