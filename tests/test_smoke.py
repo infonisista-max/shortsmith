@@ -15,7 +15,14 @@ import pytest
 from PIL import Image
 
 from shortsmith import contact_sheet, ffmpeg, smoke
-from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
+from shortsmith.contracts import (
+    PicturePlan,
+    PlanFeedback,
+    PlanRequest,
+    SoundStory,
+    Transcript,
+    ValidatedPlan,
+)
 from shortsmith.jobs import load
 from shortsmith.planner import FakePlanner
 from shortsmith.qa import technical
@@ -36,6 +43,12 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     SoundStory.model_validate_json((job.work_dir / "sound.json").read_text("utf-8"))
     assert (job.work_dir / "captions.json").is_file()
     assert plan.beats[-1].end == 6.0
+    # 009: the grammar ran; the fake plan's only clamp is the keyword trim (6.1).
+    validated = ValidatedPlan.model_validate_json(
+        (job.work_dir / "plan.validated.json").read_text("utf-8")
+    )
+    assert validated.picture == plan and [c.rule for c in validated.clamps] == ["6.1"]
+    assert (job.work_dir / "plan.raw.json").is_file()
     picture = job.work_dir / "picture.mp4"
     assert picture.is_file() and (job.work_dir / "render_spec.json").is_file()
     (video,) = ffmpeg.probe(picture)["streams"]
@@ -96,15 +109,20 @@ def test_failed_assertion_exits_non_zero(capsys: pytest.CaptureFixture[str]) -> 
 
 
 class _GappyPlanner(FakePlanner):
-    def plan_picture(self, request: PlanRequest) -> PicturePlan:
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
         plan = super().plan_picture(request)
         first = plan.beats[0].model_copy(update={"end": plan.beats[0].end - 0.1})
         return plan.model_copy(update={"beats": [first, *plan.beats[1:]]})
 
 
 def test_plan_assertion_failure_names_the_gap(capsys: pytest.CaptureFixture[str]) -> None:
+    """009: the grammar now catches the gap at `planning` (3.1), twice, and the smoke
+    reports the failed job with the violation list."""
     assert smoke.main([], planner=_GappyPlanner()) != 0
-    assert "gap" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "failed at planning" in err and "gap" in err and "(3.1)" in err
 
 
 def test_module_entry_point() -> None:

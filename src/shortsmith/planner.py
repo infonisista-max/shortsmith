@@ -1,11 +1,13 @@
-"""Planner interface and its fake (decisions 8.1, 8.3, 12.1).
+"""Planner interface and its fake (decisions 8.1, 8.2, 8.3, 12.1).
 
 Two sequential calls per job on one adapter: `plan_picture` then `plan_sound`, the
-sound call receiving the picture plan (validated and snapped once ticket 009 lands)
-and the audio catalogue tags (an empty list until 022). The prompt builder, the
-`claude_code` CLI adapter (014) and the `api` adapter (015) arrive with their tickets;
-selecting either today yields a planner that fails the job at `planning` with the
-ticket named, never a silent fallback to the fake.
+sound call receiving the validated, snapped picture plan (ticket 009) and the audio
+catalogue tags (an empty list until 022). A call the grammar rejects is re-sent once
+with `feedback`: the previous output as JSON and the violation list (8.2); the
+adapter appends both to the same prompt. The prompt builder, the `claude_code` CLI
+adapter (014) and the `api` adapter (015) arrive with their tickets; selecting either
+today yields a planner that fails the job at `planning` with the ticket named, never
+a silent fallback to the fake.
 
 `FakePlanner` is co-located so fake and real share one type. Its canned plan is shaped
 for the 6 s fixture: eleven beats tiling 0-6 s (ten of 0.5 s and a 1.0 s finale, so
@@ -13,10 +15,9 @@ T3's finale rule holds; ticket 006) with every boundary on a word end or in sile
 a `full` cold open, an `off` hook-cards beat, `pip` beats, and every
 tier-1 kind (4.1 as amended by 9.2) named at least once across beat kinds, overlays,
 events and presenter modes. Kinds the renderer cannot draw yet are still valid plan
-data. NOTE for 009: the explainer numbers (beat min 0.7 s, plan mean 2.0-3.2 s, hook
-cards 2-4 s, finale 0.8-1.2 s) cannot all hold in six seconds alongside full kind
-coverage; the validator ticket has to reconcile that, most likely with a
-fixture-scaled rule set.
+data. The plan passes the grammar under `fixture.smoke_specs` (the explainer copy
+with beat, asset-count and ramp numbers scaled to six seconds) with zero violations;
+it uses only the explainer's five transitions (9.4). The fake ignores `feedback`.
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from shortsmith.contracts import (
     Hook,
     MoodPoint,
     PicturePlan,
+    PlanFeedback,
     PlanRequest,
     SoundStory,
     Span,
@@ -49,12 +51,20 @@ class PlannerUnavailable(Exception):
 
 class Planner(ABC):
     @abstractmethod
-    def plan_picture(self, request: PlanRequest) -> PicturePlan:
-        """The picture call (8.1): beats, hook, finale, keywords, title, description."""
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
+        """The picture call (8.1): beats, hook, finale, keywords, title, description.
+        `feedback` is set on the one retry after a rejection (8.2)."""
 
     @abstractmethod
     def plan_sound(
-        self, request: PlanRequest, picture: PicturePlan, catalogue_tags: Sequence[str] = ()
+        self,
+        request: PlanRequest,
+        picture: PicturePlan,
+        catalogue_tags: Sequence[str] = (),
+        *,
+        feedback: PlanFeedback | None = None,
     ) -> SoundStory:
         """The sound call (8.1), second because cues need the picture plan's beats."""
 
@@ -72,11 +82,18 @@ class UnavailablePlanner(Planner):
             "set PLANNER=fake to run without a paid planner"
         )
 
-    def plan_picture(self, request: PlanRequest) -> PicturePlan:
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
         raise self._refuse()
 
     def plan_sound(
-        self, request: PlanRequest, picture: PicturePlan, catalogue_tags: Sequence[str] = ()
+        self,
+        request: PlanRequest,
+        picture: PicturePlan,
+        catalogue_tags: Sequence[str] = (),
+        *,
+        feedback: PlanFeedback | None = None,
     ) -> SoundStory:
         raise self._refuse()
 
@@ -107,7 +124,9 @@ def kinds_named(plan: PicturePlan) -> set[str]:
 class FakePlanner(Planner):
     PROMPT_VERSION = "fake-1"
 
-    def plan_picture(self, request: PlanRequest) -> PicturePlan:
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
         beats = [
             B(id="b01", start=0.0, end=0.5, mode="full", reason="cold_open",
               kind="presenter_full"),
@@ -125,7 +144,7 @@ class FakePlanner(Planner):
               overlays=["pin_drop", "route_arrow", "object_path"], motion="travel",
               subject_kind="entity", query="Delhi to Mumbai route",
               query_fallback="India map", source_intent="generate", asset_id="a4",
-              enter="wipe"),
+              enter="fade"),  # 009: `wipe` is not an explainer transition (9.4)
             B(id="b06", start=2.5, end=3.0, mode="off", kind="chart", overlays=["counter"],
               motion="count_up", subject_kind="number", query="twelve words in six seconds",
               query_fallback="word count", source_intent="generate", asset_id="a5",
@@ -167,7 +186,12 @@ class FakePlanner(Planner):
         )
 
     def plan_sound(
-        self, request: PlanRequest, picture: PicturePlan, catalogue_tags: Sequence[str] = ()
+        self,
+        request: PlanRequest,
+        picture: PicturePlan,
+        catalogue_tags: Sequence[str] = (),
+        *,
+        feedback: PlanFeedback | None = None,
     ) -> SoundStory:
         ids = [b.id for b in picture.beats]
         first, hook_cards = ids[0], ids[1] if len(ids) > 1 else ids[0]

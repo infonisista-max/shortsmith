@@ -41,6 +41,11 @@ Covers PRD `assets` (interface, ladder, classification, cache, manifest), `right
 - The strip line under each frame is drawn in `contact_sheet._draw_cell` (a placeholder today); `Cell.strip` is its box. Pillow's default font has no em/en dash, so use hyphens or the bundled Poppins.
 - T9 appends to the check list in `qa.technical.run`; `contact_sheet.TECHNICAL_CHECKS` and `smoke.TECHNICAL_CHECKS` name the dots and the smoke assertion.
 
+## Notes from 009
+
+- The `sourcing` step reads `work/plan.validated.json` (`contracts.ValidatedPlan`: `picture`, `sound`, `clamps`, `warnings`); `plan.json` is the same snapped picture plan. The grammar guarantees every non-presenter beat has `subject_kind`, `query` and one motion, hook card ids name plan assets, unique-asset and reuse counts are inside the style range, and must-use reference ids (`grammar.must_use_ids(brief, references)`) appear as asset ids or hook cards, so the asset step can treat those as invariants.
+- Pipeline and app tests that run the fake plan pass `fixture.smoke_specs(...)` as `specs` (`SPECS` in `tests/test_pipeline.py` and `tests/test_app.py`); a new smoke assertion should keep using the scaled specs the worker already gets.
+
 ## User stories addressed
 
 - User story 6

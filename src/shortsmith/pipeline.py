@@ -10,14 +10,21 @@ adapter's `ledger.BudgetExceeded`, raised before its call, becomes "Budget excee
 at step X." with the ledger rows so far left on job.json for the page (11.3).
 
 The `planning` step builds the PlanRequest from `job.json`, `brief.md`, `refs.json`
-and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1), pages
-the captions (6.1) and writes `work/plan.json`, `work/sound.json`,
-`work/captions.json`. The style is the spec `job.json.style` names (resolved at
-upload, ticket 008): the PlanRequest carries its numbers and prose (1.2) and the
-pager reads `captions.words_per_page` / `prefer` from it. The specs are loaded once
-by whoever builds the worker (`create_app`, smoke) and passed in; a job naming a
-style that is not loaded fails at `planning`. The grammar validator between the two
-calls is ticket 009.
+and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1) with
+the grammar (`grammar`, ticket 009) after each call: a rejected call is re-sent
+exactly once with the previous output and the violation list (`PlanFeedback`), a
+second rejection fails the job at `planning` with the list in `job.json.error` and
+on the page, and the retry is logged in `job.log` (8.2). The sound call receives the
+snapped picture plan. The step pages the captions (6.1) from the clamped keywords
+and writes `work/plan.raw.json` and `work/sound.raw.json` (the planner's last
+output), `work/plan.json` and `work/sound.json` (snapped and clamped: what the
+renderer, the gate and the sheet read), `work/plan.validated.json` (both plus the
+clamps and warnings) and `work/captions.json`. The style is the spec
+`job.json.style` names (resolved at upload, ticket 008): the PlanRequest carries its
+numbers and prose (1.2), the grammar reads its counts and the pager reads
+`captions.words_per_page` / `prefer` from it. The specs are loaded once by whoever
+builds the worker (`create_app`, smoke) and passed in; a job naming a style that is
+not loaded fails at `planning`.
 
 `sourcing` is a pass-through until ticket 016 builds the asset step. `rendering`
 runs the whole render (`render.Renderer`, Remotion plus ffmpeg by default; tickets
@@ -49,21 +56,25 @@ import logging
 import queue
 import threading
 import traceback
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
-from shortsmith import captions, jobs, render, subproc
+from shortsmith import captions, grammar, jobs, render, subproc
 from shortsmith.captions import PagerNumbers
 from shortsmith.contracts import (
     Constraints,
+    PicturePlan,
+    PlanFeedback,
     PlanReference,
     PlanRequest,
     PlanStyle,
     ReferenceRecord,
+    SoundStory,
     Transcript,
+    ValidatedPlan,
 )
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.ledger import BudgetExceeded
@@ -152,8 +163,13 @@ def run_job(
             except Exception as exc:  # noqa: BLE001 - every step failure lands in job.json the same way
                 detail = f"{exc}\n{traceback.format_exc()}"
                 if watchdog is None or not watchdog.check():
+                    violations = exc.violations if isinstance(exc, PlanRejected) else []
                     return jobs.fail(
-                        job, step=status, message=failure_message(status, exc), detail=detail
+                        job,
+                        step=status,
+                        message=failure_message(status, exc),
+                        detail=detail,
+                        violations=violations,
                     )
             if watchdog is not None and watchdog.check():
                 assert max_job_minutes is not None
@@ -235,20 +251,73 @@ def pager_numbers(spec: StyleSpec) -> PagerNumbers:
     return PagerNumbers(words_per_page=spec.captions.words_per_page, prefer=spec.captions.prefer)
 
 
+class PlanRejected(Exception):
+    """The grammar rejected the planner's `call` ("picture" or "sound") twice (8.2)."""
+
+    def __init__(self, call: str, violations: Sequence[str]) -> None:
+        self.call = call
+        self.violations = list(violations)
+        listed = "\n".join(self.violations)
+        super().__init__(
+            f"the {call} plan was rejected twice; violations after the retry:\n{listed}"
+        )
+
+
+def _feedback(previous: PicturePlan | SoundStory, rejected: grammar.Violations) -> PlanFeedback:
+    previous_json = previous.model_dump_json(indent=2)
+    return PlanFeedback(previous=previous_json, violations=rejected.lines())
+
+
+def _write(job: Job, name: str, model: BaseModel) -> None:
+    (job.work_dir / name).write_text(model.model_dump_json(indent=2), encoding="utf-8")
+
+
 def _plan(job: Job, planner: Planner, specs: Specs) -> None:
     request = build_plan_request(job, specs)
-    picture = planner.plan_picture(request)
-    story = planner.plan_sound(request, picture)
-    pages = captions.page(
-        request.transcript.words,
-        picture.keywords,
-        pager_numbers(style_of(job, specs)),
-        duration_s=request.transcript.duration_s,
+    spec = style_of(job, specs)
+    transcript = request.transcript
+    must_use = grammar.must_use_ids(request.brief, request.references)
+
+    raw = planner.plan_picture(request)
+    _write(job, "plan.raw.json", raw)
+    checked = grammar.validate_picture(
+        raw, transcript, spec, brief=request.brief, must_use=must_use
     )
-    work = job.work_dir
-    (work / "plan.json").write_text(picture.model_dump_json(indent=2), encoding="utf-8")
-    (work / "sound.json").write_text(story.model_dump_json(indent=2), encoding="utf-8")
-    (work / "captions.json").write_text(
+    if isinstance(checked, grammar.Violations):
+        jobs.note(job, f"picture plan rejected, re-sending once: {'; '.join(checked.lines())}")
+        raw = planner.plan_picture(request, feedback=_feedback(raw, checked))
+        _write(job, "plan.raw.json", raw)
+        checked = grammar.validate_picture(
+            raw, transcript, spec, brief=request.brief, must_use=must_use
+        )
+        if isinstance(checked, grammar.Violations):
+            raise PlanRejected("picture", checked.lines())
+    picture = checked.picture
+
+    raw_story = planner.plan_sound(request, picture)
+    _write(job, "sound.raw.json", raw_story)
+    sound = grammar.validate_sound(raw_story, picture, spec)
+    if isinstance(sound, grammar.Violations):
+        jobs.note(job, f"sound story rejected, re-sending once: {'; '.join(sound.lines())}")
+        raw_story = planner.plan_sound(request, picture, feedback=_feedback(raw_story, sound))
+        _write(job, "sound.raw.json", raw_story)
+        sound = grammar.validate_sound(raw_story, picture, spec)
+        if isinstance(sound, grammar.Violations):
+            raise PlanRejected("sound", sound.lines())
+
+    validated = ValidatedPlan(
+        picture=picture,
+        sound=sound.sound,
+        clamps=checked.clamps + sound.clamps,
+        warnings=checked.warnings,
+    )
+    pages = captions.page(
+        transcript.words, picture.keywords, pager_numbers(spec), duration_s=transcript.duration_s
+    )
+    _write(job, "plan.json", picture)
+    _write(job, "sound.json", sound.sound)
+    _write(job, "plan.validated.json", validated)
+    (job.work_dir / "captions.json").write_text(
         TypeAdapter(list[captions.CaptionPage]).dump_json(pages, indent=2).decode("utf-8"),
         encoding="utf-8",
     )

@@ -27,6 +27,10 @@ Covers PRD render (transitions), "Global contracts" transition vocabulary, `styl
 
 - `styles.load_all` already cross-checks `requires_components` against `render.registry()` for `status: shipped` specs (a missing one fails startup naming it). `explainer.requires_components` is `[captions, pip]` today; extend it as components land. Each spec's `broll.enter_transitions` and `whip_max_per_3_beats` are typed on `styles.Broll`.
 
+## Notes from 009
+
+- The grammar rejects `enter` names outside `broll.enter_transitions` (9.4) and enforces `whip_max_per_3_beats` plus never-two-in-a-row, and the sound check rejects a `start` cue on a non-`cut` enter without a landed event. The fake plan's `wipe` on b05 became `fade`, so it now uses each of the five explainer transitions at least once (cut, fade, whip, spring, zoom); the smoke acceptance line above is already true. Spec edits (`styles/*.md`) were left to this ticket.
+
 ## Blocked by
 
 - Blocked by `issues/027-list-split-wall-components.md`

@@ -36,7 +36,14 @@ from PIL import Image
 from pydantic import TypeAdapter
 
 from shortsmith import contact_sheet, ffmpeg, fixture, ingest, jobs, pipeline, render, styles
-from shortsmith.contracts import TIER1_KINDS, CaptionPage, PicturePlan, SoundStory, Transcript
+from shortsmith.contracts import (
+    TIER1_KINDS,
+    CaptionPage,
+    PicturePlan,
+    SoundStory,
+    Transcript,
+    ValidatedPlan,
+)
 from shortsmith.ingest import Limits, VideoUpload
 from shortsmith.planner import FakePlanner, Planner, kinds_named
 from shortsmith.qa import technical
@@ -123,9 +130,11 @@ def run_smoke(
     check((job.input_dir / "brief.md").is_file(), "ingest did not write input/brief.md")
     check((job.input_dir / "refs.json").is_file(), "ingest did not write input/refs.json")
 
+    # 009: the fake plan is judged by the fixture-shaped copy of explainer.
     worker = pipeline.Worker(
-        transcriber=transcriber, planner=planner, renderer=renderer, specs=specs
-    )
+        transcriber=transcriber, planner=planner, renderer=renderer,
+        specs=fixture.smoke_specs(specs),
+    )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
 
@@ -152,14 +161,26 @@ def run_smoke(
                 f"word {w.text!r} [{w.start}, {w.end}] is outside burst {i} "
                 f"[{burst_start}, {burst_end}]",
             )
-    plan_path, sound_path, captions_path = (
-        job.work_dir / name for name in ("plan.json", "sound.json", "captions.json")
+    plan_path, sound_path, captions_path, validated_path = (
+        job.work_dir / name
+        for name in ("plan.json", "sound.json", "captions.json", "plan.validated.json")
     )
-    for path in (plan_path, sound_path, captions_path):
+    for path in (plan_path, sound_path, captions_path, validated_path):
         check(path.is_file(), f"planning did not write work/{path.name}")
     plan = PicturePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
     story = SoundStory.model_validate_json(sound_path.read_text(encoding="utf-8"))
     pages = _PAGES.validate_json(captions_path.read_text(encoding="utf-8"))
+    # 009: the validated plan is what plan.json / sound.json hold, with zero violations
+    # (or the job would have failed at planning) and the clamps logged.
+    validated = ValidatedPlan.model_validate_json(validated_path.read_text(encoding="utf-8"))
+    check(
+        validated.picture == plan and validated.sound == story,
+        "plan.validated.json disagrees with plan.json / sound.json",
+    )
+    check(
+        [c.rule for c in validated.clamps] == ["6.1"],
+        f"expected one keyword clamp on the fake plan, got {[str(c) for c in validated.clamps]}",
+    )
     check(
         plan.beats[0].start == 0.0 and plan.beats[-1].end == fixture.DURATION_S,
         "plan beats do not tile the fixture",

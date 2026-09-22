@@ -23,7 +23,7 @@ import itertools
 import re
 import secrets
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -73,13 +73,16 @@ class IllegalTransition(Exception):
 
 
 class JobError(BaseModel):
-    """The 11.1 failure payload. `message` is user-facing; `detail` stays in job.json/log."""
+    """The 11.1 failure payload. `message` is user-facing; `detail` stays in job.json/log.
+    `violations` is the grammar's list when the planner was rejected twice (8.2): the
+    page renders it, one line per beat id and rule."""
 
     model_config = ConfigDict(extra="forbid")
 
     step: str
     message: str
     detail: str = ""
+    violations: list[str] = []
 
 
 class InputSummary(BaseModel):
@@ -311,10 +314,22 @@ def midnight_ist(now: datetime) -> datetime:
     return local.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def fail(job: Job, *, step: str, message: str, detail: str = "", now: Clock = _utc_now) -> Job:
-    return transition(
-        job, "failed", error=JobError(step=step, message=message, detail=detail), now=now
-    )
+def fail(
+    job: Job,
+    *,
+    step: str,
+    message: str,
+    detail: str = "",
+    violations: Sequence[str] = (),
+    now: Clock = _utc_now,
+) -> Job:
+    error = JobError(step=step, message=message, detail=detail, violations=list(violations))
+    return transition(job, "failed", error=error, now=now)
+
+
+def note(job: Job, line: str, *, now: Clock = _utc_now) -> None:
+    """Append a line to job.log without touching job.json (a retry inside a step)."""
+    _append_log(job, now(), line)
 
 
 REPLACE_ATTEMPTS = 100

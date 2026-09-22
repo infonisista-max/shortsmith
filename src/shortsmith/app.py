@@ -42,7 +42,7 @@ import math
 import re
 import shutil
 import tempfile
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -73,6 +73,7 @@ from shortsmith.planner import Planner
 from shortsmith.qa import technical
 from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
+from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -150,10 +151,13 @@ def create_app(
     delay: Delay = asyncio.sleep,
     styles_dir: Path | None = None,
     book: ledger.Ledger | None = None,
+    specs: Mapping[str, StyleSpec] | None = None,
 ) -> FastAPI:
     settings = settings or config.load()
     # Every style spec loads here, at startup, or the app does not build (1.2, 1.4).
-    specs = styles.load_all(render.registry(), styles_dir or styles.STYLES_DIR)
+    # Tests pass `specs` when the fake plan must be judged by the fixture rule set.
+    if specs is None:
+        specs = styles.load_all(render.registry(), styles_dir or styles.STYLES_DIR)
     chips = styles.shipped(specs)
     # The ledger loads the prices file at startup (5.6), in the lifespan like the
     # passcode check, so `import shortsmith.app` never needs the file: a provider the
@@ -586,6 +590,14 @@ def render_job_page(job: Job, *, now: datetime | None = None, position: int | No
             f'<p class="error">Failed at {html.escape(record.error.step)}: '
             f"{html.escape(record.error.message)}</p>"
         )
+        if record.error.violations:  # 8.2: the grammar's list, one line per beat and rule
+            items = "\n".join(
+                f"  <li>{html.escape(line)}</li>" for line in record.error.violations
+            )
+            error += (
+                "<p>The planner's output broke these rules twice:</p>\n"
+                f'<ul class="violations">\n{items}\n</ul>\n'
+            )
     if record.input is not None:
         inp = record.input
         input_line = (

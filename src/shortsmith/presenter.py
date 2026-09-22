@@ -92,6 +92,21 @@ def total_duration(spans: Sequence[Span]) -> float:
     return sum(s.end - s.start for s in spans)
 
 
+def source_time(spans: Sequence[Span], output_t: float) -> float:
+    """Where output time `output_t` comes from in the recording: the inverse of
+    `output_time`. The end of the last span maps to that span's end; a time past the
+    runtime is clamped there."""
+    if not spans:
+        return output_t
+    offset = 0.0
+    for i, span in enumerate(spans):
+        length = span.end - span.start
+        if output_t < offset + length or i == len(spans) - 1:
+            return span.start + min(max(output_t - offset, 0.0), length)
+        offset += length
+    return spans[-1].end
+
+
 def output_time(spans: Sequence[Span], source_t: float) -> float:
     """Where `source_t` lands on the cut timeline. A time on a boundary belongs to the
     later span; a time inside no span maps to the end of the last span before it."""

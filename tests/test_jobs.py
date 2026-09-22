@@ -148,6 +148,7 @@ def test_failed_carries_step_message_detail(tmp_path: Path, clock: Clock) -> Non
         "step": "transcribing",
         "message": "we could not hear any speech",
         "detail": "rms=-61dB",
+        "violations": [],  # 009: the grammar's list when the planner was rejected twice
     }
     last = (job.path / "job.log").read_text(encoding="utf-8").splitlines()[-1]
     assert "transcribing -> failed" in last and "step=transcribing" in last

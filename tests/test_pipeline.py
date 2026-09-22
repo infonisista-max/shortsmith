@@ -13,14 +13,22 @@ import shutil
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from shortsmith import jobs, pipeline, render, styles, subproc
-from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
+from shortsmith import fixture, jobs, pipeline, render, styles, subproc
+from shortsmith.contracts import (
+    Cue,
+    PicturePlan,
+    PlanFeedback,
+    PlanRequest,
+    SoundStory,
+    Transcript,
+    ValidatedPlan,
+)
 from shortsmith.ledger import BudgetExceeded, Caps, Ledger, Prices
 from shortsmith.planner import FakePlanner, Planner, PlannerUnavailable, UnavailablePlanner
 from shortsmith.qa.gate import FakeGate, Gate
@@ -29,6 +37,8 @@ from shortsmith.transcriber import FakeTranscriber, Transcriber
 from tests.conftest import Media
 
 BRIEF = "Topic: nothing. Angle: prove the pipeline. Must-say: twelve words. Hook wish: none."
+# 009: the fake plan is judged by the fixture-shaped rule set (see fixture.smoke_specs).
+SPECS = fixture.smoke_specs(styles.load_all(render.registry()))
 TRAIL = [
     "created uploaded",
     "uploaded -> transcribing",
@@ -57,13 +67,14 @@ def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
         planner=planner or FakePlanner(),
         renderer=renderer or FakeRenderer(),
         gate=gate or FakeGate(),
+        specs=SPECS,
     )
 
 
 def _worker(transcriber: Transcriber | None = None, **kwargs: object) -> pipeline.Worker:
     return pipeline.Worker(
         transcriber=transcriber or FakeTranscriber(), planner=FakePlanner(),
-        renderer=FakeRenderer(), gate=FakeGate(), **kwargs,  # pyright: ignore[reportArgumentType]
+        renderer=FakeRenderer(), gate=FakeGate(), specs=SPECS, **kwargs,  # pyright: ignore[reportArgumentType]
     )  # fmt: skip
 
 
@@ -196,9 +207,11 @@ class _Recording(FakePlanner):
     def __init__(self) -> None:
         self.requests: list[PlanRequest] = []
 
-    def plan_picture(self, request: PlanRequest) -> PicturePlan:
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
         self.requests.append(request)
-        return super().plan_picture(request)
+        return super().plan_picture(request, feedback=feedback)
 
 
 def test_plan_request_is_built_from_the_job_files(
@@ -223,7 +236,9 @@ def test_plan_request_is_built_from_the_job_files(
     assert req.style.name == "explainer" and req.style.status == "shipped"
     assert "## Beat grammar" in req.style.prose and "7.1" in req.style.prose
     numbers = req.style.numbers
-    assert numbers["beats"]["min_s"] == 0.7 and numbers["presenter"]["pip_max_run"] == 6  # type: ignore[index]
+    # The beat minimum is the fixture rule set's (009); the untouched numbers are explainer's.
+    assert numbers["beats"]["min_s"] == fixture.SMOKE_BEATS["min_s"]  # type: ignore[index]
+    assert numbers["presenter"]["pip_max_run"] == 6  # type: ignore[index]
     assert numbers["sound"]["forbidden"] == ["sweep", "riser", "rumble_crescendo", "whoosh"]  # type: ignore[index]
     assert req.style_note == "explainer, energetic"
     assert len(req.transcript.words) == 12
@@ -252,8 +267,7 @@ def test_the_pager_reads_words_per_page_from_the_style(
 ) -> None:
     """6.1: `captions.words_per_page` / `prefer` come from front matter, not code."""
     job = _uploaded(tmp_path, fixture_clip)
-    specs = styles.load_all(render.registry())
-    wide = specs["explainer"].model_copy(deep=True)
+    wide = SPECS["explainer"].model_copy(deep=True)
     wide.captions.words_per_page = (2, 6)
     wide.captions.prefer = 6
     pipeline.run_job(
@@ -261,6 +275,132 @@ def test_the_pager_reads_words_per_page_from_the_style(
         gate=FakeGate(), specs={"explainer": wide},
     )  # fmt: skip
     assert [len(p["word_indices"]) for p in _pages(job)] == [6, 6]  # type: ignore[arg-type]
+
+
+# --- ticket 009: the grammar in the planning step (decision 8.2) ----------------------
+
+
+def test_planning_validates_the_plan_and_writes_the_validated_files(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """plan.raw.json keeps the planner's output, plan.json / sound.json are the snapped
+    and clamped plans the renderer reads, plan.validated.json carries the clamps."""
+    job = _uploaded(tmp_path, fixture_clip)
+    assert _run(job).status == "delivered"
+    work = job.work_dir
+    raw = PicturePlan.model_validate_json((work / "plan.raw.json").read_text("utf-8"))
+    plan = PicturePlan.model_validate_json((work / "plan.json").read_text("utf-8"))
+    validated = ValidatedPlan.model_validate_json((work / "plan.validated.json").read_text("utf-8"))
+    assert raw.keywords == [5, 10, 1, 7]  # the fake asks for four
+    assert plan.keywords == [5, 10, 1]  # 6.1: 12 words x 0.25 = 3
+    assert validated.picture == plan
+    assert [c.rule for c in validated.clamps] == ["6.1"]
+    assert validated.warnings == []
+    story = SoundStory.model_validate_json((work / "sound.json").read_text("utf-8"))
+    assert validated.sound == story
+    pages = _pages(job)
+    assert [p["keyword"] for p in pages] == [1, 5, None, 10]  # 7 was trimmed
+
+
+class _RetryPlanner(FakePlanner):
+    """Rejected `bad_picture` / `bad_sound` times, then the canned plan; records what
+    it was re-sent with."""
+
+    def __init__(self, *, bad_picture: int = 0, bad_sound: int = 0) -> None:
+        self.bad_picture = bad_picture
+        self.bad_sound = bad_sound
+        self.picture_feedback: list[PlanFeedback | None] = []
+        self.sound_feedback: list[PlanFeedback | None] = []
+
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
+        self.picture_feedback.append(feedback)
+        plan = super().plan_picture(request)
+        if len(self.picture_feedback) <= self.bad_picture:
+            b03 = plan.beats[2].model_copy(update={"motion": None, "enter": "wipe"})
+            return plan.model_copy(update={"beats": [*plan.beats[:2], b03, *plan.beats[3:]]})
+        return plan
+
+    def plan_sound(
+        self,
+        request: PlanRequest,
+        picture: PicturePlan,
+        catalogue_tags: Sequence[str] = (),
+        *,
+        feedback: PlanFeedback | None = None,
+    ) -> SoundStory:
+        self.sound_feedback.append(feedback)
+        story = super().plan_sound(request, picture)
+        if len(self.sound_feedback) <= self.bad_sound:
+            ghost = Cue(beat_id="b99", intent="hit", at="start")
+            return story.model_copy(update={"cues": [*story.cues, ghost]})
+        return story
+
+
+GHOST_CUE = "b99 (8.2): cue 'hit' names a beat that is not in the plan"
+
+
+def test_a_rejected_picture_plan_is_resent_once_with_the_violations(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    planner = _RetryPlanner(bad_picture=1)
+    assert _run(job, planner=planner).status == "delivered"
+    first, second = planner.picture_feedback
+    assert first is None and second is not None
+    assert PicturePlan.model_validate_json(second.previous).beats[2].motion is None
+    assert second.violations == [
+        "b03 (4.1): non-presenter beat (photo) has no motion; "
+        "every non-presenter beat has exactly one",
+        "b03 (9.4): enter 'wipe' is not in broll.enter_transitions "
+        "['cut', 'fade', 'whip', 'zoom', 'spring']",
+    ]
+    assert planner.sound_feedback == [None]
+    plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    assert plan.beats[2].motion == "ken_burns_in"
+    log = job.log_path.read_text("utf-8")
+    assert "picture plan rejected" in log and "b03 (4.1)" in log
+
+
+def test_a_rejected_sound_story_is_resent_once(tmp_path: Path, fixture_clip: Path) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    planner = _RetryPlanner(bad_sound=1)
+    assert _run(job, planner=planner).status == "delivered"
+    assert planner.picture_feedback == [None]
+    first, second = planner.sound_feedback
+    assert first is None and second is not None
+    assert second.violations == [GHOST_CUE]
+    story = SoundStory.model_validate_json((job.work_dir / "sound.json").read_text("utf-8"))
+    assert all(c.beat_id != "b99" for c in story.cues)
+
+
+@pytest.mark.parametrize("call", ["picture", "sound"])
+def test_a_plan_rejected_twice_fails_the_job_at_planning_with_the_list(
+    tmp_path: Path, fixture_clip: Path, call: str
+) -> None:
+    """8.2: exactly one retry; the second rejection fails the job with the violation
+    list in job.json (and on the page), and nothing is rendered."""
+    job = _uploaded(tmp_path, fixture_clip)
+    bad = {"picture": (9, 0), "sound": (0, 9)}[call]
+    planner = _RetryPlanner(bad_picture=bad[0], bad_sound=bad[1])
+    done = _run(job, planner=planner)
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert done.record.error.step == "planning"
+    assert done.record.error.message == pipeline.STEP_MESSAGES["planning"]
+    if call == "picture":
+        assert len(planner.picture_feedback) == 2 and planner.sound_feedback == []
+        assert done.record.error.violations[0].startswith("b03 (4.1)")
+    else:
+        assert len(planner.picture_feedback) == 1 and len(planner.sound_feedback) == 2
+        assert done.record.error.violations == [GHOST_CUE]
+    assert all(line in done.record.error.detail for line in done.record.error.violations)
+    assert f"{call} plan was rejected twice" in done.record.error.detail
+    assert not (job.work_dir / "plan.json").exists()
+    assert not (job.work_dir / "plan.validated.json").exists()
+    assert (job.work_dir / "plan.raw.json").is_file()  # the rejected output stays on disk
+    assert jobs.load(job.path).record.error == done.record.error
 
 
 def test_unavailable_planner_fails_the_job_at_planning_naming_the_ticket(
@@ -544,7 +684,7 @@ def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path)
     job = _uploaded(tmp_path, fixture_clip)
     result = pipeline.run_job(
         job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), renderer=FakeRenderer(),
-        gate=FakeGate(), max_job_minutes=30, clock=clock,
+        gate=FakeGate(), specs=SPECS, max_job_minutes=30, clock=clock,
     )  # fmt: skip
     assert result.status == "delivered"
 
@@ -552,7 +692,9 @@ def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path)
 class _OverBudgetPlanner(FakePlanner):
     """A paid adapter whose pre-call check found the hard cap (011)."""
 
-    def plan_picture(self, request: PlanRequest) -> PicturePlan:
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
         raise BudgetExceeded("planning", spent_inr=79.0, estimated_inr=5.0, hard_inr=80.0)
 
 

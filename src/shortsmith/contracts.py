@@ -1,10 +1,11 @@
 """Shared Pydantic models (PRD "Global contracts").
 
 Transcript family, the planner-facing PlanRequest / PicturePlan / SoundStory (2.3,
-8.1) and CaptionPage (6.1). Planner-facing models use `extra="forbid"` so the JSON
-schema generated from them is the single source of truth embedded in the planner
-prompt; plan JSON is engine-agnostic (no render-engine terms in field names or
-values). ValidatedPlan (009), AssetManifest and RightsRow (016), RenderSpec (004),
+8.1), CaptionPage (6.1), the validator's ValidatedPlan with its clamps (8.2, ticket
+009) and the retry feedback a rejected call is re-sent with. Planner-facing models
+use `extra="forbid"` so the JSON schema generated from them is the single source of
+truth embedded in the planner prompt; plan JSON is engine-agnostic (no render-engine
+terms in field names or values). AssetManifest and RightsRow (016), RenderSpec (004),
 QaReport, CriticReport and Meta arrive with their tickets.
 """
 
@@ -289,6 +290,48 @@ class SoundStory(StrictModel):
     mood_curve: list[MoodPoint]
     bed_query: BedQuery
     cues: list[Cue]
+
+
+# --- the validated plan (decision 8.2; ticket 009) -----------------------------------
+
+
+class Clamp(StrictModel):
+    """One silent fix the validator made (8.2): the decision whose number it applied,
+    the beat it touched (None for a plan-level field) and what changed."""
+
+    rule: str
+    beat_id: str | None = None
+    message: str
+
+
+class Violation(StrictModel):
+    """One rejection: beat id (None for a plan-level rule), the decision number and
+    the message the planner gets back verbatim on the retry."""
+
+    rule: str
+    beat_id: str | None = None
+    message: str
+
+    def __str__(self) -> str:
+        return f"{self.beat_id or 'plan'} ({self.rule}): {self.message}"
+
+
+class ValidatedPlan(StrictModel):
+    """The picture plan with its boundaries snapped and its fields clamped, the sound
+    story clamped, every clamp logged and the 3.4 / 4.3 warnings for the contact sheet."""
+
+    picture: PicturePlan
+    sound: SoundStory
+    clamps: list[Clamp] = []
+    warnings: list[str] = []
+
+
+class PlanFeedback(StrictModel):
+    """What a rejected call is re-sent with (8.2): the previous output as JSON text
+    and the violation list, one line each with beat id and rule."""
+
+    previous: str
+    violations: list[str]
 
 
 # --- captions (decision 6.1) -------------------------------------------------------

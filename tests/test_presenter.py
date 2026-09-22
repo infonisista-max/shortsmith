@@ -110,3 +110,18 @@ def test_output_time_maps_a_source_time_onto_the_cut_timeline() -> None:
     assert presenter.output_time(spans, 0.0) == pytest.approx(0.5)
     assert presenter.output_time(spans, 4.0) == pytest.approx(4.0)
     assert presenter.output_time(spans, 3.5) == pytest.approx(3.5)  # a boundary is the later span
+
+
+def test_source_time_is_the_inverse_of_output_time() -> None:
+    """009: the grammar maps a beat boundary (output seconds) back to the recording
+    before it looks for the nearest word end."""
+    plan = _plan(keep=[(0.0, 6.0)], cold_open=(3.0, 3.5), original_position="drop")
+    spans = presenter.cut_list(plan)  # [3.0-3.5] [0.0-3.0] [3.5-6.0]
+    assert presenter.source_time(spans, 0.2) == pytest.approx(3.2)
+    assert presenter.source_time(spans, 0.5) == pytest.approx(0.0)  # a boundary is the later span
+    assert presenter.source_time(spans, 4.0) == pytest.approx(4.0)
+    assert presenter.source_time(spans, 6.0) == pytest.approx(6.0)  # the runtime's end
+    assert presenter.source_time(spans, 7.0) == pytest.approx(6.0)  # past the end clamps
+    for t in (0.0, 0.2, 0.5, 1.7, 3.5, 5.9):
+        assert presenter.output_time(spans, presenter.source_time(spans, t)) == pytest.approx(t)
+    assert presenter.source_time([], 1.5) == 1.5

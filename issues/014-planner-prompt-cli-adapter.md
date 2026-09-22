@@ -29,6 +29,11 @@ Covers PRD `planner` (prompt builder, CLI adapter, parser, versioning). Decision
 
 - Subscription rows: `ledger.record(job, "planning", "claude_code", model, {"input_tokens": i, "output_tokens": o})` yields `inr` 0, `tokens_estimated` i+o and `inr_equivalent` at the file's `api_equivalent` rate (required at startup when `PLANNER=claude_code`). `Planner.plan_picture(request)` has no job handle: give the adapter the job (or a per-job meter) at call time so it can record; the pipeline builds nothing for it.
 
+## Notes from 009
+
+- Interface: `Planner.plan_picture(request, *, feedback: PlanFeedback | None = None)` and `plan_sound(request, picture, catalogue_tags=(), *, feedback=None)`. `feedback.previous` is the rejected output as JSON text and `feedback.violations` the list of `"<beat id> (<rule>): <message>"` lines; append both to the same prompt on the retry (8.2). The pipeline already runs picture -> validate -> retry once -> sound (with the snapped picture) -> validate -> retry once; the adapter only has to honour `feedback` and record its ledger row per call. `PlanRejected` fails the job with the list on the page; a Pydantic failure in the parser should raise into the same path (return-or-raise is this ticket's call; `grammar.Violations(items=[Violation(rule="8.2", message=...)])` is the shape the retry understands).
+- `plan.raw.json` / `sound.raw.json` hold the planner's last output; the CLI adapter can write its own `work/planner/` files beside them.
+
 ## Blocked by
 
 - Blocked by `issues/009-grammar-validator.md`

@@ -39,6 +39,11 @@ Covers PRD `captions`. Decisions 6.1, 6.2, 6.3.
 
 - `PagerNumbers` already comes from front matter: `pipeline.pager_numbers(spec)` reads `captions.words_per_page` / `prefer`. `captions.gap_break_s` (0.35) and `captions.emphasis_max_ratio` (0.25) are on `styles.Captions` too, unread so far. The 6.2 layout numbers reach the renderer through `render.numbers_for(spec)`.
 
+## Notes from 009
+
+- The keyword cap (0.25 by dropping lowest priority) is already applied by the grammar as a 6.1 clamp: `plan.json` holds the trimmed `keywords`, so the pager receives at most the cap; keep the one-keyword-per-page rule here. The pipeline pages from `checked.picture.keywords` (the clamped list) and `request.transcript.words`; the finale beat id is `picture.finale.beat_id`. `presenter.source_time(spans, t)` now exists beside `output_time` for the cut-timeline mapping.
+- The grammar snaps beat boundaries to word ends within `beats.snap_window_s`, so the word list and the beat boundaries agree by the time the pager runs.
+
 ## User stories addressed
 
 - User story 26

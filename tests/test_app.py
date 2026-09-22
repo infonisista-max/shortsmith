@@ -21,8 +21,9 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from shortsmith import app as app_module
-from shortsmith import auth, jobs, styles
+from shortsmith import auth, fixture, jobs, render, styles
 from shortsmith.config import Settings
+from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest
 from shortsmith.ingest import MIB, Limits
 from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
 from shortsmith.planner import FakePlanner
@@ -36,6 +37,8 @@ GOOD_BRIEF = "Topic: why the sky is blue. Angle: Rayleigh scattering in one brea
 SCRIPT = "<script>alert(1)</script>"
 PASSCODE = "test-only-passcode"
 T0 = datetime(2026, 9, 21, 12, 0, 0, tzinfo=UTC)
+# 009: jobs planned by the fake are judged by the fixture-shaped rule set.
+SPECS = fixture.smoke_specs(styles.load_all(render.registry()))
 
 
 EXAMPLE_PRICES = Path(__file__).resolve().parents[1] / "prices.example.yaml"
@@ -65,7 +68,7 @@ def app(tmp_path: Path) -> FastAPI:
     return app_module.create_app(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
-        planner=FakePlanner(),
+        planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
     )
@@ -325,6 +328,43 @@ def test_job_page_after_the_worker_ran_shows_the_delivered_short(
     assert "FAIL" not in body
 
 
+class _StillPlanner(FakePlanner):
+    """A planner whose photo beat has no motion, retry or not (4.1: no static still)."""
+
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
+        plan = super().plan_picture(request)
+        b03 = plan.beats[2].model_copy(update={"motion": None})
+        return plan.model_copy(update={"beats": [*plan.beats[:2], b03, *plan.beats[3:]]})
+
+
+def test_job_page_lists_the_violations_when_the_planner_was_rejected_twice(
+    tmp_path: Path, media: Media
+) -> None:
+    """8.2: the second rejection fails the job at `planning`; the page shows the list
+    with beat id and rule, escaped like every other string."""
+    app = app_module.create_app(
+        _settings(tmp_path),
+        transcriber=FakeTranscriber(),
+        planner=_StillPlanner(),
+        renderer=FakeRenderer(), gate=FakeGate(), specs=SPECS,
+        start_worker=False,
+    )  # fmt: skip
+    with TestClient(app) as client:
+        login(client)
+        location = _post(client, media.clip()).headers["location"]
+        assert app.state.worker.run_next() is True
+        record = client.get(f"{location}.json").json()
+        assert record["status"] == "failed" and record["error"]["step"] == "planning"
+        (line,) = record["error"]["violations"]
+        assert line.startswith("b03 (4.1): ")
+        body = client.get(location).text
+        assert "Failed at planning: We could not plan the short." in body
+        assert '<ul class="violations">' in body
+        assert f"<li>{html.escape(line)}</li>" in body
+
+
 def test_delivered_files_are_served_from_out_only(
     client: TestClient, app: FastAPI, media: Media
 ) -> None:
@@ -371,7 +411,7 @@ def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
     app = app_module.create_app(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
-        planner=FakePlanner(),
+        planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(),
         gate=FakeGate(fail="T3"),
         start_worker=False,
@@ -419,7 +459,7 @@ def test_second_submission_waits_uploaded_while_the_first_runs(
     app = app_module.create_app(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
-        planner=FakePlanner(),
+        planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), gate=FakeGate(),
     )
     with TestClient(app) as client:
@@ -507,7 +547,7 @@ def test_day_limit_closes_the_form_until_midnight_ist(tmp_path: Path, media: Med
     app = app_module.create_app(
         _settings(tmp_path, max_jobs_per_day=2),
         transcriber=FakeTranscriber(),
-        planner=FakePlanner(),
+        planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
         clock=clock,
@@ -537,7 +577,7 @@ def test_max_job_minutes_reaches_the_worker_from_settings(tmp_path: Path) -> Non
     app = app_module.create_app(
         _settings(tmp_path, max_job_minutes=7, max_queue=2),
         transcriber=FakeTranscriber(),
-        planner=FakePlanner(),
+        planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
     )
@@ -553,7 +593,7 @@ def _small_limits_app(tmp_path: Path) -> FastAPI:
     return app_module.create_app(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
-        planner=FakePlanner(),
+        planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), gate=FakeGate(),
         limits=SMALL,
         start_worker=False,
@@ -628,7 +668,7 @@ def _guarded_app(
     return app_module.create_app(
         _settings(tmp_path, passcode),
         transcriber=FakeTranscriber(),
-        planner=FakePlanner(),
+        planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), gate=FakeGate(),
         start_worker=False,
         clock=clock,
