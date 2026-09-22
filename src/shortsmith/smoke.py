@@ -35,7 +35,7 @@ from pathlib import Path
 from PIL import Image
 from pydantic import TypeAdapter
 
-from shortsmith import contact_sheet, ffmpeg, fixture, ingest, jobs, pipeline
+from shortsmith import contact_sheet, ffmpeg, fixture, ingest, jobs, pipeline, render, styles
 from shortsmith.contracts import TIER1_KINDS, CaptionPage, PicturePlan, SoundStory, Transcript
 from shortsmith.ingest import Limits, VideoUpload
 from shortsmith.planner import FakePlanner, Planner, kinds_named
@@ -61,6 +61,7 @@ SMOKE_BRIEF = (
     "Topic: a six-second synthetic clip. Angle: prove the pipeline end to end. "
     "Must-say: twelve words on six tone bursts. Hook wish: none."
 )
+SMOKE_STYLE_LINE = "explainer, energetic"
 SMOKE_LIMITS = Limits(min_duration_s=fixture.DURATION_S)
 
 
@@ -99,20 +100,32 @@ def run_smoke(
     clip = fixture.make_fixture(root / "fixture" / "fixture.mp4")
     check(clip.stat().st_size < 1_000_000, "fixture must be under 1 MB (12.1)")
 
+    # 008: every spec loads against the registry, and the style line resolves in code.
+    specs = styles.load_all(render.registry())
+    check(styles.shipped(specs) == ["explainer"], f"shipped styles: {styles.shipped(specs)}")
+    resolution = styles.resolve(SMOKE_STYLE_LINE, specs)
+    check(resolution.name == "explainer" and resolution.notice == "", f"resolved {resolution}")
+
     job = ingest.accept(
         root / "data",
         video=VideoUpload(path=clip, original_name="fixture.mp4"),
         brief=SMOKE_BRIEF,
-        style_line="explainer",
+        style=resolution,
         references=[],
         limits=SMOKE_LIMITS,
     )
     check(job.status == "uploaded", f"ingest left the job {job.status!r}, not 'uploaded'")
+    check(
+        (job.record.style, job.record.style_note) == ("explainer", SMOKE_STYLE_LINE),
+        "job.json does not carry the resolved style and note",
+    )
     check((job.input_dir / "raw.mp4").is_file(), "ingest did not write input/raw.mp4")
     check((job.input_dir / "brief.md").is_file(), "ingest did not write input/brief.md")
     check((job.input_dir / "refs.json").is_file(), "ingest did not write input/refs.json")
 
-    worker = pipeline.Worker(transcriber=transcriber, planner=planner, renderer=renderer)
+    worker = pipeline.Worker(
+        transcriber=transcriber, planner=planner, renderer=renderer, specs=specs
+    )
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
 

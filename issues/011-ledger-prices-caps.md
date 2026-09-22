@@ -25,6 +25,10 @@ Covers PRD `ledger`, `config` budget settings, the ledger part of `app`. Decisio
 - [ ] Job page shows the ledger rows and the cash total.
 - [ ] Boundary tests, `tests/test_ledger.py`: soft cap flags only, hard cap fails before the paid call (the fake adapter records zero calls), subscription tokens never enter INR, missing price is a startup error.
 
+## Notes from 008
+
+- `pyyaml==6.0.3` is declared (pinned). The per-step allowances live under `budget` on every spec (`styles.Budget`: `judge_max_calls`, `search_max_queries`, `gen_max_per_short`); read them from `PlanRequest.style.numbers["budget"]` or `styles.StyleSpec.budget`.
+
 ## Blocked by
 
 - Blocked by `issues/008-style-specs-loader-resolver.md`

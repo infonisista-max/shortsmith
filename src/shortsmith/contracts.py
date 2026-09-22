@@ -86,8 +86,9 @@ class ReferenceRecord(StrictModel):
 class PlanStyle(StrictModel):
     """The loaded style spec as the planner sees it: numbers + prose (1.2).
 
-    `numbers` is the front-matter key groups once the loader exists (008); until then
-    it is empty and `prose` is the spec file's text.
+    `numbers` is the spec's front matter as plain data (`styles.StyleSpec.numbers()`)
+    and `prose` its five sections; `status` is `draft` only when a draft is being
+    smoke-rendered (1.4), never for a user job.
     """
 
     name: str

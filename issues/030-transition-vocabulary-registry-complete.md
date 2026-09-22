@@ -23,6 +23,10 @@ Covers PRD render (transitions), "Global contracts" transition vocabulary, `styl
 - [ ] A test removes one component from a copy of the registry and asserts the explainer fails to load.
 - [ ] Smoke: FakePlanner's plan uses each of the five explainer transitions at least once; gates pass; smoke time recorded in the commit message.
 
+## Notes from 008
+
+- `styles.load_all` already cross-checks `requires_components` against `render.registry()` for `status: shipped` specs (a missing one fails startup naming it). `explainer.requires_components` is `[captions, pip]` today; extend it as components land. Each spec's `broll.enter_transitions` and `whip_max_per_3_beats` are typed on `styles.Broll`.
+
 ## Blocked by
 
 - Blocked by `issues/027-list-split-wall-components.md`

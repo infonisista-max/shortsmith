@@ -15,6 +15,7 @@
   .step.current { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
   .step.failed { background: #c0392b; color: #fff; border-color: #c0392b; }
   .warning { background: #fff3cd; color: #5c4400; padding: .6rem 1rem; border-radius: 8px; margin: .5rem 0; }
+  .notice { color: #5c4400; background: #fff3cd; padding: .1rem .4rem; border-radius: 6px; }
   .error { background: #c0392b; color: #fff; padding: .75rem 1rem; border-radius: 8px; margin: 1rem 0; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; }
   dt { color: var(--muted); }
@@ -38,7 +39,8 @@ $warnings
 $error
 <dl>
   <dt>Recording</dt><dd>$input_line</dd>
-  <dt>Style line</dt><dd>$style_line</dd>
+  <dt>Style</dt><dd>$style$style_notice</dd>
+  <dt>Style note</dt><dd>$style_note</dd>
   <dt>References</dt><dd>$references</dd>
 </dl>
 $result

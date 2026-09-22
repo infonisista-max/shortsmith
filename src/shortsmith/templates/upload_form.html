@@ -11,8 +11,10 @@
     <label for="brief">What this Short is about (40 to 1500 characters)</label>
     <textarea id="brief" name="brief" placeholder="topic / angle / must-say facts / hook wish" required>$brief</textarea>
     <label for="style">Style</label>
-    <input id="style" name="style" type="text" value="$style" placeholder="explainer">
+    <div class="chips">$chips</div>
+    <input id="style" name="style" type="text" value="$style" placeholder="explainer" autocomplete="off">
     <p class="hint">One style word, plus anything the style leaves open: length, caption language, energy.</p>
+    <p class="resolution" data-resolution>Resolves to <strong data-resolved-name>explainer</strong><span data-resolved-note></span><span class="notice" data-resolved-notice></span></p>
   </fieldset>
 
   <fieldset>
@@ -22,3 +24,36 @@ $references
 
   <button type="submit">Make the Short</button>
 </form>
+<script>
+(function () {
+  var input = document.getElementById("style");
+  var name = document.querySelector("[data-resolved-name]");
+  var note = document.querySelector("[data-resolved-note]");
+  var notice = document.querySelector("[data-resolved-notice]");
+  var timer = null;
+  function show(r) {
+    name.textContent = r.name;
+    note.textContent = r.note ? " with the note “" + r.note + "”" : "";
+    notice.textContent = r.notice ? " · " + r.notice : "";
+  }
+  function resolve() {
+    fetch("/styles/resolve?line=" + encodeURIComponent(input.value),
+          { headers: { accept: "application/json" }, cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(show)
+      .catch(function () {});
+  }
+  input.addEventListener("input", function () {
+    clearTimeout(timer);
+    timer = setTimeout(resolve, 250);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-chip]"), function (chip) {
+    chip.addEventListener("click", function () {
+      input.value = chip.getAttribute("data-chip");
+      resolve();
+      input.focus();
+    });
+  });
+  resolve();
+})();
+</script>

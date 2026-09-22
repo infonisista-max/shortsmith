@@ -31,14 +31,23 @@ def clock() -> Clock:
 
 
 def test_create_makes_the_2_2_layout(tmp_path: Path, clock: Clock) -> None:
-    job = jobs.create(tmp_path, style_line="explainer", now=clock)
+    job = jobs.create(
+        tmp_path,
+        style="explainer",
+        style_note="hitech please",
+        style_notice="hitech not available yet, using explainer",
+        now=clock,
+    )
     assert job.path == tmp_path / "jobs" / job.id
     for name in ("input", "work", "out"):
         assert (job.path / name).is_dir()
     record = json.loads((job.path / "job.json").read_text(encoding="utf-8"))
     assert record["id"] == job.id
     assert record["status"] == "uploaded"
-    assert record["style_line"] == "explainer"
+    # 1.1 / 2.2: the resolved style, the full line as the note, the 1.4 notice.
+    assert record["style"] == "explainer"
+    assert record["style_note"] == "hitech please"
+    assert record["style_notice"] == "hitech not available yet, using explainer"
     assert record["error"] is None
     assert record["cost"] == []
     log = (job.path / "job.log").read_text(encoding="utf-8").splitlines()
@@ -155,8 +164,23 @@ def test_failed_requires_an_error_and_others_refuse_one(tmp_path: Path, clock: C
         jobs.transition(job, "transcribing", error=err, now=clock)
 
 
+def test_a_job_json_from_before_008_still_loads(tmp_path: Path, clock: Clock) -> None:
+    """Jobs written before the style fields carried `style_line`; it becomes the note
+    and the style is explainer, so an old data directory keeps loading."""
+    job = jobs.create(tmp_path, now=clock)
+    old = json.loads(job.json_path.read_text(encoding="utf-8"))
+    for key in ("style", "style_note", "style_notice"):
+        old.pop(key)
+    old["style_line"] = "hitech please"
+    job.json_path.write_text(json.dumps(old), encoding="utf-8")
+    loaded = jobs.load(job.path)
+    assert (loaded.record.style, loaded.record.style_note, loaded.record.style_notice) == (
+        "explainer", "hitech please", "",
+    )  # fmt: skip
+
+
 def test_load_round_trips(tmp_path: Path, clock: Clock) -> None:
-    job = jobs.create(tmp_path, style_line="hitech please", now=clock)
+    job = jobs.create(tmp_path, style_note="hitech please", now=clock)
     loaded = jobs.load(job.path)
     assert loaded.record == job.record
     assert loaded.path == job.path

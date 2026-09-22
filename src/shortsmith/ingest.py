@@ -23,6 +23,7 @@ from shortsmith import ffmpeg, jobs
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.jobs import InputSummary, Job
 from shortsmith.presenter import TARGET_HEIGHT, TARGET_WIDTH, upscale_factor  # one geometry (005)
+from shortsmith.styles import Resolution
 
 VIDEO_EXTENSIONS = frozenset({".mp4", ".mov"})
 IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
@@ -230,14 +231,16 @@ def accept(
     *,
     video: VideoUpload,
     brief: str,
-    style_line: str,
+    style: Resolution,
     references: list[ReferenceUpload],
     limits: Limits | None = None,
     now: jobs.Clock | None = None,
 ) -> Job:
     """Validate everything, then create the job and lay out `input/` per 2.2.
 
-    Raises `Rejected` with the one plain sentence; no job directory exists then.
+    `style` is the resolver's verdict on the form's style line (1.1): the caller
+    resolves so the page can show the same result before submit. Raises `Rejected`
+    with the one plain sentence; no job directory exists then.
     """
     limits = limits or DEFAULT_LIMITS
     brief_problem = check_brief(brief, limits)
@@ -270,7 +273,9 @@ def accept(
     kwargs = {"now": now} if now is not None else {}
     job = jobs.create(
         data_dir,
-        style_line=style_line,
+        style=style.name,
+        style_note=style.note,
+        style_notice=style.notice,
         input=summary,
         warnings=video_warnings(info),
         **kwargs,

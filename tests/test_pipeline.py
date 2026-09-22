@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import jobs, pipeline, render, subproc
+from shortsmith import jobs, pipeline, render, styles, subproc
 from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
 from shortsmith.planner import FakePlanner, Planner, PlannerUnavailable, UnavailablePlanner
 from shortsmith.qa.gate import FakeGate, Gate
@@ -40,7 +40,7 @@ TRAIL = [
 
 
 def _uploaded(data_dir: Path, clip: Path) -> jobs.Job:
-    job = jobs.create(data_dir, style_line="explainer, energetic")
+    job = jobs.create(data_dir, style="explainer", style_note="explainer, energetic")
     shutil.copyfile(clip, job.input_dir / "raw.mp4")
     (job.input_dir / "brief.md").write_text(BRIEF, encoding="utf-8")
     (job.input_dir / "refs.json").write_text("[]", encoding="utf-8")
@@ -203,8 +203,9 @@ class _Recording(FakePlanner):
 def test_plan_request_is_built_from_the_job_files(
     tmp_path: Path, fixture_clip: Path, media: Media
 ) -> None:
-    """2.3: brief verbatim, style (explainer until 008), the style line as the note,
-    the fixed transcript, references as captioned lines, constraints, asset policy."""
+    """2.3: brief verbatim, the loaded style spec (numbers + prose, 1.2), the style
+    line as the note, the fixed transcript, references as captioned lines, constraints,
+    asset policy."""
     job = _uploaded(tmp_path, fixture_clip)
     ref = media.image(width=1200, height=1600)
     (job.input_dir / "refs").mkdir()
@@ -218,7 +219,11 @@ def test_plan_request_is_built_from_the_job_files(
     _run(job, planner=planner)
     (req,) = planner.requests
     assert req.brief == BRIEF
-    assert req.style.name == "explainer" and "Beat grammar" in req.style.prose
+    assert req.style.name == "explainer" and req.style.status == "shipped"
+    assert "## Beat grammar" in req.style.prose and "7.1" in req.style.prose
+    numbers = req.style.numbers
+    assert numbers["beats"]["min_s"] == 0.7 and numbers["presenter"]["pip_max_run"] == 6  # type: ignore[index]
+    assert numbers["sound"]["forbidden"] == ["sweep", "riser", "rumble_crescendo", "whoosh"]  # type: ignore[index]
     assert req.style_note == "explainer, energetic"
     assert len(req.transcript.words) == 12
     assert [(r.id, r.kind, r.caption, r.width) for r in req.references] == [
@@ -227,6 +232,34 @@ def test_plan_request_is_built_from_the_job_files(
     assert req.constraints.max_duration_s == 60.0
     assert req.constraints.target_duration_s == 6.0
     assert req.asset_policy in ("any", "rights_safe")
+
+
+def test_a_job_whose_style_is_unknown_fails_at_planning_naming_it(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    record = job.record.model_copy(update={"style": "retro"})
+    job.json_path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
+    done = _run(jobs.load(job.path))
+    assert done.status == "failed"
+    assert done.record.error is not None and done.record.error.step == "planning"
+    assert "retro" in done.record.error.detail
+
+
+def test_the_pager_reads_words_per_page_from_the_style(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """6.1: `captions.words_per_page` / `prefer` come from front matter, not code."""
+    job = _uploaded(tmp_path, fixture_clip)
+    specs = styles.load_all(render.registry())
+    wide = specs["explainer"].model_copy(deep=True)
+    wide.captions.words_per_page = (2, 6)
+    wide.captions.prefer = 6
+    pipeline.run_job(
+        job, transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
+        gate=FakeGate(), specs={"explainer": wide},
+    )  # fmt: skip
+    assert [len(p["word_indices"]) for p in _pages(job)] == [6, 6]  # type: ignore[arg-type]
 
 
 def test_unavailable_planner_fails_the_job_at_planning_naming_the_ticket(

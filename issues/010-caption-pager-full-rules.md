@@ -35,6 +35,10 @@ Covers PRD `captions`. Decisions 6.1, 6.2, 6.3.
 
 - Pillow is installed (`pillow==12.3.0`); `PIL.ImageFont.truetype` on `assets/fonts/` is available for the word-box measurement.
 
+## Notes from 008
+
+- `PagerNumbers` already comes from front matter: `pipeline.pager_numbers(spec)` reads `captions.words_per_page` / `prefer`. `captions.gap_break_s` (0.35) and `captions.emphasis_max_ratio` (0.25) are on `styles.Captions` too, unread so far. The 6.2 layout numbers reach the renderer through `render.numbers_for(spec)`.
+
 ## User stories addressed
 
 - User story 26

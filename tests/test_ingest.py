@@ -14,8 +14,10 @@ import pytest
 from shortsmith import ingest
 from shortsmith.fixture import make_clip, make_image
 from shortsmith.ingest import Limits, ReferenceInfo, ReferenceUpload, VideoInfo, VideoUpload
+from shortsmith.styles import Resolution
 
 LIMITS = Limits()
+EXPLAINER = Resolution(name="explainer", note="")
 
 
 def _video(**overrides: object) -> VideoInfo:
@@ -250,7 +252,11 @@ def test_accept_writes_the_2_2_input_layout(tmp_path: Path, fixture_clip: Path) 
         tmp_path / "data",
         video=VideoUpload(path=fixture_clip, original_name="My Take 1.MP4"),
         brief="This is a brief that is comfortably longer than forty characters.",
-        style_line="hitech please",
+        style=Resolution(
+            name="explainer",
+            note="hitech please",
+            notice="hitech not available yet, using explainer",
+        ),
         references=[
             ReferenceUpload(path=ref_a, original_name="Logo Final.png", caption="our logo"),
             ReferenceUpload(path=ref_b, original_name="clip.mov", caption=""),
@@ -289,7 +295,9 @@ def test_accept_writes_the_2_2_input_layout(tmp_path: Path, fixture_clip: Path) 
             "rights": "owner_supplied",
         },
     ]
-    assert job.record.style_line == "hitech please"
+    assert job.record.style == "explainer"
+    assert job.record.style_note == "hitech please"
+    assert job.record.style_notice == "hitech not available yet, using explainer"
     assert job.record.input is not None
     assert job.record.input.original_name == "My Take 1.MP4"
     assert job.record.input.references == 2
@@ -303,7 +311,7 @@ def test_accept_stores_a_mov_as_raw_mov(tmp_path: Path) -> None:
         tmp_path / "data",
         video=VideoUpload(path=clip, original_name="in.mov"),
         brief="x" * 40,
-        style_line="",
+        style=EXPLAINER,
         references=[],
         limits=Limits(min_duration_s=1.0),
     )
@@ -317,7 +325,7 @@ def test_accept_rejects_without_creating_a_job(tmp_path: Path, fixture_clip: Pat
             tmp_path / "data",
             video=VideoUpload(path=fixture_clip, original_name="f.mp4"),
             brief="x" * 40,
-            style_line="",
+            style=EXPLAINER,
             references=[],
         )
     assert str(excinfo.value) == "The recording must be between 20 seconds and 8 minutes long."
@@ -331,7 +339,7 @@ def test_accept_rejects_a_short_reference_image(tmp_path: Path, fixture_clip: Pa
             tmp_path / "data",
             video=VideoUpload(path=fixture_clip, original_name="f.mp4"),
             brief="x" * 40,
-            style_line="",
+            style=EXPLAINER,
             references=[ReferenceUpload(path=small, original_name="tiny.png", caption="")],
             limits=Limits(min_duration_s=1.0),
         )

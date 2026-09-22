@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 Status = Literal[
     "uploaded",
@@ -96,12 +96,28 @@ class JobRecord(BaseModel):
     status: Status
     created_at: datetime
     updated_at: datetime
-    style_line: str = ""
+    # Decisions 1.1 / 1.4 / 2.2: the resolved spec name, the full style line as the
+    # planner's note, and the draft-redirect notice ("" when none).
+    style: str = "explainer"
+    style_note: str = ""
+    style_notice: str = ""
     input: InputSummary | None = None
     warnings: list[str] = []
     error: JobError | None = None
     cost: list[dict[str, Any]] = []
     progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_style_line(cls, data: object) -> object:
+        """Before ticket 008 job.json held the raw line as `style_line`; it is the
+        note now, so an older data directory keeps loading."""
+        raw: object = data
+        if isinstance(raw, dict) and "style_line" in raw:
+            fields: dict[str, Any] = dict(raw)  # pyright: ignore[reportUnknownArgumentType]
+            fields.setdefault("style_note", fields.pop("style_line"))
+            return fields
+        return data
 
 
 @dataclass(frozen=True)
@@ -146,7 +162,9 @@ def new_job_id(now: datetime) -> str:
 def create(
     data_dir: Path,
     *,
-    style_line: str = "",
+    style: str = "explainer",
+    style_note: str = "",
+    style_notice: str = "",
     input: InputSummary | None = None,
     warnings: list[str] | None = None,
     now: Clock = _utc_now,
@@ -164,7 +182,9 @@ def create(
         status="uploaded",
         created_at=stamp,
         updated_at=stamp,
-        style_line=style_line,
+        style=style,
+        style_note=style_note,
+        style_notice=style_notice,
         input=input,
         warnings=list(warnings or []),
     )

@@ -28,6 +28,11 @@ Covers PRD `grammar`, `contracts.ValidatedPlan`, the retry loop in `planner`/`pi
 
 The acceptance line "FakePlanner's canned plan passes validation with zero violations" conflicts with 003 / decision 12.1 ("exercising every tier-1 kind across the 6 s"): naming all nineteen kinds needs twelve 0.5 s beats, which breaks the explainer beat minimum (0.7 s), plan mean (2.0–3.2 s), hook-cards length (2–4 s) and finale length (0.8–1.2 s). Decide here how the validator treats the fixture: 3.2 says every count is a style number, so a fixture-scaled rule set (or a per-60 s scaling of the counts, which the unique-asset and entity rules already imply) is the likely answer; shrinking the fake's coverage is not, since smoke has to exercise every kind.
 
+## Notes from 008
+
+- The style numbers are typed on `styles.StyleSpec`: `beats` (min/max/set-piece/mean range/density gap/snap window/hook slot lengths/title words), `presenter` (modes, full fraction, never-consecutive, reasons, pip/off runs, hook and finale modes), `broll` (kinds, tier-2 kinds, `enter_transitions`, `whip_max_per_3_beats`, asset counts). `pipeline.style_of(job, specs)` returns the job's spec; `PlanRequest.style.numbers` is the same data as a dict.
+- 2.3's `target_duration_s` from a style note that names a length is not parsed yet; `job.json.style_note` holds the line.
+
 ## Blocked by
 
 - Blocked by `issues/008-style-specs-loader-resolver.md`

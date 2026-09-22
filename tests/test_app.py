@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import html
 import json
+import shutil
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -20,7 +21,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from shortsmith import app as app_module
-from shortsmith import auth, jobs
+from shortsmith import auth, jobs, styles
 from shortsmith.config import Settings
 from shortsmith.ingest import MIB, Limits
 from shortsmith.planner import FakePlanner
@@ -110,6 +111,54 @@ def test_health(client: TestClient) -> None:
     assert client.get("/health").json() == {"ok": True}
 
 
+# --- style chips and live resolution (ticket 008, decisions 1.1, 1.4, 2.1) --------
+
+
+def test_root_shows_a_chip_per_shipped_style_and_the_live_resolution_hook(
+    client: TestClient,
+) -> None:
+    body = client.get("/").text
+    assert 'data-chip="explainer"' in body
+    for draft in ("educational", "animated", "hitech"):
+        assert f'data-chip="{draft}"' not in body
+    assert "/styles/resolve?line=" in body and "data-resolution" in body
+
+
+def test_styles_resolve_returns_name_note_and_notice(client: TestClient) -> None:
+    got = client.get("/styles/resolve", params={"line": "hitech please"})
+    assert got.status_code == 200
+    assert got.json() == {
+        "name": "explainer",
+        "note": "hitech please",
+        "notice": "hitech not available yet, using explainer",
+    }
+    assert client.get("/styles/resolve", params={"line": "Explainer, punchy"}).json() == {
+        "name": "explainer", "note": "Explainer, punchy", "notice": "",
+    }  # fmt: skip
+    assert client.get("/styles/resolve").json()["name"] == "explainer"
+
+
+def test_styles_resolve_needs_the_cookie(anon: TestClient) -> None:
+    got = anon.get("/styles/resolve", params={"line": "x"}, headers={"accept": "application/json"})
+    assert got.status_code == 401 and got.json() == {"error": "passcode required"}
+
+
+def test_a_broken_style_spec_stops_the_app_with_a_config_error(tmp_path: Path) -> None:
+    broken = tmp_path / "styles"
+    shutil.copytree(styles.STYLES_DIR, broken)
+    path = broken / "explainer.md"
+    path.write_text(path.read_text(encoding="utf-8").replace("\nsound:\n", "\nsounds:\n"), "utf-8")
+    with pytest.raises(styles.StyleError, match="explainer.*missing key group 'sound'"):
+        app_module.create_app(
+            _settings(tmp_path),
+            transcriber=FakeTranscriber(),
+            planner=FakePlanner(),
+            renderer=FakeRenderer(), gate=FakeGate(),
+            start_worker=False,
+            styles_dir=broken,
+        )
+
+
 def test_accepted_upload_writes_input_and_redirects(
     client: TestClient, app: FastAPI, media: Media
 ) -> None:
@@ -132,7 +181,16 @@ def test_accepted_upload_writes_input_and_redirects(
     refs = json.loads((job.input_dir / "refs.json").read_text(encoding="utf-8"))
     assert [r["caption"] for r in refs] == ["our logo"]
     assert refs[0]["rights"] == "owner_supplied"
-    assert job.record.style_line == "hitech please"
+    # 1.1 / 1.4: resolved server-side and stored on job.json with the note and notice.
+    assert job.record.style == "explainer"
+    assert job.record.style_note == "hitech please"
+    assert job.record.style_notice == "hitech not available yet, using explainer"
+    on_disk = json.loads(job.json_path.read_text(encoding="utf-8"))
+    assert (on_disk["style"], on_disk["style_note"], on_disk["style_notice"]) == (
+        "explainer", "hitech please", "hitech not available yet, using explainer",
+    )  # fmt: skip
+    page = client.get(location).text
+    assert "hitech not available yet, using explainer" in page and "hitech please" in page
     assert app.state.worker.pending() == [job.path]
 
 

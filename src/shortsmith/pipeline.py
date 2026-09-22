@@ -10,9 +10,12 @@ fixed user-facing sentence from `STEP_MESSAGES` and the exception text as `detai
 The `planning` step builds the PlanRequest from `job.json`, `brief.md`, `refs.json`
 and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1), pages
 the captions (6.1) and writes `work/plan.json`, `work/sound.json`,
-`work/captions.json`. The grammar validator between the two calls is ticket 009; the
-style loader and resolver are ticket 008, so until then the style is always
-`explainer` with its prose read from `styles/explainer.md`.
+`work/captions.json`. The style is the spec `job.json.style` names (resolved at
+upload, ticket 008): the PlanRequest carries its numbers and prose (1.2) and the
+pager reads `captions.words_per_page` / `prefer` from it. The specs are loaded once
+by whoever builds the worker (`create_app`, smoke) and passed in; a job naming a
+style that is not loaded fails at `planning`. The grammar validator between the two
+calls is ticket 009.
 
 `sourcing` is a pass-through until ticket 016 builds the asset step. `rendering`
 runs the whole render (`render.Renderer`, Remotion plus ffmpeg by default; tickets
@@ -44,13 +47,13 @@ import logging
 import queue
 import threading
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from shortsmith import captions, jobs, subproc
+from shortsmith import captions, jobs, render, subproc
 from shortsmith.captions import PagerNumbers
 from shortsmith.contracts import (
     Constraints,
@@ -64,6 +67,7 @@ from shortsmith.jobs import Clock, Job, Status
 from shortsmith.planner import Planner
 from shortsmith.qa.gate import Gate, TechnicalGate
 from shortsmith.render import RemotionRenderer, Renderer
+from shortsmith.styles import StyleError, StyleSpec
 from shortsmith.transcriber import Transcriber
 
 log = logging.getLogger(__name__)
@@ -89,12 +93,10 @@ STEP_MESSAGES: dict[str, str] = {
 }
 DELIVERABLES = ("short.mp4", "contact.jpg")  # 10.4; rights.json and credits.md with 016
 
-STYLES_DIR = Path(__file__).resolve().parents[2] / "styles"
-DEFAULT_STYLE = "explainer"  # the resolver (1.1) arrives with ticket 008
-MAX_DURATION_S = 60.0  # 3.1 / T3; the style default target comes with 008
-EXPLAINER_PAGER = PagerNumbers(words_per_page=(2, 4), prefer=3)  # front matter in 008
+MAX_DURATION_S = 60.0  # 3.1 / T3 (global, not a style number)
 
 _REFS = TypeAdapter(list[ReferenceRecord])
+Specs = Mapping[str, StyleSpec]
 
 
 class NotRunnable(Exception):
@@ -115,6 +117,7 @@ def run_job(
     planner: Planner,
     renderer: Renderer | None = None,
     gate: Gate | None = None,
+    specs: Specs | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
@@ -123,9 +126,10 @@ def run_job(
         raise NotRunnable(f"job {job.id} is {job.status!r}, not 'uploaded'")
     renderer = renderer or RemotionRenderer()
     gate = gate or TechnicalGate()
+    specs = specs if specs is not None else render.loaded_styles()
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber)),
-        ("planning", lambda j: _plan(j, planner)),
+        ("planning", lambda j: _plan(j, planner, specs)),
         ("sourcing", _source),
         ("rendering", lambda j: _render(j, renderer, clock)),
         ("qa", lambda j: _qa(j, gate)),
@@ -174,7 +178,19 @@ def _transcribe(job: Job, transcriber: Transcriber) -> None:
     (job.work_dir / "asr.json").write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
 
 
-def build_plan_request(job: Job) -> PlanRequest:
+def style_of(job: Job, specs: Specs) -> StyleSpec:
+    """The loaded spec `job.json.style` names; a name outside the loaded set is a
+    config problem to see at `planning`, never a silent fallback."""
+    spec = specs.get(job.record.style)
+    if spec is None:
+        raise StyleError(
+            f"job {job.id}: style {job.record.style!r} is not a loaded spec "
+            f"(loaded: {sorted(specs)})"
+        )
+    return spec
+
+
+def build_plan_request(job: Job, specs: Specs) -> PlanRequest:
     """PlanRequest per 2.3 from the job's files; nothing else reaches the planner."""
     transcript = Transcript.model_validate_json(
         (job.work_dir / "asr.json").read_text(encoding="utf-8")
@@ -182,12 +198,13 @@ def build_plan_request(job: Job) -> PlanRequest:
     brief = (job.input_dir / "brief.md").read_text(encoding="utf-8")
     refs_path = job.input_dir / "refs.json"
     refs = _REFS.validate_json(refs_path.read_text(encoding="utf-8")) if refs_path.is_file() else []
-    style_path = STYLES_DIR / f"{DEFAULT_STYLE}.md"
-    prose = style_path.read_text(encoding="utf-8") if style_path.is_file() else ""
+    spec = style_of(job, specs)
     return PlanRequest(
         brief=brief,
-        style=PlanStyle(name=DEFAULT_STYLE, prose=prose),
-        style_note=job.record.style_line,
+        style=PlanStyle(
+            name=spec.name, status=spec.status, numbers=spec.numbers(), prose=spec.prose
+        ),
+        style_note=job.record.style_note,
         transcript=transcript,
         references=[
             PlanReference(
@@ -207,14 +224,19 @@ def build_plan_request(job: Job) -> PlanRequest:
     )
 
 
-def _plan(job: Job, planner: Planner) -> None:
-    request = build_plan_request(job)
+def pager_numbers(spec: StyleSpec) -> PagerNumbers:
+    """The 6.1 pager numbers from the style's `captions` front matter."""
+    return PagerNumbers(words_per_page=spec.captions.words_per_page, prefer=spec.captions.prefer)
+
+
+def _plan(job: Job, planner: Planner, specs: Specs) -> None:
+    request = build_plan_request(job, specs)
     picture = planner.plan_picture(request)
     story = planner.plan_sound(request, picture)
     pages = captions.page(
         request.transcript.words,
         picture.keywords,
-        EXPLAINER_PAGER,
+        pager_numbers(style_of(job, specs)),
         duration_s=request.transcript.duration_s,
     )
     work = job.work_dir
@@ -268,6 +290,7 @@ class Worker:
         planner: Planner,
         renderer: Renderer | None = None,
         gate: Gate | None = None,
+        specs: Specs | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
         clock: Clock = _utc_now,
@@ -277,6 +300,7 @@ class Worker:
         self._planner = planner
         self._renderer = renderer or RemotionRenderer()
         self._gate = gate or TechnicalGate()
+        self._specs = specs if specs is not None else render.loaded_styles()
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
         self._clock = clock
@@ -367,6 +391,7 @@ class Worker:
                 planner=self._planner,
                 renderer=self._renderer,
                 gate=self._gate,
+                specs=self._specs,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,

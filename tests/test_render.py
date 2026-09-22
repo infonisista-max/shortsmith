@@ -1,4 +1,4 @@
-"""render (ticket 004): the pure RenderSpec builder (frames, beats, fixed-advance
+﻿"""render (ticket 004): the pure RenderSpec builder (frames, beats, fixed-advance
 caption boxes anchored at y 1460, fixed PIP geometry, palette), the component
 registry the Node project exports, the driver's progress lines, and one real render
 of the fixture through the Remotion composition checked with ffprobe.
@@ -31,6 +31,7 @@ from shortsmith.transcriber import FakeTranscriber
 from tests.conftest import Media
 
 WORDS = FakeTranscriber().transcribe(Path("unused.mp4")).words
+EXPLAINER = render.style_numbers("explainer")  # from styles/explainer.md front matter (008)
 
 
 def _plan() -> PicturePlan:
@@ -126,7 +127,7 @@ def test_every_word_has_a_box_and_timing_from_the_transcript() -> None:
 
 
 def test_boxes_advance_by_the_fixed_gap_so_activation_never_moves_a_neighbour() -> None:
-    numbers = render.EXPLAINER
+    numbers = EXPLAINER
     spec = _spec()
     line = spec.captions[0].words
     for left, right in zip(line, line[1:], strict=False):
@@ -137,7 +138,7 @@ def test_boxes_advance_by_the_fixed_gap_so_activation_never_moves_a_neighbour() 
 
 
 def test_one_line_block_bottom_sits_at_the_explainer_anchor_and_is_centred() -> None:
-    numbers = render.EXPLAINER
+    numbers = EXPLAINER
     page = _spec().captions[0]
     assert page.lines == 1
     line_h = numbers.captions.size_px * numbers.captions.line_height
@@ -149,7 +150,7 @@ def test_one_line_block_bottom_sits_at_the_explainer_anchor_and_is_centred() -> 
 
 
 def test_keyword_word_is_flagged_once_per_page_and_padded_for_its_box() -> None:
-    numbers = render.EXPLAINER
+    numbers = EXPLAINER
     page = _spec().captions[0]  # keyword 1 -> "there"
     flagged = [w for w in page.words if w.keyword]
     assert [w.text for w in flagged] == ["there"]
@@ -173,7 +174,7 @@ def _page_of(texts: list[str], keyword: int | None = None) -> tuple[CaptionPage,
 
 
 def test_a_wide_page_wraps_to_two_lines_above_the_anchor() -> None:
-    numbers = render.EXPLAINER
+    numbers = EXPLAINER
     page, words = _page_of(["remarkable", "discoveries", "await"])
     laid = render.layout_page(page, words, numbers.captions)
     assert laid.lines == 2
@@ -191,14 +192,14 @@ def test_a_page_needing_three_lines_is_a_pager_bug_and_raises() -> None:
         ["incomprehensibilities", "counterrevolutionaries", "electroencephalographically"]
     )
     with pytest.raises(render.LayoutError, match="three lines"):
-        render.layout_page(page, words, render.EXPLAINER.captions)
+        render.layout_page(page, words, EXPLAINER.captions)
 
 
 # --- PIP geometry and palette (decisions 3.3, 6.3) -----------------------------------
 
 
 def test_fixed_pip_is_a_300_px_circle_touching_the_caption_block_from_above() -> None:
-    numbers = render.EXPLAINER
+    numbers = EXPLAINER
     pip = render.fixed_pip((1080, 1920), numbers)
     assert pip.diameter == 300 and pip.left == 60
     line_h = numbers.captions.size_px * numbers.captions.line_height
@@ -209,7 +210,7 @@ def test_fixed_pip_is_a_300_px_circle_touching_the_caption_block_from_above() ->
 
 
 def test_landscape_source_window_is_still_a_square_inside_the_source() -> None:
-    pip = render.fixed_pip((1920, 1080), render.EXPLAINER)
+    pip = render.fixed_pip((1920, 1080), EXPLAINER)
     assert pip.window_size == 1080 and pip.window_left == 420 and pip.window_top == 0
 
 

@@ -20,6 +20,14 @@ Retry-After for the queue and the day limit, 413 for the size. A waiting job's p
 shows "queued, position N" and the JSON carries `queue_position` so the poll reloads
 as jobs finish. `MAX_JOB_MINUTES` reaches the worker.
 
+Styles (ticket 008, decisions 1.1, 1.4, 2.1): `create_app` loads every spec under
+`styles/` against the renderer registry and refuses to build the app on a broken
+one (a `StyleError` naming the spec and the problem is the config error). The upload
+form offers one chip per shipped style and resolves the style field live through
+`GET /styles/resolve?line=`, showing the resolved name, note and draft notice before
+submit; `POST /jobs` resolves the same line server-side and stores `style`,
+`style_note` and `style_notice` on `job.json`.
+
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 """
@@ -27,13 +35,14 @@ the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import html
 import json
 import math
 import re
 import shutil
 import tempfile
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -52,7 +61,7 @@ from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from shortsmith import auth, config, ingest, jobs, pipeline
+from shortsmith import auth, config, ingest, jobs, pipeline, render, styles
 from shortsmith import planner as planner_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
@@ -146,8 +155,12 @@ def create_app(
     start_worker: bool = True,
     clock: Clock = _utc_now,
     delay: Delay = asyncio.sleep,
+    styles_dir: Path | None = None,
 ) -> FastAPI:
     settings = settings or config.load()
+    # Every style spec loads here, at startup, or the app does not build (1.2, 1.4).
+    specs = styles.load_all(render.registry(), styles_dir or styles.STYLES_DIR)
+    chips = styles.shipped(specs)
     # The Groq transcriber arrives with ticket 012; until then the fake is the only one.
     transcriber = transcriber or FakeTranscriber()
     # `PLANNER` selects the adapter (8.3); the unbuilt ones fail the job at `planning`.
@@ -160,6 +173,7 @@ def create_app(
         planner=planner,
         renderer=renderer,
         gate=gate,
+        specs=specs,
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
         clock=clock,
@@ -189,6 +203,7 @@ def create_app(
     app.state.worker = worker
     app.state.limits = limits
     app.state.failures = failures
+    app.state.specs = specs
     app.add_middleware(PasscodeGuard, passcode=passcode, clock=clock)
 
     @app.get("/health")
@@ -234,7 +249,13 @@ def create_app(
     async def upload_form() -> HTMLResponse:
         if await run_in_threadpool(day_limit_reached):
             return HTMLResponse(render_upload_form(limits, closed=day_closed_sentence()))
-        return HTMLResponse(render_upload_form(limits))
+        return HTMLResponse(render_upload_form(limits, chips=chips))
+
+    @app.get("/styles/resolve")
+    async def resolve_style(line: str = "") -> Response:
+        """The live resolution the form shows before submit (1.1): the same code
+        path `POST /jobs` stores, so the page never promises a different style."""
+        return JSONResponse(dataclasses.asdict(styles.resolve(line, specs)))
 
     @app.post("/jobs")
     async def submit(request: Request) -> Response:
@@ -250,6 +271,7 @@ def create_app(
             return HTMLResponse(
                 render_upload_form(
                     limits,
+                    chips=chips,
                     rejection=f"{worker.depth()} shorts are already in the queue; try in an hour.",
                 ),
                 status_code=503,
@@ -265,7 +287,7 @@ def create_app(
                 worker.release()
 
     async def _submit_reserved(request: Request) -> Response:
-        too_large = _too_large(limits)
+        too_large = _too_large(limits, chips)
         declared = request.headers.get("content-length")
         if declared is not None and declared.isdigit() and int(declared) > body_limit(limits):
             return too_large
@@ -303,21 +325,22 @@ def create_app(
                         )
             if video_upload is None:
                 return _rejection(
-                    limits, "Please choose a video file to upload.", brief, style_line, captions
-                )
+                    limits, chips, "Please choose a video file to upload.", brief, style_line,
+                    captions,
+                )  # fmt: skip
             try:
                 job = await run_in_threadpool(
                     ingest.accept,
                     data_dir,
                     video=video_upload,
                     brief=brief,
-                    style_line=style_line,
+                    style=styles.resolve(style_line, specs),
                     references=references,
                     limits=limits,
                     now=clock,
                 )
             except Rejected as exc:
-                return _rejection(limits, str(exc), brief, style_line, captions)
+                return _rejection(limits, chips, str(exc), brief, style_line, captions)
         worker.submit(job.path, reserved=True)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
@@ -362,9 +385,11 @@ def _seconds_to_next_midnight_ist(now: datetime) -> int:
     return max(1, int((next_midnight - now).total_seconds()))
 
 
-def _too_large(limits: Limits) -> HTMLResponse:
+def _too_large(limits: Limits, chips: Sequence[str]) -> HTMLResponse:
     sentence = f"The recording must be {limits.max_upload_bytes // ingest.MIB} MB or smaller."
-    return HTMLResponse(render_upload_form(limits, rejection=sentence), status_code=413)
+    return HTMLResponse(
+        render_upload_form(limits, chips=chips, rejection=sentence), status_code=413
+    )
 
 
 # --- passcode guard -------------------------------------------------------------
@@ -445,10 +470,20 @@ def _spool(value: object, dest_dir: Path) -> VideoUpload | None:
 
 
 def _rejection(
-    limits: Limits, sentence: str, brief: str, style_line: str, captions: list[str]
+    limits: Limits,
+    chips: Sequence[str],
+    sentence: str,
+    brief: str,
+    style_line: str,
+    captions: list[str],
 ) -> HTMLResponse:
     page = render_upload_form(
-        limits, rejection=sentence, brief=brief, style_line=style_line, captions=captions
+        limits,
+        chips=chips,
+        rejection=sentence,
+        brief=brief,
+        style_line=style_line,
+        captions=captions,
     )
     return HTMLResponse(page, status_code=422)
 
@@ -466,13 +501,15 @@ def render_passcode_form(message: str, next_url: str) -> str:
 def render_upload_form(
     limits: Limits,
     *,
+    chips: Sequence[str] = (),
     rejection: str = "",
     brief: str = "",
     style_line: str = "",
     captions: list[str] | None = None,
     closed: str = "",
 ) -> str:
-    """The upload page; with `closed` set, the notice replaces the form (11.2 day limit)."""
+    """The upload page; `chips` are the shipped style names (2.1); with `closed` set,
+    the notice replaces the form (11.2 day limit)."""
     if closed:
         body = f'<p class="closed">{html.escape(closed)}</p>'
     else:
@@ -490,6 +527,11 @@ def render_upload_form(
             max_upload_mb=limits.max_upload_bytes // ingest.MIB,
             brief=html.escape(brief),
             style=html.escape(style_line),
+            chips="".join(
+                f'<span class="chip" role="button" tabindex="0" data-chip="{html.escape(c)}">'
+                f"{html.escape(c)}</span>"
+                for c in chips
+            ),
             references="\n".join(refs),
         )
     return _template("upload.html").substitute(
@@ -558,7 +600,13 @@ def render_job_page(job: Job, *, now: datetime | None = None, position: int | No
         warnings=warnings,
         error=error,
         input_line=input_line,
-        style_line=html.escape(record.style_line) or "–",
+        style=html.escape(record.style),
+        style_notice=(
+            f' <span class="notice">{html.escape(record.style_notice)}</span>'
+            if record.style_notice
+            else ""
+        ),
+        style_note=html.escape(record.style_note) or "–",
         references=references,
         brief=html.escape(brief),
         result=_result_block(job),

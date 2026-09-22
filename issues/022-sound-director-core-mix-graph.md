@@ -26,6 +26,10 @@ Covers PRD `sound`, the mix half of `render`, rights rows for audio. Decisions 7
 - [ ] Boundary tests, `tests/test_sound.py`: envelope clipped at +4/−8, ramp under 1.5 s rejected, 21st cue dropped, floor hits from a synthetic plan, bed selection tie-break.
 - [ ] Smoke: the fixture short has a bed and at least one floor hit; T4 passes on the full mix.
 
+## Notes from 008
+
+- `pyyaml==6.0.3` is declared (pinned) for `catalog.yaml`. The 7.3 numbers are typed on `styles.Sound` (bed target and acceptance, speech band and margin, duck/swell/drop/ramp, fades, `floor_hits` by hit kind, cue caps and dB range) and `sound.forbidden` is exactly `[sweep, riser, rumble_crescendo, whoosh]` on every spec.
+
 ## Blocked by
 
 - Blocked by `issues/008-style-specs-loader-resolver.md`

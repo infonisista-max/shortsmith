@@ -26,12 +26,12 @@ into `work/stems/mix.wav` and muxes it with the picture stream copied bit-for-bi
 `out/short.mp4` (revision proof (a), 10.1). Stems always sit beside the mix under
 `work/stems/`. `render_short` is the whole `rendering` step.
 
-Style numbers: the loader (008) does not exist yet, so `EXPLAINER` holds the 6.2, 6.3
-and 3.3 numbers as one typed constant, the way `pipeline` holds the pager numbers.
-Word widths are estimated from a per-glyph advance table for Poppins 800; ticket 010
+Style numbers come from the style front matter (ticket 008, decision 1.2):
+`numbers_for(spec)` narrows a loaded `StyleSpec` to the `StyleNumbers` the builder
+reads (the 6.2 typography, the 3.3 / 6.3 PIP geometry, the palette), and
+`style_numbers(name)` looks a style up in the specs loaded once per process. Word
+widths are estimated from a per-glyph advance table for Poppins 800; ticket 010
 replaces the estimate with a Pillow measurement and adds the pager's own wrapping.
-The gradient palette, PIP left edge and ring look are placeholders that 008 moves
-into front matter (no reference value exists on record for them).
 
 Component registry (9.2): `src/remotion/registry.json` is the checked-in list the
 Node test asserts against the component files; `registry()` reads the same file.
@@ -47,11 +47,12 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from shortsmith import ffmpeg, presenter, subproc
+from shortsmith import ffmpeg, presenter, styles, subproc
 from shortsmith.contracts import (
     BeatSpec,
     CaptionPage,
@@ -67,6 +68,7 @@ from shortsmith.contracts import (
     WordBox,
 )
 from shortsmith.jobs import Job
+from shortsmith.styles import StyleSpec
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REMOTION_DIR = REPO_ROOT / "src" / "remotion"
@@ -98,7 +100,7 @@ class LayoutError(ValueError):
     """A caption page cannot be laid out within the style's line limit (6.2)."""
 
 
-# --- style numbers (until 008) ---------------------------------------------------------
+# --- style numbers (decision 1.2: read from front matter, never from code) --------------
 
 
 @dataclass(frozen=True)
@@ -118,42 +120,31 @@ class StyleNumbers:
     palette: Palette
 
 
-EXPLAINER = StyleNumbers(
-    captions=CaptionStyle(
-        font_family="Poppins",
-        font_weight=800,
-        size_px=74,
-        line_height=1.35,
-        letter_spacing_px=0.5,
-        anchor_y=1460,
-        max_lines=2,
-        max_width_px=960,
-        word_gap_px=22,
-        unspoken_alpha=0.86,
-        active_color="#FFD60A",
-        active_scale=1.08,
-        active_scale_s=0.10,
-        keyword_fg="#111",
-        keyword_bg="#FFD60A",
-        keyword_pad_px=14,
-        keyword_radius_px=14,
-        enter_scale_from=0.94,
-        enter_s=0.12,
-        enter_opacity_s=0.06,
-        stroke_px=2,
-        drop_px=3,
-        glow_px=18,
-    ),
-    pip=PipNumbers(
-        diameter=300,
-        large_face_diameter=340,
-        chin_anchor=0.82,
-        left=60,  # placeholder until 008: "bottom-left" is all the reference records
-        ring_px=6,
-        ring_color="#FFFFFF",
-    ),
-    palette=Palette(gradient=["#0B1D3A", "#1F3B73"], angle_deg=160, accent="#FFD60A"),
-)
+def numbers_for(spec: StyleSpec) -> StyleNumbers:
+    """The subset of a loaded spec the render spec builder reads."""
+    return StyleNumbers(
+        captions=spec.caption_style(),
+        pip=PipNumbers(
+            diameter=spec.pip.diameter,
+            large_face_diameter=spec.pip.large_face_diameter,
+            chin_anchor=spec.pip.chin_anchor,
+            left=spec.pip.left,
+            ring_px=spec.pip.ring_px,
+            ring_color=spec.pip.ring_color,
+        ),
+        palette=spec.palette,
+    )
+
+
+@cache
+def loaded_styles() -> dict[str, StyleSpec]:
+    """The specs under `styles/`, validated against this project's registry, loaded
+    once per process for the render path (the app and worker load their own copy)."""
+    return styles.load_all(registry())
+
+
+def style_numbers(name: str) -> StyleNumbers:
+    return numbers_for(loaded_styles()[name])
 
 
 # --- text width estimate (until 010 measures with Pillow) -----------------------------
@@ -287,9 +278,10 @@ def build_spec(
     presenter: Path,
     source_size: tuple[int, int],
     duration_s: float,
-    numbers: StyleNumbers = EXPLAINER,
+    numbers: StyleNumbers | None = None,
     fps: int = FPS,
 ) -> RenderSpec:
+    numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     beats = [
         BeatSpec(
@@ -428,9 +420,11 @@ def _cut_path(job: Job) -> Path:
     return job.work_dir / "cut.mp4"
 
 
-def spec_for_job(job: Job, *, numbers: StyleNumbers = EXPLAINER) -> RenderSpec:
+def spec_for_job(job: Job, *, numbers: StyleNumbers | None = None) -> RenderSpec:
     """The RenderSpec from the job's files: plan.json, asr.json, captions.json and the
-    presenter cut (`work/cut.mp4`, 005). The short is as long as the cut list."""
+    presenter cut (`work/cut.mp4`, 005), with the numbers of the job's resolved style
+    (`job.json.style`, 008). The short is as long as the cut list."""
+    numbers = numbers or style_numbers(job.record.style)
     work = job.work_dir
     plan = _load_plan(job)
     transcript = Transcript.model_validate_json((work / "asr.json").read_text(encoding="utf-8"))
@@ -705,6 +699,7 @@ class FakeRenderer(Renderer):
             presenter=cut,
             source_size=(WIDTH, HEIGHT),
             duration_s=presenter.total_duration(presenter.cut_list(plan)),
+            numbers=style_numbers(job.record.style),
         )
         (job.work_dir / "render_spec.json").write_text(
             spec.model_dump_json(indent=2), encoding="utf-8"
