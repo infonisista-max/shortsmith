@@ -183,6 +183,7 @@ Motion = Literal[
 ]
 SubjectKind = Literal["entity", "concept", "number", "quote"]
 Depicts = Literal["named_entity", "scene"]
+Render = Literal["illustration", "photoreal"]  # 4.2: a named entity is never photoreal
 SourceIntent = Literal["search", "generate", "reuse"]
 Transition = Literal["cut", "fade", "whip", "zoom", "spring", "wipe"]
 EventKind = Literal["stamp", "ring", "lower_third", "none"]
@@ -381,7 +382,7 @@ class Generated(StrictModel):
 
     model: str
     prompt: str
-    render: Literal["illustration", "photoreal"]
+    render: Render
     depicts: Depicts
 
 
@@ -469,6 +470,11 @@ class AssetManifest(StrictModel):
     # far is free, so passing the allowance is a note, never a skipped beat (11.3).
     search_queries: int = 0
     search_max: int = 0
+    # 5.5 / 5.6: images generated (a cached prompt generates nothing and is not
+    # counted) and the style's `gen_max_per_short` cap; the cap sends the beat on to
+    # rung 3 of the ladder, it never fails the job.
+    generated_images: int = 0
+    gen_max: int = 0
 
     def asset(self, asset_id: str) -> AssetRecord | None:
         return next((a for a in self.assets if a.id == asset_id), None)

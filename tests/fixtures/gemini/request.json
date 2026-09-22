@@ -1,0 +1,19 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "<the code-built prompt; the test substitutes it>"
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "responseModalities": [
+      "IMAGE"
+    ],
+    "imageConfig": {
+      "aspectRatio": "9:16"
+    }
+  }
+}

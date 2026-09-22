@@ -192,6 +192,29 @@ def test_the_api_planner_needs_an_anthropic_key_at_startup(
     config.check_startup(_startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
 
 
+def test_image_generation_is_off_by_default_and_gemini_needs_a_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """5.5: rung 2 is a no-op until `IMAGE_GEN` names a generator; model and endpoint
+    are config strings, so another provider is an `.env` edit, not code."""
+    s = _settings(monkeypatch)
+    assert (s.image_gen, s.image_gen_model) == ("none", "gemini-2.5-flash-image")
+    assert s.image_gen_endpoint.endswith("/models/{model}:generateContent")
+    with pytest.raises(config.ConfigError, match="GEMINI_API_KEY"):
+        config.check_startup(
+            _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", IMAGE_GEN="gemini")
+        )
+    config.check_startup(
+        _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", IMAGE_GEN="gemini",
+                 GEMINI_API_KEY="g_x")  # fmt: skip
+    )
+    config.check_startup(
+        _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", IMAGE_GEN="fake")
+    )
+    swapped = _settings(monkeypatch, IMAGE_GEN_MODEL="imagen-x", IMAGE_GEN_ENDPOINT="https://e/x")
+    assert (swapped.image_gen_model, swapped.image_gen_endpoint) == ("imagen-x", "https://e/x")
+
+
 def test_the_relevance_judge_is_on_by_default_on_haiku_and_needs_a_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,0 +1,26 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "inlineData": {
+              "mimeType": "image/png",
+              "data": "<base64 image bytes; the test fills these in, no media is committed>"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 31,
+    "candidatesTokenCount": 1290,
+    "totalTokenCount": 1321
+  },
+  "modelVersion": "gemini-test-image-001",
+  "responseId": "cL5-aOm2M8-test"
+}

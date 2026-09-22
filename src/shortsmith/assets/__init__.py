@@ -16,7 +16,7 @@ an `AssetManifest` (`work/assets.json`):
   they take a matching reference or the previous beat's asset.
 - The ladder (4.4), applied here, never by the planner: every searched source in the
   configured order with `query` (rung 0), then with `query_fallback` (rung 1), then
-  generation (rung 2; a no-op while `IMAGE_GEN=none`, ticket 019), then the nearest
+  generation (rung 2, ticket 019; a no-op while `IMAGE_GEN=none`), then the nearest
   earlier asset of the same `subject_kind` re-dressed with a framing it has not had
   (rung 3), then the presenter PIP over the style gradient (rung 4). Rungs 3 and 4
   carry a stamp word. Never a blank beat. The manifest carries `rescued_max`, the
@@ -48,7 +48,9 @@ note, never a skipped beat (11.3).
 (12.1), which writes solid PNGs at the sizes it was given behind fake URLs and has
 "nothing found" modes; `http` the HTTP half every real adapter shares; `web` the
 scraped image search (017); `commons`, `openverse`, `pexels` and `pixabay` the free
-libraries of the 5.1 order (018); `judge` the relevance judge.
+libraries of the 5.1 order (018); `judge` the relevance judge; `generate` rung 2 -
+the two code-built prompt templates, the Gemini REST adapter, the fake, the style's
+`gen_max_per_short` ceiling and the generated-file cache (019).
 """
 
 from __future__ import annotations
@@ -82,6 +84,14 @@ from shortsmith.assets.base import (
     source_order,
 )
 from shortsmith.assets.commons import CommonsImageSource
+from shortsmith.assets.generate import (
+    FakeImageGenerator,
+    GeminiImageGenerator,
+    GeneratedAsset,
+    Generating,
+    GeneratorError,
+    ImageGenerator,
+)
 from shortsmith.assets.judge import (
     FakeRelevanceJudge,
     Judging,
@@ -122,8 +132,14 @@ __all__ = [
     "MIN_SHORT_SIDE",
     "AssetError",
     "CommonsImageSource",
+    "FakeImageGenerator",
     "FakeImageSource",
     "FakeRelevanceJudge",
+    "GeminiImageGenerator",
+    "GeneratedAsset",
+    "Generating",
+    "GeneratorError",
+    "ImageGenerator",
     "ImageSource",
     "Judging",
     "OpenverseImageSource",
@@ -185,20 +201,6 @@ def _utc_now() -> datetime:
 
 class AssetError(RuntimeError):
     """The step cannot proceed (a missing reference file, an unreadable image)."""
-
-
-# --- generation (5.5; the generator itself is ticket 019) ---------------------------------
-
-
-@dataclass(frozen=True)
-class GeneratedImage:
-    path: Path
-    generated: Generated
-
-
-# A generator writes one image for the beat under the given directory, or returns None
-# ("nothing generated"). None in place of the callable is `IMAGE_GEN=none`.
-Generate = Callable[[Beat, Path], GeneratedImage | None]
 
 
 # --- classification (5.3) -------------------------------------------------------------------
@@ -398,30 +400,6 @@ def _reject_fetched(path: Path) -> str | None:
     return reject_size(width, height)
 
 
-def _generate_cached(beat: Beat, generate: Generate, cache: Path, clock: Clock) -> _Fetched | None:
-    folder = cache / cache_key(beat.query, "generated")
-    result = folder / "result.json"
-    if result.is_file():
-        data = json.loads(result.read_text(encoding="utf-8"))
-        if data["file"] is None:
-            return None
-        generated = Generated.model_validate(data["generated"])
-        return _Fetched(folder / data["file"], None, data["fetched_at"], generated)
-    folder.mkdir(parents=True, exist_ok=True)
-    made = generate(beat, folder)
-    record: dict[str, object] = {"query": beat.query, "file": None}
-    fetched: _Fetched | None = None
-    if made is not None:
-        fetched = _Fetched(made.path, None, clock().isoformat(), made.generated)
-        record |= {
-            "file": made.path.relative_to(folder).as_posix(),
-            "generated": made.generated.model_dump(mode="json"),
-            "fetched_at": fetched.fetched_at,
-        }
-    result.write_text(json.dumps(record, indent=2), encoding="utf-8")
-    return fetched
-
-
 # --- owner references (1.3) ---------------------------------------------------------------
 
 
@@ -603,7 +581,7 @@ def source_assets(
     sources: Mapping[str, ImageSource],
     order: Sequence[str] = DEFAULT_ORDER,
     job_dir: Path,
-    generate: Generate | None = None,
+    generating: Generating | None = None,
     judging: Judging | None = None,
     searching: Searching | None = None,
     topic: str = "",
@@ -619,6 +597,7 @@ def source_assets(
     walk = _Walk(job_dir=job_dir, cache=cache, clock=clock, references=references)
     judging = judging if judging is not None else Judging()
     searching = searching if searching is not None else Searching()
+    generating = generating if generating is not None else Generating()
 
     def search(beat: Beat, query: str) -> tuple[_Fetched, SearchOrigin] | None:
         if not query:
@@ -633,13 +612,11 @@ def source_assets(
         return None
 
     def generated(beat: Beat) -> AssetRecord | None:
-        if generate is None:
-            return None
-        made = _generate_cached(beat, generate, cache, clock)
+        made = generating.make(beat, cache)
         if made is None:
             return None
-        return walk.add(_new_id(beat), made.path, origin="generated", fetched_at=made.fetched_at,
-                        generated=made.generated)  # fmt: skip
+        return walk.add(_new_id(beat), made.path, origin="generated",
+                        fetched_at=clock().isoformat(), generated=made.generated)  # fmt: skip
 
     for beat in picture.beats:
         if beat.kind in NOT_SOURCED or beat.subject_kind is None:
@@ -665,7 +642,7 @@ def source_assets(
                 continue
         tried_generation = False
         if beat.subject_kind == "concept" and beat.source_intent == "generate":
-            tried_generation = generate is not None
+            tried_generation = generating.generator is not None
             record = generated(beat)
             if record is not None:
                 walk.show(beat, record, 2)
@@ -695,7 +672,7 @@ def source_assets(
             continue
         walk.gradient(beat)
 
-    for note in (*judging.notes, *searching.notes):
+    for note in (*judging.notes, *searching.notes, *generating.notes):
         log(note)
     runtime = picture.beats[-1].end if picture.beats else 0.0
     return AssetManifest(
@@ -708,6 +685,8 @@ def source_assets(
         judge_max=judging.max_calls,
         search_queries=searching.queries,
         search_max=searching.max_queries,
+        generated_images=generating.images,
+        gen_max=generating.max_images,
     )
 
 
@@ -734,13 +713,13 @@ def topic_line(job_dir: Path) -> str:
 class Sourcing:
     """The `sourcing` step's configuration: the adapters by config name, the 5.1
     order (`ASSET_SOURCES`), the 5.2 policy, the relevance judge (None: no judging,
-    the source's own order decides) and the generator (None: `IMAGE_GEN=none`).
+    the source's own order decides) and the rung-2 generator (None: `IMAGE_GEN=none`).
     A configured name with no adapter is skipped and noted in the job log."""
 
     sources: Mapping[str, ImageSource] = field(default_factory=lambda: {})
     order: Sequence[str] = DEFAULT_ORDER
     policy: AssetPolicy = "any"
-    generate: Generate | None = None
+    generator: ImageGenerator | None = None
     judge: RelevanceJudge | None = None
     # Why a configured source has no adapter, one line each, written by
     # `from_settings` and logged by the pipeline before the step runs.
@@ -768,6 +747,11 @@ class Sourcing:
             max_calls=spec.budget.judge_max_calls,
         )
         searching = Searching(max_queries=spec.budget.search_max_queries)
+        generating = Generating(
+            generator=self.generator.bind(job) if self.generator is not None else None,
+            spec=spec,
+            max_images=spec.budget.gen_max_per_short,
+        )
         manifest = source_assets(
             validated,
             references,
@@ -776,7 +760,7 @@ class Sourcing:
             sources=self.sources,
             order=self.order,
             job_dir=job_dir,
-            generate=self.generate,
+            generating=generating,
             judging=judging,
             searching=searching,
             topic=topic_line(job_dir),
@@ -797,6 +781,24 @@ def judge_from_settings(settings: Settings, ledger: Callable[[], Ledger]) -> Rel
         return FakeRelevanceJudge()
     return VisionJudge(
         ledger, api_key=settings.anthropic_api_key, model=settings.relevance_judge_model
+    )
+
+
+def generator_from_settings(
+    settings: Settings, ledger: Callable[[], Ledger]
+) -> ImageGenerator | None:
+    """The generator `IMAGE_GEN` names (5.5): `none` makes rung 2 a no-op, `fake`
+    writes the prompt onto a solid frame for a local run, `gemini` is the REST
+    adapter on `IMAGE_GEN_ENDPOINT` with `IMAGE_GEN_MODEL`."""
+    if settings.image_gen == "none":
+        return None
+    if settings.image_gen == "fake":
+        return FakeImageGenerator()
+    return GeminiImageGenerator(
+        ledger,
+        api_key=settings.gemini_api_key,
+        model=settings.image_gen_model,
+        endpoint=settings.image_gen_endpoint,
     )
 
 
@@ -835,6 +837,7 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourci
         sources=sources,
         order=order,
         policy=settings.asset_policy,
+        generator=generator_from_settings(settings, ledger),
         judge=judge_from_settings(settings, ledger),
         notes=notes,
     )

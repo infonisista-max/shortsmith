@@ -57,6 +57,8 @@ broll:
   stamp_max_y_fraction: 0.6
   photo_look: "bold flat-colour illustration, strong shapes, consistent palette"
   illustration_look: "vector cartoon illustration, thick outlines, limited palette, clearly stylised"
+  scene_mood: "playful, upbeat mood"
+  scene_lighting: "flat even light, no harsh shadows"
 captions:
   font_family: Poppins
   font_weight: 900

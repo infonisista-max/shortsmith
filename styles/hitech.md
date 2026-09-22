@@ -57,6 +57,8 @@ broll:
   stamp_max_y_fraction: 0.6
   photo_look: "product photograph on a dark gradient, rim light, high contrast"
   illustration_look: "dark futuristic illustration, cyan glow accents, clean geometry, clearly stylised"
+  scene_mood: "sleek, high-tech mood"
+  scene_lighting: "rim light on a dark background, high contrast"
 captions:
   font_family: Poppins
   font_weight: 700

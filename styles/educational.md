@@ -56,6 +56,8 @@ broll:
   stamp_max_y_fraction: 0.6
   photo_look: "clean textbook photograph, even light, neutral background"
   illustration_look: "flat educational diagram illustration, two-colour, clean lines"
+  scene_mood: "calm, explanatory mood"
+  scene_lighting: "even studio light on a neutral background"
 captions:
   font_family: Poppins
   font_weight: 700

@@ -24,7 +24,6 @@ from shortsmith.contracts import (
     CutPlan,
     Event,
     Finale,
-    Generated,
     Hook,
     PicturePlan,
     ReferenceRecord,
@@ -108,7 +107,7 @@ def _run(
     sources: dict[str, assets.ImageSource] | None = None,
     references: Sequence[ReferenceRecord] = (),
     policy: str = "any",
-    generate: assets.Generate | None = None,
+    generating: assets.Generating | None = None,
     job: Path | None = None,
     hook_cards: Sequence[str] = (),
     judging: assets.Judging | None = None,
@@ -123,7 +122,7 @@ def _run(
         sources=sources if sources is not None else {"web": assets.FakeImageSource("web")},
         order=assets.DEFAULT_ORDER,
         job_dir=job or _job_dir(tmp_path),
-        generate=generate,
+        generating=generating,
         judging=judging,
         topic=topic,
         log=(log if log is not None else []).append,
@@ -166,7 +165,7 @@ def test_from_settings_follows_asset_sources_and_policy() -> None:
     assert (tuple(sourcing.order), sourcing.policy) == (("fake", "web"), "rights_safe")
     assert list(sourcing.sources) == ["fake"]  # the policy dropped `web`
     assert sourcing.missing() == []
-    assert sourcing.generate is None  # IMAGE_GEN=none until 019
+    assert sourcing.generator is None  # IMAGE_GEN=none makes rung 2 a no-op (5.5)
 
 
 def test_default_settings_build_every_keyless_adapter_in_the_5_1_order() -> None:
@@ -187,6 +186,17 @@ def test_the_keyed_libraries_are_built_once_their_free_keys_are_set() -> None:
     assert isinstance(sourcing.sources["pixabay"], assets.PixabayImageSource)
     assert sourcing.missing() == []
     assert list(sourcing.notes) == []
+
+
+def test_image_gen_names_the_generator_of_rung_2() -> None:
+    """5.5: `none` is a no-op rung, `fake` a local run, `gemini` the REST adapter."""
+    assert _sourcing(image_gen="fake").generator is not None
+    gemini = _sourcing(
+        image_gen="gemini", gemini_api_key="g_x", image_gen_model="gemini-x"
+    ).generator
+    assert isinstance(gemini, assets.GeminiImageGenerator)
+    assert gemini.model == "gemini-x"
+    assert gemini.endpoint == config.Settings(_env_file=None).image_gen_endpoint  # pyright: ignore[reportCallIssue]
 
 
 def test_the_ladder_bookends_are_listed_in_the_config_but_never_searched() -> None:
@@ -417,16 +427,11 @@ def _write_png(path: Path, size: tuple[int, int] = (1080, 1920)) -> Path:
     return path
 
 
-def _generator(calls: list[str]) -> assets.Generate:
-    def generate(beat: Beat, dest: Path) -> assets.GeneratedImage | None:
-        calls.append(beat.id)
-        return assets.GeneratedImage(
-            path=_write_png(dest / "generated.png"),
-            generated=Generated(model="fake-gen", prompt=f"prompt for {beat.query}",
-                                render="photoreal", depicts="scene"),
-        )  # fmt: skip
-
-    return generate
+def _generating(*, nothing_for: Sequence[str] = (), cap: int = 8) -> assets.Generating:
+    """019: rung 2 on the fake generator, which needs no key and no network."""
+    return assets.Generating(
+        generator=assets.FakeImageGenerator(nothing_for=nothing_for), spec=SPEC, max_images=cap
+    )
 
 
 def test_rung_0_query_found(tmp_path: Path) -> None:
@@ -451,15 +456,17 @@ def test_every_source_is_tried_with_query_before_the_fallback(tmp_path: Path) ->
 
 
 def test_rung_2_generates_when_search_finds_nothing(tmp_path: Path) -> None:
-    calls: list[str] = []
+    generating = _generating()
     empty = assets.FakeImageSource("web", nothing_found=True)
     manifest = _run(tmp_path, [_beat(1, "concept")], sources={"web": empty},
-                    generate=_generator(calls))  # fmt: skip
-    assert calls == ["b01"]
+                    generating=generating)  # fmt: skip
+    assert generating.images == 1
     assert manifest.beats[0].fallback_rung == 2
     record = manifest.assets[0]
     assert record.origin == "generated" and record.generated is not None
+    assert record.generated.prompt and record.generated.depicts == "scene"
     assert record.source_url == ""
+    assert (manifest.generated_images, manifest.gen_max) == (1, 8)
 
 
 def test_rung_2_is_a_no_op_without_a_generator(tmp_path: Path) -> None:
@@ -499,19 +506,17 @@ def test_rung_4_pip_over_gradient_when_nothing_earlier(tmp_path: Path) -> None:
 
 
 def test_every_rung_in_order_on_one_plan(tmp_path: Path) -> None:
-    calls: list[str] = []
     web = assets.FakeImageSource(
         "web", nothing_for={"query 2", "query 3", "fallback 3", "query 4", "fallback 4",
                             "query 5", "fallback 5"},
     )  # fmt: skip
     beats = [_beat(1, "concept"), _beat(2, "concept"), _beat(3, "concept"),
              _beat(4, "concept"), _beat(5, "entity")]  # fmt: skip
-
-    def only_b03(beat: Beat, dest: Path) -> assets.GeneratedImage | None:
-        return _generator(calls)(beat, dest) if beat.id == "b03" else None
-
-    manifest = _run(tmp_path, beats, sources={"web": web}, generate=only_b03)
+    # Only b03 can be generated, so b04 falls to the re-dress and b05 to the gradient.
+    generating = _generating(nothing_for=["query 4", "query 5"])
+    manifest = _run(tmp_path, beats, sources={"web": web}, generating=generating)
     assert [b.fallback_rung for b in manifest.beats] == [0, 1, 2, 3, 4]
+    assert generating.images == 1
 
 
 def test_never_a_blank_beat(tmp_path: Path) -> None:
@@ -573,19 +578,20 @@ def test_number_and_quote_beats_reuse_the_previous_asset(tmp_path: Path) -> None
     web = assets.FakeImageSource("web")
     beats = [_beat(1, "concept"), _beat(2, "number", intent="generate"),
              _beat(3, "quote", intent="search")]  # fmt: skip
-    calls: list[str] = []
-    manifest = _run(tmp_path, beats, sources={"web": web}, generate=_generator(calls))
-    assert web.searches == 1 and calls == []  # the label forbids search and generation
+    generating = _generating()
+    manifest = _run(tmp_path, beats, sources={"web": web}, generating=generating)
+    # The label forbids search and generation alike.
+    assert web.searches == 1 and generating.images == 0
     assert [b.asset_id for b in manifest.beats] == ["a1", "a1", "a1"]
     assert [a.id for a in manifest.assets] == ["a1"]
 
 
 def test_generate_intent_on_a_concept_beat_generates_first(tmp_path: Path) -> None:
     web = assets.FakeImageSource("web")
-    calls: list[str] = []
+    generating = _generating()
     manifest = _run(tmp_path, [_beat(1, "concept", intent="generate")], sources={"web": web},
-                    generate=_generator(calls))  # fmt: skip
-    assert calls == ["b01"] and web.searches == 0
+                    generating=generating)  # fmt: skip
+    assert generating.images == 1 and web.searches == 0
     assert (manifest.beats[0].fallback_rung, manifest.assets[0].origin) == (2, "generated")
 
 
@@ -596,11 +602,34 @@ def test_generate_intent_without_a_generator_still_searches(tmp_path: Path) -> N
 
 def test_entity_beats_always_search_first(tmp_path: Path) -> None:
     web = assets.FakeImageSource("web")
-    calls: list[str] = []
+    generating = _generating()
     manifest = _run(tmp_path, [_beat(1, "entity", intent="generate")], sources={"web": web},
-                    generate=_generator(calls))  # fmt: skip
-    assert calls == [] and web.searches == 1
+                    generating=generating)  # fmt: skip
+    assert generating.images == 0 and web.searches == 1
     assert manifest.assets[0].origin == "web"
+
+
+def test_the_generation_cap_sends_the_beat_on_to_the_ladder(tmp_path: Path) -> None:
+    """5.5 / 11.3: `gen_max_per_short` spent means rung 3, never a failed job."""
+    empty = assets.FakeImageSource("web", nothing_found=True)
+    beats = [_beat(1, "concept"), _beat(2, "concept"), _beat(3, "concept")]
+    log: list[str] = []
+    generating = _generating(cap=1)
+    manifest = _run(tmp_path, beats, sources={"web": empty}, generating=generating, log=log)
+    assert [b.fallback_rung for b in manifest.beats] == [2, 3, 3]
+    assert (manifest.generated_images, manifest.gen_max) == (1, 1)
+    assert [line for line in log if "gen_max_per_short (1) is spent" in line]
+
+
+def test_two_beats_asking_for_the_same_picture_generate_once(tmp_path: Path) -> None:
+    """5.6: the generated file is cached by prompt and model, like a search result."""
+    empty = assets.FakeImageSource("web", nothing_found=True)
+    beats = [_beat(1, "concept", query="same scene"), _beat(2, "concept", query="same scene")]
+    generating = _generating()
+    manifest = _run(tmp_path, beats, sources={"web": empty}, generating=generating)
+    assert generating.images == 1
+    assert [b.fallback_rung for b in manifest.beats] == [2, 2]
+    assert [a.sha256 for a in manifest.assets].count(manifest.assets[0].sha256) == 2
 
 
 # --- owner references first (1.3, 5.1) -------------------------------------------------

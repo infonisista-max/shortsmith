@@ -57,6 +57,8 @@ broll:
   stamp_max_y_fraction: 0.6
   photo_look: "cinematic documentary photograph, natural light, film grain"
   illustration_look: "vintage editorial illustration, muted archival palette, visible brush texture"
+  scene_mood: "grounded documentary mood"
+  scene_lighting: "soft natural daylight"
 captions:
   font_family: Poppins
   font_weight: 800

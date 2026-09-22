@@ -121,6 +121,10 @@ class Broll(StrictModel):
     stamp_max_y_fraction: float
     photo_look: str
     illustration_look: str
+    # 5.5: the rest of the generated-scene prompt, in the style's own words; the
+    # generator builds the sentence, the words are never in code.
+    scene_mood: str
+    scene_lighting: str
 
 
 class Captions(CaptionStyle):

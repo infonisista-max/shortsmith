@@ -97,6 +97,7 @@ def smoke_sourcing() -> assets.Sourcing:
         },
         order=("web", "commons"),
         judge=assets.FakeRelevanceJudge(),  # 017: the judge runs, on no paid call
+        generator=assets.FakeImageGenerator(),  # 019: rung 2, on no paid call either
     )
 
 
@@ -271,7 +272,9 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
     """016: `work/assets.json` sources every labelled beat through the fakes with no
     rescue, the photo beat as a photo and the card beat as a card; the rights log is
     complete and the credits exist; the render spec draws both. 017: the fake
-    relevance judge scored the candidates and its verdict is on every searched row."""
+    relevance judge scored the candidates and its verdict is on every searched row.
+    019: the concept beats the plan asks to generate come back at rung 2, each with a
+    prompt on its rights row, and the credits carry the AI-disclosure line."""
     manifest = assets.load_manifest(job.path)
     check(manifest is not None, "sourcing did not write work/assets.json")
     assert manifest is not None
@@ -295,6 +298,19 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
         all(a.judge is not None and a.judge.score >= 2 for a in searched),
         "a searched asset has no accepted judge verdict",
     )
+    # 019: rung 2 is real, on the fake generator: every `generate` concept beat was
+    # made rather than found, under the style's cap and with no ledger row.
+    generated = [b.beat_id for b in manifest.beats if b.fallback_rung == 2]
+    check(bool(generated), "no beat reached rung 2 although the plan asks to generate")
+    check(
+        0 < manifest.generated_images <= manifest.gen_max,
+        f"{manifest.generated_images} images generated, cap {manifest.gen_max}",
+    )
+    made = [a for a in manifest.assets if a.origin == "generated"]
+    check(
+        all(a.generated is not None and a.generated.prompt for a in made),
+        "a generated asset carries no prompt (5.4, T9)",
+    )
     rows = rights.load(job.path)
     check(rows is not None, "sourcing did not write out/rights.json")
     assert rows is not None
@@ -302,6 +318,8 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
         all(r.judge is not None for r in rows if r.origin in ("web", "commons")),
         "a searched rights row carries no judge verdict",
     )
+    credits_text = (job.out_dir / "credits.md").read_text(encoding="utf-8")
+    check(rights.DISCLOSURE in credits_text, "credits.md has no AI-disclosure line (5.4)")
     problems = rights.completeness(rows, manifest, plan)
     check(not problems, f"rights log incomplete: {problems}")
     check((job.out_dir / "credits.md").is_file(), "sourcing did not write out/credits.md")
