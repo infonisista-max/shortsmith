@@ -9,7 +9,17 @@
       "Bash(git status*)", "Bash(git log*)", "Bash(git diff*)",
       "Bash(git add *)", "Bash(git commit *)", "Bash(git mv *)", "Bash(git restore *)",
       "Bash(ffmpeg *)", "Bash(ffprobe *)",
-      "Bash(mkdir *)", "Bash(dir*)", "Bash(ls*)", "Bash(cat *)", "Bash(type *)"
+      "Bash(mkdir *)", "Bash(dir*)", "Bash(ls*)", "Bash(cat *)", "Bash(type *)",
+      "PowerShell(uv run *)",
+      "PowerShell(python *)",
+      "PowerShell(node *)",
+      "PowerShell(npm test*)",
+      "PowerShell(npm run *)",
+      "PowerShell(git status*)", "PowerShell(git log*)", "PowerShell(git diff*)",
+      "PowerShell(git add *)", "PowerShell(git commit *)", "PowerShell(git mv *)", "PowerShell(git restore *)",
+      "PowerShell(ffmpeg *)", "PowerShell(ffprobe *)",
+      "PowerShell(mkdir *)", "PowerShell(dir*)", "PowerShell(ls*)", "PowerShell(cat *)", "PowerShell(type *)",
+      "PowerShell(Get-Content *)", "PowerShell(Get-ChildItem*)", "PowerShell(Select-String *)", "PowerShell(Test-Path *)"
     ],
     "deny": [
       "Bash(git push*)",
@@ -18,7 +28,13 @@
       "Bash(curl *)", "Bash(wget *)", "Bash(Invoke-WebRequest*)",
       "WebFetch", "WebSearch",
       "Read(~/.claude/**)", "Edit(~/.claude/**)",
-      "Read(./.env*)", "Edit(./.env*)"
+      "Read(./.env*)", "Edit(./.env*)",
+      "PowerShell(git push*)",
+      "PowerShell(uv add *)", "PowerShell(uv pip *)", "PowerShell(pip *)",
+      "PowerShell(npm install*)", "PowerShell(npm i *)", "PowerShell(npx *)",
+      "PowerShell(curl *)", "PowerShell(wget *)", "PowerShell(Invoke-WebRequest*)",
+      "PowerShell(Invoke-RestMethod*)", "PowerShell(iwr *)", "PowerShell(irm *)",
+      "PowerShell(Invoke-Expression*)", "PowerShell(iex *)"
     ]
   }
 }

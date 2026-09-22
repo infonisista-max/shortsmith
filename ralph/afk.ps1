@@ -35,12 +35,12 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     if (-not $proc.WaitForExit($TimeoutMinutes * 60 * 1000)) {
         taskkill /PID $($proc.Id) /T /F | Out-Null
         Add-Content $log "`n=== TIMEOUT $TimeoutMinutes min - tree killed ==="
-        Write-Host "iteration $i: TIMEOUT"; $fails++
+        Write-Host "iteration ${i}: TIMEOUT"; $fails++
     } elseif ($proc.ExitCode -ne 0) {
         Add-Content $log "`n=== exit $($proc.ExitCode) ==="
-        Write-Host "iteration $i: exit $($proc.ExitCode)"; $fails++
+        Write-Host "iteration ${i}: exit $($proc.ExitCode)"; $fails++
     } else {
-        Write-Host "iteration $i: OK"; $fails = 0
+        Write-Host "iteration ${i}: OK"; $fails = 0
     }
     if ($fails -ge 2) { Write-Host "Two consecutive failures - stopping."; break }
     Start-Sleep -Seconds 30
