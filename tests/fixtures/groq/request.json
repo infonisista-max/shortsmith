@@ -1,0 +1,20 @@
+{
+  "_note": "What GroqTranscriber sends per call, recorded from the groq SDK 1.7.0 through an httpx MockTransport (no network). The Authorization header is left out on purpose; tests assert it is present without printing it.",
+  "method": "POST",
+  "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+  "headers": {
+    "accept": "application/json",
+    "content-type": "multipart/form-data"
+  },
+  "fields": {
+    "model": ["whisper-large-v3"],
+    "language": ["hi"],
+    "response_format": ["verbose_json"],
+    "temperature": ["0.0"],
+    "timestamp_granularities[]": ["word", "segment"]
+  },
+  "file": {
+    "field": "file",
+    "content_type": "audio/mpeg"
+  }
+}

@@ -4,7 +4,8 @@ Secrets are `SecretStr` so they never appear in logs or reprs. Tests construct
 `Settings(_env_file=None)` so no `.env` is ever read under pytest (board rules).
 `check_startup` is the 11.3 startup validation the app runs in its lifespan:
 `PLANNER=claude_code` (the default) needs `SHORTSMITH_SINGLE_OPERATOR=true`, since
-it runs on the operator's own subscription; the `api` key check joins it with 015.
+it runs on the operator's own subscription; `TRANSCRIBER=groq` (the default) needs
+`GROQ_API_KEY`; the `api` key check joins them with 015.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Planner = Literal["fake", "claude_code", "api"]
+Transcriber = Literal["fake", "groq"]
 AssetPolicy = Literal["any", "rights_safe"]
 ImageGen = Literal["none", "gemini"]
 
@@ -23,6 +25,12 @@ ImageGen = Literal["none", "gemini"]
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    # 12.1: the real transcriber outside tests; tests and smoke use the fake. Research
+    # §6: both approved jobs ran whisper-large-v3 with the language forced to `hi`
+    # (the Hinglish-drift fix); empty lets Whisper detect it.
+    transcriber: Transcriber = "groq"
+    transcriber_model: str = "whisper-large-v3"
+    transcriber_language: str = "hi"
     planner: Planner = "claude_code"
     # 8.3 / 11.3: the subscription planner is for a single-operator deployment only.
     shortsmith_single_operator: bool = False
@@ -60,6 +68,11 @@ def check_startup(settings: Settings) -> None:
             "PLANNER=claude_code runs on the operator's own Claude subscription and is for "
             "a single-operator deployment only: set SHORTSMITH_SINGLE_OPERATOR=true in .env, "
             "or use PLANNER=api (decision 11.3)"
+        )
+    if settings.transcriber == "groq" and settings.groq_api_key is None:
+        raise ConfigError(
+            "TRANSCRIBER=groq calls Groq Whisper directly: set GROQ_API_KEY in .env, "
+            "or TRANSCRIBER=fake to run on the fixture words (decision 12.1)"
         )
 
 

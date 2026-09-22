@@ -1,23 +1,13 @@
-"""Transcriber interface and its fake (decisions 12.1, 13.1).
-
-The Groq Whisper implementation and the research §6 ASR fix pass arrive with ticket
-012. The fake is co-located here so fake and real share one type and tests never
-call a paid API.
-"""
+"""The fake transcriber (decision 12.1): the test and smoke default, so tests never
+call a paid API."""
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from pathlib import Path
 
 from shortsmith import fixture
 from shortsmith.contracts import Segment, Transcript, Word
-
-
-class Transcriber(ABC):
-    @abstractmethod
-    def transcribe(self, audio: Path) -> Transcript:
-        """Word-level transcript with final times; the planner never touches them (6.1)."""
+from shortsmith.transcriber.base import Transcriber
 
 
 class FakeTranscriber(Transcriber):

@@ -3,7 +3,9 @@ in submission order (9.1).
 
 `run_job` is the synchronous path: it takes an `uploaded` job through every step
 (transcribing, planning, sourcing, rendering, qa) and ends it
-`delivered`. Any exception inside a step marks the job `failed` at that step with the
+`delivered`. The transcriber is bound to the job first, so a real adapter writes
+under `work/asr/` and records its ledger rows (012); its fixed transcript is
+`work/asr.json`. Any exception inside a step marks the job `failed` at that step with the
 fixed user-facing sentence from `STEP_MESSAGES` and the exception text as `detail`
 (11.1); a failed technical check adds its name to the sentence (10.1); a paid
 adapter's `ledger.BudgetExceeded`, raised before its call, becomes "Budget exceeded
@@ -203,7 +205,7 @@ def failure_message(status: Status, exc: Exception) -> str:
 def _transcribe(job: Job, transcriber: Transcriber) -> None:
     assert job.record.input is not None or (job.input_dir / "raw.mp4").is_file()
     raw = job.input_dir / (job.record.input.file if job.record.input else "raw.mp4")
-    transcript = transcriber.transcribe(raw)
+    transcript = transcriber.bind(job).transcribe(raw)
     (job.work_dir / "asr.json").write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
 
 

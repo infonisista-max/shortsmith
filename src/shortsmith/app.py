@@ -63,6 +63,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from shortsmith import assets, auth, config, ingest, jobs, ledger, pipeline, render, styles
 from shortsmith import planner as planner_module
+from shortsmith import transcriber as transcriber_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
 from shortsmith.contracts import ReferenceRecord
@@ -74,7 +75,7 @@ from shortsmith.qa import technical
 from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
 from shortsmith.styles import StyleSpec
-from shortsmith.transcriber import FakeTranscriber, Transcriber
+from shortsmith.transcriber import Transcriber
 
 TEMPLATES = Path(__file__).parent / "templates"
 MAX_REFERENCE_FIELDS = 8
@@ -168,15 +169,16 @@ def create_app(
     # its message. Paid adapters (012, 014, 015, 017, 019) take the ledger at
     # construction and report units to it.
     books: list[ledger.Ledger | None] = [book]
-    # The Groq transcriber arrives with ticket 012; until then the fake is the only one.
-    transcriber = transcriber or FakeTranscriber()
-    # `PLANNER` selects the adapter (8.3); the unbuilt one fails the job at `planning`.
-    # The CLI adapter reads the ledger when it records, so the lifespan's ledger is used.
+
+    # `TRANSCRIBER` (012) and `PLANNER` (8.3) select the adapters; the unbuilt planner
+    # fails the job at `planning`. The paid adapters read the ledger when they record,
+    # so the lifespan's ledger is used.
     def _book() -> ledger.Ledger:
         if books[0] is None:
             raise RuntimeError("the ledger is loaded when the server starts")
         return books[0]
 
+    transcriber = transcriber or transcriber_module.from_settings(settings, ledger=_book)
     planner = planner or planner_module.from_settings(settings, ledger=_book)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
     # `renderer` None means Remotion (ticket 004) and `gate` None the technical gate

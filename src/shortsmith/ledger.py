@@ -131,7 +131,7 @@ def providers_in_use(settings: Settings) -> frozenset[str]:
         used.add(API_EQUIVALENT)
     if settings.image_gen == "gemini":
         used.add("gemini")
-    if settings.groq_api_key is not None:
+    if settings.transcriber == "groq":
         used.add("groq")
     return frozenset(used)
 
@@ -171,6 +171,10 @@ class Ledger:
         self.prices = prices
         self.caps = caps
         self._clock = clock
+
+    def estimate(self, provider: str, units: Mapping[str, float]) -> float:
+        """INR the units would cost, for `check_before_call`; nothing is written."""
+        return self.prices.value(provider, units)
 
     def record(
         self, job: Job, step: str, provider: str, model: str, units: Mapping[str, float]

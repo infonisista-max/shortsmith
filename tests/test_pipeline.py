@@ -615,6 +615,35 @@ def test_step_exception_marks_the_job_failed_at_that_step(
     assert jobs.load(job.path).status == "failed"
 
 
+class _Binding(FakeTranscriber):
+    """Records the job it was bound to and the audio path it was handed."""
+
+    def __init__(self) -> None:
+        self.bound: list[str] = []
+        self.heard: list[Path] = []
+
+    def bind(self, job: jobs.Job) -> _Binding:
+        self.bound.append(job.id)
+        return self
+
+    def transcribe(self, audio: Path) -> Transcript:
+        self.heard.append(audio)
+        return super().transcribe(audio)
+
+
+def test_the_transcriber_is_bound_to_the_job_before_it_transcribes(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """012: a real transcriber writes under `work/asr/` and records ledger rows, so it
+    gets the job first, as the planner does (014)."""
+    job = _uploaded(tmp_path, fixture_clip)
+    transcriber = _Binding()
+    done = _run(job, transcriber=transcriber)
+    assert done.status == "delivered"
+    assert transcriber.bound == [job.id]
+    assert transcriber.heard == [job.input_dir / "raw.mp4"]
+
+
 def test_run_job_refuses_a_job_that_is_not_uploaded(tmp_path: Path, fixture_clip: Path) -> None:
     job = _uploaded(tmp_path, fixture_clip)
     job = jobs.transition(job, "transcribing")

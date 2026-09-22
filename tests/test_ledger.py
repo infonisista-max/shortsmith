@@ -32,6 +32,7 @@ PRICES = Prices(
 
 
 def _settings(tmp_path: Path, **overrides: object) -> Settings:
+    overrides.setdefault("transcriber", "fake")  # 012: groq is the default outside tests
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         shortsmith_data_dir=tmp_path / "data",
@@ -112,10 +113,18 @@ def test_providers_in_use_follow_the_config(tmp_path: Path) -> None:
     assert ledger.providers_in_use(_settings(tmp_path, planner="claude_code")) == {
         "api_equivalent"
     }
-    full = _settings(
-        tmp_path, planner="api", image_gen="gemini", groq_api_key="k"  # noqa: S106 - test value
-    )
+    full = _settings(tmp_path, planner="api", image_gen="gemini", transcriber="groq")
     assert ledger.providers_in_use(full) == {"planner", "gemini", "groq"}
+    # 012: the transcriber the config selects is what bills, not a key lying in .env.
+    keyed = _settings(tmp_path, planner="fake", groq_api_key="k")  # noqa: S106 - test value
+    assert ledger.providers_in_use(keyed) == frozenset()
+
+
+def test_estimate_prices_units_without_writing(tmp_path: Path) -> None:
+    """What an adapter passes to `check_before_call`: the ledger prices, never the adapter."""
+    job = _job(tmp_path)
+    assert _ledger().estimate("groq", {"audio_minutes": 3}) == 1.5
+    assert jobs.load(job.path).record.cost == []
 
 
 def test_from_settings_reads_the_file_and_the_caps(tmp_path: Path) -> None:

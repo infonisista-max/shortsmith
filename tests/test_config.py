@@ -25,7 +25,14 @@ def _example_keys() -> set[str]:
 
 
 def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
-    for key in _example_keys() | {"SHORTSMITH_DATA_DIR", "SHORTSMITH_SINGLE_OPERATOR"}:
+    unlisted = {
+        "SHORTSMITH_DATA_DIR",
+        "SHORTSMITH_SINGLE_OPERATOR",
+        "TRANSCRIBER",
+        "TRANSCRIBER_LANGUAGE",
+        "TRANSCRIBER_MODEL",
+    }
+    for key in _example_keys() | unlisted:
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
@@ -98,14 +105,43 @@ def test_the_subscription_planner_needs_a_declared_single_operator(
     default = _settings(monkeypatch)
     assert default.shortsmith_single_operator is False
     with pytest.raises(config.ConfigError, match="SHORTSMITH_SINGLE_OPERATOR=true"):
-        config.check_startup(default)
-    config.check_startup(_settings(monkeypatch, SHORTSMITH_SINGLE_OPERATOR="true"))
-    config.check_startup(_settings(monkeypatch, PLANNER="fake"))
+        config.check_startup(_settings(monkeypatch, TRANSCRIBER="fake"))
+    config.check_startup(
+        _settings(monkeypatch, SHORTSMITH_SINGLE_OPERATOR="true", TRANSCRIBER="fake")
+    )
+    config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+
+
+def test_the_transcriber_defaults_to_groq_on_whisper_large_v3_in_hindi(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """12.1 / research §6: the real transcriber outside tests, fed as both approved
+    jobs were (whisper-large-v3, language forced to hi); an empty language means
+    Whisper detects it."""
+    s = _settings(monkeypatch)
+    assert (s.transcriber, s.transcriber_model, s.transcriber_language) == (
+        "groq", "whisper-large-v3", "hi",
+    )  # fmt: skip
+    assert _settings(monkeypatch, TRANSCRIBER_LANGUAGE="").transcriber_language == ""
+
+
+def test_the_groq_transcriber_needs_a_key_at_startup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """12.1 / 11.3: `TRANSCRIBER=groq` (the default) without GROQ_API_KEY stops the
+    server with the fix named; `fake` needs nothing."""
+    with pytest.raises(config.ConfigError, match="GROQ_API_KEY"):
+        config.check_startup(_settings(monkeypatch, PLANNER="fake"))
+    config.check_startup(_settings(monkeypatch, PLANNER="fake", GROQ_API_KEY="gsk_x"))
+    config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
 
 
 @pytest.mark.parametrize(
     ("key", "value"),
-    [("PLANNER", "gpt"), ("ASSET_POLICY", "everything"), ("IMAGE_GEN", "dalle")],
+    [
+        ("PLANNER", "gpt"),
+        ("ASSET_POLICY", "everything"),
+        ("IMAGE_GEN", "dalle"),
+        ("TRANSCRIBER", "whisper_local"),
+    ],
 )
 def test_unknown_choice_is_a_config_error(
     monkeypatch: pytest.MonkeyPatch, key: str, value: str

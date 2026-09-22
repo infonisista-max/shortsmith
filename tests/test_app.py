@@ -29,7 +29,7 @@ from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
 from shortsmith.planner import ClaudeCodePlanner, FakePlanner
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
-from shortsmith.transcriber import FakeTranscriber
+from shortsmith.transcriber import FakeTranscriber, GroqTranscriber
 from tests.conftest import Media
 from tests.test_auth import Ticker
 
@@ -50,6 +50,8 @@ def _settings(tmp_path: Path, passcode: str | None = PASSCODE, **overrides: Any)
     overrides.setdefault("prices_file", EXAMPLE_PRICES)
     # ...and a declared single operator (11.3), or the server refuses to start.
     overrides.setdefault("shortsmith_single_operator", True)
+    # ...and the fake transcriber: `groq` (the default, 012) needs a key at startup.
+    overrides.setdefault("transcriber", "fake")
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         shortsmith_data_dir=tmp_path / "data",
@@ -522,6 +524,34 @@ def test_the_default_planner_builds_the_cli_adapter_on_the_loaded_ledger(
         worker_planner = app.state.worker._planner  # pyright: ignore[reportPrivateUsage]
         assert isinstance(worker_planner, ClaudeCodePlanner)
         assert worker_planner._ledger() is app.state.ledger  # pyright: ignore[reportPrivateUsage]
+
+
+def test_transcriber_follows_the_settings_on_the_loaded_ledger(tmp_path: Path) -> None:
+    """012: `TRANSCRIBER=groq` builds the Groq adapter, whose rows go to the ledger the
+    lifespan loads; `fake` the fake."""
+    settings = _settings(tmp_path, transcriber="groq", groq_api_key=SecretStr("gsk-test"))
+    app = app_module.create_app(
+        settings, planner=FakePlanner(), renderer=FakeRenderer(), gate=FakeGate(),
+        start_worker=False,
+    )  # fmt: skip
+    with TestClient(app):
+        worker_transcriber = app.state.worker._transcriber  # pyright: ignore[reportPrivateUsage]
+        assert isinstance(worker_transcriber, GroqTranscriber)
+        assert worker_transcriber._ledger() is app.state.ledger  # pyright: ignore[reportPrivateUsage]
+    fake = app_module.create_app(
+        _settings(tmp_path), planner=FakePlanner(), renderer=FakeRenderer(), gate=FakeGate(),
+        start_worker=False,
+    )  # fmt: skip
+    assert isinstance(fake.state.worker._transcriber, FakeTranscriber)  # pyright: ignore[reportPrivateUsage]
+
+
+def test_startup_refuses_the_groq_transcriber_without_a_key(tmp_path: Path) -> None:
+    app = app_module.create_app(
+        _settings(tmp_path, transcriber="groq"), planner=FakePlanner(),
+        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+    )  # fmt: skip
+    with pytest.raises(ConfigError, match="GROQ_API_KEY"), TestClient(app):
+        pass
 
 
 def test_startup_refuses_the_subscription_planner_without_a_single_operator(

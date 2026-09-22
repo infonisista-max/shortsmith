@@ -50,6 +50,55 @@ def probe(path: Path) -> dict[str, Any]:
     return json.loads(proc.stdout.decode("utf-8"))
 
 
+def duration_s(path: Path) -> float:
+    """The container duration in seconds."""
+    return float(probe(path)["format"]["duration"])
+
+
+# Research §6: both approved jobs fed Groq Whisper 16 kHz mono MP3 at 64 kbps.
+SPEECH_RATE_HZ = 16000
+SPEECH_BITRATE = "64k"
+
+
+def extract_speech(src: Path, dst: Path, *, start_s: float = 0.0) -> Path:
+    """The first audio stream of `src` from `start_s` to the end as the ASR's MP3."""
+    seek = ["-ss", f"{start_s:.3f}"] if start_s > 0 else []
+    run(
+        [
+            FFMPEG, "-y", "-v", "error", *seek, "-i", str(src),
+            "-map", "0:a:0", "-vn", "-ac", "1", "-ar", str(SPEECH_RATE_HZ),
+            "-c:a", "libmp3lame", "-b:a", SPEECH_BITRATE, str(dst),
+        ],
+        timeout_s=MEASURE_TIMEOUT_S,
+    )  # fmt: skip
+    return dst
+
+
+# Speech onset for the head-smear check: the end of a silence that starts the file.
+ONSET_NOISE_DB = -35
+ONSET_MIN_SILENCE_S = 0.3
+_SILENCE_START = re.compile(r"silence_start:\s*(-?[\d.]+)")
+_SILENCE_END = re.compile(r"silence_end:\s*(-?[\d.]+)")
+
+
+def speech_onset_s(path: Path) -> float:
+    """Seconds of silence (below -35 dB for at least 0.3 s) the audio opens with; 0.0
+    when it opens with sound, or is silent throughout."""
+    proc = run(
+        [
+            FFMPEG, "-v", "info", "-nostats", "-i", str(path), "-map", "0:a:0",
+            "-af", f"silencedetect=noise={ONSET_NOISE_DB}dB:d={ONSET_MIN_SILENCE_S}",
+            "-vn", "-f", "null", "-",
+        ],
+        timeout_s=MEASURE_TIMEOUT_S,
+    )  # fmt: skip
+    text = proc.stderr.decode("utf-8", errors="replace")
+    start, end = _SILENCE_START.search(text), _SILENCE_END.search(text)
+    if start is None or end is None or float(start.group(1)) > 0.01:
+        return 0.0
+    return round(float(end.group(1)), 3)
+
+
 _MEAN_VOLUME = re.compile(r"mean_volume:\s*(-?[\d.]+|-inf)\s*dB")
 
 

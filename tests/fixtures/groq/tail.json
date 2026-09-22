@@ -1,0 +1,26 @@
+{
+  "task": "transcribe",
+  "language": "Hindi",
+  "duration": 5.05,
+  "text": " डाइसन is a short about nothing made by ffmpeg alone",
+  "segments": [
+    {"id": 0, "seek": 0, "start": 0.2, "end": 0.5, "text": " डाइसन is", "tokens": [50364, 1, 2], "temperature": 0.0, "avg_logprob": -0.3, "compression_ratio": 1.1, "no_speech_prob": 0.02},
+    {"id": 1, "seek": 0, "start": 1.2, "end": 1.5, "text": " a short", "tokens": [50414, 257, 2099], "temperature": 0.0, "avg_logprob": -0.3, "compression_ratio": 1.1, "no_speech_prob": 0.02},
+    {"id": 2, "seek": 0, "start": 2.2, "end": 2.5, "text": " about nothing", "tokens": [50464, 466, 1825], "temperature": 0.0, "avg_logprob": -0.3, "compression_ratio": 1.1, "no_speech_prob": 0.02},
+    {"id": 3, "seek": 0, "start": 3.2, "end": 3.45, "text": " made by", "tokens": [50514, 1027, 538], "temperature": 0.0, "avg_logprob": -0.3, "compression_ratio": 1.1, "no_speech_prob": 0.02},
+    {"id": 4, "seek": 0, "start": 4.2, "end": 4.5, "text": " ffmpeg alone.", "tokens": [50564, 283, 3312], "temperature": 0.0, "avg_logprob": -0.25, "compression_ratio": 1.1, "no_speech_prob": 0.01}
+  ],
+  "words": [
+    {"word": " डाइसन", "start": 0.2, "end": 0.34},
+    {"word": " is", "start": 0.36, "end": 0.5},
+    {"word": " a", "start": 1.2, "end": 1.34},
+    {"word": " short", "start": 1.36, "end": 1.5},
+    {"word": " about", "start": 2.2, "end": 2.34},
+    {"word": " nothing", "start": 2.36, "end": 2.5},
+    {"word": " made", "start": 3.2, "end": 3.34},
+    {"word": " by", "start": 3.36, "end": 3.45},
+    {"word": " ffmpeg", "start": 4.2, "end": 4.34},
+    {"word": " alone.", "start": 4.36, "end": 4.5}
+  ],
+  "x_groq": {"id": "req_fixture_tail"}
+}
