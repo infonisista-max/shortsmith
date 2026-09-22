@@ -26,6 +26,7 @@ def _example_keys() -> set[str]:
 
 def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
     unlisted = {
+        "PLANNER_MODEL",
         "SHORTSMITH_DATA_DIR",
         "SHORTSMITH_SINGLE_OPERATOR",
         "TRANSCRIBER",
@@ -132,6 +133,29 @@ def test_the_groq_transcriber_needs_a_key_at_startup(monkeypatch: pytest.MonkeyP
         config.check_startup(_settings(monkeypatch, PLANNER="fake"))
     config.check_startup(_settings(monkeypatch, PLANNER="fake", GROQ_API_KEY="gsk_x"))
     config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+
+
+def test_the_api_planner_needs_an_anthropic_key_at_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """8.3 / 11.3, the three planner outcomes: `api` needs ANTHROPIC_API_KEY, `claude_code`
+    needs SHORTSMITH_SINGLE_OPERATOR=true, `fake` needs neither."""
+    with pytest.raises(config.ConfigError, match="ANTHROPIC_API_KEY"):
+        config.check_startup(_settings(monkeypatch, PLANNER="api", TRANSCRIBER="fake"))
+    config.check_startup(
+        _settings(monkeypatch, PLANNER="api", TRANSCRIBER="fake", ANTHROPIC_API_KEY="sk-x")
+    )
+    with pytest.raises(config.ConfigError, match="SHORTSMITH_SINGLE_OPERATOR=true"):
+        config.check_startup(
+            _settings(monkeypatch, PLANNER="claude_code", TRANSCRIBER="fake",
+                      ANTHROPIC_API_KEY="sk-x")
+        )  # fmt: skip
+    config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+
+
+def test_the_planner_model_defaults_to_the_current_sonnet(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert _settings(monkeypatch).planner_model == "claude-sonnet-5"
+    assert _settings(monkeypatch, PLANNER_MODEL="claude-opus-5").planner_model == "claude-opus-5"
 
 
 @pytest.mark.parametrize(

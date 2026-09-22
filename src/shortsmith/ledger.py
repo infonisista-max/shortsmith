@@ -50,7 +50,13 @@ REQUIRED_UNITS: Mapping[str, tuple[str, ...]] = {
     "groq": ("audio_minutes",),
     "gemini": ("images",),
     "judge": ("input_tokens", "output_tokens"),
-    "planner": ("input_tokens", "output_tokens"),
+    # 015: prompt-cache writes and reads are priced apart from fresh input tokens.
+    "planner": (
+        "input_tokens",
+        "cache_write_input_tokens",
+        "cache_read_input_tokens",
+        "output_tokens",
+    ),
     "search": ("queries",),
     API_EQUIVALENT: ("input_tokens", "output_tokens"),
 }

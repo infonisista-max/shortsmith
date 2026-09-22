@@ -75,6 +75,20 @@ def test_the_six_sections_render_in_the_fixed_order_brief_before_transcript() ->
     assert "\n#### Beat grammar\n- Beats 2-6 s." in text  # nested under section 2
 
 
+def test_the_split_for_cache_markers_cuts_the_text_and_never_rebuilds_it() -> None:
+    """015: the api adapter's three blocks are cuts of this text, so the prompt it
+    sends stays byte-identical to the one the CLI adapter sends on stdin."""
+    for call in ("picture", "sound"):
+        picture = FakePlanner().plan_picture(_request()) if call == "sound" else None
+        text = prompt.build_prompt(_request(), call, picture=picture)  # pyright: ignore[reportArgumentType]
+        instructions, spec, rest = prompt.split_prompt(text)
+        assert instructions + spec + rest == text
+        assert spec.startswith("## 1. Style numbers") and "## 2. Style prose" in spec
+        assert rest.startswith("## 3. Brief")
+    with pytest.raises(ValueError, match="no spec or brief heading"):
+        prompt.split_prompt("no headings here")
+
+
 def test_references_are_a_captioned_list_never_pixels() -> None:
     text = prompt.build_prompt(_request(), "picture")
     assert "- ref1 (image, 1200x1600): my product" in text

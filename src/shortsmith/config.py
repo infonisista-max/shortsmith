@@ -5,7 +5,7 @@ Secrets are `SecretStr` so they never appear in logs or reprs. Tests construct
 `check_startup` is the 11.3 startup validation the app runs in its lifespan:
 `PLANNER=claude_code` (the default) needs `SHORTSMITH_SINGLE_OPERATOR=true`, since
 it runs on the operator's own subscription; `TRANSCRIBER=groq` (the default) needs
-`GROQ_API_KEY`; the `api` key check joins them with 015.
+`GROQ_API_KEY`; `PLANNER=api` needs `ANTHROPIC_API_KEY`.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     transcriber_model: str = "whisper-large-v3"
     transcriber_language: str = "hi"
     planner: Planner = "claude_code"
+    planner_model: str = "claude-sonnet-5"  # 8.3: PLANNER=api's model, the current Sonnet
     # 8.3 / 11.3: the subscription planner is for a single-operator deployment only.
     shortsmith_single_operator: bool = False
     anthropic_api_key: SecretStr | None = None
@@ -68,6 +69,11 @@ def check_startup(settings: Settings) -> None:
             "PLANNER=claude_code runs on the operator's own Claude subscription and is for "
             "a single-operator deployment only: set SHORTSMITH_SINGLE_OPERATOR=true in .env, "
             "or use PLANNER=api (decision 11.3)"
+        )
+    if settings.planner == "api" and settings.anthropic_api_key is None:
+        raise ConfigError(
+            "PLANNER=api calls the Anthropic Messages API directly: set ANTHROPIC_API_KEY "
+            "in .env, or PLANNER=fake to run on the canned plans (decision 8.3)"
         )
     if settings.transcriber == "groq" and settings.groq_api_key is None:
         raise ConfigError(

@@ -26,7 +26,7 @@ from shortsmith.config import ConfigError, Settings
 from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest
 from shortsmith.ingest import MIB, Limits
 from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
-from shortsmith.planner import ClaudeCodePlanner, FakePlanner
+from shortsmith.planner import ApiPlanner, ClaudeCodePlanner, FakePlanner
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber, GroqTranscriber
@@ -488,27 +488,33 @@ def test_module_level_app_exists_for_uvicorn() -> None:
     assert isinstance(app_module.app, FastAPI)
 
 
-def test_an_unbuilt_planner_from_settings_fails_the_job_visibly_not_silently(
-    tmp_path: Path, media: Media
-) -> None:
-    """`PLANNER=api` is ticket 015: until then a job fails at `planning` with the
-    ticket named; nothing pretends the fake is the real planner."""
-    app = app_module.create_app(
-        _settings(tmp_path, planner="api"),
-        transcriber=FakeTranscriber(),
-        renderer=FakeRenderer(),
-        gate=FakeGate(),
-        start_worker=False,
+def test_the_api_planner_from_settings_is_never_silently_the_fake(tmp_path: Path) -> None:
+    """8.3 / 11.3: `PLANNER=api` builds the paid adapter on the loaded ledger, and
+    startup refuses it without a key rather than planning with the fake."""
+    keyless = app_module.create_app(
+        _settings(tmp_path, planner="api"), transcriber=FakeTranscriber(),
+        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+    )  # fmt: skip
+    with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"), TestClient(keyless):
+        pass
+    prices = tmp_path / "prices.yaml"
+    prices.write_text(
+        "planner:\n  input_tokens: 0.25\n  cache_write_input_tokens: 0.3125\n"
+        "  cache_read_input_tokens: 0.025\n  output_tokens: 1.25\n",
+        encoding="utf-8",
     )
-    with TestClient(app) as client:
-        login(client)
-        location = _post(client, media.clip()).headers["location"]
-        assert app.state.worker.run_next() is True
-        record = client.get(f"{location}.json").json()
-        assert record["status"] == "failed"
-        assert record["error"]["step"] == "planning"
-        assert "015" in record["error"]["detail"]
-        assert "Failed at planning" in client.get(location).text
+    app = app_module.create_app(
+        _settings(
+            tmp_path, planner="api", prices_file=prices,
+            anthropic_api_key=SecretStr("sk-ant-test-not-real"),
+        ),
+        transcriber=FakeTranscriber(), renderer=FakeRenderer(), gate=FakeGate(),
+        start_worker=False,
+    )  # fmt: skip
+    with TestClient(app):
+        worker_planner = app.state.worker._planner  # pyright: ignore[reportPrivateUsage]
+        assert isinstance(worker_planner, ApiPlanner)
+        assert worker_planner._ledger() is app.state.ledger  # pyright: ignore[reportPrivateUsage]
 
 
 def test_the_default_planner_builds_the_cli_adapter_on_the_loaded_ledger(
@@ -904,7 +910,12 @@ def test_job_page_without_rows_shows_no_ledger(client: TestClient, media: Media)
 def test_startup_refuses_to_run_when_a_paid_provider_has_no_price(tmp_path: Path) -> None:
     """5.6: the prices file is checked at startup, in the lifespan like the passcode,
     so importing the module never needs it and the server stops with the gap named."""
-    settings = _settings(tmp_path, planner="api", prices_file=tmp_path / "prices.yaml")
+    settings = _settings(
+        tmp_path,
+        planner="api",
+        anthropic_api_key="sk-ant-test-not-real",  # noqa: S106 - test value
+        prices_file=tmp_path / "prices.yaml",
+    )
     app = app_module.create_app(
         settings, transcriber=FakeTranscriber(), planner=FakePlanner(),
         renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
@@ -912,7 +923,9 @@ def test_startup_refuses_to_run_when_a_paid_provider_has_no_price(tmp_path: Path
     with pytest.raises(LedgerError, match="prices.example.yaml"), TestClient(app):
         pass
     (tmp_path / "prices.yaml").write_text(
-        "planner:\n  input_tokens: 0.25\n  output_tokens: 1.25\n", encoding="utf-8"
+        "planner:\n  input_tokens: 0.25\n  cache_write_input_tokens: 0.3125\n"
+        "  cache_read_input_tokens: 0.025\n  output_tokens: 1.25\n",
+        encoding="utf-8",
     )
     with TestClient(app) as client:
         assert client.get("/health").json() == {"ok": True}

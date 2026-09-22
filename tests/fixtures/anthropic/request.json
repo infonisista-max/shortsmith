@@ -1,0 +1,35 @@
+{
+  "model": "claude-sonnet-5",
+  "max_tokens": 16000,
+  "system": [
+    {
+      "type": "text",
+      "text": "<SYSTEM_PROMPT>",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "<instructions>"
+        },
+        {
+          "type": "text",
+          "text": "<## 1. Style numbers, ## 2. Style prose>",
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        },
+        {
+          "type": "text",
+          "text": "<## 3. Brief to the end>"
+        }
+      ]
+    }
+  ]
+}

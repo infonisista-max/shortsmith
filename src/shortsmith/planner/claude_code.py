@@ -38,13 +38,9 @@ from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
 from shortsmith.planner.base import Planner, PlannerError, PlannerUnavailable
 from shortsmith.planner.parse import parse_reply
-from shortsmith.planner.prompt import PROMPT_VERSION, Call, build_prompt
+from shortsmith.planner.prompt import PROMPT_VERSION, SYSTEM_PROMPT, Call, build_prompt
 
 PROVIDER = "claude_code"
-SYSTEM_PROMPT = (
-    "You are the Shortsmith planner. You have no tools. Read the whole message and "
-    "reply with JSON only: one object matching the schema it gives."
-)
 CLI_FLAGS: tuple[str, ...] = (
     "-p",
     "--output-format",

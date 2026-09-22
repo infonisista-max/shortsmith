@@ -222,5 +222,11 @@ def test_from_settings_selects_the_cli_adapter_for_claude_code() -> None:
     book = Ledger(PRICES, Caps(per_job=None, hard=None, per_day=500))
     assert isinstance(from_settings(settings, ledger=lambda: book), ClaudeCodePlanner)
     api = Settings(_env_file=None, planner="api")  # pyright: ignore[reportCallIssue]
-    chosen = from_settings(api, ledger=lambda: book)
-    assert isinstance(chosen, UnavailablePlanner) and chosen.ticket == "015"
+    assert not isinstance(from_settings(api, ledger=lambda: book), ClaudeCodePlanner)
+
+
+def test_an_adapter_a_later_ticket_delivers_still_refuses_with_its_ticket_named() -> None:
+    """`UnavailablePlanner` outlives 015: it is what a not-yet-built adapter selects."""
+    chosen = UnavailablePlanner("api", "015")
+    with pytest.raises(PlannerUnavailable, match="ticket 015"):
+        chosen.plan_picture(_request())

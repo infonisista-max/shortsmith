@@ -1,0 +1,21 @@
+{
+  "id": "msg_01ShortsmithSound1",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"prompt_version\": \"fake-1\",\n  \"theme\": \"curious tech\",\n  \"mood_curve\": [\n    {\n      \"t\": 0.0,\n      \"level\": 0.0\n    },\n    {\n      \"t\": 0.5,\n      \"level\": 2.0\n    },\n    {\n      \"t\": 3.0,\n      \"level\": -6.0\n    },\n    {\n      \"t\": 3.5,\n      \"level\": 0.0\n    },\n    {\n      \"t\": 6.0,\n      \"level\": -8.0\n    }\n  ],\n  \"bed_query\": {\n    \"theme\": \"tech\",\n    \"mood\": \"curious\",\n    \"energy\": 3\n  },\n  \"cues\": [\n    {\n      \"beat_id\": \"b01\",\n      \"intent\": \"cold_open_hit\",\n      \"at\": \"start\"\n    },\n    {\n      \"beat_id\": \"b02\",\n      \"intent\": \"changeover\",\n      \"at\": \"start\"\n    },\n    {\n      \"beat_id\": \"b03\",\n      \"intent\": \"popup_tick\",\n      \"at\": \"event\"\n    },\n    {\n      \"beat_id\": \"b06\",\n      \"intent\": \"money\",\n      \"at\": \"event\"\n    },\n    {\n      \"beat_id\": \"b11\",\n      \"intent\": \"finale_hit\",\n      \"at\": \"start\"\n    }\n  ]\n}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 5400,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 9000,
+    "output_tokens": 420,
+    "service_tier": "standard"
+  }
+}

@@ -8,7 +8,9 @@ validated, snapped picture plan and the audio catalogue tags (8.1), then the JSO
 schema generated from the model the parser validates (one source of truth), then on
 the one retry the previous output and the violation list (8.2), and last the
 "reply with JSON only" line. Every adapter sends this identical text, so switching
-`PLANNER` changes cost and nothing else.
+`PLANNER` changes cost and nothing else. `SYSTEM_PROMPT` is the one system prompt both
+real adapters send, and `split_prompt` cuts (never rebuilds) the text where the api
+adapter puts its cache markers.
 
 The tier lists come from the spec: tier 1 is `broll.kinds`, tier 2 is every tier-2
 kind with the spec's `broll.tier2_kinds` allowed and the rest refused (4.1 / 9.2).
@@ -38,6 +40,12 @@ Call = Literal["picture", "sound"]
 
 PROMPT_VERSION = "v1"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+SYSTEM_PROMPT = (
+    "You are the Shortsmith planner. You have no tools. Read the whole message and "
+    "reply with JSON only: one object matching the schema it gives."
+)
+SPEC_HEADING = "## 1. Style numbers"
+REQUEST_HEADING = "## 3. Brief"
 REPLY_JSON_ONLY = (
     "Reply with JSON only: one object that matches the schema above, "
     "with no prose before or after it."
@@ -82,6 +90,17 @@ def build_prompt(
         )
     parts.append(REPLY_JSON_ONLY)
     return "\n\n".join(part.strip() for part in parts) + "\n"
+
+
+def split_prompt(text: str) -> tuple[str, str, str]:
+    """`build_prompt`'s text cut, not rebuilt, into instructions, spec sections (1-2)
+    and request (3 onward) for the api adapter's cache markers; the three concatenate
+    back to `text` exactly."""
+    spec = text.find(f"\n{SPEC_HEADING}")
+    request = text.find(f"\n{REQUEST_HEADING}\n", spec + 1)
+    if spec < 0 or request < 0:
+        raise ValueError("the prompt has no spec or brief heading to split at")
+    return text[: spec + 1], text[spec + 1 : request + 1], text[request + 1 :]
 
 
 def _instructions(request: PlanRequest, call: Call) -> str:
@@ -135,9 +154,9 @@ def _sections(request: PlanRequest) -> list[str]:
     }
     dumped = yaml.safe_dump(numbers, sort_keys=False, allow_unicode=True).strip()
     return [
-        f"## 1. Style numbers ({request.style.name})\n\n```yaml\n{dumped}\n```",
+        f"{SPEC_HEADING} ({request.style.name})\n\n```yaml\n{dumped}\n```",
         f"## 2. Style prose\n\n{_demoted(request.style.prose) or '(none)'}",
-        f"## 3. Brief\n\n{request.brief.strip()}",
+        f"{REQUEST_HEADING}\n\n{request.brief.strip()}",
         f"## 4. Style note\n\n{request.style_note.strip() or '(none)'}",
         f"## 5. References\n\n{_references(request)}",
         f"## 6. Transcript\n\n{_transcript(request)}",

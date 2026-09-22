@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import fixture, planner
+from shortsmith import fixture, jobs, planner
 from shortsmith.config import Settings
 from shortsmith.contracts import (
     TIER1_KINDS,
@@ -131,15 +131,17 @@ def test_plans_carry_the_prompt_version(request_: PlanRequest) -> None:
     assert isinstance(FakePlanner().plan_sound(request_, plan), SoundStory)
 
 
-def test_from_settings_selects_the_fake_only_for_planner_fake(request_: PlanRequest) -> None:
-    """`api` (015) is not built yet: selecting it must not silently fall back to the
-    fake; the job fails at `planning` with the ticket named. `claude_code` is 014's
-    adapter (test_planner_claude_code)."""
+def test_from_settings_selects_the_fake_only_for_planner_fake(
+    request_: PlanRequest, tmp_path: Path
+) -> None:
+    """Selecting a paid planner must never silently fall back to the fake: `api` is
+    015's adapter (test_planner_api), `claude_code` 014's (test_planner_claude_code),
+    and an `api` planner with no key fails the job at `planning`."""
     book = Ledger(Prices({}), Caps(per_job=None, hard=None, per_day=500))
     settings = Settings(_env_file=None, planner="fake")  # pyright: ignore[reportCallIssue]
     assert isinstance(planner.from_settings(settings, ledger=lambda: book), FakePlanner)
     settings = Settings(_env_file=None, planner="api")  # pyright: ignore[reportCallIssue]
     chosen = planner.from_settings(settings, ledger=lambda: book)
     assert isinstance(chosen, Planner) and not isinstance(chosen, FakePlanner)
-    with pytest.raises(planner.PlannerUnavailable, match="api"):
-        chosen.plan_picture(request_)
+    with pytest.raises(planner.PlannerError, match="ANTHROPIC_API_KEY"):
+        chosen.bind(jobs.create(tmp_path)).plan_picture(request_)

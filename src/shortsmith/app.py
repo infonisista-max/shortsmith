@@ -170,9 +170,9 @@ def create_app(
     # construction and report units to it.
     books: list[ledger.Ledger | None] = [book]
 
-    # `TRANSCRIBER` (012) and `PLANNER` (8.3) select the adapters; the unbuilt planner
-    # fails the job at `planning`. The paid adapters read the ledger when they record,
-    # so the lifespan's ledger is used.
+    # `TRANSCRIBER` (012) and `PLANNER` (8.3) select the adapters; a paid one without
+    # its key stops the server in `check_startup`, never plans with the fake. The paid
+    # adapters read the ledger when they record, so the lifespan's ledger is used.
     def _book() -> ledger.Ledger:
         if books[0] is None:
             raise RuntimeError("the ledger is loaded when the server starts")

@@ -24,7 +24,12 @@ PRICES = Prices(
         "groq": {"audio_minutes": 0.5},
         "gemini": {"images": 3.0},
         "judge": {"input_tokens": 0.25, "output_tokens": 1.25},
-        "planner": {"input_tokens": 0.25, "output_tokens": 1.25},
+        "planner": {
+            "input_tokens": 0.25,
+            "cache_write_input_tokens": 0.3125,
+            "cache_read_input_tokens": 0.025,
+            "output_tokens": 1.25,
+        },
         "search": {"queries": 0.2},
         "api_equivalent": {"input_tokens": 0.25, "output_tokens": 1.25},
     }
@@ -102,7 +107,11 @@ def test_missing_price_for_a_provider_in_use_is_a_startup_error(tmp_path: Path) 
     path.write_text("groq:\n  audio_minutes: 0.5\n", encoding="utf-8")
     with pytest.raises(LedgerError, match=r"planner"):
         ledger.from_settings(_settings(tmp_path, planner="api", prices_file=path))
-    path.write_text("planner:\n  input_tokens: 0.25\n", encoding="utf-8")
+    path.write_text(
+        "planner:\n  input_tokens: 0.25\n  cache_write_input_tokens: 0.3125\n"
+        "  cache_read_input_tokens: 0.025\n",
+        encoding="utf-8",
+    )
     with pytest.raises(LedgerError, match=r"planner\.output_tokens"):
         ledger.from_settings(_settings(tmp_path, planner="api", prices_file=path))
 

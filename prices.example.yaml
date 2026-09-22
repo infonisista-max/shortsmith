@@ -17,7 +17,9 @@ judge:                      # the relevance judge's vision call (ticket 017)
   output_tokens: 1.25       # INR per 1k output tokens
 
 planner:                    # PLANNER=api (one Messages call per planner call)
-  input_tokens: 0.25
+  input_tokens: 0.25              # fresh (uncached) input
+  cache_write_input_tokens: 0.3125  # prompt-cache writes (the vendor charges above input)
+  cache_read_input_tokens: 0.025    # prompt-cache reads (the vendor charges below input)
   output_tokens: 1.25
 
 search:                     # paid web image search, per query (free if scraped)
