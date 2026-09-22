@@ -183,8 +183,8 @@ def create_app(
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
     # `renderer` None means Remotion (ticket 004) and `gate` None the technical gate
     # (006); tests pass `FakeRenderer` and `FakeGate`. The asset step follows
-    # `ASSET_SOURCES` / `ASSET_POLICY` (016) with the `web` adapter and the relevance
-    # judge `RELEVANCE_JUDGE` names (017); the free libraries come with 018.
+    # `ASSET_SOURCES` / `ASSET_POLICY` (016) with the `web` adapter (017), the free
+    # libraries (018) and the relevance judge `RELEVANCE_JUDGE` names (017).
     worker = pipeline.Worker(
         transcriber=transcriber,
         planner=planner,

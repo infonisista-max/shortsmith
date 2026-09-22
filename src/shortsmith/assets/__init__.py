@@ -40,11 +40,15 @@ Search results and fetched files are cached per job under
 `work/assets/<sha256(query + source)>/` (5.6), so re-running the step (a plan retry,
 a re-render) searches, judges and fetches nothing; judge verdicts are additionally
 cached by candidate URL for the whole job, so the same candidate is never paid for
-twice. `web` is the only real source so far (017); the free libraries come with 018.
+twice. Queries that were actually sent are counted by `Searching` against the style's
+`search_max_queries`; every source shipped so far is free, so that allowance is a
+note, never a skipped beat (11.3).
 
 `base` holds the `ImageSource` interface, the hard rejects and `FakeImageSource`
 (12.1), which writes solid PNGs at the sizes it was given behind fake URLs and has
-"nothing found" modes; `web` is the search adapter; `judge` the relevance judge.
+"nothing found" modes; `http` the HTTP half every real adapter shares; `web` the
+scraped image search (017); `commons`, `openverse`, `pexels` and `pixabay` the free
+libraries of the 5.1 order (018); `judge` the relevance judge.
 """
 
 from __future__ import annotations
@@ -64,6 +68,7 @@ from pydantic import TypeAdapter
 
 from shortsmith import ffmpeg, jobs, rights
 from shortsmith.assets.base import (
+    BOOKENDS,
     MAX_ASPECT,
     MAX_BYTES,
     MIN_SHORT_SIDE,
@@ -76,6 +81,7 @@ from shortsmith.assets.base import (
     reject_size,
     source_order,
 )
+from shortsmith.assets.commons import CommonsImageSource
 from shortsmith.assets.judge import (
     FakeRelevanceJudge,
     Judging,
@@ -84,6 +90,9 @@ from shortsmith.assets.judge import (
     Verdict,
     VisionJudge,
 )
+from shortsmith.assets.openverse import OpenverseImageSource
+from shortsmith.assets.pexels import PexelsImageSource
+from shortsmith.assets.pixabay import PixabayImageSource
 from shortsmith.assets.web import WebImageSource
 from shortsmith.config import Settings
 from shortsmith.contracts import (
@@ -107,15 +116,21 @@ from shortsmith.ledger import Ledger
 from shortsmith.styles import StyleSpec
 
 __all__ = [
+    "BOOKENDS",
     "MAX_ASPECT",
     "MAX_BYTES",
     "MIN_SHORT_SIDE",
     "AssetError",
+    "CommonsImageSource",
     "FakeImageSource",
     "FakeRelevanceJudge",
     "ImageSource",
     "Judging",
+    "OpenverseImageSource",
+    "PexelsImageSource",
+    "PixabayImageSource",
     "RelevanceJudge",
+    "Searching",
     "SourceError",
     "Sourcing",
     "Thumb",
@@ -135,6 +150,8 @@ CACHE_DIR = "assets"
 DEFAULT_ORDER: tuple[SearchOrigin, ...] = get_args(SearchOrigin)
 CANDIDATES = 6  # 5.2: at most six candidates per beat reach the judge
 NOT_SOURCED = frozenset({"presenter_full", "presenter_pip", "hook_cards", "finale"})
+# 018: the sources that want a free key, and the `.env` name that carries it.
+KEYED: Mapping[str, str] = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_KEY"}
 REUSING_KINDS = frozenset({"number", "quote"})
 
 # 5.3: the frame a full-bleed photo must cover and the largest upscale allowed.
@@ -236,6 +253,32 @@ class _Ranked:
     verdict: Verdict | None = None
 
 
+@dataclass
+class Searching:
+    """The queries this job actually sent, against the style's `search_max_queries`
+    (5.6). A query answered from `work/assets/` is not counted: it costs nothing.
+
+    Every source shipped so far is free - web search is scraped, Commons and Openverse
+    need no key, Pexels and Pixabay need a free one - so no `search` ledger row is
+    written and passing the allowance is a job-log note, never a skipped beat: cost
+    never degrades quality (11.3). A metered adapter records its own row per query and
+    checks the hard cap before it calls, exactly as the judge does."""
+
+    max_queries: int = 0
+    queries: int = 0
+    over: bool = False
+    notes: list[str] = field(default_factory=lambda: [])
+
+    def count(self, name: str) -> None:
+        self.queries += 1
+        if self.max_queries and self.queries > self.max_queries and not self.over:
+            self.over = True
+            self.notes.append(
+                f"sourcing: past the style's search_max_queries ({self.max_queries}) at "
+                f"{name}; every source is free, so the remaining beats are searched anyway"
+            )
+
+
 def keep(
     candidates: Sequence[Candidate], log: Callable[[str], None] = lambda _: None
 ) -> list[Candidate]:
@@ -277,6 +320,7 @@ def _search_cached(
     cache: Path,
     clock: Clock,
     judging: Judging,
+    searching: Searching,
     *,
     subject_kind: str = "",
     topic: str = "",
@@ -299,6 +343,7 @@ def _search_cached(
             judge_skipped=bool(data.get("judge_skipped", False)),
         )
     folder.mkdir(parents=True, exist_ok=True)
+    searching.count(name)
     candidates = keep(source.search(query, CANDIDATES), log)
     verdicts = judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
     record: dict[str, object] = {
@@ -560,6 +605,7 @@ def source_assets(
     job_dir: Path,
     generate: Generate | None = None,
     judging: Judging | None = None,
+    searching: Searching | None = None,
     topic: str = "",
     log: Callable[[str], None] = lambda _: None,
     clock: Clock = _utc_now,
@@ -572,13 +618,14 @@ def source_assets(
     by_id = {ref.id: ref for ref in references}
     walk = _Walk(job_dir=job_dir, cache=cache, clock=clock, references=references)
     judging = judging if judging is not None else Judging()
+    searching = searching if searching is not None else Searching()
 
     def search(beat: Beat, query: str) -> tuple[_Fetched, SearchOrigin] | None:
         if not query:
             return None
         for name, source in searched:
             found = _search_cached(
-                source, name, query, cache, clock, judging,
+                source, name, query, cache, clock, judging, searching,
                 subject_kind=beat.subject_kind or "", topic=topic, log=log,
             )  # fmt: skip
             if found is not None:
@@ -648,7 +695,7 @@ def source_assets(
             continue
         walk.gradient(beat)
 
-    for note in judging.notes:
+    for note in (*judging.notes, *searching.notes):
         log(note)
     runtime = picture.beats[-1].end if picture.beats else 0.0
     return AssetManifest(
@@ -659,6 +706,8 @@ def source_assets(
         rescued_max=rescued_max(spec, runtime),
         judge_calls=judging.calls,
         judge_max=judging.max_calls,
+        search_queries=searching.queries,
+        search_max=searching.max_queries,
     )
 
 
@@ -693,6 +742,9 @@ class Sourcing:
     policy: AssetPolicy = "any"
     generate: Generate | None = None
     judge: RelevanceJudge | None = None
+    # Why a configured source has no adapter, one line each, written by
+    # `from_settings` and logged by the pipeline before the step runs.
+    notes: Sequence[str] = ()
 
     def missing(self) -> list[str]:
         return [n for n in source_order(self.order, self.policy) if n not in self.sources]
@@ -715,6 +767,7 @@ class Sourcing:
             judge=self.judge.bind(job) if self.judge is not None else None,
             max_calls=spec.budget.judge_max_calls,
         )
+        searching = Searching(max_queries=spec.budget.search_max_queries)
         manifest = source_assets(
             validated,
             references,
@@ -725,6 +778,7 @@ class Sourcing:
             job_dir=job_dir,
             generate=self.generate,
             judging=judging,
+            searching=searching,
             topic=topic_line(job_dir),
             log=lambda line: jobs.note(job, line, now=clock),
             clock=clock,
@@ -747,13 +801,34 @@ def judge_from_settings(settings: Settings, ledger: Callable[[], Ledger]) -> Rel
 
 
 def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourcing:
-    """The configured step. `web` is the only real adapter so far (017; the free
-    libraries are 018), and `fake` in `ASSET_SOURCES` names the fake source for local
-    runs. `ASSET_POLICY=rights_safe` drops `web` from the order and nothing else."""
+    """The configured step: one adapter per name in `ASSET_SOURCES` (5.1). `web` is
+    the scraped search (017), `commons`, `openverse`, `pexels` and `pixabay` the free
+    libraries (018), and `fake` names the fake source for a local run with no network.
+    `ASSET_POLICY=rights_safe` drops `web` from the order and nothing else.
+
+    Pexels and Pixabay want a free key; a configured source whose key is unset is left
+    out with a note rather than failing startup, so the ladder simply skips that rung.
+    `owner` and `generate` in the order are the fixed bookends and build nothing."""
     order = parse_order(settings.asset_sources)
+    wanted = source_order(order, settings.asset_policy)
     sources: dict[str, ImageSource] = {}
-    if "web" in source_order(order, settings.asset_policy):
-        sources["web"] = WebImageSource()
+    notes: list[str] = []
+    for name in wanted:
+        if name == "web":
+            sources["web"] = WebImageSource()
+        elif name == "commons":
+            sources["commons"] = CommonsImageSource()
+        elif name == "openverse":
+            sources["openverse"] = OpenverseImageSource()
+        elif name == "pexels" and settings.pexels_api_key is not None:
+            sources["pexels"] = PexelsImageSource(api_key=settings.pexels_api_key)
+        elif name == "pixabay" and settings.pixabay_api_key is not None:
+            sources["pixabay"] = PixabayImageSource(api_key=settings.pixabay_api_key)
+        elif name in KEYED:
+            notes.append(
+                f"{name} is in ASSET_SOURCES but {KEYED[name]} is not set in .env; "
+                "that source is skipped (the key is free; decision 5.1)"
+            )
     if "fake" in order:
         sources["fake"] = FakeImageSource("web")
     return Sourcing(
@@ -761,6 +836,7 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourci
         order=order,
         policy=settings.asset_policy,
         judge=judge_from_settings(settings, ledger),
+        notes=notes,
     )
 
 

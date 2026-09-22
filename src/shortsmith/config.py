@@ -6,7 +6,9 @@ Secrets are `SecretStr` so they never appear in logs or reprs. Tests construct
 `PLANNER=claude_code` (the default) needs `SHORTSMITH_SINGLE_OPERATOR=true`, since
 it runs on the operator's own subscription; `TRANSCRIBER=groq` (the default) needs
 `GROQ_API_KEY`; `PLANNER=api` and `RELEVANCE_JUDGE=api` (the default) need
-`ANTHROPIC_API_KEY`.
+`ANTHROPIC_API_KEY`; and every name in `ASSET_SOURCES` must be an image source that
+exists, so a typo in that config edit stops the server instead of silently dropping a
+rung of the 5.1 ladder. A source whose free key is unset is skipped, not an error.
 """
 
 from __future__ import annotations
@@ -22,6 +24,15 @@ Transcriber = Literal["fake", "groq"]
 AssetPolicy = Literal["any", "rights_safe"]
 ImageGen = Literal["none", "gemini"]
 RelevanceJudge = Literal["none", "fake", "api"]
+
+# 5.1: the source order, written out in full. `owner` and `generate` are the fixed
+# bookends of the ladder (owner references always first, generation always last, 4.4),
+# listed so the config reads as the whole order; only the names between them are
+# searched. `fake` names `FakeImageSource` for a local run with no network.
+DEFAULT_ASSET_SOURCES = "owner,web,commons,openverse,pexels,pixabay,generate"
+KNOWN_ASSET_SOURCES: frozenset[str] = frozenset(
+    {"owner", "web", "commons", "openverse", "pexels", "pixabay", "generate", "fake"}
+)
 
 
 class Settings(BaseSettings):
@@ -48,7 +59,11 @@ class Settings(BaseSettings):
     # 5.1: the searched sources in order, comma-separated; a misbehaving source is
     # removed here without code. Owner references always come first and generation
     # last; `rights_safe` drops `web` (5.2). `fake` names the FakeImageSource.
-    asset_sources: str = "web,commons,openverse,pexels,pixabay"
+    asset_sources: str = DEFAULT_ASSET_SOURCES
+    # 018: both are free keys; neither search is metered, so neither writes a ledger
+    # row. A source in `ASSET_SOURCES` whose key is unset is skipped, not an error.
+    pexels_api_key: SecretStr | None = None
+    pixabay_api_key: SecretStr | None = None
     # 5.2: the cheap filter above the searched sources, on by default. `none` sources
     # every beat on its source's own order; `fake` is what tests and smoke run on.
     relevance_judge: RelevanceJudge = "api"
@@ -69,7 +84,19 @@ class ConfigError(Exception):
     """A setting combination the server must not start with; the message says the fix."""
 
 
+def asset_source_names(text: str) -> tuple[str, ...]:
+    """`ASSET_SOURCES` as a tuple of names, blanks dropped."""
+    return tuple(name.strip() for name in text.split(",") if name.strip())
+
+
 def check_startup(settings: Settings) -> None:
+    unknown = sorted(set(asset_source_names(settings.asset_sources)) - KNOWN_ASSET_SOURCES)
+    if unknown:
+        raise ConfigError(
+            f"ASSET_SOURCES names no such image source: {', '.join(unknown)}. "
+            f"The names are {', '.join(sorted(KNOWN_ASSET_SOURCES))} "
+            f"(decision 5.1; the default is {DEFAULT_ASSET_SOURCES})"
+        )
     if settings.planner == "claude_code" and not settings.shortsmith_single_operator:
         raise ConfigError(
             "PLANNER=claude_code runs on the operator's own Claude subscription and is for "

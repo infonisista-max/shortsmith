@@ -1,0 +1,71 @@
+{
+  "result_count": 412,
+  "page_count": 69,
+  "page_size": 6,
+  "page": 1,
+  "results": [
+    {
+      "id": "0f3b6a1e-1111-4d0a-9c11-aaaaaaaaaaaa",
+      "title": "India Gate at dusk",
+      "indexed_on": "2025-11-02T10:12:00Z",
+      "foreign_landing_url": "https://www.flickr.com/photos/traveller/51234567",
+      "url": "https://live.staticflickr.com/65535/51234567_india_gate_o.jpg",
+      "creator": "Meera Iyer",
+      "creator_url": "https://www.flickr.com/photos/traveller",
+      "license": "by-sa",
+      "license_version": "4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "provider": "flickr",
+      "source": "flickr",
+      "width": 3000,
+      "height": 2000,
+      "thumbnail": "https://api.openverse.org/v1/images/0f3b6a1e-1111-4d0a-9c11-aaaaaaaaaaaa/thumb/"
+    },
+    {
+      "id": "0f3b6a1e-2222-4d0a-9c11-bbbbbbbbbbbb",
+      "title": "India Gate lawns",
+      "indexed_on": "2025-10-18T08:00:00Z",
+      "foreign_landing_url": "https://www.flickr.com/photos/walker/41234567",
+      "url": "https://live.staticflickr.com/65535/41234567_india_gate_lawns_o.jpg",
+      "creator": null,
+      "creator_url": null,
+      "license": "cc0",
+      "license_version": "1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "provider": "flickr",
+      "source": "flickr",
+      "width": 2400,
+      "height": 1600,
+      "thumbnail": "https://api.openverse.org/v1/images/0f3b6a1e-2222-4d0a-9c11-bbbbbbbbbbbb/thumb/"
+    },
+    {
+      "id": "0f3b6a1e-3333-4d0a-9c11-cccccccccccc",
+      "title": "India Gate thumbnail only",
+      "indexed_on": "2025-09-01T08:00:00Z",
+      "foreign_landing_url": "https://www.flickr.com/photos/tiny/31234567",
+      "creator": "Tiny Pixels",
+      "license": "by",
+      "license_version": "2.0",
+      "provider": "flickr",
+      "source": "flickr",
+      "width": 900,
+      "height": 600,
+      "thumbnail": "https://api.openverse.org/v1/images/0f3b6a1e-3333-4d0a-9c11-cccccccccccc/thumb/"
+    },
+    {
+      "id": "0f3b6a1e-4444-4d0a-9c11-dddddddddddd",
+      "title": "India Gate mural",
+      "indexed_on": "2025-08-11T08:00:00Z",
+      "foreign_landing_url": "https://www.rawpixel.com/image/9911",
+      "url": "https://images.rawpixel.com/9911/india_gate_mural.jpg",
+      "creator": "Rawpixel Ltd.",
+      "license": "pdm",
+      "license_version": null,
+      "provider": "rawpixel",
+      "source": "rawpixel",
+      "width": 1800,
+      "height": 2400,
+      "thumbnail": "https://api.openverse.org/v1/images/0f3b6a1e-4444-4d0a-9c11-dddddddddddd/thumb/"
+    }
+  ]
+}

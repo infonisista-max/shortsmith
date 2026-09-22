@@ -10,13 +10,15 @@ is the "page follow" the old engine's scrape step did.
 
 Nothing is scraped for free that the step does not need: `thumbnail` downloads the
 search engine's own small preview for the relevance judge, and `fetch` downloads the
-full image only for the candidate the judge chose. Both cap what they read, and
-`fetch` applies the 5.2 body rejects (over 15 MB, not an image) before the file is
-written, raising `SourceError` so the step drops that candidate and takes the next.
+full image only for the candidate the judge chose. Both live in `assets.http`, shared
+with the free-library adapters (018): they cap what they read, and `fetch` applies the
+5.2 body rejects (over 15 MB, not an image) before the file is written, raising
+`SourceError` so the step drops that candidate and takes the next.
 
 No licence filtering in v1 (5.1): every web image gets a rights-log row with both its
 URLs, and the step always re-dresses it as a card, never shows it raw. Scraped search
-is free, so no `search` ledger row is written here; a metered adapter (018) adds one.
+is free, so no `search` ledger row is written here; nor does any source shipped with
+018. The first metered adapter is the one that adds the row.
 """
 
 from __future__ import annotations
@@ -24,18 +26,16 @@ from __future__ import annotations
 import html
 import json
 import re
-from pathlib import Path
 from typing import cast
 from urllib.parse import urljoin
 
 import httpx
 
-from shortsmith.assets.base import MAX_BYTES, ImageSource, SourceError, media_type, reject_body
+from shortsmith.assets.base import MAX_BYTES
+from shortsmith.assets.http import TIMEOUT_S, HttpImageSource, domain
 from shortsmith.contracts import Candidate
 
 SEARCH_URL = "https://www.bing.com/images/search"
-TIMEOUT_S = 30.0
-THUMB_MAX_BYTES = 2 * 1024 * 1024
 # A desktop browser's header set: the results page is the desktop one, and a plain
 # default user agent is served a page with no result JSON at all.
 HEADERS = {
@@ -95,8 +95,9 @@ def og_image(page: str, page_url: str) -> str:
     return ""
 
 
-class WebImageSource(ImageSource):
+class WebImageSource(HttpImageSource):
     origin = "web"
+    headers = HEADERS
 
     def __init__(
         self,
@@ -106,18 +107,8 @@ class WebImageSource(ImageSource):
         timeout_s: float = TIMEOUT_S,
         max_bytes: int = MAX_BYTES,
     ) -> None:
-        self._client = client
+        super().__init__(client=client, timeout_s=timeout_s, max_bytes=max_bytes)
         self._endpoint = endpoint
-        self._timeout_s = timeout_s
-        self._max_bytes = max_bytes
-        self.searches = 0
-
-    def _get(self, url: str, *, params: dict[str, str] | None = None) -> httpx.Response:
-        client = self._client
-        if client is not None:
-            return client.get(url, params=params, headers=HEADERS, follow_redirects=True)
-        with httpx.Client(timeout=self._timeout_s, follow_redirects=True) as owned:
-            return owned.get(url, params=params, headers=HEADERS)
 
     def search(self, query: str, n: int) -> list[Candidate]:
         """The first `n` hits for `query`, page-followed when a hit names no image."""
@@ -141,7 +132,7 @@ class WebImageSource(ImageSource):
                     thumb_url=_string(hit, "turl"),
                     width=cast("int", hit.get("width", 0)),
                     height=cast("int", hit.get("height", 0)),
-                    author=_domain(page_url or url),
+                    author=domain(page_url or url),
                 )
             )
             if len(candidates) >= n:
@@ -155,55 +146,3 @@ class WebImageSource(ImageSource):
         except httpx.HTTPError:
             return ""
         return og_image(response.text, page_url)
-
-    def thumbnail(self, candidate: Candidate) -> bytes | None:
-        url = candidate.thumb_url or candidate.url
-        try:
-            response = self._get(url)
-            response.raise_for_status()
-        except httpx.HTTPError:
-            return None
-        body = response.content
-        if len(body) > THUMB_MAX_BYTES or media_type(body) is None:
-            return None
-        return body
-
-    def fetch(self, candidate: Candidate, dest: Path) -> Path:
-        """Download the chosen candidate, 5.2 body rejects applied before writing."""
-        try:
-            response = self._get(candidate.url)
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise SourceError(f"{candidate.url} could not be downloaded: {exc}") from None
-        declared = response.headers.get("content-length", "")
-        if declared.isdigit() and int(declared) > self._max_bytes:
-            raise SourceError(
-                f"{candidate.url} is {int(declared) / 1024 / 1024:.1f} MB, "
-                f"over the {self._max_bytes // 1024 // 1024} MB limit"
-            )
-        body = response.content
-        why = reject_body(body, response.headers.get("content-type", ""))
-        if why is not None:
-            raise SourceError(f"{candidate.url} rejected: {why}")
-        kind = media_type(body)
-        assert kind is not None  # reject_body already refused a body that is not an image
-        path = dest.with_suffix(_SUFFIX[kind])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(body)
-        return path
-
-
-_SUFFIX = {
-    "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/png": ".png",
-    "image/gif": ".gif",
-    "image/webp": ".webp",
-    "image/bmp": ".bmp",
-    "image/tiff": ".tiff",
-}
-
-
-def _domain(url: str) -> str | None:
-    host = httpx.URL(url).host
-    return host.removeprefix("www.") or None

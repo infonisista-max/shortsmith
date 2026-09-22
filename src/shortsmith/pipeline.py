@@ -343,11 +343,13 @@ def _plan(job: Job, planner: Planner, specs: Specs) -> None:
 
 
 def _source(job: Job, sourcing: assets.Sourcing, specs: Specs, clock: Clock) -> None:
+    for note in sourcing.notes:
+        jobs.note(job, note, now=clock)
     missing = sourcing.missing()
     if missing:
         jobs.note(
             job,
-            f"no image source adapter yet for: {', '.join(missing)} (ticket 018)",
+            f"no image source for: {', '.join(missing)}; those rungs are skipped",
             now=clock,
         )
     sourcing.run(job, style_of(job, specs), clock=clock)

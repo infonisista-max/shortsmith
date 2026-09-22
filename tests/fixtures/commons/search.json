@@ -1,0 +1,95 @@
+{
+  "batchcomplete": true,
+  "continue": {
+    "gsroffset": 6,
+    "continue": "gsroffset||"
+  },
+  "query": {
+    "pages": [
+      {
+        "pageid": 55123,
+        "ns": 6,
+        "title": "File:India Gate banner.jpg",
+        "index": 3,
+        "imageinfo": [
+          {
+            "url": "https://upload.wikimedia.org/wikipedia/commons/c/c3/India_Gate_banner.jpg",
+            "descriptionurl": "https://commons.wikimedia.org/wiki/File:India_Gate_banner.jpg",
+            "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/India_Gate_banner.jpg/320px-India_Gate_banner.jpg",
+            "width": 3600,
+            "height": 900,
+            "extmetadata": {
+              "LicenseShortName": { "value": "CC BY 2.0", "source": "commons-desc-page" },
+              "Artist": {
+                "value": "<a href=\"https://commons.wikimedia.org/wiki/User:Wide\" title=\"User:Wide\">Wide Angle</a>",
+                "source": "commons-desc-page"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "pageid": 55121,
+        "ns": 6,
+        "title": "File:India Gate at dusk.jpg",
+        "index": 1,
+        "imageinfo": [
+          {
+            "url": "https://upload.wikimedia.org/wikipedia/commons/a/a1/India_Gate_at_dusk.jpg",
+            "descriptionurl": "https://commons.wikimedia.org/wiki/File:India_Gate_at_dusk.jpg",
+            "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/India_Gate_at_dusk.jpg/320px-India_Gate_at_dusk.jpg",
+            "width": 4000,
+            "height": 2667,
+            "extmetadata": {
+              "LicenseShortName": { "value": "CC BY-SA 4.0", "source": "commons-desc-page" },
+              "Artist": {
+                "value": "<a href=\"https://commons.wikimedia.org/wiki/User:Ankit\" title=\"User:Ankit\">Ankit Sharma</a>",
+                "source": "commons-desc-page"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "pageid": 55122,
+        "ns": 6,
+        "title": "File:India Gate archival print.jpg",
+        "index": 2,
+        "imageinfo": [
+          {
+            "url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/India_Gate_archival_print.jpg",
+            "descriptionurl": "https://commons.wikimedia.org/wiki/File:India_Gate_archival_print.jpg",
+            "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/India_Gate_archival_print.jpg/320px-India_Gate_archival_print.jpg",
+            "width": 1600,
+            "height": 2400,
+            "extmetadata": {
+              "LicenseShortName": { "value": "Public domain", "source": "commons-desc-page" }
+            }
+          }
+        ]
+      },
+      {
+        "pageid": 55124,
+        "ns": 6,
+        "title": "File:India Gate sound.ogg",
+        "index": 4,
+        "imageinfo": [
+          {
+            "descriptionurl": "https://commons.wikimedia.org/wiki/File:India_Gate_sound.ogg",
+            "width": 0,
+            "height": 0,
+            "extmetadata": {
+              "LicenseShortName": { "value": "CC0", "source": "commons-desc-page" }
+            }
+          }
+        ]
+      },
+      {
+        "pageid": 55125,
+        "ns": 6,
+        "title": "File:India Gate no imageinfo.jpg",
+        "index": 5
+      }
+    ]
+  }
+}

@@ -464,6 +464,11 @@ class AssetManifest(StrictModel):
     # 5.2 / 5.6: relevance-judge calls made and the style's `judge_max_calls` ceiling.
     judge_calls: int = 0
     judge_max: int = 0
+    # 5.6: queries actually sent to a source (cache hits cost nothing and are not
+    # counted) and the style's `search_max_queries` allowance. Every source shipped so
+    # far is free, so passing the allowance is a note, never a skipped beat (11.3).
+    search_queries: int = 0
+    search_max: int = 0
 
     def asset(self, asset_id: str) -> AssetRecord | None:
         return next((a for a in self.assets if a.id == asset_id), None)

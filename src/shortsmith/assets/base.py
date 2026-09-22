@@ -25,7 +25,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from shortsmith.config import asset_source_names
 from shortsmith.contracts import AssetPolicy, Candidate, SearchOrigin
+
+# 5.1: the names `ASSET_SOURCES` may carry that are not searched - owner references
+# always come first and generation always last, whether or not they are listed.
+BOOKENDS = ("owner", "generate")
 
 # 5.2: the code-only hard rejects.
 MIN_SHORT_SIDE = 800
@@ -174,9 +179,12 @@ class FakeImageSource(ImageSource):
 
 def parse_order(text: str) -> tuple[str, ...]:
     """`ASSET_SOURCES` as a tuple of names, blanks dropped."""
-    return tuple(name.strip() for name in text.split(",") if name.strip())
+    return asset_source_names(text)
 
 
 def source_order(order: Sequence[str], policy: AssetPolicy) -> list[str]:
-    """The searched sources for `policy` (5.2): `rights_safe` removes web search."""
-    return [name for name in order if not (policy == "rights_safe" and name == "web")]
+    """The *searched* sources in `order` for `policy` (5.1, 5.2): the fixed bookends
+    of the ladder (`owner`, `generate`) are listed in the config for readability but
+    are not searched, and `rights_safe` removes web search."""
+    dropped: set[str] = {*BOOKENDS, *({"web"} if policy == "rights_safe" else set())}
+    return [name for name in order if name not in dropped]

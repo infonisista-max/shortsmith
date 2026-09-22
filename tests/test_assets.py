@@ -162,26 +162,50 @@ def _sourcing(**overrides: object) -> assets.Sourcing:
 
 
 def test_from_settings_follows_asset_sources_and_policy() -> None:
-    sourcing = _sourcing(asset_sources="fake,commons", asset_policy="rights_safe")
-    assert (tuple(sourcing.order), sourcing.policy) == (("fake", "commons"), "rights_safe")
-    assert list(sourcing.sources) == ["fake"]
-    assert sourcing.missing() == ["commons"]  # no real adapter until 018
+    sourcing = _sourcing(asset_sources="fake,web", asset_policy="rights_safe")
+    assert (tuple(sourcing.order), sourcing.policy) == (("fake", "web"), "rights_safe")
+    assert list(sourcing.sources) == ["fake"]  # the policy dropped `web`
+    assert sourcing.missing() == []
     assert sourcing.generate is None  # IMAGE_GEN=none until 019
 
 
-def test_default_settings_build_the_web_adapter_only() -> None:
-    """017: `web` is the one real source; the free libraries come with 018."""
+def test_default_settings_build_every_keyless_adapter_in_the_5_1_order() -> None:
+    """018: web search plus the two free libraries that need no key; Pexels and
+    Pixabay join as soon as their free keys are in `.env`."""
     sourcing = _sourcing()
     assert isinstance(sourcing.sources["web"], assets.WebImageSource)
-    assert sourcing.missing() == ["commons", "openverse", "pexels", "pixabay"]
+    assert isinstance(sourcing.sources["commons"], assets.CommonsImageSource)
+    assert isinstance(sourcing.sources["openverse"], assets.OpenverseImageSource)
+    assert sourcing.missing() == ["pexels", "pixabay"]
+    assert [n for n in sourcing.notes if "PEXELS_API_KEY" in n]
+    assert [n for n in sourcing.notes if "PIXABAY_API_KEY" in n]
+
+
+def test_the_keyed_libraries_are_built_once_their_free_keys_are_set() -> None:
+    sourcing = _sourcing(pexels_api_key="pk_x", pixabay_api_key="px_x")
+    assert isinstance(sourcing.sources["pexels"], assets.PexelsImageSource)
+    assert isinstance(sourcing.sources["pixabay"], assets.PixabayImageSource)
+    assert sourcing.missing() == []
+    assert list(sourcing.notes) == []
+
+
+def test_the_ladder_bookends_are_listed_in_the_config_but_never_searched() -> None:
+    """5.1: `owner` and `generate` are the fixed ends of the ladder (1.3, 4.4); the
+    config spells the whole order out, and only the names between them are searched."""
+    sourcing = _sourcing()
+    assert tuple(sourcing.order)[0] == "owner" and tuple(sourcing.order)[-1] == "generate"
+    assert set(sourcing.sources) <= set(assets.DEFAULT_ORDER)
+    assert assets.source_order(("owner", "web", "generate"), "any") == ["web"]
 
 
 def test_rights_safe_removes_the_web_adapter_and_nothing_else() -> None:
     """5.2: the policy switch is web-search on/off, in one config line."""
     strict = _sourcing(asset_policy="rights_safe")
     assert "web" not in strict.sources
-    assert strict.missing() == ["commons", "openverse", "pexels", "pixabay"]
-    assert tuple(strict.order) == assets.DEFAULT_ORDER  # the order itself is untouched
+    assert set(strict.sources) == {"commons", "openverse"}
+    assert tuple(strict.order) == assets.parse_order(
+        config.DEFAULT_ASSET_SOURCES
+    )  # the order itself is untouched
 
 
 def test_the_judge_follows_relevance_judge() -> None:
@@ -190,6 +214,114 @@ def test_the_judge_follows_relevance_judge() -> None:
     api = _sourcing(relevance_judge="api", relevance_judge_model="claude-sonnet-5").judge
     assert isinstance(api, assets.VisionJudge)
     assert api.model == "claude-sonnet-5"
+
+
+class Counting(assets.FakeImageSource):
+    """A fake that appends its own name to one shared list every time it is asked, so
+    a test can read the order the ladder walked."""
+
+    def __init__(self, origin: str, calls: list[str], *, found: bool = False) -> None:
+        super().__init__(origin, nothing_found=not found)  # pyright: ignore[reportArgumentType]
+        self._calls = calls
+
+    def search(self, query: str, n: int) -> list[Candidate]:
+        self._calls.append(str(self.origin))
+        return super().search(query, n)
+
+
+def test_the_ladder_walks_the_configured_order_and_stops_at_the_first_hit(
+    tmp_path: Path,
+) -> None:
+    """5.1: every source is tried in the configured order, and the one that answers
+    ends the walk; changing the order is a config edit, never a code change."""
+    calls: list[str] = []
+    sources: dict[str, assets.ImageSource] = {
+        name: Counting(name, calls, found=name == "pexels")
+        for name in assets.DEFAULT_ORDER
+    }
+    manifest = _run(tmp_path, [_beat(1, "concept")], sources=sources)
+    assert calls == ["web", "commons", "openverse", "pexels"]
+    assert manifest.assets[0].origin == "pexels"
+
+
+def test_a_configured_order_the_operator_reversed_is_the_order_walked(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    sources: dict[str, assets.ImageSource] = {
+        name: Counting(name, calls) for name in assets.DEFAULT_ORDER
+    }
+    sources["commons"] = Counting("commons", calls, found=True)
+    assets.source_assets(
+        _plan([_beat(1, "concept")]), [], "any", spec=SPEC, sources=sources,
+        order=("pixabay", "openverse", "commons", "web"), job_dir=_job_dir(tmp_path),
+        clock=_clock,
+    )  # fmt: skip
+    assert calls == ["pixabay", "openverse", "commons"]
+
+
+def test_a_library_candidates_licence_and_author_reach_the_rights_row(
+    tmp_path: Path,
+) -> None:
+    """5.4: what the API said about the picture is recorded, never filtered on."""
+
+    class Licensed(assets.FakeImageSource):
+        def search(self, query: str, n: int) -> list[Candidate]:
+            return [
+                c.model_copy(update={"licence": "CC BY-SA 4.0", "author": "Ankit Sharma"})
+                for c in super().search(query, n)
+            ]
+
+    job = _job_dir(tmp_path)
+    beats = [_beat(1, "concept")]
+    manifest = _run(tmp_path, beats, sources={"commons": Licensed("commons")}, job=job)
+    (row,) = rights.rows(manifest, _plan(beats).picture)
+    assert (row.origin, row.licence, row.author) == ("commons", "CC BY-SA 4.0", "Ankit Sharma")
+    assert row.page_url and row.source_url
+    assert "Photo: Ankit Sharma via" in rights.credits([row])
+
+
+def test_a_source_that_reports_no_licence_records_unknown(tmp_path: Path) -> None:
+    manifest = _run(tmp_path, [_beat(1, "concept")],
+                    sources={"openverse": assets.FakeImageSource("openverse")})  # fmt: skip
+    assert manifest.assets[0].licence == "unknown"
+
+
+# --- the search allowance (5.6) ----------------------------------------------------------
+
+
+def test_queries_are_counted_against_the_styles_search_max_queries(tmp_path: Path) -> None:
+    """5.6: a query actually sent counts; one answered from `work/assets/` does not."""
+    searching = assets.Searching(max_queries=SPEC.budget.search_max_queries)
+    job = _job_dir(tmp_path)
+    beats = [_beat(1, "concept"), _beat(2, "entity")]
+    first = assets.source_assets(
+        _plan(beats), [], "any", spec=SPEC, sources={"web": assets.FakeImageSource("web")},
+        job_dir=job, searching=searching, clock=_clock,
+    )  # fmt: skip
+    assert (first.search_queries, first.search_max) == (2, SPEC.budget.search_max_queries)
+    again = assets.source_assets(
+        _plan(beats), [], "any", spec=SPEC, sources={"web": assets.FakeImageSource("web")},
+        job_dir=job, searching=assets.Searching(max_queries=60), clock=_clock,
+    )  # fmt: skip
+    assert again.search_queries == 0  # every query came from the cache
+
+
+def test_passing_the_search_allowance_is_a_note_and_never_a_skipped_beat(
+    tmp_path: Path,
+) -> None:
+    """11.3: cost never degrades quality, and every source shipped so far is free, so
+    the allowance is advisory: the beats are still searched, and the job says so."""
+    log: list[str] = []
+    beats = [_beat(i, "concept") for i in (1, 2, 3)]
+    manifest = assets.source_assets(
+        _plan(beats), [], "any", spec=SPEC, sources={"web": assets.FakeImageSource("web")},
+        job_dir=_job_dir(tmp_path), searching=assets.Searching(max_queries=1),
+        log=log.append, clock=_clock,
+    )  # fmt: skip
+    assert manifest.search_queries == 3
+    assert [b.fallback_rung for b in manifest.beats] == [0, 0, 0]
+    assert sum("search_max_queries (1)" in line for line in log) == 1
 
 
 def test_rights_safe_never_calls_web(tmp_path: Path) -> None:
@@ -555,7 +687,9 @@ def test_rerunning_the_step_fetches_nothing(tmp_path: Path) -> None:
     counts = (web.searches, web.fetches)
     again = _run(tmp_path, beats, sources={"web": web}, job=job)
     assert (web.searches, web.fetches) == counts
-    assert again == first
+    # The manifest is the same decision, with one difference: the re-run spent nothing.
+    assert again == first.model_copy(update={"search_queries": 0})
+    assert (first.search_queries, again.search_queries) == (3, 0)
     assert (job / "work" / "assets" / assets.cache_key("query 1", "web")).is_dir()
 
 

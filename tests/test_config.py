@@ -33,6 +33,8 @@ def _startup(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
 
 def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
     unlisted = {
+        "PEXELS_API_KEY",
+        "PIXABAY_API_KEY",
         "PLANNER_MODEL",
         "RELEVANCE_JUDGE",
         "RELEVANCE_JUDGE_MODEL",
@@ -70,13 +72,41 @@ def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.max_queue == 3
     assert s.max_jobs_per_day == 10
     assert s.max_job_minutes == 30
-    # 5.1 source order
-    assert s.asset_sources == "web,commons,openverse,pexels,pixabay"
+    # 5.1 source order, written out in full: owner references first, generation last
+    assert s.asset_sources == "owner,web,commons,openverse,pexels,pixabay,generate"
+    assert s.pexels_api_key is None
+    assert s.pixabay_api_key is None
 
 
 def test_asset_sources_override(monkeypatch: pytest.MonkeyPatch) -> None:
     s = _settings(monkeypatch, ASSET_SOURCES="commons,pexels")
     assert s.asset_sources == "commons,pexels"
+
+
+def test_an_unknown_asset_source_is_a_startup_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """5.1: removing a misbehaving source is a config edit, so a typo in that edit has
+    to stop the server rather than silently drop a rung of the ladder."""
+    with pytest.raises(config.ConfigError, match="unsplash"):
+        config.check_startup(
+            _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake",
+                     ASSET_SOURCES="web,unsplash,commons")  # fmt: skip
+        )
+    config.check_startup(
+        _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake",
+                 ASSET_SOURCES=config.DEFAULT_ASSET_SOURCES)  # fmt: skip
+    )
+    config.check_startup(
+        _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", ASSET_SOURCES="fake")
+    )
+
+
+def test_the_free_library_keys_are_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """018: Pexels and Pixabay want a free key; it is never printed."""
+    s = _settings(monkeypatch, PEXELS_API_KEY="pexels_secret", PIXABAY_API_KEY="pixabay_secret")
+    assert s.pexels_api_key is not None and s.pixabay_api_key is not None
+    assert s.pexels_api_key.get_secret_value() == "pexels_secret"
+    assert "pexels_secret" not in repr(s) + s.model_dump_json()
+    assert "pixabay_secret" not in repr(s) + s.model_dump_json()
 
 
 def test_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:

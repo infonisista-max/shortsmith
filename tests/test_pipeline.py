@@ -189,7 +189,7 @@ def test_sources_without_an_adapter_are_noted_in_the_job_log(
                                order=("web", "commons", "pexels"))  # fmt: skip
     _run(job, sourcing=sourcing)
     log = job.log_path.read_text("utf-8")
-    assert "no image source adapter yet for: commons, pexels" in log
+    assert "no image source for: commons, pexels; those rungs are skipped" in log
 
 
 def test_rights_safe_policy_reaches_the_step(tmp_path: Path, fixture_clip: Path) -> None:

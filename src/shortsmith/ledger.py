@@ -45,8 +45,10 @@ TOKEN_SUFFIX = "_tokens"
 API_EQUIVALENT = "api_equivalent"  # the display-only rate for subscription rows
 SUBSCRIPTION_PROVIDERS: frozenset[str] = frozenset({"claude_code"})
 # What each priced provider must carry; a provider in use without one of these fails
-# startup. `search` joins `providers_in_use` when a metered search adapter ships (018);
-# the 017 web adapter is scraped, so its queries cost nothing and write no row.
+# startup. `search` is priced but still out of `providers_in_use`: every image source
+# shipped so far is free - web search is scraped (017), Commons and Openverse need no
+# key and Pexels and Pixabay a free one (018) - so none of them writes a row. The first
+# metered adapter adds `search` to `providers_in_use` and records `{"queries": 1}`.
 REQUIRED_UNITS: Mapping[str, tuple[str, ...]] = {
     "groq": ("audio_minutes",),
     "gemini": ("images",),
