@@ -34,6 +34,13 @@ Covers PRD `assets` (interface, ladder, classification, cache, manifest), `right
 - Blocked by `issues/006-t1-t4-contact-sheet-delivered.md`
 - Blocked by `issues/009-grammar-validator.md`
 
+## Notes from 006
+
+- Pillow is installed (`pillow==12.3.0`) for aspect classification and the fake source's PNGs.
+- `pipeline.DELIVERABLES` is the tuple to extend with `rights.json` and `credits.md`.
+- The strip line under each frame is drawn in `contact_sheet._draw_cell` (a placeholder today); `Cell.strip` is its box. Pillow's default font has no em/en dash, so use hyphens or the bundled Poppins.
+- T9 appends to the check list in `qa.technical.run`; `contact_sheet.TECHNICAL_CHECKS` and `smoke.TECHNICAL_CHECKS` name the dots and the smoke assertion.
+
 ## User stories addressed
 
 - User story 6

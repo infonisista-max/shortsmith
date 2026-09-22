@@ -28,6 +28,10 @@ Covers PRD `assets` (generator), `rights` (generated rows). Decisions 4.2, 5.4, 
 
 - Blocked by `issues/016-asset-step-ladder-rights.md`
 
+## Notes from 006
+
+- Pillow is installed (`pillow==12.3.0`); `FakeImageGenerator` can draw the prompt with `ImageDraw` and the bundled Poppins.
+
 ## User stories addressed
 
 - User story 17

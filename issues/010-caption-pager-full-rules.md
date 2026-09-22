@@ -31,6 +31,10 @@ Covers PRD `captions`. Decisions 6.1, 6.2, 6.3.
 - Blocked by `issues/006-t1-t4-contact-sheet-delivered.md`
 - Blocked by `issues/009-grammar-validator.md`
 
+## Notes from 006
+
+- Pillow is installed (`pillow==12.3.0`); `PIL.ImageFont.truetype` on `assets/fonts/` is available for the word-box measurement.
+
 ## User stories addressed
 
 - User story 26
