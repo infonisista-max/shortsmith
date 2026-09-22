@@ -73,3 +73,15 @@ Dependencies only via `uv add`. If a task needs a new dependency that is not alr
   when the session's launch prompt names it.
 - If your ticket needs a package that is not installed, do not install
   it: add a BLOCKED note to the ticket and stop.
+
+# SELF-CHECK BEFORE DONE
+
+After the feedback loops pass, if your ticket touched the pipeline or
+rendering: run the smoke, then READ out/qa.json yourself. If any T1-T4
+check fails, diagnose and fix it before declaring the ticket done —
+never report done with a failing T. You may also Read the contact-sheet
+frame (contact.jpg) and compare PIP position, safe areas and caption
+anchor against the numbers in the loaded style spec.
+
+Objective checks are yours to consume. Taste verdicts are the operator's —
+never rate your own output as good-looking.
