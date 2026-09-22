@@ -37,7 +37,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
-from pydantic import TypeAdapter
 
 from shortsmith import (
     assets,
@@ -53,7 +52,7 @@ from shortsmith import (
 )
 from shortsmith.contracts import (
     TIER1_KINDS,
-    CaptionPage,
+    Captions,
     PicturePlan,
     RenderSpec,
     SoundStory,
@@ -79,7 +78,6 @@ TRAIL = [
     "qa -> delivered",
 ]
 TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T8", "T9")  # grows with the gate tickets
-_PAGES = TypeAdapter(list[CaptionPage])
 SMOKE_BRIEF = (
     "Topic: a six-second synthetic clip. Angle: prove the pipeline end to end. "
     "Must-say: twelve words on six tone bursts. Hook wish: none."
@@ -198,7 +196,7 @@ def run_smoke(
         check(path.is_file(), f"planning did not write work/{path.name}")
     plan = PicturePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
     story = SoundStory.model_validate_json(sound_path.read_text(encoding="utf-8"))
-    pages = _PAGES.validate_json(captions_path.read_text(encoding="utf-8"))
+    pages = Captions.model_validate_json(captions_path.read_text(encoding="utf-8")).pages
     # 009: the validated plan is what plan.json / sound.json hold, with zero violations
     # (or the job would have failed at planning) and the clamps logged.
     validated = ValidatedPlan.model_validate_json(validated_path.read_text(encoding="utf-8"))
@@ -223,9 +221,17 @@ def run_smoke(
     beat_ids = {b.id for b in plan.beats}
     check(all(c.beat_id in beat_ids for c in story.cues), "a sound cue names an unknown beat")
     check(all(2 <= len(p.word_indices) <= 4 for p in pages), "a caption page is not 2-4 words")
+    # 010: every word before the finale beat is paged once, in order; none after it.
+    finale_start = next(b.start for b in plan.beats if b.id == plan.finale.beat_id)
+    before = [i for i, w in enumerate(on_disk.words) if w.start < finale_start]
     check(
-        sum(len(p.word_indices) for p in pages) == EXPECTED_WORDS,
-        "caption pages do not cover every word",
+        [i for p in pages for i in p.word_indices] == before,
+        f"caption pages do not cover exactly the words before the finale ({before})",
+    )
+    check(all(p.end <= finale_start for p in pages), "a caption page shows into the finale")
+    check(
+        all(1 <= p.lines <= 2 and len(p.words) == len(p.word_indices) for p in pages),
+        "a caption page is not laid out in one or two lines",
     )
     manifest = check_assets(reloaded, plan)
     picture = job.work_dir / "picture.mp4"

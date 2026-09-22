@@ -15,14 +15,15 @@ the grammar (`grammar`, ticket 009) after each call: a rejected call is re-sent
 exactly once with the previous output and the violation list (`PlanFeedback`), a
 second rejection fails the job at `planning` with the list in `job.json.error` and
 on the page, and the retry is logged in `job.log` (8.2). The sound call receives the
-snapped picture plan. The step pages the captions (6.1) from the clamped keywords
-and writes `work/plan.raw.json` and `work/sound.raw.json` (the planner's last
+snapped picture plan. The step builds the captions (`captions.build`, 6.1-6.3: cut,
+hidden from the finale, paged, laid out) from the snapped plan and its clamped
+keywords and writes `work/plan.raw.json` and `work/sound.raw.json` (the planner's last
 output), `work/plan.json` and `work/sound.json` (snapped and clamped: what the
 renderer, the gate and the sheet read), `work/plan.validated.json` (both plus the
 clamps and warnings) and `work/captions.json`. The style is the spec
 `job.json.style` names (resolved at upload, ticket 008): the PlanRequest carries its
-numbers and prose (1.2), the grammar reads its counts and the pager reads
-`captions.words_per_page` / `prefer` from it. The specs are loaded once by whoever
+numbers and prose (1.2), the grammar reads its counts and the pager its `captions`
+numbers and typography. The specs are loaded once by whoever
 builds the worker (`create_app`, smoke) and passed in; a job naming a style that is
 not loaded fails at `planning`.
 
@@ -64,7 +65,6 @@ from pathlib import Path
 from pydantic import BaseModel, TypeAdapter
 
 from shortsmith import assets, captions, grammar, jobs, render, subproc
-from shortsmith.captions import PagerNumbers
 from shortsmith.contracts import (
     Constraints,
     PicturePlan,
@@ -249,11 +249,6 @@ def build_plan_request(job: Job, specs: Specs) -> PlanRequest:
     )
 
 
-def pager_numbers(spec: StyleSpec) -> PagerNumbers:
-    """The 6.1 pager numbers from the style's `captions` front matter."""
-    return PagerNumbers(words_per_page=spec.captions.words_per_page, prefer=spec.captions.prefer)
-
-
 class PlanRejected(Exception):
     """The grammar rejected the planner's `call` ("picture" or "sound") twice (8.2)."""
 
@@ -314,16 +309,11 @@ def _plan(job: Job, planner: Planner, specs: Specs) -> None:
         clamps=checked.clamps + sound.clamps,
         warnings=checked.warnings,
     )
-    pages = captions.page(
-        transcript.words, picture.keywords, pager_numbers(spec), duration_s=transcript.duration_s
-    )
+    paged = captions.build(transcript, picture, spec)
     _write(job, "plan.json", picture)
     _write(job, "sound.json", sound.sound)
     _write(job, "plan.validated.json", validated)
-    (job.work_dir / "captions.json").write_text(
-        TypeAdapter(list[captions.CaptionPage]).dump_json(pages, indent=2).decode("utf-8"),
-        encoding="utf-8",
-    )
+    _write(job, "captions.json", paged)
 
 
 def _source(job: Job, sourcing: assets.Sourcing, specs: Specs, clock: Clock) -> None:

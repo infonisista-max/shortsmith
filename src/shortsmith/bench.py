@@ -8,7 +8,6 @@ records the figure per box in `docs/bench.md`; nothing is recorded here.
 
 from __future__ import annotations
 
-import json
 import shutil
 import sys
 import tempfile
@@ -47,14 +46,10 @@ def run_bench(root: Path, *, concurrency: int = render.CONCURRENCY) -> DriverRes
         asset_policy="any",
     )
     plan = FakePlanner().plan_picture(request)
-    pages = captions.page(
-        transcript.words, plan.keywords, captions.PagerNumbers(), duration_s=transcript.duration_s
-    )
+    paged = captions.build(transcript, plan, render.loaded_styles()["explainer"])
     (job.work_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
     (job.work_dir / "asr.json").write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
-    (job.work_dir / "captions.json").write_text(
-        json.dumps([p.model_dump() for p in pages]), encoding="utf-8"
-    )
+    (job.work_dir / "captions.json").write_text(paged.model_dump_json(), encoding="utf-8")
     render.cut_presenter(job)  # the composition reads work/cut.mp4 (005); not timed
     out_dir = root / "bench"
     out_dir.mkdir(parents=True, exist_ok=True)

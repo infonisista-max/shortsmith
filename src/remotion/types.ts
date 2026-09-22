@@ -123,6 +123,8 @@ export type RenderSpec = {
   source_height: number;
   beats: BeatSpec[];
   captions: CaptionPageSpec[];
+  // Beats a two-line caption page shows over; lower-thirds are suppressed there (6.3, 026).
+  beats_with_two_lines: string[];
   pip: PipGeometry;
   palette: Palette;
   caption_style: CaptionStyle;
@@ -139,6 +141,7 @@ export const EMPTY_SPEC: RenderSpec = {
   source_height: 1920,
   beats: [{ id: "b01", start_frame: 0, end_frame: 30, mode: "off", kind: "finale", enter: "cut" }],
   captions: [],
+  beats_with_two_lines: [],
   pip: {
     left: 60,
     top: 960,

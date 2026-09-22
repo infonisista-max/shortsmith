@@ -25,6 +25,10 @@ Covers PRD render (`hook_cards`, `finale`, `stamp`, `lower_third`). Decisions 3.
 - [ ] Unit tests on RenderSpec construction: fewer than three hook assets → one card; stamp above y 1152 rejected; lower-third suppression on a two-line beat.
 - [ ] Smoke: the fixture short opens with the two-beat hook and ends with the finale; gates pass.
 
+## Notes from 010
+
+- `RenderSpec.beats_with_two_lines` (beat ids a two-line page overlaps in time) is already filled from `work/captions.json`; `types.ts` has the field. Captions are already absent from the finale beat's start (pages end at or before it).
+
 ## Blocked by
 
 - Blocked by `issues/016-asset-step-ladder-rights.md`

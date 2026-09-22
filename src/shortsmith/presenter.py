@@ -7,8 +7,9 @@ ones, minus the cold-open span itself at its original place when the planner sai
 `original_position: drop`. With `keep` the lifted line stays where it was and plays
 twice; the validator (009) is what rejects an accidental repeat.
 
-`output_time` maps a source time onto that timeline; the pager (010) uses it to move
-word times onto the cut before paging. Face measurement is ticket 013.
+`output_time` maps a source time onto that timeline; `words_on_cut` applies the same
+spans to the word list, so the pager (010) pages exactly the words the audio keeps,
+at their times on the cut. Face measurement is ticket 013.
 
 `crop_window` is the 2.1 geometry: the largest centred 9:16 window of the source,
 refused when filling 1080x1920 from it would upscale past `MAX_UPSCALE` (ingest
@@ -20,7 +21,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from shortsmith.contracts import PicturePlan, Span
+from shortsmith.contracts import PicturePlan, Span, Word
 
 TARGET_WIDTH, TARGET_HEIGHT = 1080, 1920
 MAX_UPSCALE = 1.5  # decision 2.1; the same number as `ingest.Limits.max_upscale`
@@ -105,6 +106,27 @@ def source_time(spans: Sequence[Span], output_t: float) -> float:
             return span.start + min(max(output_t - offset, 0.0), length)
         offset += length
     return spans[-1].end
+
+
+def words_on_cut(spans: Sequence[Span], words: Sequence[Word]) -> list[tuple[int, Word]]:
+    """The words the cut keeps, in output order, each with its index in `words` and its
+    times moved onto the cut timeline (6.1): a word is kept by the span holding its
+    midpoint, so a dropped span loses its words and the cold-open lift moves them to
+    the front. Inside one span this is `output_time`; a lifted line kept at its
+    original place (`keep`) is placed in both spans, as it plays twice."""
+    placed: list[tuple[int, Word]] = []
+    offset = 0.0
+    for span in spans:
+        for i, word in enumerate(words):
+            mid = (word.start + word.end) / 2
+            if span.start <= mid < span.end:
+                start = offset + max(word.start, span.start) - span.start
+                end = offset + min(word.end, span.end) - span.start
+                placed.append(
+                    (i, word.model_copy(update={"start": round(start, 3), "end": round(end, 3)}))
+                )
+        offset += span.end - span.start
+    return placed
 
 
 def output_time(spans: Sequence[Span], source_t: float) -> float:

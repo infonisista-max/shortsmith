@@ -20,7 +20,7 @@ from shortsmith.contracts import (
     AssetManifest,
     Beat,
     BedQuery,
-    CaptionPage,
+    Captions,
     Constraints,
     Crop,
     CutPlan,
@@ -31,7 +31,6 @@ from shortsmith.contracts import (
     SoundStory,
     Span,
     ValidatedPlan,
-    Word,
 )
 from shortsmith.planner import FakePlanner
 from shortsmith.transcriber import FakeTranscriber
@@ -39,6 +38,7 @@ from tests.conftest import Media
 
 WORDS = FakeTranscriber().transcribe(Path("unused.mp4")).words
 EXPLAINER = render.style_numbers("explainer")  # from styles/explainer.md front matter (008)
+EXPLAINER_SPEC = render.loaded_styles()["explainer"]
 
 
 def _plan() -> PicturePlan:
@@ -54,16 +54,15 @@ def _plan() -> PicturePlan:
     return FakePlanner().plan_picture(request)
 
 
-def _pages(plan: PicturePlan) -> list[CaptionPage]:
-    return captions.page(WORDS, plan.keywords, captions.PagerNumbers(), duration_s=6.0)
+def _captions(plan: PicturePlan) -> Captions:
+    return captions.build(FakeTranscriber().transcribe(Path("unused.mp4")), plan, EXPLAINER_SPEC)
 
 
 def _spec() -> RenderSpec:
     plan = _plan()
     return render.build_spec(
         plan,
-        _pages(plan),
-        WORDS,
+        _captions(plan),
         presenter=Path("work/cut.mp4"),
         source_size=(fixture.WIDTH, fixture.HEIGHT),
         duration_s=fixture.DURATION_S,
@@ -80,7 +79,7 @@ def _job_with(tmp_path: Path, clip: Path, plan: PicturePlan | None = None) -> jo
         FakeTranscriber().transcribe(clip).model_dump_json(indent=2), encoding="utf-8"
     )
     (job.work_dir / "captions.json").write_text(
-        json.dumps([p.model_dump() for p in _pages(plan)]), encoding="utf-8"
+        _captions(plan).model_dump_json(), encoding="utf-8"
     )
     return job
 
@@ -132,7 +131,7 @@ def _visual_spec(tmp_path: Path, plan: PicturePlan | None = None,
     plan = plan or _plan()
     manifest = manifest or _sourced(tmp_path, plan)
     return render.build_spec(
-        plan, _pages(plan), WORDS, presenter=Path("work/cut.mp4"),
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
         source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
         manifest=manifest, job_dir=tmp_path / "job",
     )  # fmt: skip
@@ -272,85 +271,33 @@ def test_beat_frames_round_to_the_nearest_frame() -> None:
     assert (by_id["b03"].start_frame, by_id["b03"].end_frame) == (30, 45)
 
 
-# --- caption boxes (decision 6.2 / 6.3) ----------------------------------------------
+# --- caption boxes (decisions 6.2, 6.3; laid out by the pager, ticket 010) ----------
 
 
-def test_every_word_has_a_box_and_timing_from_the_transcript() -> None:
+def test_the_spec_carries_the_pagers_boxes_as_given() -> None:
+    plan = _plan()
+    paged = _captions(plan)
     spec = _spec()
-    assert len(spec.captions) == 4
+    assert len(spec.captions) == len(paged.pages) == 5  # the finale hides the last burst
+    for drawn, page in zip(spec.captions, paged.pages, strict=True):
+        assert (drawn.index, drawn.start, drawn.end, drawn.lines) == (
+            page.index, page.start, page.end, page.lines
+        )
+        assert drawn.words == page.words
     first = spec.captions[0]
-    assert [w.text for w in first.words] == ["hello", "there", "this"]
+    assert [w.text for w in first.words] == ["hello", "there"]
     assert first.words[0].start == WORDS[0].start and first.words[0].end == WORDS[0].end
-    assert (first.start, first.end) == (0.16, 1.32)
+    assert (first.start, first.end) == (0.16, 1.16)
 
 
-def test_boxes_advance_by_the_fixed_gap_so_activation_never_moves_a_neighbour() -> None:
-    numbers = EXPLAINER
-    spec = _spec()
-    line = spec.captions[0].words
-    for left, right in zip(line, line[1:], strict=False):
-        assert right.x == pytest.approx(left.x + left.width + numbers.captions.word_gap_px)
-    # Each box is sized at the 1.08-scaled width (6.2), not the resting width.
-    resting = render.text_width("hello", numbers.captions)
-    assert line[0].width == pytest.approx(resting * numbers.captions.active_scale)
-
-
-def test_one_line_block_bottom_sits_at_the_explainer_anchor_and_is_centred() -> None:
-    numbers = EXPLAINER
-    page = _spec().captions[0]
-    assert page.lines == 1
-    line_h = numbers.captions.size_px * numbers.captions.line_height
-    assert page.words[0].y == pytest.approx(numbers.captions.anchor_y - line_h)
-    assert all(w.height == pytest.approx(line_h) for w in page.words)
-    left, right = page.words[0].x, page.words[-1].x + page.words[-1].width
-    assert left == pytest.approx(1080 - right)
-    assert right - left <= numbers.captions.max_width_px
-
-
-def test_keyword_word_is_flagged_once_per_page_and_padded_for_its_box() -> None:
-    numbers = EXPLAINER
-    page = _spec().captions[0]  # keyword 1 -> "there"
-    flagged = [w for w in page.words if w.keyword]
-    assert [w.text for w in flagged] == ["there"]
-    plain = render.text_width("there", numbers.captions) * numbers.captions.active_scale
-    assert flagged[0].width == pytest.approx(plain + 2 * numbers.captions.keyword_pad_px)
-
-
-def _page_of(texts: list[str], keyword: int | None = None) -> tuple[CaptionPage, list[Word]]:
-    words = [
-        Word(text=t, start=0.5 * i, end=0.5 * i + 0.4, segment=0) for i, t in enumerate(texts)
-    ]
-    page = CaptionPage(
-        index=0,
-        word_indices=list(range(len(texts))),
-        texts=texts,
-        start=0.0,
-        end=1.0,
-        keyword=keyword,
-    )
-    return page, words
-
-
-def test_a_wide_page_wraps_to_two_lines_above_the_anchor() -> None:
-    numbers = EXPLAINER
-    page, words = _page_of(["remarkable", "discoveries", "await"])
-    laid = render.layout_page(page, words, numbers.captions)
-    assert laid.lines == 2
-    line_h = numbers.captions.size_px * numbers.captions.line_height
-    tops = sorted({w.y for w in laid.words})
-    assert tops == pytest.approx([numbers.captions.anchor_y - 2 * line_h,
-                                  numbers.captions.anchor_y - line_h])  # fmt: skip
-    for y in tops:
-        row = [w for w in laid.words if w.y == y]
-        assert row[-1].x + row[-1].width - row[0].x <= numbers.captions.max_width_px
-
-
-def test_a_page_needing_three_lines_is_a_pager_bug_and_raises() -> None:
-    page, words = _page_of(
-        ["incomprehensibilities", "counterrevolutionaries", "electroencephalographically"]
-    )
-    with pytest.raises(render.LayoutError, match="three lines"):
-        render.layout_page(page, words, EXPLAINER.captions)
+def test_the_spec_carries_the_beats_with_two_line_pages() -> None:
+    paged = Captions(pages=[], beats_with_two_lines=["b03", "b04"])
+    spec = render.build_spec(
+        _plan(), paged, presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+    )  # fmt: skip
+    assert spec.beats_with_two_lines == ["b03", "b04"]
+    assert _spec().beats_with_two_lines == []  # the fixture's pages are one line each
 
 
 # --- PIP geometry and palette (decisions 3.3, 6.3) -----------------------------------

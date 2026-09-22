@@ -253,6 +253,20 @@ class Finale(StrictModel):
     text: str
 
 
+class WordRun(StrictModel):
+    """A name or number the planner marks so no caption page splits it (6.1): word
+    indices `first` to `last`, both included."""
+
+    first: int
+    last: int
+
+    @model_validator(mode="after")
+    def _last_not_before_first(self) -> WordRun:
+        if self.last < self.first:
+            raise ValueError(f"word run ends ({self.last}) before it starts ({self.first})")
+        return self
+
+
 class PicturePlan(StrictModel):
     prompt_version: str
     cut: CutPlan
@@ -260,6 +274,7 @@ class PicturePlan(StrictModel):
     hook: Hook
     finale: Finale
     keywords: list[int] = []  # word indices, priority order (6.1)
+    name_runs: list[WordRun] = []  # names and numbers never split across pages (6.1)
     title: str
     description: str
     hashtags: list[str] = []
@@ -475,26 +490,6 @@ class RightsRow(StrictModel):
 # --- captions (decision 6.1) -------------------------------------------------------
 
 
-class CaptionPage(StrictModel):
-    """One caption page: 2-4 word indices into the final word list, timed per
-    research S4, with at most one keyword (a word index) boxed. Layout boxes and line
-    count arrive with ticket 010."""
-
-    index: int
-    word_indices: list[int]
-    texts: list[str]
-    start: float
-    end: float
-    keyword: int | None = None
-
-
-# --- render spec (ticket 004; decisions 6.2, 6.3, 9.1) -------------------------------
-#
-# The engine-specific input the Remotion composition reads as its props. Everything
-# is resolved: frames not seconds for beats, pixel boxes for words, one palette. The
-# composition draws what it is given and measures nothing.
-
-
 class WordBox(StrictModel):
     """One caption word in its fixed-advance box (6.2): `x`,`y` top-left in composition
     pixels, `width` the 1.08-scaled width (plus the keyword padding when boxed)."""
@@ -507,6 +502,37 @@ class WordBox(StrictModel):
     width: float
     height: float
     keyword: bool = False
+
+
+class CaptionPage(StrictModel):
+    """One caption page (6.1, 6.2): the indices of its words in the transcript word
+    list, their display texts (trailing punctuation stripped), its times on the cut
+    timeline per research S4, at most one keyword (a transcript word index) and the
+    laid-out word boxes, whose times are on the cut timeline too."""
+
+    index: int
+    word_indices: list[int]
+    texts: list[str]
+    start: float
+    end: float
+    keyword: int | None = None
+    lines: int = 1
+    words: list[WordBox] = []
+
+
+class Captions(StrictModel):
+    """`work/captions.json`: the pages, and the beats a two-line page shows over so
+    lower-thirds are suppressed there (6.3)."""
+
+    pages: list[CaptionPage]
+    beats_with_two_lines: list[str] = []
+
+
+# --- render spec (ticket 004; decisions 6.2, 6.3, 9.1) -------------------------------
+#
+# The engine-specific input the Remotion composition reads as its props. Everything
+# is resolved: frames not seconds for beats, pixel boxes for words, one palette. The
+# composition draws what it is given and measures nothing.
 
 
 class CaptionPageSpec(StrictModel):
@@ -636,6 +662,7 @@ class RenderSpec(StrictModel):
     source_height: int
     beats: list[BeatSpec]
     captions: list[CaptionPageSpec]
+    beats_with_two_lines: list[str] = []
     pip: PipGeometry
     palette: Palette
     caption_style: CaptionStyle

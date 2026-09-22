@@ -1,10 +1,11 @@
 """The Python half of the picture engine (decision 9.1, ticket 004).
 
-`build_spec` is pure: from the PicturePlan, the caption pages and the transcript
-words it resolves everything the Remotion composition needs into a `RenderSpec`
-(frames not seconds, a pixel box per word, the PIP circle and crop window, the
-palette, the 6.2 typography numbers). The composition under `src/remotion/` draws
-what it is given and measures nothing.
+`build_spec` is pure: from the PicturePlan and the laid-out captions (`captions.build`,
+ticket 010: word boxes already measured, wrapped and anchored, times on the cut
+timeline) it resolves everything the Remotion composition needs into a `RenderSpec`
+(frames not seconds, the caption boxes and `beats_with_two_lines` as given, the PIP
+circle and crop window, the palette, the 6.2 typography numbers). The composition
+under `src/remotion/` draws what it is given and measures nothing.
 
 `render_picture(job)` writes `work/render_spec.json`, runs `src/remotion/driver.mjs`
 (which bundles once into `build/remotion/` and renders through `@remotion/renderer`
@@ -29,9 +30,7 @@ into `work/stems/mix.wav` and muxes it with the picture stream copied bit-for-bi
 Style numbers come from the style front matter (ticket 008, decision 1.2):
 `numbers_for(spec)` narrows a loaded `StyleSpec` to the `StyleNumbers` the builder
 reads (the 6.2 typography, the 3.3 / 6.3 PIP geometry, the palette), and
-`style_numbers(name)` looks a style up in the specs loaded once per process. Word
-widths are estimated from a per-glyph advance table for Poppins 800; ticket 010
-replaces the estimate with a Pillow measurement and adds the pager's own wrapping.
+`style_numbers(name)` looks a style up in the specs loaded once per process.
 
 Component registry (9.2): `src/remotion/registry.json` is the checked-in list the
 Node test asserts against the component files; `registry()` reads the same file.
@@ -68,14 +67,12 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from pydantic import TypeAdapter
-
 from shortsmith import assets, ffmpeg, presenter, styles, subproc
 from shortsmith.contracts import (
     AssetManifest,
     BeatSpec,
-    CaptionPage,
     CaptionPageSpec,
+    Captions,
     CaptionStyle,
     CardSpec,
     Crop,
@@ -85,10 +82,7 @@ from shortsmith.contracts import (
     PipGeometry,
     RenderSpec,
     Span,
-    Transcript,
     VisualSpec,
-    Word,
-    WordBox,
 )
 from shortsmith.jobs import Job
 from shortsmith.styles import StyleSpec
@@ -112,15 +106,9 @@ AAC_HEADROOM_DB = 0.5
 LIMITER = 0.891
 SAMPLE_RATE = 48000
 
-_PAGES = TypeAdapter(list[CaptionPage])
-
 
 class RenderError(RuntimeError):
     """The driver failed; the message carries the tail of its output."""
-
-
-class LayoutError(ValueError):
-    """A caption page cannot be laid out within the style's line limit (6.2)."""
 
 
 # --- style numbers (decision 1.2: read from front matter, never from code) --------------
@@ -205,102 +193,6 @@ def loaded_styles() -> dict[str, StyleSpec]:
 
 def style_numbers(name: str) -> StyleNumbers:
     return numbers_for(loaded_styles()[name])
-
-
-# --- text width estimate (until 010 measures with Pillow) -----------------------------
-
-# Advance widths in em for Poppins 800, by glyph class; a guess good to about 10 %.
-_NARROW = set("iljtfr.,'!|:;")
-_WIDE = set("mw")
-_WIDE_UPPER = set("MW")
-_ADVANCE_EM = {"narrow": 0.34, "lower": 0.58, "wide": 0.90, "upper": 0.72, "wide_upper": 1.0,
-               "digit": 0.62, "space": 0.30, "other": 0.60}  # fmt: skip
-
-
-def _glyph_em(ch: str) -> float:
-    if ch in _NARROW:
-        return _ADVANCE_EM["narrow"]
-    if ch in _WIDE:
-        return _ADVANCE_EM["wide"]
-    if ch in _WIDE_UPPER:
-        return _ADVANCE_EM["wide_upper"]
-    if ch.isspace():
-        return _ADVANCE_EM["space"]
-    if ch.isdigit():
-        return _ADVANCE_EM["digit"]
-    if ch.isupper():
-        return _ADVANCE_EM["upper"]
-    if ch.islower():
-        return _ADVANCE_EM["lower"]
-    return _ADVANCE_EM["other"]
-
-
-def text_width(text: str, style: CaptionStyle) -> float:
-    """Resting width of `text` at the style size: glyph advances plus letter spacing."""
-    return sum(_glyph_em(ch) for ch in text) * style.size_px + style.letter_spacing_px * len(text)
-
-
-def box_width(text: str, *, keyword: bool, style: CaptionStyle) -> float:
-    """The fixed box: the 1.08-scaled width, plus the keyword padding when boxed (6.2)."""
-    width = text_width(text, style) * style.active_scale
-    if keyword:
-        width += 2 * style.keyword_pad_px
-    return width
-
-
-# --- caption layout --------------------------------------------------------------------
-
-
-def layout_page(page: CaptionPage, words: Sequence[Word], style: CaptionStyle) -> CaptionPageSpec:
-    """Boxes for one page: greedy fill into lines no wider than `max_width_px`, each
-    line centred, the block's bottom edge on `anchor_y`. More than `max_lines` raises."""
-    items = [
-        (words[i], box_width(words[i].text, keyword=(i == page.keyword), style=style), i)
-        for i in page.word_indices
-    ]
-    lines: list[list[tuple[Word, float, int]]] = [[]]
-    used = 0.0
-    for item in items:
-        width = item[1]
-        extra = width if not lines[-1] else style.word_gap_px + width
-        if lines[-1] and used + extra > style.max_width_px:
-            lines.append([item])
-            used = width
-        else:
-            lines[-1].append(item)
-            used += extra
-    if len(lines) > style.max_lines:
-        raise LayoutError(
-            f"caption page {page.index} needs {_count(len(lines))} lines "
-            f"(max {style.max_lines}): {' '.join(page.texts)!r}"
-        )
-    line_h = style.size_px * style.line_height
-    top = style.anchor_y - len(lines) * line_h
-    boxes: list[WordBox] = []
-    for n, line in enumerate(lines):
-        line_w = sum(w for _, w, _ in line) + style.word_gap_px * (len(line) - 1)
-        x = (WIDTH - line_w) / 2
-        for word, width, index in line:
-            boxes.append(
-                WordBox(
-                    text=word.text,
-                    start=word.start,
-                    end=word.end,
-                    x=x,
-                    y=top + n * line_h,
-                    width=width,
-                    height=line_h,
-                    keyword=index == page.keyword,
-                )
-            )
-            x += width + style.word_gap_px
-    return CaptionPageSpec(
-        index=page.index, start=page.start, end=page.end, lines=len(lines), words=boxes
-    )
-
-
-def _count(n: int) -> str:
-    return {3: "three", 4: "four"}.get(n, str(n))
 
 
 # --- PIP geometry ----------------------------------------------------------------------
@@ -453,8 +345,7 @@ def _visuals(
 
 def build_spec(
     plan: PicturePlan,
-    pages: Sequence[CaptionPage],
-    words: Sequence[Word],
+    captions: Captions,
     *,
     presenter: Path,
     source_size: tuple[int, int],
@@ -488,7 +379,11 @@ def build_spec(
         source_width=source_size[0],
         source_height=source_size[1],
         beats=beats,
-        captions=[layout_page(p, words, numbers.captions) for p in pages],
+        captions=[
+            CaptionPageSpec(index=p.index, start=p.start, end=p.end, lines=p.lines, words=p.words)
+            for p in captions.pages
+        ],
+        beats_with_two_lines=captions.beats_with_two_lines,
         pip=fixed_pip(source_size, numbers),
         palette=numbers.palette,
         caption_style=numbers.captions,
@@ -591,6 +486,12 @@ def run_driver(
     )
 
 
+def load_captions(job: Job) -> Captions:
+    return Captions.model_validate_json(
+        (job.work_dir / "captions.json").read_text(encoding="utf-8")
+    )
+
+
 def _load_plan(job: Job) -> PicturePlan:
     return PicturePlan.model_validate_json(
         (job.work_dir / "plan.json").read_text(encoding="utf-8")
@@ -606,21 +507,18 @@ def _cut_path(job: Job) -> Path:
 
 
 def spec_for_job(job: Job, *, numbers: StyleNumbers | None = None) -> RenderSpec:
-    """The RenderSpec from the job's files: plan.json, asr.json, captions.json and the
+    """The RenderSpec from the job's files: plan.json, captions.json and the
     presenter cut (`work/cut.mp4`, 005), with the numbers of the job's resolved style
     (`job.json.style`, 008). The short is as long as the cut list."""
     numbers = numbers or style_numbers(job.record.style)
-    work = job.work_dir
     plan = _load_plan(job)
-    transcript = Transcript.model_validate_json((work / "asr.json").read_text(encoding="utf-8"))
-    pages = _PAGES.validate_json((work / "captions.json").read_text(encoding="utf-8"))
+    captions = load_captions(job)
     cut = _cut_path(job)
     if not cut.is_file():
         raise RenderError("work/cut.mp4 is missing: cut_presenter runs before the picture")
     return build_spec(
         plan,
-        pages,
-        transcript.words,
+        captions,
         presenter=cut,
         source_size=_probe_size(cut),
         duration_s=presenter.total_duration(presenter.cut_list(plan)),
@@ -875,14 +773,10 @@ class FakeRenderer(Renderer):
         cut = _cut_path(job)
         cut.write_bytes(b"")
         plan = _load_plan(job)
-        transcript = Transcript.model_validate_json(
-            (job.work_dir / "asr.json").read_text(encoding="utf-8")
-        )
-        pages = _PAGES.validate_json((job.work_dir / "captions.json").read_text(encoding="utf-8"))
+        captions = load_captions(job)
         spec = build_spec(
             plan,
-            pages,
-            transcript.words,
+            captions,
             presenter=cut,
             source_size=(WIDTH, HEIGHT),
             duration_s=presenter.total_duration(presenter.cut_list(plan)),

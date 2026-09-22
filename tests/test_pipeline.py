@@ -21,6 +21,8 @@ import pytest
 
 from shortsmith import assets, fixture, jobs, pipeline, render, rights, styles, subproc
 from shortsmith.contracts import (
+    CaptionPage,
+    Captions,
     Cue,
     PicturePlan,
     PlanFeedback,
@@ -86,8 +88,10 @@ def _worker(transcriber: Transcriber | None = None, **kwargs: object) -> pipelin
     )  # fmt: skip
 
 
-def _pages(job: jobs.Job) -> list[dict[str, object]]:
-    return json.loads((job.work_dir / "captions.json").read_text(encoding="utf-8"))
+def _pages(job: jobs.Job) -> list[CaptionPage]:
+    return Captions.model_validate_json(
+        (job.work_dir / "captions.json").read_text(encoding="utf-8")
+    ).pages
 
 
 def test_run_job_transcribes_plans_renders_gates_and_delivers(
@@ -267,8 +271,11 @@ def test_planning_writes_plan_sound_and_captions(tmp_path: Path, fixture_clip: P
     story = SoundStory.model_validate_json((job.work_dir / "sound.json").read_text("utf-8"))
     assert plan.beats[-1].end == 6.0 and story.cues
     pages = _pages(job)
-    assert [len(p["word_indices"]) for p in pages] == [3, 3, 3, 3]  # type: ignore[arg-type]
-    assert pages[-1]["end"] == 6.0  # last page clamped to the clip
+    # 010: every tone burst is its own page (0.7 s silences break); the finale beat
+    # (5.0 s on) hides the last burst, and the last page ends where the finale starts.
+    assert [p.word_indices for p in pages] == [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
+    assert pages[-1].end == 5.0
+    assert all(p.lines == 1 and len(p.words) == 2 for p in pages)
 
 
 class _Recording(FakePlanner):
@@ -333,16 +340,18 @@ def test_a_job_whose_style_is_unknown_fails_at_planning_naming_it(
 def test_the_pager_reads_words_per_page_from_the_style(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    """6.1: `captions.words_per_page` / `prefer` come from front matter, not code."""
+    """6.1: `captions.words_per_page` / `prefer` / `gap_break_s` come from front matter,
+    not code (a 0.8 s gap break lets the fixture's 0.7 s silences join pages)."""
     job = _uploaded(tmp_path, fixture_clip)
     wide = SPECS["explainer"].model_copy(deep=True)
     wide.captions.words_per_page = (2, 6)
     wide.captions.prefer = 6
+    wide.captions.gap_break_s = 0.8
     pipeline.run_job(
         job, transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
         gate=FakeGate(), specs={"explainer": wide},
     )  # fmt: skip
-    assert [len(p["word_indices"]) for p in _pages(job)] == [6, 6]  # type: ignore[arg-type]
+    assert [len(p.word_indices) for p in _pages(job)] == [6, 4]  # the finale hides two
 
 
 # --- ticket 009: the grammar in the planning step (decision 8.2) ----------------------
@@ -367,7 +376,8 @@ def test_planning_validates_the_plan_and_writes_the_validated_files(
     story = SoundStory.model_validate_json((work / "sound.json").read_text("utf-8"))
     assert validated.sound == story
     pages = _pages(job)
-    assert [p["keyword"] for p in pages] == [1, 5, None, 10]  # 7 was trimmed
+    # 7 was trimmed; 10 ("ffmpeg") is in the finale, where captions are hidden (010).
+    assert [p.keyword for p in pages] == [1, None, 5, None, None]
 
 
 class _RetryPlanner(FakePlanner):
