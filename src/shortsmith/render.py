@@ -35,6 +35,24 @@ replaces the estimate with a Pillow measurement and adds the pager's own wrappin
 
 Component registry (9.2): `src/remotion/registry.json` is the checked-in list the
 Node test asserts against the component files; `registry()` reads the same file.
+
+B-roll (ticket 016; decisions 4.1, 4.4, 5.3): `build_spec` takes the asset step's
+manifest and gives every `photo` / `card` beat that shows an asset a `VisualSpec`.
+A photo is full-bleed with the style's Ken Burns (`broll.motion.photo`, 1.10 -> 1.16
+on explainer), in and out and the pan direction alternating per consecutive
+photo/card beat. A card is the framed archival look from `broll.motion.card`: a card
+min(980, 650 x aspect) wide border included (5.3; the reference card measures ~982 px
+across), its image never over a 1.5x upscale, inside a white border, tilted, with a
+caption strip when the beat carries a lower-third label and the red ring when it
+carries a ring event; behind it the same image blurred and
+darkened as the cover, which takes the card's push (1.45 -> 2.1), while the card body
+takes the Ken Burns ratio of the photo motion (5.3: the Ken Burns is on the card, not
+the cover). The card is centred horizontally with its bottom, at full push and tilt,
+`PIP_GAP_PX` above the PIP circle as in the reference frames (dyson_05, nkb_06: a
+card from y ~190 to ~925 over a PIP at 960), and never below
+`broll.card_max_bottom_y`. A rung-4 rescue is drawn as `pip` over the gradient;
+other kinds keep their visuals for their own tickets. The engine constants below
+(strip, blur, ring) are not style numbers yet.
 """
 
 from __future__ import annotations
@@ -52,18 +70,23 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from shortsmith import ffmpeg, presenter, styles, subproc
+from shortsmith import assets, ffmpeg, presenter, styles, subproc
 from shortsmith.contracts import (
+    AssetManifest,
     BeatSpec,
     CaptionPage,
     CaptionPageSpec,
     CaptionStyle,
+    CardSpec,
+    Crop,
+    Mode,
     Palette,
     PicturePlan,
     PipGeometry,
     RenderSpec,
     Span,
     Transcript,
+    VisualSpec,
     Word,
     WordBox,
 )
@@ -114,15 +137,52 @@ class PipNumbers:
 
 
 @dataclass(frozen=True)
+class BrollNumbers:
+    """`broll.motion.photo` / `broll.motion.card` and the card's bottom limit (4.1)."""
+
+    photo_scale_from: float
+    photo_scale_to: float
+    photo_alternate: bool
+    card_scale_from: float
+    card_scale_to: float
+    card_border_px: int
+    card_rotate_deg: float
+    card_ring_color: str
+    card_max_bottom_y: int
+    pip_top: int
+
+
+@dataclass(frozen=True)
 class StyleNumbers:
     captions: CaptionStyle
     pip: PipNumbers
     palette: Palette
+    broll: BrollNumbers
+
+
+def broll_numbers(spec: StyleSpec) -> BrollNumbers:
+    try:
+        photo, card = spec.broll.motion["photo"], spec.broll.motion["card"]
+        return BrollNumbers(
+            photo_scale_from=float(photo["scale_from"]),
+            photo_scale_to=float(photo["scale_to"]),
+            photo_alternate=bool(photo["alternate"]),
+            card_scale_from=float(card["scale_from"]),
+            card_scale_to=float(card["scale_to"]),
+            card_border_px=int(card["border_px"]),
+            card_rotate_deg=float(card["rotate_deg"]),
+            card_ring_color=str(card["ring_color"]),
+            card_max_bottom_y=spec.broll.card_max_bottom_y,
+            pip_top=spec.pip.top,
+        )
+    except KeyError as exc:
+        raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
 
 
 def numbers_for(spec: StyleSpec) -> StyleNumbers:
     """The subset of a loaded spec the render spec builder reads."""
     return StyleNumbers(
+        broll=broll_numbers(spec),
         captions=spec.caption_style(),
         pip=PipNumbers(
             diameter=spec.pip.diameter,
@@ -267,6 +327,127 @@ def fixed_pip(source_size: tuple[int, int], numbers: StyleNumbers) -> PipGeometr
     )
 
 
+# --- photo and card (ticket 016) -------------------------------------------------------
+
+# 5.3: a card is at most 980 px wide and 650 px tall at its native aspect.
+CARD_MAX_W, CARD_BASE_H, CARD_MAX_UPSCALE = 980.0, 650.0, 1.5
+# Engine look constants the style front matter does not carry yet.
+STRIP_PX, STRIP_FONT_PX = 64, 30
+PIP_GAP_PX = 32  # the reference cards end ~35 px above the PIP circle
+COVER_BLUR_PX, COVER_BRIGHTNESS = 36, 0.45
+RING_FRACTION, RING_PX, RING_AT_S = 0.32, 8, 0.2  # the ring lands 0.2 s into the beat
+
+
+def card_image_size(width: int, height: int, border_px: int) -> tuple[float, float]:
+    """The card's image size: the card is min(980, 650 x aspect) wide border included,
+    the image inside never over a 1.5x upscale (5.3)."""
+    aspect = width / height
+    card_w = min(CARD_MAX_W, CARD_BASE_H * aspect)
+    image_w = min(card_w - 2 * border_px, CARD_MAX_UPSCALE * width)
+    return image_w, image_w / aspect
+
+
+def _ken_burns(index: int, low: float, high: float, alternate: bool) -> tuple[float, float]:
+    return (high, low) if alternate and index % 2 else (low, high)
+
+
+def _pan_sign(index: int) -> int:
+    return -1 if index % 2 else 1
+
+
+def photo_visual(src: str, width: int, height: int, *, index: int, crop: Crop,
+                 numbers: StyleNumbers) -> VisualSpec:  # fmt: skip
+    """The full-bleed photo: Ken Burns from the style, drifting across the margin the
+    smaller scale leaves, direction alternating with `index` (4.1)."""
+    b = numbers.broll
+    scale_from, scale_to = _ken_burns(index, b.photo_scale_from, b.photo_scale_to,
+                                      b.photo_alternate)  # fmt: skip
+    margin = (min(scale_from, scale_to) - 1.0) * WIDTH / 2
+    return VisualSpec(
+        treatment="photo", src=src, width=width, height=height, zoom=crop.zoom,
+        focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=scale_from, scale_to=scale_to,
+        pan_px=_pan_sign(index) * margin,
+    )  # fmt: skip
+
+
+def _half_extent(card: CardSpec, scale: float) -> float:
+    """Half the height of the card's box once tilted and pushed to `scale`."""
+    theta = math.radians(card.rotate_deg)
+    return scale * (card.width * abs(math.sin(theta)) + card.height * math.cos(theta)) / 2
+
+
+def card_bottom(visual: VisualSpec) -> float:
+    """The lowest y the card reaches over its beat (full push, tilt included)."""
+    card = visual.card
+    assert card is not None
+    return card.top + card.height / 2 + _half_extent(card, max(visual.scale_from, visual.scale_to))
+
+
+def card_visual(src: str, width: int, height: int, *, strip_text: str, ring: bool, index: int,
+                crop: Crop, numbers: StyleNumbers) -> VisualSpec:  # fmt: skip
+    """The framed archival card (4.1, 5.3), placed so it ends above the style limit."""
+    b = numbers.broll
+    image_w, image_h = card_image_size(width, height, b.card_border_px)
+    strip = STRIP_PX if strip_text else 0
+    outer_w = image_w + 2 * b.card_border_px
+    outer_h = image_h + 2 * b.card_border_px + strip
+    ratio = b.photo_scale_to / b.photo_scale_from
+    scale_from, scale_to = _ken_burns(index, 1.0, ratio, b.photo_alternate)
+    card = CardSpec(
+        left=(WIDTH - outer_w) / 2, top=0.0, width=outer_w, height=outer_h,
+        image_width=image_w, image_height=image_h, border_px=b.card_border_px,
+        rotate_deg=b.card_rotate_deg, strip_text=strip_text, strip_px=strip,
+        strip_font_px=STRIP_FONT_PX, cover_scale_from=b.card_scale_from,
+        cover_scale_to=b.card_scale_to, cover_blur_px=COVER_BLUR_PX,
+        cover_brightness=COVER_BRIGHTNESS, ring=ring, ring_color=b.card_ring_color,
+        ring_diameter_px=RING_FRACTION * min(image_w, image_h), ring_px=RING_PX,
+        ring_at_s=RING_AT_S,
+    )  # fmt: skip
+    half = _half_extent(card, max(scale_from, scale_to))
+    centre = min(b.pip_top - PIP_GAP_PX, b.card_max_bottom_y) - half
+    card = card.model_copy(update={"top": centre - outer_h / 2})
+    return VisualSpec(
+        treatment="card", src=src, width=width, height=height, zoom=crop.zoom,
+        focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=scale_from, scale_to=scale_to,
+        pan_px=0.0, card=card,
+    )  # fmt: skip
+
+
+def _visuals(
+    plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None,
+    numbers: StyleNumbers,
+) -> dict[str, tuple[Mode, VisualSpec | None]]:  # fmt: skip
+    """Per beat id: the mode to draw (a rung-4 rescue becomes `pip`) and its visual."""
+    out: dict[str, tuple[Mode, VisualSpec | None]] = {}
+    if manifest is None:
+        return out
+    if job_dir is None:
+        raise ValueError("build_spec needs job_dir to resolve the manifest's asset files")
+    index = 0
+    for beat in plan.beats:
+        decided = manifest.beat(beat.id)
+        if decided is None:
+            continue
+        if decided.fallback_rung == 4 or decided.asset_id is None:
+            out[beat.id] = ("pip", None)
+            continue
+        record = manifest.asset(decided.asset_id)
+        if beat.kind not in ("photo", "card") or record is None:
+            continue
+        src = str((job_dir / record.file).resolve())
+        if decided.treatment == "photo":
+            visual = photo_visual(src, record.width, record.height, index=index,
+                                  crop=decided.crop, numbers=numbers)  # fmt: skip
+        else:
+            label = beat.event.text if beat.event.kind == "lower_third" else None
+            visual = card_visual(src, record.width, record.height, strip_text=label or "",
+                                 ring=beat.event.kind == "ring", index=index,
+                                 crop=decided.crop, numbers=numbers)  # fmt: skip
+        out[beat.id] = (beat.mode, visual)
+        index += 1
+    return out
+
+
 # --- the spec --------------------------------------------------------------------------
 
 
@@ -280,17 +461,21 @@ def build_spec(
     duration_s: float,
     numbers: StyleNumbers | None = None,
     fps: int = FPS,
+    manifest: AssetManifest | None = None,
+    job_dir: Path | None = None,
 ) -> RenderSpec:
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
+    visuals = _visuals(plan, manifest, job_dir, numbers)
     beats = [
         BeatSpec(
             id=b.id,
             start_frame=round(b.start * fps),
             end_frame=round(b.end * fps),
-            mode=b.mode,
+            mode=visuals.get(b.id, (b.mode, None))[0],
             kind=b.kind,
             enter=b.enter,
+            visual=visuals.get(b.id, (b.mode, None))[1],
         )
         for b in plan.beats
     ]
@@ -440,6 +625,8 @@ def spec_for_job(job: Job, *, numbers: StyleNumbers | None = None) -> RenderSpec
         source_size=_probe_size(cut),
         duration_s=presenter.total_duration(presenter.cut_list(plan)),
         numbers=numbers,
+        manifest=assets.load_manifest(job.path),
+        job_dir=job.path,
     )
 
 
@@ -700,6 +887,8 @@ class FakeRenderer(Renderer):
             source_size=(WIDTH, HEIGHT),
             duration_s=presenter.total_duration(presenter.cut_list(plan)),
             numbers=style_numbers(job.record.style),
+            manifest=assets.load_manifest(job.path),
+            job_dir=job.path,
         )
         (job.work_dir / "render_spec.json").write_text(
             spec.model_dump_json(indent=2), encoding="utf-8"

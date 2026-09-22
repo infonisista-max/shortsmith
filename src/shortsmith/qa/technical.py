@@ -1,5 +1,6 @@
 """The technical gate (decision 10.1): T1-T13 in order, stop at the first FAIL, write
-`out/qa.json`. This ticket (006) ships T1-T4; later tickets append T5-T13 to `run`.
+`out/qa.json`. Ticket 006 shipped T1-T4; 016 adds the rescue limit as T8 (the rest of
+T8 arrives with 032) and T9; later tickets append the others to `run`.
 
 Each check is a pure function over what ffprobe or the loudness pass measured plus the
 plan, so the boundaries in 10.1 are unit-tested on both sides without encoding
@@ -10,15 +11,19 @@ failed report ends at the failing check.
     T2  frame count = round(duration x 30) on the video stream
     T3  duration <= 60.000 s, beats contiguous within 0.011 s, finale beat 0.8-1.2 s
     T4  master -14.0 +/- 0.5 LUFS integrated, true peak <= -1.5 dBTP (EBU R128 via loudnorm)
+    T8  (016 part) rescued beats (ladder rung 3-4) <= the style limit scaled to the runtime
+    T9  rights log complete: every beat's asset has a row, every row a source URL or an
+        owner/generated origin, every generated row a prompt, no photoreal named entity
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from shortsmith import ffmpeg
-from shortsmith.contracts import PicturePlan, StrictModel
+from shortsmith import assets, ffmpeg, rights
+from shortsmith.contracts import AssetManifest, PicturePlan, RightsRow, StrictModel
 from shortsmith.ffmpeg import Loudness
 from shortsmith.jobs import Job
 
@@ -141,6 +146,37 @@ def t4(loudness: Loudness) -> QaCheck:
     return QaCheck(name="T4", passed=ok, detail=detail)
 
 
+def t8(manifest: AssetManifest | None) -> QaCheck:
+    """The 4.4 rescue limit: more rescued beats than `rescued_max` fails (032 folds the
+    plan re-validation and the NetworkError scan into the same check)."""
+    if manifest is None:
+        return QaCheck(name="T8", passed=False, detail="work/assets.json is missing")
+    count = manifest.rescued
+    detail = (
+        f"{count} rescued beats (max {manifest.rescued_max} over {manifest.runtime_s:g} s); "
+        "plan re-validation and the NetworkError scan arrive with 032"
+    )
+    if count > manifest.rescued_max:
+        return QaCheck(name="T8", passed=False, detail=f"not enough relevant B-roll: {detail}")
+    return QaCheck(name="T8", passed=True, detail=detail)
+
+
+def t9(
+    rows: Sequence[RightsRow] | None, manifest: AssetManifest | None, plan: PicturePlan
+) -> QaCheck:
+    """Rights log completeness (5.4), the rule set in `rights.completeness`."""
+    if rows is None:
+        return QaCheck(name="T9", passed=False, detail="out/rights.json is missing")
+    if manifest is None:
+        return QaCheck(name="T9", passed=False, detail="work/assets.json is missing")
+    problems = rights.completeness(rows, manifest, plan)
+    if problems:
+        return QaCheck(name="T9", passed=False, detail="; ".join(problems))
+    noun = "row" if len(rows) == 1 else "rows"
+    detail = f"{len(rows)} rights {noun}, every beat's asset logged"
+    return QaCheck(name="T9", passed=True, detail=detail)
+
+
 # --- running the gate on a job ---------------------------------------------------------
 
 
@@ -163,8 +199,9 @@ def load_report(job: Job) -> QaReport | None:
 
 
 def run(job: Job) -> QaReport:
-    """T1-T4 in order on `out/short.mp4` and `work/plan.json`; stops at the first FAIL
-    and writes `out/qa.json` either way."""
+    """T1-T4, T8 and T9 in order on `out/short.mp4`, `work/plan.json`,
+    `work/assets.json` and `out/rights.json`; stops at the first FAIL and writes
+    `out/qa.json` either way."""
     short = job.out_dir / "short.mp4"
     info = ffmpeg.probe(short)
     plan = PicturePlan.model_validate_json(
@@ -176,6 +213,8 @@ def run(job: Job) -> QaReport:
         lambda: t2(info),
         lambda: t3(info, plan),
         lambda: t4(ffmpeg.measure_loudness(short)),
+        lambda: t8(assets.load_manifest(job.path)),
+        lambda: t9(rights.load(job.path), assets.load_manifest(job.path), plan),
     ):
         result = check()
         checks.append(result)

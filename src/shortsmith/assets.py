@@ -53,7 +53,8 @@ from typing import Literal, get_args
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import TypeAdapter
 
-from shortsmith import ffmpeg
+from shortsmith import ffmpeg, rights
+from shortsmith.config import Settings
 from shortsmith.contracts import (
     AssetManifest,
     AssetPolicy,
@@ -577,6 +578,64 @@ def source_assets(
         runtime_s=runtime,
         rescued_max=rescued_max(spec, runtime),
     )
+
+
+# --- the step as the pipeline runs it ----------------------------------------------------------
+
+
+_REFS = TypeAdapter(list[ReferenceRecord])
+
+
+@dataclass
+class Sourcing:
+    """The `sourcing` step's configuration: the adapters by config name, the 5.1
+    order (`ASSET_SOURCES`), the 5.2 policy and the generator (None: `IMAGE_GEN=none`).
+    A configured name with no adapter is skipped and noted in the job log."""
+
+    sources: Mapping[str, ImageSource] = field(default_factory=lambda: {})
+    order: Sequence[str] = DEFAULT_ORDER
+    policy: AssetPolicy = "any"
+    generate: Generate | None = None
+
+    def missing(self) -> list[str]:
+        return [n for n in source_order(self.order, self.policy) if n not in self.sources]
+
+    def run(self, job_dir: Path, spec: StyleSpec, *, clock: Clock = _utc_now) -> AssetManifest:
+        """Source every beat of `work/plan.validated.json`, write `work/assets.json`,
+        `out/rights.json` and `out/credits.md`."""
+        validated = ValidatedPlan.model_validate_json(
+            (job_dir / "work" / "plan.validated.json").read_text(encoding="utf-8")
+        )
+        refs_path = job_dir / "input" / "refs.json"
+        references = (
+            _REFS.validate_json(refs_path.read_text(encoding="utf-8"))
+            if refs_path.is_file()
+            else []
+        )
+        manifest = source_assets(
+            validated,
+            references,
+            self.policy,
+            spec=spec,
+            sources=self.sources,
+            order=self.order,
+            job_dir=job_dir,
+            generate=self.generate,
+            clock=clock,
+        )
+        write_manifest(job_dir, manifest)
+        rights.write(job_dir, manifest, validated.picture)
+        return manifest
+
+
+def from_settings(settings: Settings) -> Sourcing:
+    """The configured step. No real adapter exists yet (017, 018): only `fake` in
+    `ASSET_SOURCES` maps to one, the fake web source, for local runs on fakes."""
+    order = parse_order(settings.asset_sources)
+    sources: dict[str, ImageSource] = {}
+    if "fake" in order:
+        sources["fake"] = FakeImageSource("web")
+    return Sourcing(sources=sources, order=order, policy=settings.asset_policy)
 
 
 # --- the manifest on disk ---------------------------------------------------------------------

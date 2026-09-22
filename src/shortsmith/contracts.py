@@ -517,8 +517,55 @@ class CaptionPageSpec(StrictModel):
     words: list[WordBox]
 
 
+class CardSpec(StrictModel):
+    """The framed archival card (4.1, 5.3) in composition pixels: the outer box
+    (white border and caption strip included) before tilt and push, the image inside
+    it, and the blurred darkened cover of the same image behind."""
+
+    left: float
+    top: float
+    width: float
+    height: float
+    image_width: float
+    image_height: float
+    border_px: int
+    rotate_deg: float
+    strip_text: str
+    strip_px: int
+    strip_font_px: int
+    cover_scale_from: float
+    cover_scale_to: float
+    cover_blur_px: int
+    cover_brightness: float
+    ring: bool
+    ring_color: str
+    ring_diameter_px: float
+    ring_px: int
+    ring_at_s: float
+
+
+class VisualSpec(StrictModel):
+    """A beat's asset as drawn (016): `src` is the file (the driver serves it), `width`
+    and `height` its real size. `scale_from` -> `scale_to` is the Ken Burns over the
+    beat (the full-bleed photo, or the card body), `pan_px` the horizontal drift, and
+    `zoom` / `focus_*` the framing (a re-dress differs here, 4.4)."""
+
+    treatment: Literal["photo", "card"]
+    src: str
+    width: int
+    height: int
+    zoom: float
+    focus_x: float
+    focus_y: float
+    scale_from: float
+    scale_to: float
+    pan_px: float
+    card: CardSpec | None = None
+
+
 class BeatSpec(StrictModel):
-    """A plan beat as frame range; `end_frame` is exclusive."""
+    """A plan beat as frame range; `end_frame` is exclusive. A rung-4 rescue arrives
+    here as `pip` with no visual (4.4)."""
 
     id: str
     start_frame: int
@@ -526,6 +573,7 @@ class BeatSpec(StrictModel):
     mode: Mode
     kind: Kind
     enter: Transition = "cut"
+    visual: VisualSpec | None = None
 
 
 class PipGeometry(StrictModel):

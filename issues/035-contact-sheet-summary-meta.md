@@ -25,6 +25,10 @@ Covers PRD `contact_sheet` (summary), `pipeline` `meta.json`, `app` publishing t
 
 - Blocked by `issues/034-rating-calibration-youtube-fields.md`
 
+## Notes from 016
+
+- The strip line under each frame is done (`contact_sheet.strip_line`: beat id, mode letter as drawn, kind as drawn, origin letter U/W/C/O/P/X/G/L, red corner on rescued or downgraded beats). 10.4 also marks clamped beats (8.2); not drawn yet (`ValidatedPlan.clamps` carry `beat_id`).
+
 ## User stories addressed
 
 - User story 32

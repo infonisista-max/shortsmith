@@ -2,7 +2,7 @@
 in submission order (9.1).
 
 `run_job` is the synchronous path: it takes an `uploaded` job through every step
-(transcribing, planning, the sourcing placeholder, rendering, qa) and ends it
+(transcribing, planning, sourcing, rendering, qa) and ends it
 `delivered`. Any exception inside a step marks the job `failed` at that step with the
 fixed user-facing sentence from `STEP_MESSAGES` and the exception text as `detail`
 (11.1); a failed technical check adds its name to the sentence (10.1); a paid
@@ -26,17 +26,18 @@ numbers and prose (1.2), the grammar reads its counts and the pager reads
 builds the worker (`create_app`, smoke) and passed in; a job naming a style that is
 not loaded fails at `planning`.
 
-`sourcing` is a pass-through until ticket 016 builds the asset step. `rendering`
-runs the whole render (`render.Renderer`, Remotion plus ffmpeg by default; tickets
-004 and 005): the presenter cut, the voice stem, the picture, the master and the mux
-to `out/short.mp4`, writing the picture render's frame progress into
-`job.json.progress` as the job page's percentage (11.1).
+`sourcing` runs the asset step (`assets.Sourcing`, ticket 016): every sourced beat
+gets its asset through the 4.4 ladder, and the step writes `work/assets.json`,
+`out/rights.json` and `out/credits.md`; a configured source with no adapter yet is
+noted in `job.log`. `rendering` runs the whole render (`render.Renderer`, Remotion
+plus ffmpeg by default; tickets 004 and 005): the presenter cut, the voice stem, the
+picture, the master and the mux to `out/short.mp4`, writing the picture render's
+frame progress into `job.json.progress` as the job page's percentage (11.1).
 
 `qa` runs the technical gate (`qa.gate.Gate`: T1-T4 today, T13 eventually) which
 writes `out/qa.json`; a failing check fails the job at `qa` naming the check. When
 every check passes the gate composes `out/contact.jpg`, and the job is `delivered`
-once `short.mp4` and `contact.jpg` exist (10.4; `rights.json` and `credits.md` join
-the rule with 016).
+once `short.mp4`, `contact.jpg`, `rights.json` and `credits.md` exist (10.4).
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
@@ -62,7 +63,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, TypeAdapter
 
-from shortsmith import captions, grammar, jobs, render, subproc
+from shortsmith import assets, captions, grammar, jobs, render, subproc
 from shortsmith.captions import PagerNumbers
 from shortsmith.contracts import (
     Constraints,
@@ -105,7 +106,7 @@ STEP_MESSAGES: dict[str, str] = {
     "rendering": "We could not render the short.",
     "qa": "The short failed a technical check.",
 }
-DELIVERABLES = ("short.mp4", "contact.jpg")  # 10.4; rights.json and credits.md with 016
+DELIVERABLES = ("short.mp4", "contact.jpg", "rights.json", "credits.md")  # 10.4
 
 MAX_DURATION_S = 60.0  # 3.1 / T3 (global, not a style number)
 
@@ -131,6 +132,7 @@ def run_job(
     planner: Planner,
     renderer: Renderer | None = None,
     gate: Gate | None = None,
+    sourcing: assets.Sourcing | None = None,
     specs: Specs | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
@@ -140,11 +142,12 @@ def run_job(
         raise NotRunnable(f"job {job.id} is {job.status!r}, not 'uploaded'")
     renderer = renderer or RemotionRenderer()
     gate = gate or TechnicalGate()
+    sourcing = sourcing or assets.Sourcing()
     specs = specs if specs is not None else render.loaded_styles()
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber)),
         ("planning", lambda j: _plan(j, planner, specs)),
-        ("sourcing", _source),
+        ("sourcing", lambda j: _source(j, sourcing, specs, clock)),
         ("rendering", lambda j: _render(j, renderer, clock)),
         ("qa", lambda j: _qa(j, gate)),
     ]
@@ -323,8 +326,15 @@ def _plan(job: Job, planner: Planner, specs: Specs) -> None:
     )
 
 
-def _source(job: Job) -> None:
-    """Placeholder: the asset step is ticket 016; nothing is fetched or written."""
+def _source(job: Job, sourcing: assets.Sourcing, specs: Specs, clock: Clock) -> None:
+    missing = sourcing.missing()
+    if missing:
+        jobs.note(
+            job,
+            f"no image source adapter yet for: {', '.join(missing)} (tickets 017, 018)",
+            now=clock,
+        )
+    sourcing.run(job.path, style_of(job, specs), clock=clock)
 
 
 def _render(job: Job, renderer: Renderer, clock: Clock) -> None:
@@ -365,6 +375,7 @@ class Worker:
         planner: Planner,
         renderer: Renderer | None = None,
         gate: Gate | None = None,
+        sourcing: assets.Sourcing | None = None,
         specs: Specs | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
@@ -375,6 +386,7 @@ class Worker:
         self._planner = planner
         self._renderer = renderer or RemotionRenderer()
         self._gate = gate or TechnicalGate()
+        self._sourcing = sourcing or assets.Sourcing()
         self._specs = specs if specs is not None else render.loaded_styles()
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
@@ -466,6 +478,7 @@ class Worker:
                 planner=self._planner,
                 renderer=self._renderer,
                 gate=self._gate,
+                sourcing=self._sourcing,
                 specs=self._specs,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,

@@ -23,6 +23,43 @@ export type CaptionPageSpec = {
   words: WordBox[];
 };
 
+export type CardSpec = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  image_width: number;
+  image_height: number;
+  border_px: number;
+  rotate_deg: number;
+  strip_text: string;
+  strip_px: number;
+  strip_font_px: number;
+  cover_scale_from: number;
+  cover_scale_to: number;
+  cover_blur_px: number;
+  cover_brightness: number;
+  ring: boolean;
+  ring_color: string;
+  ring_diameter_px: number;
+  ring_px: number;
+  ring_at_s: number;
+};
+
+export type VisualSpec = {
+  treatment: "photo" | "card";
+  src: string;
+  width: number;
+  height: number;
+  zoom: number;
+  focus_x: number;
+  focus_y: number;
+  scale_from: number;
+  scale_to: number;
+  pan_px: number;
+  card: CardSpec | null;
+};
+
 export type BeatSpec = {
   id: string;
   start_frame: number;
@@ -30,6 +67,7 @@ export type BeatSpec = {
   mode: Mode;
   kind: string;
   enter: string;
+  visual?: VisualSpec | null;
 };
 
 export type PipGeometry = {

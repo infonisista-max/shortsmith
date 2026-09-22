@@ -29,3 +29,15 @@ test("the composition lists captions and pip after ticket 004", () => {
   assert.ok(registry.components.includes("captions"));
   assert.ok(registry.components.includes("pip"));
 });
+
+test("the composition lists photo and card after ticket 016", () => {
+  assert.ok(registry.components.includes("photo"));
+  assert.ok(registry.components.includes("card"));
+});
+
+test("the driver serves the asset image types", () => {
+  const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
+  for (const ext of [".png", ".jpg", ".jpeg", ".webp"]) {
+    assert.match(driver, new RegExp(`"\\${ext}": "image/`), `driver does not serve ${ext}`);
+  }
+});

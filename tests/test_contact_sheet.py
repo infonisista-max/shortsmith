@@ -1,7 +1,8 @@
 """contact_sheet: the frames-only sheet per decision 10.4 (ticket 006): hook strip
-row, one frame per second at 270 px six per row with a time label and a strip-line
-placeholder, the 6.3 safe-area outlines on the first frame of each row, a summary row
-with the T1-T4 dots, under 2 MB. Layout and size are unit-tested on synthetic frames;
+row, one frame per second at 270 px six per row with a time label and the strip line
+(beat, mode letter, kind, asset-origin letter; 016) with a red corner on rescued or
+downgraded beats, the 6.3 safe-area outlines on the first frame of each row, a summary
+row with the technical-check dots, under 2 MB. Layout and size are unit-tested on synthetic frames;
 `compose(job)` runs on a small synthetic short (12.1)."""
 
 from __future__ import annotations
@@ -22,6 +23,17 @@ from shortsmith.contact_sheet import (
     PER_ROW,
     SHEET_W,
     Box,
+)
+from shortsmith.contracts import (
+    AssetManifest,
+    AssetRecord,
+    Beat,
+    BeatAsset,
+    CutPlan,
+    Finale,
+    Hook,
+    PicturePlan,
+    Span,
 )
 from shortsmith.qa.technical import QaCheck, QaReport
 from tests.conftest import Media
@@ -219,3 +231,82 @@ def test_compose_writes_out_contact_jpg_from_the_short(media: Media, tmp_path: P
         assert saved.format == "JPEG"
         assert saved.size == (lay.width, lay.height)
     assert out.stat().st_size < contact_sheet.MAX_BYTES
+
+
+# --- the strip line and the rescue / downgrade mark (016) ----------------------------------
+
+
+def _strip_plan() -> PicturePlan:
+    beats = [
+        Beat.model_validate({"id": bid, "start": float(i), "end": float(i + 1), "mode": mode,
+                             "kind": kind, "asset_id": asset})  # fmt: skip
+        for i, (bid, mode, kind, asset) in enumerate([
+            ("b01", "full", "presenter_full", None),
+            ("b02", "pip", "photo", "a1"),
+            ("b03", "off", "photo", "a2"),
+            ("b04", "pip", "card", "a3"),
+            ("b05", "off", "finale", "a1"),
+        ])
+    ]  # fmt: skip
+    return PicturePlan(
+        prompt_version="t", cut=CutPlan(keep=[Span(start=0.0, end=5.0)]), beats=beats,
+        hook=Hook(title="t", cold_open_span=Span(start=0.0, end=1.0), original_position="drop",
+                  card_asset_ids=["a1"]),
+        finale=Finale(beat_id="b05", text="t"), title="t", description="t",
+    )  # fmt: skip
+
+
+def _strip_manifest() -> AssetManifest:
+    def record(asset_id: str, origin: str) -> AssetRecord:
+        return AssetRecord.model_validate({
+            "id": asset_id, "origin": origin, "source_url": "https://x.invalid/a.png",
+            "file": "work/assets/a.png", "sha256": "0" * 64, "width": 1600, "height": 900,
+            "fetched_at": "2026-09-22T12:00:00+00:00",
+        })  # fmt: skip
+
+    return AssetManifest(
+        assets=[record("a1", "commons"), record("a2", "web")],
+        beats=[
+            BeatAsset(beat_id="b02", asset_id="a1", treatment="photo", fallback_rung=0),
+            BeatAsset(beat_id="b03", asset_id="a2", treatment="card", fallback_rung=0,
+                      treatment_downgraded=True),
+            BeatAsset(beat_id="b04", asset_id=None, treatment="gradient", fallback_rung=4,
+                      stamp="WHY"),
+        ],
+        aliases={"a1": "a1", "a2": "a2", "a3": None}, runtime_s=5.0, rescued_max=1,
+    )  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("t", "text", "marked"),
+    [
+        (0.0, "b01 F presenter_full -", False),
+        (1.25, "b02 P photo C", False),
+        (2.0, "b03 O card W", True),  # a planned photo downgraded to a card (5.3)
+        (3.5, "b04 P card -", True),  # rung 4: PIP over the gradient (4.4)
+        (4.9, "b05 O finale C", False),  # the finale points at a1 through the aliases
+        (5.0, "b05 O finale C", False),  # the last frame belongs to the last beat
+    ],
+)
+def test_strip_line_names_beat_mode_kind_and_origin(t: float, text: str, marked: bool) -> None:
+    strip = contact_sheet.strip_line(t, _strip_plan(), _strip_manifest())
+    assert (strip.text, strip.marked) == (text, marked)
+
+
+def test_strip_line_without_a_plan_is_a_placeholder() -> None:
+    assert contact_sheet.strip_line(1.0, None, None) == contact_sheet.Strip("-", False)
+
+
+def test_marked_cells_get_a_red_corner_and_the_others_do_not() -> None:
+    hook = [_solid((HOOK_W, HOOK_H), (0, 0, 0))] * HOOK_FRAMES
+    frames = [_solid((FRAME_W, FRAME_H), (0, 0, 0)) for _ in range(2)]
+    strips = [
+        contact_sheet.Strip("b01 P photo C", False),
+        contact_sheet.Strip("b02 P card -", True),
+    ]
+    image = contact_sheet.compose_image(hook, frames, None, "marks", frame_strips=strips)
+    lay = contact_sheet.layout(HOOK_FRAMES, 2)
+    plain, marked = lay.frames
+    corner = (marked.frame.x + marked.frame.w - 3, marked.frame.y + 2)
+    assert image.getpixel(corner) == contact_sheet.MARK_COLOUR
+    assert image.getpixel((plain.frame.x + plain.frame.w - 3, plain.frame.y + 2)) == (0, 0, 0)

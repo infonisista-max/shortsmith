@@ -56,28 +56,26 @@ def _resolve(manifest: AssetManifest, asset_id: str) -> str | None:
     return manifest.aliases.get(asset_id, asset_id)
 
 
-def shown(beat: Beat, manifest: AssetManifest) -> list[str]:
-    """The asset ids a beat puts on screen: its sourced asset, or the planned id
-    resolved through the aliases; a hook-cards beat also shows the hook's cards."""
+def shown(beat: Beat, manifest: AssetManifest, plan: PicturePlan) -> list[str]:
+    """The asset ids a beat puts on screen, once each: its sourced asset, or the
+    planned id resolved through the aliases; a hook-cards beat also shows the hook's
+    cards."""
     decided = manifest.beat(beat.id)
     ids: list[str | None] = []
     if decided is not None:
         ids.append(decided.asset_id)
     elif beat.asset_id is not None:
         ids.append(_resolve(manifest, beat.asset_id))
-    return [i for i in ids if i is not None]
-
-
-def _hook_cards(plan: PicturePlan, manifest: AssetManifest) -> list[str]:
-    resolved = (_resolve(manifest, card) for card in plan.hook.card_asset_ids)
-    return [i for i in resolved if i is not None]
+    if beat.kind == "hook_cards":
+        ids += [_resolve(manifest, card) for card in plan.hook.card_asset_ids]
+    return list(dict.fromkeys(i for i in ids if i is not None))
 
 
 def rows(manifest: AssetManifest, plan: PicturePlan) -> list[RightsRow]:
     """One row per unique asset, in manifest order, beat ids in plan order."""
     out: list[RightsRow] = []
     for record in manifest.assets:
-        beat_ids = [b.id for b in plan.beats if record.id in shown(b, manifest)]
+        beat_ids = [b.id for b in plan.beats if record.id in shown(b, manifest, plan)]
         out.append(row(record, beat_ids))
     return out
 
@@ -108,10 +106,7 @@ def completeness(
     problems: list[str] = []
     ids = {r.id for r in rows}
     for beat in plan.beats:
-        wanted = shown(beat, manifest)
-        if beat.kind == "hook_cards":
-            wanted += _hook_cards(plan, manifest)
-        for asset_id in dict.fromkeys(wanted):
+        for asset_id in shown(beat, manifest, plan):
             if asset_id not in ids:
                 problems.append(f"{beat.id}: asset {asset_id} has no rights row")
     for r in rows:

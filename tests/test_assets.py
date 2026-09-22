@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from shortsmith import assets, render, styles
+from shortsmith import assets, config, render, styles
 from shortsmith.contracts import (
     Beat,
     BedQuery,
@@ -138,6 +138,21 @@ def test_rights_safe_removes_web_search_only() -> None:
 
 def test_order_parses_the_config_string() -> None:
     assert assets.parse_order(" commons, web ,,pexels ") == ("commons", "web", "pexels")
+
+
+def test_from_settings_follows_asset_sources_and_policy() -> None:
+    settings = config.Settings(asset_sources="fake,commons", asset_policy="rights_safe",
+                               _env_file=None)  # pyright: ignore[reportCallIssue]  # fmt: skip
+    sourcing = assets.from_settings(settings)
+    assert (tuple(sourcing.order), sourcing.policy) == (("fake", "commons"), "rights_safe")
+    assert list(sourcing.sources) == ["fake"]
+    assert sourcing.missing() == ["commons"]  # no real adapter until 017 / 018
+    assert sourcing.generate is None  # IMAGE_GEN=none until 019
+
+
+def test_default_settings_have_no_adapter_yet() -> None:
+    sourcing = assets.from_settings(config.Settings(_env_file=None))  # pyright: ignore[reportCallIssue]
+    assert sourcing.missing() == list(assets.DEFAULT_ORDER)
 
 
 def test_rights_safe_never_calls_web(tmp_path: Path) -> None:

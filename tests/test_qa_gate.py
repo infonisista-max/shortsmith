@@ -1,4 +1,4 @@
-"""qa.gate: the interface the pipeline's `qa` step calls. The fake passes T1-T4 and
+"""qa.gate: the interface the pipeline's `qa` step calls. The fake passes every check and
 leaves the same files as the real gate (`out/qa.json`, `out/contact.jpg`) without
 touching the media; the real gate is `technical.run` plus `contact_sheet.compose`."""
 
@@ -14,12 +14,12 @@ from shortsmith.qa import technical
 from shortsmith.qa.gate import FakeGate, Gate, TechnicalGate
 
 
-def test_fake_gate_passes_t1_to_t4_and_writes_qa_json(tmp_path: Path) -> None:
+def test_fake_gate_passes_every_check_and_writes_qa_json(tmp_path: Path) -> None:
     job = jobs.create(tmp_path)
     gate: Gate = FakeGate()
     report = gate.check(job)
     assert report.passed
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4"]
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T8", "T9"]
     assert technical.load_report(job) == report
 
 

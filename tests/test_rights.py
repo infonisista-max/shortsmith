@@ -93,7 +93,7 @@ def test_one_row_per_unique_asset_with_every_beat_that_shows_it() -> None:
     rows = rights.rows(manifest, plan)
     assert [r.id for r in rows] == ["a1", "a2"]
     assert rows[0].beat_ids == ["b01", "b02", "b04", "b05"]
-    assert rows[1].beat_ids == ["b03"]
+    assert rows[1].beat_ids == ["b01", "b03"]  # the hook-cards beat shows every card
 
 
 def test_rows_carry_the_5_4_shape() -> None:

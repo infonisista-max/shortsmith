@@ -35,6 +35,10 @@ Covers PRD `sound`, the mix half of `render`, rights rows for audio. Decisions 7
 - Blocked by `issues/008-style-specs-loader-resolver.md`
 - Blocked by `issues/016-asset-step-ladder-rights.md`
 
+## Notes from 016
+
+- `rights.write(job_dir, manifest, plan)` regenerates `out/rights.json` and `out/credits.md` from the asset manifest at every `sourcing` run; the music/SFX rows this ticket appends must be written after sourcing (the renderer) and survive a re-run, or `rights.write` must learn to carry them. `RightsRow.kind` already allows `music` / `sfx` and `origin` `library`.
+
 ## User stories addressed
 
 - User story 29

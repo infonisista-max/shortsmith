@@ -1,6 +1,7 @@
 """`python -m shortsmith.smoke`: fixture -> job -> fake transcriber -> fake planner ->
 work/{asr,plan,sound,captions}.json -> Remotion -> work/picture.mp4 -> out/short.mp4
--> T1-T4 in out/qa.json -> out/contact.jpg, uploaded -> transcribing -> planning ->
+-> assets through the fake sources, out/rights.json and out/credits.md (016) ->
+T1-T4, T8, T9 in out/qa.json -> out/contact.jpg, uploaded -> transcribing -> planning ->
 sourcing -> rendering -> qa -> delivered, exit 0 with one summary line, non-zero on a
 failed assertion. The render is the real engine (12.1), so the walk is the slow test
 in the suite."""
@@ -14,7 +15,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from shortsmith import contact_sheet, ffmpeg, smoke
+from shortsmith import assets, contact_sheet, ffmpeg, rights, smoke
 from shortsmith.contracts import (
     PicturePlan,
     PlanFeedback,
@@ -68,7 +69,19 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     # 006: the technical gate and the contact sheet, then `delivered`.
     report = technical.load_report(job)
     assert report is not None and report.passed
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4"]
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T8", "T9"]
+    # 016: every sourced beat found its picture through the fakes, none rescued; the
+    # photo beat is a full-bleed photo, the card beat a card; the rights log is complete.
+    manifest = assets.load_manifest(job.path)
+    assert manifest is not None and manifest.rescued == 0
+    assert [b.beat_id for b in manifest.beats] == [
+        b.id for b in plan.beats if b.subject_kind is not None
+    ]
+    treatments = {b.beat_id: b.treatment for b in manifest.beats}
+    assert (treatments["b03"], treatments["b04"]) == ("photo", "card")
+    rows = rights.load(job.path)
+    assert rows is not None and rights.completeness(rows, manifest, plan) == []
+    assert (job.out_dir / "credits.md").read_text("utf-8").startswith("Photo: fake ")
     sheet = job.out_dir / "contact.jpg"
     assert sheet.is_file() and sheet.stat().st_size < contact_sheet.MAX_BYTES
     with Image.open(sheet) as image:
@@ -85,7 +98,8 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     ]
     assert "ok" in result.summary and job.id in result.summary
     assert "180 frames" in result.summary and "short" in result.summary
-    assert "T1-T4 pass" in result.summary and "contact" in result.summary
+    assert "T1 T2 T3 T4 T8 T9 pass" in result.summary and "contact" in result.summary
+    assert f"{len(manifest.assets)} assets" in result.summary
 
 
 def test_main_prints_one_line_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:

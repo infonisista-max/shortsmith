@@ -3,10 +3,14 @@
 Walks the same path the tests walk, end to end, with every fake and no network:
 generate the 12.1 fixture, ingest it the way the upload route does (`ingest.accept`,
 not HTTP), run the job through the worker (`pipeline.Worker.run_next`, the same code
-the web app's thread runs) with the fake transcriber, the fake planner and the real
-Remotion renderer, assert `work/asr.json`, `work/plan.json`, `work/sound.json`,
-`work/captions.json`, `work/picture.mp4` (H.264, 1080x1920, round(6 x 30) frames,
-silent), `out/short.mp4`, `out/qa.json` with T1-T4 passing, `out/contact.jpg` under
+the web app's thread runs) with the fake transcriber, the fake planner, the fake
+image sources (016: web answers every query but the photo beat's, Commons has that
+one as a full-bleed portrait) and the real Remotion renderer, assert `work/asr.json`,
+`work/plan.json`, `work/sound.json`, `work/captions.json`, `work/assets.json` (every
+sourced beat found, none rescued, the photo beat a photo and the card beat a card),
+`out/rights.json` complete and `out/credits.md`, `work/picture.mp4` (H.264,
+1080x1920, round(6 x 30) frames, silent), `out/short.mp4`, `out/qa.json` with T1-T4,
+T8 and T9 passing, `out/contact.jpg` under
 2 MB at the sheet's width, and the job's `uploaded -> ... -> qa -> delivered` trail,
 print one summary line and exit 0. Any failed assertion exits non-zero with the
 failing check on stderr. Later tickets extend this walk until it asserts T1-T13
@@ -35,11 +39,23 @@ from pathlib import Path
 from PIL import Image
 from pydantic import TypeAdapter
 
-from shortsmith import contact_sheet, ffmpeg, fixture, ingest, jobs, pipeline, render, styles
+from shortsmith import (
+    assets,
+    contact_sheet,
+    ffmpeg,
+    fixture,
+    ingest,
+    jobs,
+    pipeline,
+    render,
+    rights,
+    styles,
+)
 from shortsmith.contracts import (
     TIER1_KINDS,
     CaptionPage,
     PicturePlan,
+    RenderSpec,
     SoundStory,
     Transcript,
     ValidatedPlan,
@@ -62,7 +78,7 @@ TRAIL = [
     "rendering -> qa",
     "qa -> delivered",
 ]
-TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4")  # grows with the gate tickets
+TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T8", "T9")  # grows with the gate tickets
 _PAGES = TypeAdapter(list[CaptionPage])
 SMOKE_BRIEF = (
     "Topic: a six-second synthetic clip. Angle: prove the pipeline end to end. "
@@ -70,6 +86,19 @@ SMOKE_BRIEF = (
 )
 SMOKE_STYLE_LINE = "explainer, energetic"
 SMOKE_LIMITS = Limits(min_duration_s=fixture.DURATION_S)
+# 016: the fake plan's photo beat (b03) asks for this; Commons answers it with a
+# full-bleed portrait, web (which is always a card, 5.1) answers everything else.
+PHOTO_QUERY = "slow colour gradient sky"
+
+
+def smoke_sourcing() -> assets.Sourcing:
+    return assets.Sourcing(
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PHOTO_QUERY}),
+            "commons": assets.FakeImageSource("commons", sizes={PHOTO_QUERY: (1080, 1920)}),
+        },
+        order=("web", "commons"),
+    )
 
 
 class SmokeFailure(AssertionError):
@@ -133,7 +162,7 @@ def run_smoke(
     # 009: the fake plan is judged by the fixture-shaped copy of explainer.
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
-        specs=fixture.smoke_specs(specs),
+        sourcing=smoke_sourcing(), specs=fixture.smoke_specs(specs),
     )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
@@ -198,6 +227,7 @@ def run_smoke(
         sum(len(p.word_indices) for p in pages) == EXPECTED_WORDS,
         "caption pages do not cover every word",
     )
+    manifest = check_assets(reloaded, plan)
     picture = job.work_dir / "picture.mp4"
     check(picture.is_file(), "rendering did not write work/picture.mp4")
     check((job.work_dir / "render_spec.json").is_file(), "rendering did not write render_spec.json")
@@ -222,15 +252,47 @@ def run_smoke(
         f"{len(plan.beats)} beats, {len(story.cues)} cues, {len(pages)} caption pages, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
-        f"{TECHNICAL_CHECKS[0]}-{TECHNICAL_CHECKS[-1]} pass, "
+        f"{len(manifest.assets)} assets, "
+        f"{' '.join(TECHNICAL_CHECKS)} pass, "
         f"contact {sheet.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
     return SmokeResult(job_dir=job.path, summary=summary, picture=picture)
 
 
+def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
+    """016: `work/assets.json` sources every labelled beat through the fakes with no
+    rescue, the photo beat as a photo and the card beat as a card; the rights log is
+    complete and the credits exist; the render spec draws both."""
+    manifest = assets.load_manifest(job.path)
+    check(manifest is not None, "sourcing did not write work/assets.json")
+    assert manifest is not None
+    sourced = [b.id for b in plan.beats if b.subject_kind is not None]
+    check([b.beat_id for b in manifest.beats] == sourced, "a labelled beat was not sourced")
+    rescued = [b.beat_id for b in manifest.beats if b.rescued]
+    check(not rescued, f"beats rescued although the fakes answer: {rescued}")
+    treatments = {b.beat_id: b.treatment for b in manifest.beats}
+    check(
+        (treatments.get("b03"), treatments.get("b04")) == ("photo", "card"),
+        f"b03/b04 drawn as {treatments.get('b03')}/{treatments.get('b04')}, not photo/card",
+    )
+    rows = rights.load(job.path)
+    check(rows is not None, "sourcing did not write out/rights.json")
+    assert rows is not None
+    problems = rights.completeness(rows, manifest, plan)
+    check(not problems, f"rights log incomplete: {problems}")
+    check((job.out_dir / "credits.md").is_file(), "sourcing did not write out/credits.md")
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    drawn = {b.id: b.visual.treatment for b in spec.beats if b.visual is not None}
+    check(drawn == {"b03": "photo", "b04": "card"}, f"render spec draws {drawn}")
+    return manifest
+
+
 def check_qa(job: jobs.Job) -> None:
-    """`out/qa.json` per ticket 006: T1-T4 ran in order and every one passed (10.1)."""
+    """`out/qa.json`: T1-T4 (006), T8's rescue limit and T9 (016) ran in order and every
+    one passed (10.1)."""
     report = technical.load_report(job)
     check(report is not None, "qa did not write out/qa.json")
     assert report is not None

@@ -27,6 +27,10 @@ Covers PRD `assets` (library adapters). Decisions 5.1, 5.2, 5.4, 13.1.
 
 - Blocked by `issues/017-web-image-search-relevance-judge.md`
 
+## Notes from 016
+
+- Each source is an `assets.ImageSource` (`search` / `fetch`, see 017's note) registered in `assets.from_settings` under its `ASSET_SOURCES` name (`commons`, `openverse`, `pexels`, `pixabay`); the order and the rights-safe removal of `web` already work (`assets.source_order`). Candidate `licence` / `author` / `page_url` flow into the rights row and the credit line ("Photo: <author or domain> via <page url>").
+
 ## User stories addressed
 
 - User story 33

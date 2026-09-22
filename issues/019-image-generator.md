@@ -36,6 +36,12 @@ Covers PRD `assets` (generator), `rights` (generated rows). Decisions 4.2, 5.4, 
 
 - Pillow is installed (`pillow==12.3.0`); `FakeImageGenerator` can draw the prompt with `ImageDraw` and the bundled Poppins.
 
+## Notes from 016
+
+- The generator plugs in as `assets.Sourcing.generate`, a callable `(beat, dest_dir) -> assets.GeneratedImage | None` (`path` plus a `contracts.Generated` with model, prompt, render, depicts); None in place of the callable is `IMAGE_GEN=none`. `from_settings` does not build one yet.
+- Called first on `concept` beats with `source_intent: generate`, otherwise as ladder rung 2 after both queries found nothing on every source; results cache under `work/assets/<cache_key(query, "generated")>/`. The `gen_max_per_short` cap is not counted yet.
+- T9 already fails a generated row without a prompt and a named entity rendered photoreal (`rights.completeness`); `credits.md` gets the disclosure line when any row is generated.
+
 ## User stories addressed
 
 - User story 17

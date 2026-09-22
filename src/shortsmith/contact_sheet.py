@@ -1,9 +1,12 @@
-"""The contact sheet `out/contact.jpg` (decision 10.4), frames only in this ticket.
+"""The contact sheet `out/contact.jpg` (decision 10.4).
 
 Row 1 is the hook strip: the first 2 s at 4 fps. Then one frame per second at 270 px
-wide, six per row, a time label under each frame and a one-line strip slot beneath it
-that later tickets fill (beat id, mode letter, kind, asset-origin letter, red corner
-mark: 016 and 035). The 6.3 platform safe-area zones are drawn as thin outlines on the
+wide, six per row, a time label under each frame and the strip line beneath it (016):
+the beat at that time, its mode letter as drawn (F/P/O; a rung-4 rescue is P), its
+kind (the treatment actually drawn for photo and card beats), and the asset-origin
+letter (U user, W web, C Commons, O Openverse, P Pexels, X Pixabay, G generated, L
+library, - none), with a red corner mark on a rescued (4.4) or downgraded (5.3) beat.
+The 6.3 platform safe-area zones are drawn as thin outlines on the
 first frame of every row. The last row is the summary panel: one dot per technical
 check (green pass, red fail, grey not run), the critic scores as a placeholder until
 033, and the ledger line (cash total, subscription tokens with their api-equivalent
@@ -23,7 +26,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from shortsmith import ffmpeg, jobs, ledger
+from shortsmith import assets, ffmpeg, jobs, ledger
+from shortsmith.contracts import AssetManifest, PicturePlan
 from shortsmith.jobs import Job, JobRecord
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
@@ -45,7 +49,7 @@ LABEL_H = 20
 STRIP_H = 20
 SUMMARY_H = 72
 MAX_BYTES = 2_000_000
-TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4")  # grows to T13 with the later gate tickets
+TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T8", "T9")  # T8 partial until 032; grows to T13
 
 BG_COLOUR = (24, 24, 24)
 PANEL_COLOUR = (40, 40, 40)
@@ -55,6 +59,8 @@ SAFE_COLOUR = (255, 80, 80)
 PASS_COLOUR = (46, 204, 113)
 FAIL_COLOUR = (231, 76, 60)
 PENDING_COLOUR = (120, 120, 120)
+MARK_COLOUR = (231, 76, 60)
+MARK_PX = 22
 
 QUALITIES = (85, 75, 65, 55, 45)
 SCALES = (1.0, 0.75, 0.5)
@@ -170,21 +176,64 @@ def _paste(image: Image.Image, frame: Image.Image, box: Box) -> None:
     image.paste(frame, (box.x, box.y))
 
 
+# --- the strip line (016) ------------------------------------------------------------------
+
+MODE_LETTERS = {"full": "F", "pip": "P", "off": "O"}
+ORIGIN_LETTERS = {
+    "owner_supplied": "U", "web": "W", "commons": "C", "openverse": "O", "pexels": "P",
+    "pixabay": "X", "generated": "G", "library": "L",
+}  # fmt: skip
+
+
+@dataclass(frozen=True)
+class Strip:
+    text: str
+    marked: bool
+
+
+def strip_line(t: float, plan: PicturePlan | None, manifest: AssetManifest | None) -> Strip:
+    """The strip under the frame at output time `t` (10.4)."""
+    if plan is None or not plan.beats:
+        return Strip("-", False)
+    beat = next((b for b in plan.beats if b.start <= t < b.end), plan.beats[-1])
+    decided = manifest.beat(beat.id) if manifest is not None else None
+    mode, kind, asset_id = beat.mode, str(beat.kind), beat.asset_id
+    marked = False
+    if decided is not None:
+        asset_id = decided.asset_id
+        marked = decided.rescued or decided.treatment_downgraded
+        if decided.fallback_rung == 4:
+            mode = "pip"
+        elif beat.kind in ("photo", "card"):
+            kind = decided.treatment
+    elif asset_id is not None and manifest is not None:
+        asset_id = manifest.aliases.get(asset_id, asset_id)
+    record = manifest.asset(asset_id) if manifest is not None and asset_id else None
+    origin = ORIGIN_LETTERS.get(record.origin, "-") if record is not None else "-"
+    return Strip(f"{beat.id} {MODE_LETTERS[mode]} {kind} {origin}", marked)
+
+
 def _draw_cell(
     image: Image.Image,
     draw: ImageDraw.ImageDraw,
     cell: Cell,
     frame: Image.Image,
     font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    strip: Strip | None = None,
 ) -> None:
     _paste(image, frame, cell.frame)
     if cell.first_in_row:
         for zone in safe_area_rects(cell.frame):
             draw.rectangle(zone.rect, outline=SAFE_COLOUR, width=1)
+    strip = strip or Strip("-", False)
+    if strip.marked:
+        right, top = cell.frame.x + cell.frame.w - 1, cell.frame.y
+        draw.polygon([(right - MARK_PX, top), (right, top), (right, top + MARK_PX)],
+                     fill=MARK_COLOUR)  # fmt: skip
     label = time_label(cell.time_s)
     draw.text((cell.label.x + 4, cell.label.y + 2), label, fill=TEXT_COLOUR, font=font)
-    # The strip line (beat · mode · kind · origin) is filled by 016/035; a placeholder for now.
-    draw.text((cell.strip.x + 4, cell.strip.y + 2), "- · - · - · -", fill=MUTED_COLOUR, font=font)
+    colour = TEXT_COLOUR if strip.text != "-" else MUTED_COLOUR
+    draw.text((cell.strip.x + 4, cell.strip.y + 2), strip.text, fill=colour, font=font)
 
 
 def ledger_line(record: JobRecord) -> str:
@@ -231,6 +280,9 @@ def compose_image(
     report: QaReport | None,
     title: str,
     cost: str = "ledger: -",
+    *,
+    hook_strips: list[Strip] | None = None,
+    frame_strips: list[Strip] | None = None,
 ) -> Image.Image:
     """Draw the sheet from in-memory frames (hook strip first, then per-second)."""
     lay = layout(len(hook), len(frames))
@@ -238,10 +290,10 @@ def compose_image(
     draw = ImageDraw.Draw(image)
     font = _font(14)
     draw.text((GUTTER, 10), title, fill=TEXT_COLOUR, font=_font(16))
-    for cell, frame in zip(lay.hook, hook, strict=True):
-        _draw_cell(image, draw, cell, frame, font)
-    for cell, frame in zip(lay.frames, frames, strict=True):
-        _draw_cell(image, draw, cell, frame, font)
+    for i, (cell, frame) in enumerate(zip(lay.hook, hook, strict=True)):
+        _draw_cell(image, draw, cell, frame, font, hook_strips[i] if hook_strips else None)
+    for i, (cell, frame) in enumerate(zip(lay.frames, frames, strict=True)):
+        _draw_cell(image, draw, cell, frame, font, frame_strips[i] if frame_strips else None)
     _draw_summary(draw, lay.summary, report, font, cost)
     return image
 
@@ -277,6 +329,18 @@ def compose(job: Job) -> Path:
     title = (
         f"job {job.id} · {len(frames)} frames at 1 fps · hook {HOOK_SECONDS:g} s at {HOOK_FPS} fps"
     )
+    plan_path = job.work_dir / "plan.json"
+    plan = (
+        PicturePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+        if plan_path.is_file()
+        else None
+    )
+    manifest = assets.load_manifest(job.path)
+    lay = layout(len(hook), len(frames))
+    hook_strips = [strip_line(c.time_s, plan, manifest) for c in lay.hook]
+    frame_strips = [strip_line(c.time_s, plan, manifest) for c in lay.frames]
     # Re-read: the ledger appends rows to job.json behind the worker's Job value.
-    image = compose_image(hook, frames, report, title, ledger_line(jobs.load(job.path).record))
+    cost = ledger_line(jobs.load(job.path).record)
+    image = compose_image(hook, frames, report, title, cost, hook_strips=hook_strips,
+                          frame_strips=frame_strips)  # fmt: skip
     return encode(image, job.out_dir / "contact.jpg")

@@ -33,6 +33,13 @@ Covers PRD `assets` (web adapter, judge). Decisions 5.1, 5.2, 5.6, 12.1, 13.1.
 
 - Blocked by `issues/016-asset-step-ladder-rights.md`
 
+## Notes from 016
+
+- Adapter shape: `assets.ImageSource` with `origin`, `search(query, n) -> list[Candidate]` and `fetch(candidate, dest) -> Path` (dest without suffix; return the written file). Register it in `assets.from_settings` under its `ASSET_SOURCES` name; today only `fake` maps to an adapter and every other configured name is skipped with a `job.log` note ("no image source adapter yet for: ...").
+- The judge slots into `assets._search_cached`: it already asks for `CANDIDATES` (6) and caches the candidate list, the chosen one, the file and `fetched_at` in `work/assets/<sha256(query + source)>/result.json`; today the first candidate wins. `AssetRecord.judge` / `RightsRow.judge` (`JudgeVerdict`) exist and stay None until this ticket.
+- Not built in 016: the 5.2 code-only hard rejects (short side < 800, aspect > 3:1, > 15 MB, non-image body) and the `budget.search_max_queries` count.
+- Web images are always cards (`assets.classify(..., origin="web")`), so a web portrait asked as `photo` records `treatment_downgraded`.
+
 ## User stories addressed
 
 - User story 17

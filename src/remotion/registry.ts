@@ -2,10 +2,14 @@
 // style loader (008) cross-checks and the Node test asserts against these files.
 import type React from "react";
 import { Captions } from "./components/captions";
+import { Card } from "./components/card";
+import { Photo } from "./components/photo";
 import { Pip } from "./components/pip";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const REGISTRY: Record<string, React.ComponentType<any>> = {
   captions: Captions,
+  card: Card,
+  photo: Photo,
   pip: Pip,
 };

@@ -1,10 +1,10 @@
 """pipeline: the worker runs a job's steps in order (11.1), one job at a time in
-submission order (9.1). Transcribing, planning, the sourcing placeholder, rendering
-and the technical gate exist; a job that passes the gate with its deliverables on
-disk is `delivered` (10.4). A failing step marks the job `failed` with the step named
-and a fixed message; a failed check names itself in the message. Tests render through
-`FakeRenderer` and gate through `FakeGate`; the real paths are covered by
-test_render, test_qa_technical, test_contact_sheet and smoke."""
+submission order (9.1). Transcribing, planning, sourcing (016), rendering and the
+technical gate exist; a job that passes the gate with its deliverables on disk is
+`delivered` (10.4). A failing step marks the job `failed` with the step named and a
+fixed message; a failed check names itself in the message. Tests source through the
+fake web source, render through `FakeRenderer` and gate through `FakeGate`; the real
+paths are covered by test_render, test_qa_technical, test_contact_sheet and smoke."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import fixture, jobs, pipeline, render, styles, subproc
+from shortsmith import assets, fixture, jobs, pipeline, render, rights, styles, subproc
 from shortsmith.contracts import (
     Cue,
     PicturePlan,
@@ -58,15 +58,22 @@ def _uploaded(data_dir: Path, clip: Path) -> jobs.Job:
     return job
 
 
+def _sourcing() -> assets.Sourcing:
+    """016: the fake web source, the only configured source (so no adapter note)."""
+    return assets.Sourcing(sources={"web": assets.FakeImageSource("web")}, order=("web",))
+
+
 def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
          planner: Planner | None = None, renderer: Renderer | None = None,
-         gate: Gate | None = None) -> jobs.Job:  # fmt: skip
+         gate: Gate | None = None,
+         sourcing: assets.Sourcing | None = None) -> jobs.Job:  # fmt: skip
     return pipeline.run_job(
         job,
         transcriber=transcriber or FakeTranscriber(),
         planner=planner or FakePlanner(),
         renderer=renderer or FakeRenderer(),
         gate=gate or FakeGate(),
+        sourcing=sourcing or _sourcing(),
         specs=SPECS,
     )
 
@@ -74,7 +81,8 @@ def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
 def _worker(transcriber: Transcriber | None = None, **kwargs: object) -> pipeline.Worker:
     return pipeline.Worker(
         transcriber=transcriber or FakeTranscriber(), planner=FakePlanner(),
-        renderer=FakeRenderer(), gate=FakeGate(), specs=SPECS, **kwargs,  # pyright: ignore[reportArgumentType]
+        renderer=FakeRenderer(), gate=FakeGate(), sourcing=_sourcing(), specs=SPECS,
+        **kwargs,  # pyright: ignore[reportArgumentType]
     )  # fmt: skip
 
 
@@ -144,12 +152,72 @@ def test_a_failing_render_fails_the_job_at_rendering(tmp_path: Path, fixture_cli
     assert "no frame found" in done.record.error.detail
 
 
-def test_sourcing_is_a_placeholder_that_writes_nothing_until_016(
+def test_sourcing_writes_the_manifest_rights_and_credits(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
     job = _uploaded(tmp_path, fixture_clip)
-    _run(job)
-    assert not (job.work_dir / "assets").exists()
+    done = _run(job)
+    assert done.status == "delivered"
+    manifest = assets.load_manifest(job.path)
+    assert manifest is not None
+    plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    sourced = [b.id for b in plan.beats if b.subject_kind is not None]
+    assert [b.beat_id for b in manifest.beats] == sourced
+    rows = rights.load(job.path)
+    assert rows is not None and [r.id for r in rows] == [a.id for a in manifest.assets]
+    assert (job.out_dir / "credits.md").is_file()
+    assert rights.completeness(rows, manifest, plan) == []
+
+
+def test_sources_without_an_adapter_are_noted_in_the_job_log(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    sourcing = assets.Sourcing(sources={"web": assets.FakeImageSource("web")},
+                               order=("web", "commons", "pexels"))  # fmt: skip
+    _run(job, sourcing=sourcing)
+    log = job.log_path.read_text("utf-8")
+    assert "no image source adapter yet for: commons, pexels" in log
+
+
+def test_rights_safe_policy_reaches_the_step(tmp_path: Path, fixture_clip: Path) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    web = assets.FakeImageSource("web")
+    commons = assets.FakeImageSource("commons")
+    sourcing = assets.Sourcing(sources={"web": web, "commons": commons},
+                               order=("web", "commons"), policy="rights_safe")  # fmt: skip
+    assert _run(job, sourcing=sourcing).status == "delivered"
+    assert web.searches == 0 and commons.searches > 0
+
+
+def test_a_missing_reference_file_fails_the_job_at_sourcing(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    ref = {"id": "r1", "file": "refs/1_gone.png", "kind": "image",
+           "caption": "slow colour gradient sky", "original_name": "gone.png",
+           "width": 1080, "height": 1920, "size_bytes": 1}  # fmt: skip
+    (job.input_dir / "refs.json").write_text(json.dumps([ref]), encoding="utf-8")
+    done = _run(job)
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert done.record.error.step == "sourcing"
+    assert done.record.error.message == pipeline.STEP_MESSAGES["sourcing"]
+    assert "refs/1_gone.png is missing" in done.record.error.detail
+
+
+class _RightslessGate(FakeGate):
+    def contact_sheet(self, job: jobs.Job) -> Path:
+        (job.out_dir / "rights.json").unlink()
+        return super().contact_sheet(job)
+
+
+def test_delivered_requires_rights_and_credits(tmp_path: Path, fixture_clip: Path) -> None:
+    assert pipeline.DELIVERABLES == ("short.mp4", "contact.jpg", "rights.json", "credits.md")
+    done = _run(_uploaded(tmp_path, fixture_clip), gate=_RightslessGate())
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert "rights.json" in done.record.error.detail
 
 
 def test_a_failed_check_fails_the_job_at_qa_and_names_the_check(

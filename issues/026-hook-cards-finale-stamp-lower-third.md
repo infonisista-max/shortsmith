@@ -30,6 +30,12 @@ Covers PRD render (`hook_cards`, `finale`, `stamp`, `lower_third`). Decisions 3.
 - Blocked by `issues/016-asset-step-ladder-rights.md`
 - Blocked by `issues/010-caption-pager-full-rules.md`
 
+## Notes from 016
+
+- Rescued beats carry their stamp word in `work/assets.json` (`BeatAsset.stamp`, rung 3 and 4; the beat's own event text, else the longest query word). A rung-4 beat arrives in the RenderSpec as `pip` with no visual: the stamp over the gradient is this ticket's to draw.
+- Hook cards and the finale find their assets through `manifest.aliases` (planned id -> id actually shown, None for rung 4); `rights.shown` already counts every hook card on the hook-cards beat.
+- The card's caption strip shows the beat's `lower_third` text today (`render._visuals`); decide here whether the lower-third is suppressed on card beats or the strip takes other text. The ring on a `ring` event lands at the framing's focus 0.2 s into the beat.
+
 ## User stories addressed
 
 - User story 11

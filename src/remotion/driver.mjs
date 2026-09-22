@@ -5,8 +5,9 @@
 //   node src/remotion/driver.mjs bundle
 //
 // `render` bundles the composition once into build/remotion/ (reused while the
-// sources are unchanged), serves the presenter's directory over a local HTTP server
-// with Range support (Remotion only reads URLs and public files), and renders through
+// sources are unchanged), serves the presenter and every beat's asset image (ticket
+// 016) from their common directory over a local loopback HTTP server with Range
+// support (Remotion only reads URLs and public files), and renders through
 // @remotion/renderer with the 9.1 settings: concurrency 2, bt709, muted H.264.
 //
 // Protocol on stdout, one line each, nothing else:
@@ -31,7 +32,15 @@ const ENTRY = path.join(HERE, "index.ts");
 const BUNDLE_DIR = path.join(ROOT, "build", "remotion");
 const STAMP = path.join(BUNDLE_DIR, ".shortsmith-stamp");
 const COMPOSITION_ID = "Short";
-const MIME = { ".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/mp4" };
+const MIME = {
+  ".mp4": "video/mp4",
+  ".mov": "video/quicktime",
+  ".m4v": "video/mp4",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+};
 
 function log(line) {
   process.stderr.write(`${line}\n`);
@@ -109,7 +118,25 @@ function ensureBundle() {
   return (performance.now() - started) / 1000;
 }
 
-// --- serving the presenter --------------------------------------------------------------
+// --- serving the presenter and the assets -----------------------------------------------
+
+// The deepest directory holding every file (all live under the job directory).
+function commonDir(files) {
+  const split = files.map((f) => path.dirname(path.resolve(f)).split(path.sep));
+  const first = split[0];
+  let n = first.length;
+  for (const parts of split.slice(1)) {
+    let i = 0;
+    while (i < n && i < parts.length && parts[i].toLowerCase() === first[i].toLowerCase()) i += 1;
+    n = i;
+  }
+  return first.slice(0, n).join(path.sep) || path.sep;
+}
+
+function urlFor(base, root, file) {
+  const rel = path.relative(root, path.resolve(file)).split(path.sep);
+  return base + rel.map(encodeURIComponent).join("/");
+}
 
 function serve(dir) {
   const server = http.createServer((req, res) => {
@@ -179,10 +206,15 @@ async function render(args) {
 
   let server = null;
   const inputProps = { ...spec };
-  if (spec.presenter) {
-    const presenter = path.resolve(spec.presenter);
-    server = await serve(path.dirname(presenter));
-    inputProps.presenter = server.base + encodeURIComponent(path.basename(presenter));
+  const visuals = spec.beats.filter((b) => b.visual).map((b) => b.visual.src);
+  const files = [...(spec.presenter ? [spec.presenter] : []), ...visuals];
+  if (files.length) {
+    const root = commonDir(files);
+    server = await serve(root);
+    if (spec.presenter) inputProps.presenter = urlFor(server.base, root, spec.presenter);
+    inputProps.beats = spec.beats.map((b) =>
+      b.visual ? { ...b, visual: { ...b.visual, src: urlFor(server.base, root, b.visual.src) } } : b,
+    );
   }
   const started = performance.now();
   try {

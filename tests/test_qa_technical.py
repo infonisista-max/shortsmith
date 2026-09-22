@@ -1,4 +1,5 @@
-"""qa.technical: T1-T4 (decision 10.1) each with a passing and a failing input, the
+"""qa.technical: T1-T4 (decision 10.1), the 016 rescue limit (reported as T8 until 032
+completes it) and T9 rights completeness, each with a passing and a failing input, the
 boundaries on both sides, and `run(job)` stopping at the first FAIL and writing
 `out/qa.json`. Boundary cases use ffprobe-shaped dicts and `Loudness` values; the
 real-file cases encode small synthetic clips (12.1: never a committed video)."""
@@ -11,8 +12,18 @@ from typing import Any
 
 import pytest
 
-from shortsmith import ffmpeg, jobs
-from shortsmith.contracts import Beat, CutPlan, Finale, Hook, PicturePlan, Span
+from shortsmith import assets, ffmpeg, jobs, rights
+from shortsmith.contracts import (
+    AssetManifest,
+    AssetRecord,
+    Beat,
+    BeatAsset,
+    CutPlan,
+    Finale,
+    Hook,
+    PicturePlan,
+    Span,
+)
 from shortsmith.ffmpeg import Loudness
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
@@ -229,13 +240,89 @@ def test_t4_on_a_quiet_real_master(media: Media) -> None:
     assert not check.passed
 
 
+# --- T8 rescue limit (4.4; the rest of T8 is ticket 032) ------------------------------------
+
+
+def _owner(asset_id: str) -> AssetRecord:
+    return AssetRecord(id=asset_id, origin="owner_supplied", licence="owner",
+                       file=f"input/refs/{asset_id}.png", sha256="0" * 64, width=1080,
+                       height=1920, fetched_at="2026-09-22T12:00:00+00:00")  # fmt: skip
+
+
+def _manifest(records: list[AssetRecord], beats: list[BeatAsset], *, rescued_max: int = 4,
+              runtime_s: float = 60.0) -> AssetManifest:  # fmt: skip
+    return AssetManifest(assets=records, beats=beats, runtime_s=runtime_s,
+                         rescued_max=rescued_max)  # fmt: skip
+
+
+def _rescues(n: int, total: int = 12) -> list[BeatAsset]:
+    return [
+        BeatAsset(beat_id=f"b{i:02d}", asset_id=None if i < n else "a1",
+                  treatment="gradient" if i < n else "card", fallback_rung=4 if i < n else 0)
+        for i in range(total)
+    ]  # fmt: skip
+
+
+def test_t8_four_rescues_in_sixty_seconds_pass() -> None:
+    check = technical.t8(_manifest([_owner("a1")], _rescues(4)))
+    assert (check.name, check.passed) == ("T8", True)
+    assert "4 rescued beats (max 4" in check.detail
+
+
+def test_t8_the_fifth_rescue_fails_with_not_enough_relevant_broll() -> None:
+    check = technical.t8(_manifest([_owner("a1")], _rescues(5)))
+    assert not check.passed
+    assert check.detail.startswith("not enough relevant B-roll")
+    assert "5 rescued beats (max 4" in check.detail
+
+
+def test_t8_counts_rung_3_as_a_rescue() -> None:
+    beats = [BeatAsset(beat_id="b1", asset_id="a1", treatment="card", fallback_rung=3),
+             BeatAsset(beat_id="b2", asset_id="a1", treatment="card", fallback_rung=2)]  # fmt: skip
+    assert not technical.t8(_manifest([_owner("a1")], beats, rescued_max=0)).passed
+    assert technical.t8(_manifest([_owner("a1")], beats, rescued_max=1)).passed
+
+
+def test_t8_without_a_manifest_fails() -> None:
+    check = technical.t8(None)
+    assert not check.passed and "work/assets.json" in check.detail
+
+
+# --- T9 rights completeness (5.4) ----------------------------------------------------------
+
+
+def test_t9_passes_a_complete_log() -> None:
+    plan = _good_plan()
+    manifest = _manifest([_owner("a1")], [])
+    check = technical.t9(rights.rows(manifest, plan), manifest, plan)
+    assert (check.name, check.passed) == ("T9", True)
+    assert check.detail == "1 rights row, every beat's asset logged"
+
+
+def test_t9_fails_naming_each_problem() -> None:
+    plan = _good_plan()
+    manifest = _manifest([], [])
+    check = technical.t9([], manifest, plan)
+    assert not check.passed
+    assert check.detail.startswith("b1: asset a1 has no rights row")
+
+
+def test_t9_without_a_rights_log_fails() -> None:
+    check = technical.t9(None, _manifest([], []), _good_plan())
+    assert not check.passed and "out/rights.json" in check.detail
+
+
 # --- run(job) ------------------------------------------------------------------------------
 
 
-def _job_with(tmp_path: Path, short: Path, plan: PicturePlan) -> jobs.Job:
+def _job_with(tmp_path: Path, short: Path, plan: PicturePlan,
+              manifest: AssetManifest | None = None) -> jobs.Job:  # fmt: skip
     job = jobs.create(tmp_path)
     (job.work_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
     (job.out_dir / "short.mp4").write_bytes(short.read_bytes())
+    manifest = manifest or _manifest([_owner("a1")], [])
+    assets.write_manifest(job.path, manifest)
+    rights.write(job.path, manifest, plan)
     return job
 
 
@@ -244,7 +331,7 @@ def test_run_writes_qa_json_with_every_check_passing(media: Media, tmp_path: Pat
     job = _job_with(tmp_path, media.clip(duration_s=2.0, amplitude=0.3, ext=".mp4"), _good_plan())
     report = technical.run(job)
     assert report.passed
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4"]
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T8", "T9"]
     on_disk = QaReport.model_validate_json((job.out_dir / "qa.json").read_text(encoding="utf-8"))
     assert on_disk == report
     assert all(c.detail for c in on_disk.checks)
@@ -268,3 +355,18 @@ def test_run_reaches_t3_when_the_plan_is_the_problem(media: Media, tmp_path: Pat
     report = technical.run(job)
     assert [c.name for c in report.checks] == ["T1", "T2", "T3"]
     assert report.failed is not None and report.failed.name == "T3"
+
+
+def test_run_fails_t8_on_too_many_rescues(media: Media, tmp_path: Path) -> None:
+    manifest = _manifest([_owner("a1")], _rescues(2, total=3), rescued_max=1, runtime_s=5.0)
+    job = _job_with(tmp_path, media.clip(duration_s=2.0, ext=".mp4"), _good_plan(), manifest)
+    report = technical.run(job)
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T8"]
+    assert report.failed is not None and report.failed.name == "T8"
+
+
+def test_run_fails_t9_on_an_incomplete_log(media: Media, tmp_path: Path) -> None:
+    job = _job_with(tmp_path, media.clip(duration_s=2.0, ext=".mp4"), _good_plan())
+    (job.out_dir / "rights.json").write_text("[]", encoding="utf-8")
+    report = technical.run(job)
+    assert report.failed is not None and report.failed.name == "T9"

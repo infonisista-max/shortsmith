@@ -61,7 +61,7 @@ from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from shortsmith import auth, config, ingest, jobs, ledger, pipeline, render, styles
+from shortsmith import assets, auth, config, ingest, jobs, ledger, pipeline, render, styles
 from shortsmith import planner as planner_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
@@ -86,6 +86,8 @@ OUT_FILES: dict[str, str] = {
     "short.mp4": "video/mp4",
     "contact.jpg": "image/jpeg",
     "qa.json": "application/json",
+    "rights.json": "application/json",  # 5.4 rights evidence (016)
+    "credits.md": "text/markdown; charset=utf-8",
 }
 # Statuses whose elapsed clock has stopped: the terminal ones and `delivered`, which
 # only changes again by a rating (034).
@@ -145,6 +147,7 @@ def create_app(
     planner: Planner | None = None,
     renderer: Renderer | None = None,
     gate: Gate | None = None,
+    sourcing: assets.Sourcing | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
     clock: Clock = _utc_now,
@@ -171,12 +174,14 @@ def create_app(
     planner = planner or planner_module.from_settings(settings)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
     # `renderer` None means Remotion (ticket 004) and `gate` None the technical gate
-    # (006); tests pass `FakeRenderer` and `FakeGate`.
+    # (006); tests pass `FakeRenderer` and `FakeGate`. The asset step follows
+    # `ASSET_SOURCES` / `ASSET_POLICY` (016); no real image source exists yet.
     worker = pipeline.Worker(
         transcriber=transcriber,
         planner=planner,
         renderer=renderer,
         gate=gate,
+        sourcing=sourcing or assets.from_settings(settings),
         specs=specs,
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
