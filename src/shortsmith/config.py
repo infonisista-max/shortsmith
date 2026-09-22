@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     image_gen: ImageGen = "none"
     gemini_api_key: SecretStr | None = None
     shortsmith_data_dir: Path = Path("data")
+    # 5.6 / 11.3: prices come from an operator-edited file, never from code. The per-job
+    # caps are unset until the operator derives them from the first ten metered passing
+    # jobs (p90 -> soft, above it -> hard); only the daily guard ships with a number.
+    prices_file: Path = Path("prices.yaml")
+    budget_inr_per_job: float | None = None  # soft: flags only
+    budget_inr_hard: float | None = None  # hard: fails the job before the next paid call
+    budget_inr_per_day: float = 500.0  # closes the upload form until midnight IST (044)
 
 
 def load(env_file: str | Path | None = ".env") -> Settings:

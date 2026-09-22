@@ -5,8 +5,9 @@ wide, six per row, a time label under each frame and a one-line strip slot benea
 that later tickets fill (beat id, mode letter, kind, asset-origin letter, red corner
 mark: 016 and 035). The 6.3 platform safe-area zones are drawn as thin outlines on the
 first frame of every row. The last row is the summary panel: one dot per technical
-check (green pass, red fail, grey not run), with the critic scores and ledger total as
-placeholders until 033 and 011. The file stays under 2 MB: `encode` steps the JPEG
+check (green pass, red fail, grey not run), the critic scores as a placeholder until
+033, and the ledger line (cash total, subscription tokens with their api-equivalent
+value, the soft-cap flag; 11.3). The file stays under 2 MB: `encode` steps the JPEG
 quality down and, as a last resort, scales the whole sheet.
 
 `layout` is pure geometry so the tests pin every position; `compose_image` draws from
@@ -22,8 +23,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from shortsmith import ffmpeg
-from shortsmith.jobs import Job
+from shortsmith import ffmpeg, jobs, ledger
+from shortsmith.jobs import Job, JobRecord
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
 
@@ -186,11 +187,23 @@ def _draw_cell(
     draw.text((cell.strip.x + 4, cell.strip.y + 2), "- · - · - · -", fill=MUTED_COLOUR, font=font)
 
 
+def ledger_line(record: JobRecord) -> str:
+    """The 11.3 cost line: cash, subscription tokens beside it, the soft-cap flag."""
+    line = f"ledger: INR {ledger.cash_total(record):.2f} cash"
+    tokens = ledger.tokens_total(record)
+    if tokens:
+        line += f" + {tokens} tokens (INR {ledger.equivalent_total(record):.2f} equiv.)"
+    if record.over_soft_cap:
+        line += " OVER SOFT CAP"
+    return line
+
+
 def _draw_summary(
     draw: ImageDraw.ImageDraw,
     box: Box,
     report: QaReport | None,
     font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    cost: str = "ledger: -",
 ) -> None:
     draw.rectangle(box.rect, fill=PANEL_COLOUR)
     results = {c.name: c.passed for c in report.checks} if report is not None else {}
@@ -206,7 +219,7 @@ def _draw_summary(
         x += 70
     draw.text(
         (box.x + 12, box.y + 44),
-        "critic E1-E10: pending (033) · ledger total: pending (011)",
+        f"critic E1-E10: pending (033) · {cost}",
         fill=MUTED_COLOUR,
         font=font,
     )
@@ -217,6 +230,7 @@ def compose_image(
     frames: list[Image.Image],
     report: QaReport | None,
     title: str,
+    cost: str = "ledger: -",
 ) -> Image.Image:
     """Draw the sheet from in-memory frames (hook strip first, then per-second)."""
     lay = layout(len(hook), len(frames))
@@ -228,7 +242,7 @@ def compose_image(
         _draw_cell(image, draw, cell, frame, font)
     for cell, frame in zip(lay.frames, frames, strict=True):
         _draw_cell(image, draw, cell, frame, font)
-    _draw_summary(draw, lay.summary, report, font)
+    _draw_summary(draw, lay.summary, report, font, cost)
     return image
 
 
@@ -263,5 +277,6 @@ def compose(job: Job) -> Path:
     title = (
         f"job {job.id} · {len(frames)} frames at 1 fps · hook {HOOK_SECONDS:g} s at {HOOK_FPS} fps"
     )
-    image = compose_image(hook, frames, report, title)
+    # Re-read: the ledger appends rows to job.json behind the worker's Job value.
+    image = compose_image(hook, frames, report, title, ledger_line(jobs.load(job.path).record))
     return encode(image, job.out_dir / "contact.jpg")

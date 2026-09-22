@@ -23,6 +23,10 @@ Covers PRD `planner` (API adapter), `config` startup errors. Decisions 8.3, 11.3
 - [ ] A test feeds the same recorded planner reply through both adapters' parse path and asserts identical `PicturePlan` and `SoundStory` objects.
 - [ ] `config` unit tests cover all three startup outcomes.
 
+## Notes from 011
+
+- Cash rows: `ledger.check_before_call(job, "planning", estimated_inr)` first, then `ledger.record(job, "planning", "planner", model, {"input_tokens": usage.input, "output_tokens": usage.output})`; the `planner` price (per 1k tokens) is required at startup when `PLANNER=api`.
+
 ## Blocked by
 
 - Blocked by `issues/014-planner-prompt-cli-adapter.md`

@@ -21,6 +21,7 @@ import pytest
 
 from shortsmith import jobs, pipeline, render, styles, subproc
 from shortsmith.contracts import PicturePlan, PlanRequest, SoundStory, Transcript
+from shortsmith.ledger import BudgetExceeded, Caps, Ledger, Prices
 from shortsmith.planner import FakePlanner, Planner, PlannerUnavailable, UnavailablePlanner
 from shortsmith.qa.gate import FakeGate, Gate
 from shortsmith.render import FakeRenderer, Renderer
@@ -546,3 +547,26 @@ def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path)
         gate=FakeGate(), max_job_minutes=30, clock=clock,
     )  # fmt: skip
     assert result.status == "delivered"
+
+
+class _OverBudgetPlanner(FakePlanner):
+    """A paid adapter whose pre-call check found the hard cap (011)."""
+
+    def plan_picture(self, request: PlanRequest) -> PicturePlan:
+        raise BudgetExceeded("planning", spent_inr=79.0, estimated_inr=5.0, hard_inr=80.0)
+
+
+def test_budget_exceeded_fails_the_job_at_the_step_with_the_ledger_intact(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    Ledger(Prices({"groq": {"audio_minutes": 0.5}}), Caps(per_job=None, hard=None, per_day=500)) \
+        .record(job, "transcribing", "groq", "w", {"audio_minutes": 2})
+    done = _run(job, planner=_OverBudgetPlanner())
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert done.record.error.step == "planning"
+    assert done.record.error.message == "Budget exceeded at step planning."
+    assert "79.0" in done.record.error.detail and "80.0" in done.record.error.detail
+    assert len(done.record.cost) == 1  # the rows so far stay on the page (5.6)
+    assert not (job.work_dir / "plan.json").exists()

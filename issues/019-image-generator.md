@@ -24,6 +24,10 @@ Covers PRD `assets` (generator), `rights` (generated rows). Decisions 4.2, 5.4, 
 - [ ] Recorded request/response JSON under `tests/fixtures/gemini/`; tests assert endpoint, model, size request and body parsing; the ninth generation in a short is refused by the cap.
 - [ ] Smoke runs with `FakeImageGenerator` on a concept beat whose fake search returns nothing and reaches `delivered` with rung 2 recorded.
 
+## Notes from 011
+
+- `ledger.record(job, "sourcing", "gemini", model, {"images": 1})` per generated image after `check_before_call`; the `gemini` price is required at startup when `IMAGE_GEN=gemini`.
+
 ## Blocked by
 
 - Blocked by `issues/016-asset-step-ladder-rights.md`

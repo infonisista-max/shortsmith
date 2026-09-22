@@ -25,6 +25,10 @@ Covers PRD `assets` (web adapter, judge). Decisions 5.1, 5.2, 5.6, 12.1, 13.1.
 - [ ] `ASSET_POLICY=rights_safe` removes the web adapter with no other change (test on the source list).
 - [ ] Tests: request construction and response parsing on recorded JSON for search, page follow and the judge; hard-reject boundaries at 799/800 px and 3.01:1; cache hit makes zero judge calls.
 
+## Notes from 011
+
+- Add `judge` and `search` to `ledger.providers_in_use` (they are in `REQUIRED_UNITS` and `prices.example.yaml` already: judge per 1k input/output tokens, search per query) once the config says which is on; record with `{"input_tokens", "output_tokens"}` and `{"queries": 1}`.
+
 ## Blocked by
 
 - Blocked by `issues/016-asset-step-ladder-rights.md`

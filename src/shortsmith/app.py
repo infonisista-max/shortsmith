@@ -44,7 +44,7 @@ import shutil
 import tempfile
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from string import Template
 
@@ -61,7 +61,7 @@ from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from shortsmith import auth, config, ingest, jobs, pipeline, render, styles
+from shortsmith import auth, config, ingest, jobs, ledger, pipeline, render, styles
 from shortsmith import planner as planner_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
@@ -91,7 +91,6 @@ OUT_FILES: dict[str, str] = {
 SETTLED: frozenset[Status] = TERMINAL | frozenset[Status]({"delivered"})
 SHOWS_SHORT: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 QUEUE_RETRY_S = 3600  # "try in an hour"
-IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: no tzdata needed on Windows
 BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _REFS = TypeAdapter(list[ReferenceRecord])
@@ -130,12 +129,6 @@ def body_limit(limits: Limits) -> int:
     )
 
 
-def midnight_ist(now: datetime) -> datetime:
-    """The most recent midnight in IST at or before `now` (11.2: jobs per day)."""
-    local = now.astimezone(IST)
-    return local.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
 def _template(name: str) -> Template:
     return Template((TEMPLATES / name).read_text(encoding="utf-8"))
 
@@ -156,11 +149,18 @@ def create_app(
     clock: Clock = _utc_now,
     delay: Delay = asyncio.sleep,
     styles_dir: Path | None = None,
+    book: ledger.Ledger | None = None,
 ) -> FastAPI:
     settings = settings or config.load()
     # Every style spec loads here, at startup, or the app does not build (1.2, 1.4).
     specs = styles.load_all(render.registry(), styles_dir or styles.STYLES_DIR)
     chips = styles.shipped(specs)
+    # The ledger loads the prices file at startup (5.6), in the lifespan like the
+    # passcode check, so `import shortsmith.app` never needs the file: a provider the
+    # config puts in use without a price is a `LedgerError` that stops the server with
+    # its message. Paid adapters (012, 014, 015, 017, 019) take the ledger at
+    # construction and report units to it.
+    books: list[ledger.Ledger | None] = [book]
     # The Groq transcriber arrives with ticket 012; until then the fake is the only one.
     transcriber = transcriber or FakeTranscriber()
     # `PLANNER` selects the adapter (8.3); the unbuilt ones fail the job at `planning`.
@@ -190,6 +190,9 @@ def create_app(
             raise RuntimeError(
                 "SHORTSMITH_PASSCODE is not set: add one to .env before serving (decision 11.2)"
             )
+        if books[0] is None:
+            books[0] = ledger.from_settings(settings, clock=clock)  # LedgerError names the gap
+        app.state.ledger = books[0]
         (data_dir / "jobs").mkdir(parents=True, exist_ok=True)
         if start_worker:
             worker.start()
@@ -237,7 +240,7 @@ def create_app(
         return HTMLResponse(render_passcode_form("Wrong passcode.", next_url), status_code=401)
 
     def day_limit_reached() -> bool:
-        return jobs.created_since(data_dir, midnight_ist(clock())) >= max_jobs_per_day
+        return jobs.created_since(data_dir, jobs.midnight_ist(clock())) >= max_jobs_per_day
 
     def day_closed_sentence() -> str:
         return (
@@ -381,7 +384,7 @@ def _queue_position(job: Job, worker: pipeline.Worker) -> int | None:
 
 
 def _seconds_to_next_midnight_ist(now: datetime) -> int:
-    next_midnight = midnight_ist(now) + timedelta(days=1)
+    next_midnight = jobs.midnight_ist(now) + timedelta(days=1)
     return max(1, int((next_midnight - now).total_seconds()))
 
 
@@ -610,6 +613,7 @@ def render_job_page(job: Job, *, now: datetime | None = None, position: int | No
         references=references,
         brief=html.escape(brief),
         result=_result_block(job),
+        ledger=_ledger_block(job),
         json_url=f"/jobs/{html.escape(job.id)}.json",
         created_at=record.created_at.isoformat(),
         terminal="true" if record.status in SETTLED else "false",
@@ -636,6 +640,45 @@ def _result_block(job: Job) -> str:
     if job.status in SHOWS_SHORT and (job.out_dir / "short.mp4").is_file():
         media = _template("result.html").substitute(base=base)
     return f"{media}<h2>Technical checks</h2>\n<ul class=\"checks\">\n{items}\n</ul>\n"
+
+
+def _ledger_block(job: Job) -> str:
+    """The per-step cost (11.3): every row, the cash total, the subscription tokens
+    valued at the api-equivalent rate beside it, and the soft-cap flag. Nothing until
+    the first paid call, so a fake-only job shows no empty table."""
+    record = job.record
+    if not record.cost:
+        return ""
+    rows = "\n".join(
+        f"  <tr><td>{html.escape(r.step)}</td><td>{html.escape(r.provider)}</td>"
+        f"<td>{html.escape(r.model)}</td><td>{html.escape(_units(r.units))}</td>"
+        f"<td>{'INR ' + format(r.inr, '.2f') if r.inr > 0 else '-'}</td>"
+        f"<td>{f'{r.tokens_estimated} tokens' if r.tokens_estimated else '-'}</td></tr>"
+        for r in record.cost
+    )
+    cash = ledger.cash_total(record)
+    tokens = ledger.tokens_total(record)
+    summary = f"<p>Cash total: <strong>INR {cash:.2f}</strong>"
+    if tokens:
+        summary += (
+            f" · subscription: {tokens} tokens, worth about INR "
+            f"{ledger.equivalent_total(record):.2f} at the API rate (not counted)"
+        )
+    summary += "</p>"
+    flag = ""
+    if record.over_soft_cap:
+        flag = '<p class="warning">This job is over the soft cap; nothing was skipped for cost.</p>'
+    return (
+        "<h2>Cost</h2>\n"
+        '<table class="ledger">\n'
+        "  <tr><th>step</th><th>provider</th><th>model</th><th>units</th>"
+        "<th>cash</th><th>tokens</th></tr>\n"
+        f"{rows}\n</table>\n{summary}\n{flag}"
+    )
+
+
+def _units(units: dict[str, float]) -> str:
+    return ", ".join(f"{name} {quantity:g}" for name, quantity in units.items())
 
 
 def _reference_lines(job: Job) -> str:

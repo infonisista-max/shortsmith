@@ -1,0 +1,28 @@
+# Shortsmith prices (decision 5.6): copy to prices.yaml and keep it current. Every
+# paid adapter reports units only; the ledger prices them from this file, so a vendor
+# price change is an edit here, never a release. All values are INR per unit.
+#
+# Token prices are INR per 1,000 tokens. The example numbers are placeholders for the
+# operator to replace from the vendors' current price lists; nothing in the code reads
+# a price from anywhere else.
+
+groq:                       # Whisper transcription
+  audio_minutes: 0.5        # INR per minute of audio
+
+gemini:                     # image generation (IMAGE_GEN=gemini)
+  images: 3.0               # INR per generated image
+
+judge:                      # the relevance judge's vision call (ticket 017)
+  input_tokens: 0.25        # INR per 1k input tokens
+  output_tokens: 1.25       # INR per 1k output tokens
+
+planner:                    # PLANNER=api (one Messages call per planner call)
+  input_tokens: 0.25
+  output_tokens: 1.25
+
+search:                     # paid web image search, per query (free if scraped)
+  queries: 0.2
+
+api_equivalent:             # values PLANNER=claude_code subscription tokens for display only;
+  input_tokens: 0.25        # those rows never enter the cash total (decision 11.3)
+  output_tokens: 1.25

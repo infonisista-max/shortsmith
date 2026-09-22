@@ -9,8 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-# Secrets
+# Secrets and operator-edited config (decision 5.6: prices live in a file, not in code)
 .env
+prices.yaml
 
 # Media and job data (never commit video)
 data/

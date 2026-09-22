@@ -33,6 +33,10 @@ The acceptance line "FakePlanner's canned plan passes validation with zero viola
 - The style numbers are typed on `styles.StyleSpec`: `beats` (min/max/set-piece/mean range/density gap/snap window/hook slot lengths/title words), `presenter` (modes, full fraction, never-consecutive, reasons, pip/off runs, hook and finale modes), `broll` (kinds, tier-2 kinds, `enter_transitions`, `whip_max_per_3_beats`, asset counts). `pipeline.style_of(job, specs)` returns the job's spec; `PlanRequest.style.numbers` is the same data as a dict.
 - 2.3's `target_duration_s` from a style note that names a length is not parsed yet; `job.json.style_note` holds the line.
 
+## Notes from 011
+
+- The ledger exists: a planning retry is `ledger.record(job, "planning", provider, model, units)` with the adapter's usage; there is no no-op hook to call, the adapter that makes the call records it (see the 012/014 notes). `ledger.BudgetExceeded` from a pre-call check already fails the job with "Budget exceeded at step planning."
+
 ## Blocked by
 
 - Blocked by `issues/008-style-specs-loader-resolver.md`

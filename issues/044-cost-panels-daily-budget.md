@@ -21,6 +21,10 @@ Covers PRD `app` (cost panels), `ledger` (daily), `jobs` (running average). Deci
 - [ ] `ledger.cash_spent_today(now)` ≥ `BUDGET_INR_PER_DAY` → the upload form is closed with "daily budget reached" and reopens after midnight IST (fake clock test at 23:59 and 00:01 IST).
 - [ ] Tokens never appear in any cash total (test).
 
+## Notes from 011
+
+- `app.state.ledger.cash_spent_today(data_dir, now)` and `settings.budget_inr_per_day` (default 500) exist; the per-job caps default to `None` (disabled) per the operator's 11.3 rider and are set from the ledger data later. The job page already shows the rows, the cash total and the api-equivalent token value; the running average is this ticket's.
+
 ## Blocked by
 
 - Blocked by `issues/011-ledger-prices-caps.md`

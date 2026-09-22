@@ -23,6 +23,10 @@ Covers PRD `transcriber` (real half). Decisions 6.1, 12.1, 13.1.
 - [ ] Every Groq call records a ledger row with units in audio minutes.
 - [ ] Tests under `tests/fixtures/groq/` hold recorded request and response JSON; no network in tests (a transport stub asserts the URL, headers minus the key, and body).
 
+## Notes from 011
+
+- Take the `ledger.Ledger` at construction (the app holds one on `app.state.ledger`, built in the lifespan). Before the call: `ledger.check_before_call(job, "transcribing", estimated_inr)`; after: `ledger.record(job, "transcribing", "groq", model, {"audio_minutes": minutes})`. The transcriber interface takes only the audio path today, so either pass the job in or return the minutes for the pipeline to record; do not compute INR in the adapter. `ledger.providers_in_use` already requires a `groq` price when `GROQ_API_KEY` is set.
+
 ## Blocked by
 
 - Blocked by `issues/011-ledger-prices-caps.md`

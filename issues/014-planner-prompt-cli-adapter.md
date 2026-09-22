@@ -25,6 +25,10 @@ Covers PRD `planner` (prompt builder, CLI adapter, parser, versioning). Decision
 - [ ] `pipeline` runs picture → validate → sound → validate with one retry each and records each call and retry as a ledger row.
 - [ ] Smoke still uses `fake`; a test proves `FakePlanner`, `ClaudeCodePlanner` and the parser return the same model classes.
 
+## Notes from 011
+
+- Subscription rows: `ledger.record(job, "planning", "claude_code", model, {"input_tokens": i, "output_tokens": o})` yields `inr` 0, `tokens_estimated` i+o and `inr_equivalent` at the file's `api_equivalent` rate (required at startup when `PLANNER=claude_code`). `Planner.plan_picture(request)` has no job handle: give the adapter the job (or a per-job meter) at call time so it can record; the pipeline builds nothing for it.
+
 ## Blocked by
 
 - Blocked by `issues/009-grammar-validator.md`

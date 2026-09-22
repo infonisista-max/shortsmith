@@ -24,6 +24,7 @@ from shortsmith import app as app_module
 from shortsmith import auth, jobs, styles
 from shortsmith.config import Settings
 from shortsmith.ingest import MIB, Limits
+from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
 from shortsmith.planner import FakePlanner
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
@@ -37,7 +38,13 @@ PASSCODE = "test-only-passcode"
 T0 = datetime(2026, 9, 21, 12, 0, 0, tzinfo=UTC)
 
 
+EXAMPLE_PRICES = Path(__file__).resolve().parents[1] / "prices.example.yaml"
+
+
 def _settings(tmp_path: Path, passcode: str | None = PASSCODE, **overrides: Any) -> Settings:
+    # The default planner is `claude_code`, which the ledger requires a priced
+    # api-equivalent rate for at startup (5.6); the committed example file covers it.
+    overrides.setdefault("prices_file", EXAMPLE_PRICES)
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         shortsmith_data_dir=tmp_path / "data",
@@ -437,14 +444,8 @@ def test_default_planner_from_settings_fails_the_job_visibly_not_silently(
 ) -> None:
     """`PLANNER=claude_code` (the .env default) is ticket 014: until then a job fails at
     `planning` with the ticket named; nothing pretends the fake is the real planner."""
-    settings = Settings(
-        _env_file=None,  # pyright: ignore[reportCallIssue]
-        shortsmith_data_dir=tmp_path / "data",
-        shortsmith_passcode=SecretStr(PASSCODE),
-        planner="claude_code",
-    )
     app = app_module.create_app(
-        settings,
+        _settings(tmp_path, planner="claude_code"),
         transcriber=FakeTranscriber(),
         renderer=FakeRenderer(),
         gate=FakeGate(),
@@ -767,3 +768,47 @@ def test_passcode_form_escapes_next(anon: TestClient) -> None:
     page = anon.get("/jobs/" + SCRIPT)
     assert page.status_code == 401
     assert SCRIPT not in page.text and html.escape(SCRIPT) in page.text
+
+
+def test_job_page_shows_the_ledger_rows_and_the_cash_total(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    job = jobs.find(app.state.data_dir, location.rsplit("/", 1)[1])
+    assert job is not None
+    book = Ledger(
+        Prices({"groq": {"audio_minutes": 0.5}, "api_equivalent": {"input_tokens": 0.25}}),
+        Caps(per_job=1.0, hard=None, per_day=500),
+    )
+    book.record(job, "transcribing", "groq", "whisper-large-v3", {"audio_minutes": 3})  # 1.5
+    book.record(job, "planning", "claude_code", "cli", {"input_tokens": 4000})  # tokens only
+    body = client.get(location).text
+    assert 'class="ledger"' in body
+    assert "whisper-large-v3" in body and "claude_code" in body
+    assert "audio_minutes 3" in body
+    assert "INR 1.50" in body  # the cash total; tokens never enter it
+    assert "4000 tokens" in body and "INR 1.00" in body  # api-equivalent value, display only
+    assert "over the soft cap" in body
+
+
+def test_job_page_without_rows_shows_no_ledger(client: TestClient, media: Media) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    assert 'class="ledger"' not in client.get(location).text
+
+
+def test_startup_refuses_to_run_when_a_paid_provider_has_no_price(tmp_path: Path) -> None:
+    """5.6: the prices file is checked at startup, in the lifespan like the passcode,
+    so importing the module never needs it and the server stops with the gap named."""
+    settings = _settings(tmp_path, planner="api", prices_file=tmp_path / "prices.yaml")
+    app = app_module.create_app(
+        settings, transcriber=FakeTranscriber(), planner=FakePlanner(),
+        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+    )  # fmt: skip
+    with pytest.raises(LedgerError, match="prices.example.yaml"), TestClient(app):
+        pass
+    (tmp_path / "prices.yaml").write_text(
+        "planner:\n  input_tokens: 0.25\n  output_tokens: 1.25\n", encoding="utf-8"
+    )
+    with TestClient(app) as client:
+        assert client.get("/health").json() == {"ok": True}
+        assert app.state.ledger.prices.rate("planner", "output_tokens") == 1.25

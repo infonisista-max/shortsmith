@@ -9,20 +9,29 @@ Layout per decision 2.2: `<data_dir>/jobs/<job_id>/{job.json, input/, work/, out
 
 Every transition rewrites `job.json` and appends one timestamped line to `job.log`.
 Illegal transitions raise `IllegalTransition` and touch nothing on disk.
+
+`job.json` has more than one writer inside a step (the ledger appends cost rows, the
+renderer reports progress) while the worker holds its own `Job` value, so every write
+goes through `amend`: it re-reads the file, applies the change and writes the result.
+A field another writer added between two of the worker's writes therefore survives.
+There is one worker thread, so read-apply-write needs no lock.
 """
 
 from __future__ import annotations
 
+import itertools
 import re
 import secrets
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, model_validator
+
+IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: no tzdata needed on Windows
 
 Status = Literal[
     "uploaded",
@@ -87,6 +96,24 @@ class InputSummary(BaseModel):
     references: int = 0
 
 
+class CostRow(BaseModel):
+    """One paid call (decision 5.6), priced by the ledger; adapters report `units` only.
+    `inr` is cash and counts toward the caps. A subscription call (8.3) carries its
+    tokens as `tokens_estimated` with `inr` zero and `inr_equivalent` the display-only
+    value at the api-equivalent rate (11.3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    step: str
+    provider: str
+    model: str
+    units: dict[str, float]
+    inr: float
+    tokens_estimated: int = 0
+    inr_equivalent: float = 0.0
+    at: datetime
+
+
 class JobRecord(BaseModel):
     """Contents of job.json."""
 
@@ -104,7 +131,8 @@ class JobRecord(BaseModel):
     input: InputSummary | None = None
     warnings: list[str] = []
     error: JobError | None = None
-    cost: list[dict[str, Any]] = []
+    cost: list[CostRow] = []
+    over_soft_cap: bool = False  # 11.3: a flag for the page and the sheet, nothing more
     progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
 
     @model_validator(mode="before")
@@ -195,7 +223,7 @@ def create(
 
 
 def load(job_dir: Path) -> Job:
-    record = JobRecord.model_validate_json((job_dir / "job.json").read_text(encoding="utf-8"))
+    record = JobRecord.model_validate_json(_read_json(job_dir / "job.json"))
     return Job(path=job_dir, record=record)
 
 
@@ -212,28 +240,24 @@ def find(data_dir: Path, job_id: str) -> Job | None:
     return load(job_dir)
 
 
-def list_jobs(data_dir: Path, *, limit: int = 50) -> list[Job]:
-    """The most recent `limit` jobs, newest first (11.1: the job list page)."""
+def iter_jobs(data_dir: Path) -> Iterator[Job]:
+    """Every job on disk, newest first (the ids sort by submission time)."""
     root = data_dir / "jobs"
     if not root.is_dir():
-        return []
-    dirs = sorted((d for d in root.iterdir() if JOB_ID.match(d.name)), reverse=True)
-    found: list[Job] = []
-    for d in dirs:
+        return
+    for d in sorted((d for d in root.iterdir() if JOB_ID.match(d.name)), reverse=True):
         if (d / "job.json").is_file():
-            found.append(load(d))
-        if len(found) == limit:
-            break
-    return found
+            yield load(d)
+
+
+def list_jobs(data_dir: Path, *, limit: int = 50) -> list[Job]:
+    """The most recent `limit` jobs, newest first (11.1: the job list page)."""
+    return list(itertools.islice(iter_jobs(data_dir), limit))
 
 
 def created_since(data_dir: Path, since: datetime) -> int:
     """How many jobs were created at or after `since` (11.2: the per-day limit)."""
-    root = data_dir / "jobs"
-    if not root.is_dir():
-        return 0
-    dirs = (d for d in root.iterdir() if JOB_ID.match(d.name) and (d / "job.json").is_file())
-    return sum(1 for d in dirs if load(d).record.created_at >= since)
+    return sum(1 for job in iter_jobs(data_dir) if job.record.created_at >= since)
 
 
 def can_transition(current: Status, requested: Status) -> bool:
@@ -248,6 +272,15 @@ def can_transition(current: Status, requested: Status) -> bool:
     return False
 
 
+def amend(job: Job, **fields: Any) -> Job:
+    """Rewrite job.json with `fields` applied to what is on disk now (see the module
+    note), and return the fresh Job. `updated_at` is the caller's to set."""
+    current = load(job.path).record
+    updated = Job(path=job.path, record=current.model_copy(update=fields))
+    _write_json(updated)
+    return updated
+
+
 def transition(
     job: Job, status: Status, *, error: JobError | None = None, now: Clock = _utc_now
 ) -> Job:
@@ -258,11 +291,7 @@ def transition(
     if status != "failed" and error is not None:
         raise ValueError(f"an error payload is only allowed on 'failed', not {status!r}")
     stamp = now()
-    record = job.record.model_copy(
-        update={"status": status, "updated_at": stamp, "error": error, "progress": None}
-    )
-    updated = Job(path=job.path, record=record)
-    _write_json(updated)
+    updated = amend(job, status=status, updated_at=stamp, error=error, progress=None)
     line = f"{job.status} -> {status}"
     if error is not None:
         line += f" step={error.step} message={error.message!r}"
@@ -272,12 +301,14 @@ def transition(
 
 def set_progress(job: Job, percent: int, *, now: Clock = _utc_now) -> Job:
     """Record step progress in job.json (no log line: it changes every few frames)."""
-    record = job.record.model_copy(
-        update={"progress": max(0, min(100, percent)), "updated_at": now()}
-    )
-    updated = Job(path=job.path, record=record)
-    _write_json(updated)
-    return updated
+    return amend(job, progress=max(0, min(100, percent)), updated_at=now())
+
+
+def midnight_ist(now: datetime) -> datetime:
+    """The most recent midnight in IST at or before `now` (11.2 jobs per day, 11.3 the
+    daily cash guard)."""
+    local = now.astimezone(IST)
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def fail(job: Job, *, step: str, message: str, detail: str = "", now: Clock = _utc_now) -> Job:
@@ -288,6 +319,20 @@ def fail(job: Job, *, step: str, message: str, detail: str = "", now: Clock = _u
 
 REPLACE_ATTEMPTS = 100
 REPLACE_RETRY_S = 0.01
+
+
+def _read_json(path: Path) -> str:
+    """Read job.json. On Windows an open that lands inside the writer's replace fails
+    with PermissionError for a moment (the mirror of `_write_json`'s case), so the read
+    retries the same way before giving up."""
+    for attempt in range(REPLACE_ATTEMPTS):
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError:
+            if attempt == REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(REPLACE_RETRY_S)
+    raise AssertionError("unreachable")
 
 
 def _write_json(job: Job) -> None:

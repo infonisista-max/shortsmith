@@ -135,6 +135,8 @@ def run_smoke(
         err = reloaded.record.error
         raise SmokeFailure(f"job failed at {err.step}: {err.message} ({err.detail.strip()})")
     check(reloaded.status == LAST_STATUS, f"job status is {reloaded.status}")
+    # 011: every fake is free, so the ledger stays empty (and no cap can be crossed).
+    check(reloaded.record.cost == [], f"fake-only job has ledger rows: {reloaded.record.cost}")
     asr_path = job.work_dir / "asr.json"
     check(asr_path.is_file(), "worker did not write work/asr.json")
     on_disk = Transcript.model_validate_json(asr_path.read_text(encoding="utf-8"))

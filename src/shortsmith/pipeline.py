@@ -5,7 +5,9 @@ in submission order (9.1).
 (transcribing, planning, the sourcing placeholder, rendering, qa) and ends it
 `delivered`. Any exception inside a step marks the job `failed` at that step with the
 fixed user-facing sentence from `STEP_MESSAGES` and the exception text as `detail`
-(11.1); a failed technical check adds its name to the sentence (10.1).
+(11.1); a failed technical check adds its name to the sentence (10.1); a paid
+adapter's `ledger.BudgetExceeded`, raised before its call, becomes "Budget exceeded
+at step X." with the ledger rows so far left on job.json for the page (11.3).
 
 The `planning` step builds the PlanRequest from `job.json`, `brief.md`, `refs.json`
 and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1), pages
@@ -64,6 +66,7 @@ from shortsmith.contracts import (
     Transcript,
 )
 from shortsmith.jobs import Clock, Job, Status
+from shortsmith.ledger import BudgetExceeded
 from shortsmith.planner import Planner
 from shortsmith.qa.gate import Gate, TechnicalGate
 from shortsmith.render import RemotionRenderer, Renderer
@@ -164,7 +167,10 @@ def run_job(
 
 
 def failure_message(status: Status, exc: Exception) -> str:
-    """The fixed sentence for the step; a failed check appends its name (10.1)."""
+    """The fixed sentence for the step; a failed check appends its name (10.1); the
+    hard cap names the step it stopped before (11.3)."""
+    if isinstance(exc, BudgetExceeded):
+        return f"Budget exceeded at step {exc.step}."
     message = STEP_MESSAGES[status]
     if isinstance(exc, QaFailed):
         return f"{message[:-1]} ({exc.check})."
