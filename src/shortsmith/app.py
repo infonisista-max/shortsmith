@@ -3,7 +3,8 @@
 Pages are stdlib `string.Template` files under `templates/`; every user-supplied or
 model-generated string passes through `html.escape` before it is substituted. The
 worker (`pipeline.Worker`) starts in the lifespan and runs jobs one at a time in
-submission order. The sweeper (042) comes later.
+submission order. The sweeper (`sweeper.sweep`, 042) runs in the lifespan as a
+background task every 15 minutes and again the moment the disk guard trips.
 
 Passcode (decision 11.2): `PasscodeGuard` is a pure ASGI middleware in front of every
 route except `/health` and `POST /passcode`. Without a valid cookie (see `auth`) an
@@ -18,7 +19,10 @@ multipart body through `limited_receive`, which stops the read on the chunk that
 crosses the size limit instead of spooling the whole file. Refusals: 503 with
 Retry-After for the queue and the day limit, 413 for the size. A waiting job's page
 shows "queued, position N" and the JSON carries `queue_position` so the poll reloads
-as jobs finish. `MAX_JOB_MINUTES` reaches the worker.
+as jobs finish. `MAX_JOB_MINUTES` reaches the worker. The disk guard (11.2, ticket 042) sits above
+all of them: under 5 GB free beneath the data directory the form is replaced by one
+plain sentence, `POST /jobs` answers 503 with Retry-After, and the sweeper runs at
+once so the next visit may find room.
 
 Styles (ticket 008, decisions 1.1, 1.4, 2.1): `create_app` loads every spec under
 `styles/` against the renderer registry and refuses to build the app on a broken
@@ -38,12 +42,13 @@ import asyncio
 import dataclasses
 import html
 import json
+import logging
 import math
 import re
 import shutil
 import tempfile
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from string import Template
@@ -61,14 +66,25 @@ from pydantic import TypeAdapter
 from starlette.datastructures import UploadFile
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from shortsmith import assets, auth, config, ingest, jobs, ledger, pipeline, render, styles
+from shortsmith import (
+    assets,
+    auth,
+    config,
+    ingest,
+    jobs,
+    ledger,
+    pipeline,
+    render,
+    styles,
+    sweeper,
+)
 from shortsmith import planner as planner_module
 from shortsmith import transcriber as transcriber_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
-from shortsmith.jobs import STATUS_ORDER, TERMINAL, Clock, Job, Status
+from shortsmith.jobs import SETTLED, STATUS_ORDER, Clock, Job, Status
 from shortsmith.pipeline import QueueFull
 from shortsmith.planner import Planner
 from shortsmith.qa import technical
@@ -76,6 +92,8 @@ from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import Transcriber
+
+log = logging.getLogger(__name__)
 
 TEMPLATES = Path(__file__).parent / "templates"
 MAX_REFERENCE_FIELDS = 8
@@ -90,11 +108,17 @@ OUT_FILES: dict[str, str] = {
     "rights.json": "application/json",  # 5.4 rights evidence (016)
     "credits.md": "text/markdown; charset=utf-8",
 }
-# Statuses whose elapsed clock has stopped: the terminal ones and `delivered`, which
-# only changes again by a rating (034).
-SETTLED: frozenset[Status] = TERMINAL | frozenset[Status]({"delivered"})
 SHOWS_SHORT: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 QUEUE_RETRY_S = 3600  # "try in an hour"
+# 11.2: what the form says when the data disk is under `sweeper.MIN_FREE_BYTES`.
+DISK_FULL_SENTENCE = (
+    "There is not enough disk space for a new short right now. Try again later."
+)
+# 2.2: what the job page says once the sweeper has taken the upload and the work files.
+SWEPT_SENTENCE = (
+    "The recording and the working files were deleted 24 hours after upload. "
+    "The short and its credits stay for 7 days."
+)
 BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _REFS = TypeAdapter(list[ReferenceRecord])
@@ -151,6 +175,9 @@ def create_app(
     sourcing: assets.Sourcing | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
+    start_sweeper: bool = True,
+    sweep_interval_s: float = sweeper.INTERVAL_S,
+    free_disk: sweeper.FreeBytes = sweeper.free_bytes,
     clock: Clock = _utc_now,
     delay: Delay = asyncio.sleep,
     styles_dir: Path | None = None,
@@ -215,10 +242,29 @@ def create_app(
         (data_dir / "jobs").mkdir(parents=True, exist_ok=True)
         if start_worker:
             worker.start()
+        sweeping = asyncio.create_task(sweep_loop()) if start_sweeper else None
         try:
             yield
         finally:
+            if sweeping is not None:
+                sweeping.cancel()
+                with suppress(asyncio.CancelledError):
+                    await sweeping
             worker.stop()
+
+    def sweep_now() -> list[sweeper.Action]:
+        return sweeper.sweep(data_dir, now=clock)
+
+    async def sweep_loop() -> None:
+        """11.2: retention runs in-process every 15 minutes. One pass failing (a file
+        held open on Windows, say) is a log line, never the end of the task."""
+        while True:
+            await asyncio.sleep(sweep_interval_s)
+            try:
+                for action in await run_in_threadpool(sweep_now):
+                    log.info("swept %s", action.line())
+            except Exception:  # noqa: BLE001 - the background task must never die
+                log.exception("the sweeper pass failed")
 
     app = FastAPI(title="Shortsmith", lifespan=lifespan)
     app.state.data_dir = data_dir
@@ -261,6 +307,15 @@ def create_app(
     def day_limit_reached() -> bool:
         return jobs.created_since(data_dir, jobs.midnight_ist(clock())) >= max_jobs_per_day
 
+    def disk_guard_tripped() -> bool:
+        """11.2: under the line the form refuses, and the sweeper runs at once, so the
+        space a finished job no longer needs is back before the next visit."""
+        if not sweeper.low_disk(free_disk, data_dir):
+            return False
+        for action in sweep_now():
+            log.info("disk guard swept %s", action.line())
+        return True
+
     def day_closed_sentence() -> str:
         return (
             f"Today's limit of {max_jobs_per_day} shorts is reached. "
@@ -269,6 +324,8 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def upload_form() -> HTMLResponse:
+        if await run_in_threadpool(disk_guard_tripped):
+            return HTMLResponse(render_upload_form(limits, closed=DISK_FULL_SENTENCE))
         if await run_in_threadpool(day_limit_reached):
             return HTMLResponse(render_upload_form(limits, closed=day_closed_sentence()))
         return HTMLResponse(render_upload_form(limits, chips=chips))
@@ -281,6 +338,12 @@ def create_app(
 
     @app.post("/jobs")
     async def submit(request: Request) -> Response:
+        if await run_in_threadpool(disk_guard_tripped):
+            return HTMLResponse(
+                render_upload_form(limits, closed=DISK_FULL_SENTENCE),
+                status_code=503,
+                headers={"Retry-After": str(sweeper.INTERVAL_S)},
+            )
         if await run_in_threadpool(day_limit_reached):
             return HTMLResponse(
                 render_upload_form(limits, closed=day_closed_sentence()),
@@ -598,7 +661,10 @@ def render_job_page(job: Job, *, now: datetime | None = None, position: int | No
     record = job.record
     brief_path = job.input_dir / "brief.md"
     brief = brief_path.read_text(encoding="utf-8") if brief_path.is_file() else ""
-    warnings = "\n".join(f'<p class="warning">{html.escape(w)}</p>' for w in record.warnings)
+    lines = list(record.warnings)
+    if record.swept_at is not None:  # 2.2: say why the brief and the references are gone
+        lines.append(SWEPT_SENTENCE)
+    warnings = "\n".join(f'<p class="warning">{html.escape(w)}</p>' for w in lines)
     error = ""
     if record.error is not None:
         error = (

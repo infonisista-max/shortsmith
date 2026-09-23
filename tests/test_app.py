@@ -11,7 +11,7 @@ import json
 import shutil
 import time
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import IO, Any
 
@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from shortsmith import app as app_module
-from shortsmith import auth, fixture, jobs, render, styles
+from shortsmith import auth, fixture, jobs, render, styles, sweeper
 from shortsmith.config import ConfigError, Settings
 from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest
 from shortsmith.ingest import MIB, Limits
@@ -935,3 +935,86 @@ def test_startup_refuses_to_run_when_a_paid_provider_has_no_price(tmp_path: Path
     with TestClient(app) as client:
         assert client.get("/health").json() == {"ok": True}
         assert app.state.ledger.prices.rate("planner", "output_tokens") == 1.25
+
+
+# --- the sweeper and the disk guard (ticket 042, decisions 2.2, 11.2) ------------
+
+
+def _old_job(app: FastAPI, *, created: datetime) -> Path:
+    """A `delivered` job of the given age, with a file in every directory."""
+    job = jobs.create(app.state.data_dir, now=lambda: created)
+    for name in ("input", "work", "out"):
+        (job.path / name / f"{name}.txt").write_text(name, encoding="utf-8")
+    for step in jobs.STATUS_ORDER[1:]:
+        job = jobs.transition(job, step, now=lambda: created)
+    return job.path
+
+
+def _sweeper_app(tmp_path: Path, free: list[int], **kwargs: Any) -> FastAPI:
+    return app_module.create_app(
+        _settings(tmp_path),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(), specs=SPECS,
+        renderer=FakeRenderer(), gate=FakeGate(),
+        start_worker=False,
+        clock=Ticker(T0),
+        free_disk=lambda _: free[0],
+        **kwargs,
+    )  # fmt: skip
+
+
+def test_low_disk_closes_the_form_and_sweeps_at_once(tmp_path: Path, media: Media) -> None:
+    free = [sweeper.MIN_FREE_BYTES - 1]
+    app = _sweeper_app(tmp_path, free, start_sweeper=False)
+    job_dir = _old_job(app, created=T0 - timedelta(days=2))
+    with TestClient(app) as client:
+        login(client)
+        closed = client.get("/")
+        assert closed.status_code == 200
+        assert 'name="video"' not in closed.text and "<form" not in closed.text
+        assert "not enough disk" in closed.text.lower()
+        # 11.2: the refusal runs the sweeper at once.
+        assert not (job_dir / "input").exists() and not (job_dir / "work").exists()
+        assert (job_dir / "out" / "out.txt").is_file()
+        refused = _post(client, media.clip())
+        assert refused.status_code == 503
+        assert "not enough disk" in refused.text.lower()
+        assert refused.headers["retry-after"] == str(sweeper.INTERVAL_S)
+        assert _job_dirs(app) == [job_dir]
+        assert app.state.worker.depth() == 0  # the refused upload held no slot
+        free[0] = sweeper.MIN_FREE_BYTES
+        assert 'name="video"' in client.get("/").text
+        assert _post(client, media.clip()).status_code == 303
+
+
+def test_the_background_task_sweeps_every_interval(tmp_path: Path) -> None:
+    app = _sweeper_app(tmp_path, [sweeper.MIN_FREE_BYTES], sweep_interval_s=0.01)
+    job_dir = _old_job(app, created=T0 - timedelta(days=2))
+    with TestClient(app):
+        deadline = time.monotonic() + 10
+        while (job_dir / "work").exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+    assert not (job_dir / "work").exists()
+    assert (job_dir / "out" / "out.txt").is_file()
+
+
+def test_a_swept_job_page_says_where_the_recording_went(tmp_path: Path) -> None:
+    app = _sweeper_app(tmp_path, [sweeper.MIN_FREE_BYTES], start_sweeper=False)
+    job_dir = _old_job(app, created=T0 - timedelta(days=2))
+    with TestClient(app) as client:
+        login(client)
+        page = client.get(f"/jobs/{job_dir.name}")
+        assert "deleted 24 hours after upload" not in page.text
+        assert sweeper.sweep(app.state.data_dir, now=Ticker(T0))
+        swept = client.get(f"/jobs/{job_dir.name}").text
+        assert "deleted 24 hours after upload" in swept
+        assert "stay for 7 days" in swept
+
+
+def test_without_the_background_task_nothing_is_swept(tmp_path: Path) -> None:
+    app = _sweeper_app(tmp_path, [sweeper.MIN_FREE_BYTES], start_sweeper=False)
+    job_dir = _old_job(app, created=T0 - timedelta(days=2))
+    with TestClient(app) as client:
+        login(client)
+        assert 'name="video"' in client.get("/").text
+        assert (job_dir / "work" / "work.txt").is_file()

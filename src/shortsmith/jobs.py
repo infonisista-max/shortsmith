@@ -56,6 +56,10 @@ STATUS_ORDER: tuple[Status, ...] = (
     "delivered",
 )
 TERMINAL: frozenset[Status] = frozenset({"passed", "rejected", "failed"})
+# The statuses that have stopped moving: the terminal ones and `delivered`, which only
+# changes again by a rating (034). The page's elapsed clock stops here, and the sweeper
+# (042) touches nothing outside this set: a queued or running job keeps every file.
+SETTLED: frozenset[Status] = TERMINAL | frozenset[Status]({"delivered"})
 ALL_STATUSES: frozenset[Status] = frozenset(get_args(Status))
 
 Clock = Callable[[], datetime]
@@ -138,6 +142,7 @@ class JobRecord(BaseModel):
     over_soft_cap: bool = False  # 11.3: a flag for the page and the sheet, nothing more
     progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
     prompt_version: str | None = None  # 8.3: the planner prompt the job's plans came from
+    swept_at: datetime | None = None  # 2.2: when input/ and work/ were deleted (042)
 
     @model_validator(mode="before")
     @classmethod
