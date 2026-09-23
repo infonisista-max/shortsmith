@@ -6,10 +6,19 @@ in submission order (9.1).
 `delivered`. The transcriber is bound to the job first, so a real adapter writes
 under `work/asr/` and records its ledger rows (012); its fixed transcript is
 `work/asr.json`. Any exception inside a step marks the job `failed` at that step with the
-fixed user-facing sentence from `STEP_MESSAGES` and the exception text as `detail`
+fixed user-facing sentence from `ERROR_TEXT` and the exception text as `detail`
 (11.1); a failed technical check adds its name to the sentence (10.1); a paid
 adapter's `ledger.BudgetExceeded`, raised before its call, becomes "Budget exceeded
 at step X." with the ledger rows so far left on job.json for the page (11.3).
+
+A failed job can be run again from the step it failed at (043): `jobs.requeue` sends
+it back to `uploaded` carrying `retry_from`, and `start_step` slices the step list
+there, so everything the failed run left on disk - the transcript, the plan, the
+per-job asset cache (5.6), the picture - is the retry's input and is never paid for
+twice. A retry from `rendering` therefore calls no planner and no image source, one
+from `sourcing` searches only the beats the cache does not have, and one from
+`planning` re-transcribes nothing. What the failed run did pay for stays on
+`job.json`; the retry's own calls are new rows beside it.
 
 The `planning` step builds the PlanRequest from `job.json`, `brief.md`, `refs.json`
 and `work/asr.json` (2.3), calls the planner twice (picture, then sound; 8.1) with
@@ -103,7 +112,7 @@ def timeout_message(max_job_minutes: float) -> str:
     minutes = int(max_job_minutes) if float(max_job_minutes).is_integer() else max_job_minutes
     return f"The job exceeded {minutes} minutes and was stopped."
 
-STEP_MESSAGES: dict[str, str] = {
+ERROR_TEXT: dict[str, str] = {
     "transcribing": "We could not transcribe the recording.",
     "planning": "We could not plan the short.",
     "sourcing": "We could not find or make the pictures for the short.",
@@ -157,6 +166,7 @@ def run_job(
         ("rendering", lambda j: _render(j, renderer, clock)),
         ("qa", lambda j: _qa(j, gate)),
     ]
+    steps = steps[jobs.STEPS.index(start_step(job)) :]
     watchdog: subproc.Watchdog | None = None
     if max_job_minutes is not None:
         deadline = clock() + timedelta(minutes=max_job_minutes)
@@ -191,12 +201,21 @@ def run_job(
     return jobs.transition(job, "delivered")
 
 
+def start_step(job: Job) -> Status:
+    """Where this run enters the pipeline: the first step, or the step a retry
+    (`jobs.requeue`, 043) re-enters at. Everything before it stays as the failed run
+    left it, which is the whole point: the transcript, the plan and the assets on disk
+    are the retry's input and are never paid for twice (5.6)."""
+    retry_from = job.record.retry_from
+    return retry_from if retry_from in jobs.STEPS else jobs.STEPS[0]
+
+
 def failure_message(status: Status, exc: Exception) -> str:
     """The fixed sentence for the step; a failed check appends its name (10.1); the
     hard cap names the step it stopped before (11.3)."""
     if isinstance(exc, BudgetExceeded):
         return f"Budget exceeded at step {exc.step}."
-    message = STEP_MESSAGES[status]
+    message = ERROR_TEXT[status]
     if isinstance(exc, QaFailed):
         return f"{message[:-1]} ({exc.check})."
     return message

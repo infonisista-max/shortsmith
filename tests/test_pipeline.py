@@ -22,6 +22,7 @@ import pytest
 
 from shortsmith import assets, fixture, jobs, pipeline, render, rights, styles, subproc
 from shortsmith.contracts import (
+    Candidate,
     CaptionPage,
     Captions,
     Cue,
@@ -160,7 +161,7 @@ def test_a_failing_render_fails_the_job_at_rendering(tmp_path: Path, fixture_cli
     assert done.status == "failed"
     assert done.record.error is not None
     assert done.record.error.step == "rendering"
-    assert done.record.error.message == pipeline.STEP_MESSAGES["rendering"]
+    assert done.record.error.message == pipeline.ERROR_TEXT["rendering"]
     assert "no frame found" in done.record.error.detail
 
 
@@ -214,7 +215,7 @@ def test_a_missing_reference_file_fails_the_job_at_sourcing(
     assert done.status == "failed"
     assert done.record.error is not None
     assert done.record.error.step == "sourcing"
-    assert done.record.error.message == pipeline.STEP_MESSAGES["sourcing"]
+    assert done.record.error.message == pipeline.ERROR_TEXT["sourcing"]
     assert "refs/1_gone.png is missing" in done.record.error.detail
 
 
@@ -474,7 +475,7 @@ def test_a_plan_rejected_twice_fails_the_job_at_planning_with_the_list(
     assert done.status == "failed"
     assert done.record.error is not None
     assert done.record.error.step == "planning"
-    assert done.record.error.message == pipeline.STEP_MESSAGES["planning"]
+    assert done.record.error.message == pipeline.ERROR_TEXT["planning"]
     if call == "picture":
         assert len(planner.picture_feedback) == 2 and planner.sound_feedback == []
         assert done.record.error.violations[0].startswith("b03 (4.1)")
@@ -590,7 +591,7 @@ def test_unavailable_planner_fails_the_job_at_planning_naming_the_ticket(
     assert done.status == "failed"
     assert done.record.error is not None
     assert done.record.error.step == "planning"
-    assert done.record.error.message == pipeline.STEP_MESSAGES["planning"]
+    assert done.record.error.message == pipeline.ERROR_TEXT["planning"]
     assert "014" in done.record.error.detail
     assert PlannerUnavailable.__name__ in done.record.error.detail
     assert (job.work_dir / "asr.json").is_file()
@@ -610,7 +611,7 @@ def test_step_exception_marks_the_job_failed_at_that_step(
     assert done.status == "failed"
     assert done.record.error is not None
     assert done.record.error.step == "transcribing"
-    assert done.record.error.message == pipeline.STEP_MESSAGES["transcribing"]
+    assert done.record.error.message == pipeline.ERROR_TEXT["transcribing"]
     assert "groq said no" in done.record.error.detail
     assert jobs.load(job.path).status == "failed"
 
@@ -920,3 +921,189 @@ def test_budget_exceeded_fails_the_job_at_the_step_with_the_ledger_intact(
     assert "79.0" in done.record.error.detail and "80.0" in done.record.error.detail
     assert len(done.record.cost) == 1  # the rows so far stay on the page (5.6)
     assert not (job.work_dir / "plan.json").exists()
+
+
+# --- ticket 043: retry from the failed step (decisions 11.1, 5.6, 9.1) ------------
+
+
+def test_error_text_has_one_sentence_for_every_step() -> None:
+    """043: the table the page reads is the whole of the user-facing error text, so a
+    new step cannot arrive without a sentence of its own."""
+    assert set(pipeline.ERROR_TEXT) == set(jobs.STEPS)
+    assert all(text.endswith(".") for text in pipeline.ERROR_TEXT.values())
+
+
+class _CountingPlanner(FakePlanner):
+    """Counts the picture calls so a retry can prove it never planned again."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
+        self.calls += 1
+        return super().plan_picture(request, feedback=feedback)
+
+
+class _OnceBrokenPlanner(_CountingPlanner):
+    """Fails the first picture call the way an adapter outage does, then works."""
+
+    def plan_picture(
+        self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+    ) -> PicturePlan:
+        plan = super().plan_picture(request, feedback=feedback)
+        if self.calls == 1:
+            raise RuntimeError("claude said no")
+        return plan
+
+
+class _CountingTranscriber(FakeTranscriber):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def transcribe(self, audio: Path) -> Transcript:
+        self.calls += 1
+        return super().transcribe(audio)
+
+
+class _FlakySource(assets.FakeImageSource):
+    """Searches happily `fail_after` times, then goes down for the rest of the run."""
+
+    def __init__(self, fail_after: int) -> None:
+        super().__init__("web")
+        self.fail_after = fail_after
+
+    def search(self, query: str, n: int) -> list[Candidate]:
+        if self.searches >= self.fail_after:
+            raise RuntimeError("the image search is down")
+        return super().search(query, n)
+
+
+def _with_source(source: assets.ImageSource) -> assets.Sourcing:
+    return assets.Sourcing(sources={"web": source}, order=("web",))
+
+
+def _trail(job: jobs.Job) -> list[str]:
+    return [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
+
+
+def test_retry_from_rendering_re_renders_and_calls_no_planner_and_no_source(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """The plan and the assets on disk are the retry's input: a render failure costs
+    one more render, never a second plan or a second search (11.1, 5.6)."""
+    job = _uploaded(tmp_path, fixture_clip)
+    failed = _run(job, renderer=_BrokenRenderer())
+    assert failed.record.error is not None and failed.record.error.step == "rendering"
+
+    planner, web = _CountingPlanner(), assets.FakeImageSource("web")
+    again = _run(jobs.requeue(failed), planner=planner, sourcing=_with_source(web))
+    assert again.status == "delivered"
+    assert planner.calls == 0
+    assert web.searches == 0 and web.fetches == 0
+    assert (job.out_dir / "short.mp4").is_file()
+    assert _trail(job)[-4:] == [
+        "failed -> uploaded retry_from=rendering",
+        "uploaded -> rendering",
+        "rendering -> qa",
+        "qa -> delivered",
+    ]
+
+
+def test_retry_from_sourcing_searches_only_the_beats_the_cache_does_not_have(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """5.6: the per-job asset cache is what makes the retry cheap - the beats the first
+    run already fetched are read off disk and only the rest are searched again."""
+    job = _uploaded(tmp_path, fixture_clip)
+    failed = _run(job, sourcing=_with_source(_FlakySource(fail_after=2)))
+    assert failed.record.error is not None and failed.record.error.step == "sourcing"
+
+    web, planner = assets.FakeImageSource("web"), _CountingPlanner()
+    again = _run(jobs.requeue(failed), planner=planner, sourcing=_with_source(web))
+    assert again.status == "delivered"
+    assert planner.calls == 0  # planning is behind it
+    whole = assets.FakeImageSource("web")
+    other = _run(_uploaded(tmp_path, fixture_clip), sourcing=_with_source(whole))
+    assert other.status == "delivered"
+    assert 0 < web.searches == whole.searches - 2  # the two cached beats were not searched
+
+
+def test_retry_from_planning_re_plans_without_transcribing_again(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    transcriber, planner = _CountingTranscriber(), _OnceBrokenPlanner()
+    failed = _run(job, transcriber=transcriber, planner=planner)
+    assert failed.record.error is not None and failed.record.error.step == "planning"
+    assert transcriber.calls == 1
+
+    again = _run(jobs.requeue(failed), transcriber=transcriber, planner=planner)
+    assert again.status == "delivered"
+    assert transcriber.calls == 1  # the transcript on disk is the retry's input
+    assert planner.calls == 2
+    assert (job.work_dir / "plan.json").is_file()
+
+
+def test_a_retry_that_fails_again_keeps_both_failures_and_can_be_retried_once_more(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    failed = _run(job, renderer=_BrokenRenderer())
+    again = _run(jobs.requeue(failed), renderer=_BrokenRenderer())
+    assert again.status == "failed"
+    assert again.record.error is not None and again.record.error.step == "rendering"
+    assert _run(jobs.requeue(again)).status == "delivered"
+    assert len([line for line in _trail(job) if "-> failed" in line]) == 2
+
+
+class _PaidRenderer(FakeRenderer):
+    """A render that costs money, so the retry's row can be told from the first one."""
+
+    def __init__(self, book: Ledger) -> None:
+        super().__init__()
+        self.book = book
+
+    def render(self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+        self.book.record(job, "rendering", "groq", "w", {"audio_minutes": 1})
+        return super().render(job, on_progress=on_progress)
+
+
+def test_a_retry_adds_ledger_rows_and_keeps_the_ones_already_paid_for(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """5.6: what the failed run spent stays on the job and the retry's own calls are
+    new rows beside it, so the page adds up to what the job really cost."""
+    book = Ledger(
+        Prices({"groq": {"audio_minutes": 0.5}}), Caps(per_job=None, hard=None, per_day=500)
+    )
+    job = _uploaded(tmp_path, fixture_clip)
+    failed = _run(job, renderer=_BrokenRenderer())
+    book.record(failed, "transcribing", "groq", "w", {"audio_minutes": 2})
+
+    again = _run(jobs.requeue(jobs.load(job.path)), renderer=_PaidRenderer(book))
+    assert again.status == "delivered"
+    rows = [(r.step, r.inr) for r in again.record.cost]
+    assert rows == [("transcribing", 1.0), ("rendering", 0.5)]
+
+
+def test_the_worker_runs_a_requeued_job_from_its_step(tmp_path: Path, fixture_clip: Path) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    stopped = pipeline.Worker(
+        transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
+        gate=FakeGate(fail="T3"), sourcing=_sourcing(), specs=SPECS,
+    )  # fmt: skip
+    stopped.submit(job.path)
+    assert stopped.run_next() is True
+    failed = jobs.load(job.path)
+    assert failed.status == "failed"
+    assert failed.record.error is not None and failed.record.error.step == "qa"
+
+    worker = _worker()
+    worker.submit(jobs.requeue(failed).path)
+    assert worker.run_next() is True
+    assert jobs.load(job.path).status == "delivered"
+    assert "uploaded -> qa" in _trail(job)

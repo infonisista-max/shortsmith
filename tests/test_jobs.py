@@ -135,6 +135,64 @@ def test_illegal_transitions_raise_and_leave_no_trace(
     assert (job.path / "job.log").read_bytes() == before_log
 
 
+def _failed_at(tmp_path: Path, clock: Clock, step: Status) -> jobs.Job:
+    """A job that ran as far as `step` and failed there (043)."""
+    job = jobs.create(tmp_path, now=clock)
+    for status in STATUS_ORDER[1 : STATUS_ORDER.index(step) + 1]:
+        job = jobs.transition(job, status, now=clock)
+    return jobs.fail(job, step=step, message="we could not do it", detail="boom", now=clock)
+
+
+def test_requeue_returns_a_failed_job_to_uploaded_carrying_the_step(
+    tmp_path: Path, clock: Clock
+) -> None:
+    """043: the retry re-queues the job and says where it re-enters; the error leaves
+    job.json (the page is waiting again now) but stays in job.log."""
+    job = _failed_at(tmp_path, clock, "rendering")
+    requeued = jobs.requeue(job, now=clock)
+    assert requeued.status == "uploaded"
+    assert requeued.record.retry_from == "rendering"
+    assert requeued.record.error is None
+    assert jobs.load(job.path).record.retry_from == "rendering"
+    last = (job.path / "job.log").read_text(encoding="utf-8").splitlines()[-1]
+    assert "failed -> uploaded retry_from=rendering" in last
+
+
+def test_a_requeued_job_may_re_enter_at_its_step_and_nowhere_else(
+    tmp_path: Path, clock: Clock
+) -> None:
+    """The forward jump is the retry's alone: `uploaded -> rendering` is legal only
+    while `retry_from` says so, so a fresh job still cannot skip a step."""
+    job = jobs.requeue(_failed_at(tmp_path, clock, "rendering"), now=clock)
+    with pytest.raises(IllegalTransition):
+        jobs.transition(job, "qa", now=clock)
+    job = jobs.transition(job, "rendering", now=clock)
+    assert jobs.load(job.path).status == "rendering"
+
+
+def test_requeue_refuses_a_job_that_did_not_fail(tmp_path: Path, clock: Clock) -> None:
+    job = jobs.create(tmp_path, now=clock)
+    before = (job.path / "job.json").read_bytes()
+    with pytest.raises(IllegalTransition):
+        jobs.requeue(job, now=clock)
+    assert (job.path / "job.json").read_bytes() == before
+
+
+def test_a_job_that_fails_twice_at_the_same_step_keeps_both_errors_in_the_log(
+    tmp_path: Path, clock: Clock
+) -> None:
+    job = _failed_at(tmp_path, clock, "rendering")
+    job = jobs.requeue(job, now=clock)
+    job = jobs.transition(job, "rendering", now=clock)
+    job = jobs.fail(job, step="rendering", message="we could not do it", detail="again", now=clock)
+    failures = [
+        line for line in (job.path / "job.log").read_text(encoding="utf-8").splitlines()
+        if "-> failed" in line
+    ]  # fmt: skip
+    assert len(failures) == 2
+    assert all("step=rendering" in line for line in failures)
+
+
 def test_failed_carries_step_message_detail(tmp_path: Path, clock: Clock) -> None:
     job = jobs.create(tmp_path, now=clock)
     job = jobs.transition(job, "transcribing", now=clock)

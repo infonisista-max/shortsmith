@@ -6,9 +6,12 @@ Layout per decision 2.2: `<data_dir>/jobs/<job_id>/{job.json, input/, work/, out
     uploaded -> transcribing -> planning -> sourcing -> rendering -> qa -> delivered
     delivered -> passed | rejected
     any non-terminal -> failed, carrying error {step, message, detail}
+    failed -> uploaded, by `requeue` only (043: the retry), carrying `retry_from`
 
 Every transition rewrites `job.json` and appends one timestamped line to `job.log`.
-Illegal transitions raise `IllegalTransition` and touch nothing on disk.
+Illegal transitions raise `IllegalTransition` and touch nothing on disk. A requeued
+job may jump from `uploaded` straight to its `retry_from` step and to no other, so
+the pipeline re-enters where it failed without any other job being able to skip one.
 
 `job.json` has more than one writer inside a step (the ledger appends cost rows, the
 renderer reports progress) while the worker holds its own `Job` value, so every write
@@ -55,6 +58,9 @@ STATUS_ORDER: tuple[Status, ...] = (
     "qa",
     "delivered",
 )
+# The five statuses that are a step the worker runs, and the only ones a retry (043)
+# may re-enter at.
+STEPS: tuple[Status, ...] = STATUS_ORDER[1:-1]
 TERMINAL: frozenset[Status] = frozenset({"passed", "rejected", "failed"})
 # The statuses that have stopped moving: the terminal ones and `delivered`, which only
 # changes again by a rating (034). The page's elapsed clock stops here, and the sweeper
@@ -143,6 +149,10 @@ class JobRecord(BaseModel):
     progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
     prompt_version: str | None = None  # 8.3: the planner prompt the job's plans came from
     swept_at: datetime | None = None  # 2.2: when input/ and work/ were deleted (042)
+    # 043: the step this run re-enters at, set by `requeue`. It is what makes the one
+    # forward jump out of `uploaded` legal, and it stays on the record afterwards as
+    # the note that this run was a retry.
+    retry_from: Status | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -269,9 +279,17 @@ def created_since(data_dir: Path, since: datetime) -> int:
     return sum(1 for job in iter_jobs(data_dir) if job.record.created_at >= since)
 
 
-def can_transition(current: Status, requested: Status) -> bool:
+def can_transition(
+    current: Status, requested: Status, *, retry_from: Status | None = None
+) -> bool:
+    """The 11.1 machine: one step forward, or `failed` from anywhere in flight. The one
+    exception is a retry (043): a job `requeue` sent back to `uploaded` carries the step
+    it failed at, and may jump straight to that step and to no other, so a job that was
+    never requeued still cannot skip one."""
     if current in TERMINAL or requested == current:
         return False
+    if current == "uploaded" and retry_from is not None and requested == retry_from:
+        return requested in STEPS
     if requested == "failed":
         return True
     if current == "delivered":
@@ -293,7 +311,9 @@ def amend(job: Job, **fields: Any) -> Job:
 def transition(
     job: Job, status: Status, *, error: JobError | None = None, now: Clock = _utc_now
 ) -> Job:
-    if status not in ALL_STATUSES or not can_transition(job.status, status):
+    if status not in ALL_STATUSES or not can_transition(
+        job.status, status, retry_from=job.record.retry_from
+    ):
         raise IllegalTransition(job.id, job.status, status)
     if status == "failed" and error is None:
         raise ValueError("transition to 'failed' needs a JobError")
@@ -331,6 +351,27 @@ def fail(
 ) -> Job:
     error = JobError(step=step, message=message, detail=detail, violations=list(violations))
     return transition(job, "failed", error=error, now=now)
+
+
+def requeue(job: Job, *, now: Clock = _utc_now) -> Job:
+    """Send a failed job back to `uploaded` to be run again from the step it failed at
+    (043). This is the only way out of a terminal status, so it is written here rather
+    than opened up in `can_transition`: `transition` can never resurrect a failed job.
+
+    The error leaves job.json - the job is waiting again, and the page should say so -
+    but job.log keeps it, so a job that fails twice at the same step keeps both. An
+    error naming something that is not a step (there is none today) re-runs from the
+    first step rather than refusing the retry."""
+    if job.status != "failed":
+        raise IllegalTransition(job.id, job.status, "uploaded")
+    step = job.record.error.step if job.record.error is not None else ""
+    start: Status = step if step in STEPS else STEPS[0]  # type: ignore[assignment]
+    stamp = now()
+    updated = amend(
+        job, status="uploaded", updated_at=stamp, error=None, progress=None, retry_from=start
+    )
+    _append_log(updated, stamp, f"failed -> uploaded retry_from={start}")
+    return updated
 
 
 def note(job: Job, line: str, *, now: Clock = _utc_now) -> None:

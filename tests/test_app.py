@@ -441,6 +441,116 @@ def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
         assert "<video" not in body and "contact.jpg" not in body
 
 
+# --- ticket 043: retry from the failed step (decisions 11.1, 5.6, 9.1) ------------
+
+
+class _HealingGate(FakeGate):
+    """Fails T3 once, the way a flaky step does, and passes from then on."""
+
+    def check(self, job: jobs.Job) -> Any:
+        report = super().check(job)
+        self.fail = None
+        return report
+
+
+def _retrying_app(tmp_path: Path, **kwargs: Any) -> FastAPI:
+    return app_module.create_app(
+        _settings(tmp_path, **kwargs),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(), specs=SPECS,
+        renderer=FakeRenderer(),
+        gate=_HealingGate(fail="T3"),
+        start_worker=False,
+    )
+
+
+def test_a_failed_job_offers_a_retry_that_re_runs_it_from_its_step(
+    tmp_path: Path, media: Media
+) -> None:
+    """11.1: one button, the step it re-enters at named on it; the second run starts at
+    `qa` and the job is delivered without transcribing, planning or sourcing again."""
+    app = _retrying_app(tmp_path)
+    with TestClient(app) as client:
+        login(client)
+        location = _post(client, media.clip()).headers["location"]
+        assert app.state.worker.run_next() is True
+        body = client.get(location).text
+        assert f'action="{location}/retry"' in body
+        assert "Retry from qa" in body
+
+        resp = client.post(f"{location}/retry", follow_redirects=False)
+        assert resp.status_code == 303 and resp.headers["location"] == location
+        waiting = client.get(f"{location}.json").json()
+        assert waiting["status"] == "uploaded"
+        assert waiting["retry_from"] == "qa"
+        assert waiting["error"] is None
+
+        assert app.state.worker.run_next() is True
+        assert client.get(f"{location}.json").json()["status"] == "delivered"
+        page = client.get(location).text
+        assert "/retry" not in page  # nothing to retry now
+        assert f'<video controls playsinline src="{location}/short.mp4"' in page
+        log = (app.state.data_dir / "jobs" / location.rsplit("/", 1)[1] / "job.log").read_text(
+            encoding="utf-8"
+        )
+        assert "failed -> uploaded retry_from=qa" in log and "uploaded -> qa" in log
+
+
+def test_retrying_a_job_that_did_not_fail_is_refused_and_changes_nothing(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    before = client.get(f"{location}.json").json()
+    resp = client.post(f"{location}/retry", follow_redirects=False)
+    assert resp.status_code == 409
+    assert "did not fail" in resp.text
+    assert client.get(f"{location}.json").json() == before
+    assert app.state.worker.depth() == 1  # the refused retry took no slot
+
+
+def test_retrying_an_unknown_job_is_404(client: TestClient) -> None:
+    assert client.post("/jobs/20260920-090000-abcdef/retry").status_code == 404
+    assert client.post("/jobs/nope/retry").status_code == 404
+
+
+def test_a_retry_is_refused_when_the_queue_is_full(tmp_path: Path, media: Media) -> None:
+    """11.2 / 041: the retry is a queued job like any other, so it waits for a slot and
+    the job stays failed until it has one."""
+    app = _retrying_app(tmp_path, max_queue=2)
+    with TestClient(app) as client:
+        login(client)
+        location = _post(client, media.clip()).headers["location"]
+        assert app.state.worker.run_next() is True
+        assert _post(client, media.clip()).status_code == 303
+        assert _post(client, media.clip()).status_code == 303
+
+        refused = client.post(f"{location}/retry", follow_redirects=False)
+        assert refused.status_code == 503
+        assert refused.headers["retry-after"] == "3600"
+        assert client.get(f"{location}.json").json()["status"] == "failed"
+
+        assert app.state.worker.run_next() is True
+        assert client.post(f"{location}/retry", follow_redirects=False).status_code == 303
+
+
+def test_a_swept_job_cannot_be_retried(tmp_path: Path, media: Media) -> None:
+    """2.2: the retry re-runs a step from the files on disk, and the sweeper has taken
+    them; the page says so instead of failing the job a second time."""
+    app = _retrying_app(tmp_path)
+    with TestClient(app) as client:
+        login(client)
+        location = _post(client, media.clip()).headers["location"]
+        assert app.state.worker.run_next() is True
+        job = jobs.find(app.state.data_dir, location.rsplit("/", 1)[1])
+        assert job is not None
+        jobs.amend(job, swept_at=T0)
+        page = client.get(location).text
+        assert "/retry" not in page
+        resp = client.post(f"{location}/retry", follow_redirects=False)
+        assert resp.status_code == 409
+        assert client.get(f"{location}.json").json()["status"] == "failed"
+
+
 def test_unknown_or_malformed_job_id_is_404(client: TestClient) -> None:
     assert client.get("/jobs/20260920-090000-abcdef").status_code == 404
     assert client.get("/jobs/20260920-090000-abcdef.json").status_code == 404

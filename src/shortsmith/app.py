@@ -1,4 +1,4 @@
-"""FastAPI app (PRD `app`), first routes: upload form, `POST /jobs`, job page, job JSON.
+"""FastAPI app (PRD `app`): upload form, `POST /jobs`, job page, job JSON, retry.
 
 Pages are stdlib `string.Template` files under `templates/`; every user-supplied or
 model-generated string passes through `html.escape` before it is substituted. The
@@ -31,6 +31,14 @@ form offers one chip per shipped style and resolves the style field live through
 `GET /styles/resolve?line=`, showing the resolved name, note and draft notice before
 submit; `POST /jobs` resolves the same line server-side and stores `style`,
 `style_note` and `style_notice` on `job.json`.
+
+Retry (11.1, ticket 043): a failed job's page carries one button, `POST
+/jobs/<id>/retry`, which reserves a queue slot, `jobs.requeue`s the job and submits
+it; the worker then re-enters the pipeline at the step it failed at, reusing
+everything already fetched or generated. The refusals are a page with one sentence:
+409 for a job that did not fail or whose files the sweeper has taken (the button is
+hidden for the same reason), 503 with Retry-After when the queue is full, and the job
+stays failed with its button in both cases.
 
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
@@ -118,6 +126,12 @@ DISK_FULL_SENTENCE = (
 SWEPT_SENTENCE = (
     "The recording and the working files were deleted 24 hours after upload. "
     "The short and its credits stay for 7 days."
+)
+# 043: why a retry is refused. A job that did not fail has nothing to re-run, and a
+# swept job has no files left to re-run a step from.
+NOT_FAILED_SENTENCE = "This job did not fail, so there is nothing to retry."
+SWEPT_RETRY_SENTENCE = (
+    "The recording and the working files for this job were deleted, so it cannot be run again."
 )
 BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -445,6 +459,34 @@ def create_app(
             return HTMLResponse("<h1>No such job</h1>", status_code=404)
         return HTMLResponse(render_job_page(job, position=_queue_position(job, worker)))
 
+    @app.post("/jobs/{job_id}/retry")
+    async def retry(job_id: str) -> Response:
+        """Run a failed job again from the step it failed at (043). The queue rules of
+        041 apply: the slot is reserved before the job is requeued, so a retry the
+        queue has no room for leaves the job failed with its button still there."""
+        job = jobs.find(data_dir, job_id)
+        if job is None:
+            return JSONResponse({"error": "no such job"}, status_code=404)
+        refusal = retry_refusal(job)
+        if refusal:
+            return HTMLResponse(render_refusal(job, refusal), status_code=409)
+        try:
+            worker.reserve()
+        except QueueFull:
+            return HTMLResponse(
+                render_refusal(job, f"{worker.depth()} shorts are already in the queue; "
+                                    "try in an hour."),  # fmt: skip
+                status_code=503,
+                headers={"Retry-After": str(QUEUE_RETRY_S)},
+            )
+        try:
+            requeued = await run_in_threadpool(jobs.requeue, job, now=clock)
+        except Exception:
+            worker.release()
+            raise
+        worker.submit(requeued.path, reserved=True)
+        return RedirectResponse(f"/jobs/{requeued.id}", status_code=303)
+
     @app.get("/jobs/{job_id}/{name}")
     async def job_file(job_id: str, name: str, download: bool = False) -> Response:
         """One of the `out/` deliverables (10.4); `?download=1` makes it an attachment."""
@@ -458,6 +500,24 @@ def create_app(
         return FileResponse(job.out_dir / name, media_type=media_type, headers=headers)
 
     return app
+
+
+def retry_refusal(job: Job) -> str:
+    """Why this job cannot be retried (043), or "" when it can. The page hides the
+    button for the same reason, so the route and the button always agree."""
+    if job.status != "failed":
+        return NOT_FAILED_SENTENCE
+    if job.record.swept_at is not None:
+        return SWEPT_RETRY_SENTENCE
+    return ""
+
+
+def render_refusal(job: Job, sentence: str) -> str:
+    """One sentence and the way back to the job: what a refused retry answers."""
+    return _template("upload.html").substitute(
+        rejection=f'<p class="reject">{html.escape(sentence)}</p>',
+        body=f'<p><a href="/jobs/{html.escape(job.id)}">Back to the job</a></p>',
+    )
 
 
 def _queue_position(job: Job, worker: pipeline.Worker) -> int | None:
@@ -678,6 +738,12 @@ def render_job_page(job: Job, *, now: datetime | None = None, position: int | No
             error += (
                 "<p>The planner's output broke these rules twice:</p>\n"
                 f'<ul class="violations">\n{items}\n</ul>\n'
+            )
+        if not retry_refusal(job):  # 043: one button, naming the step it re-enters at
+            error += (
+                f'<form class="retry" method="post" action="/jobs/{html.escape(job.id)}/retry">\n'
+                f'  <button type="submit">Retry from {html.escape(record.error.step)}</button>\n'
+                "</form>\n"
             )
     if record.input is not None:
         inp = record.input
