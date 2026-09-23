@@ -128,6 +128,45 @@ def test_write_regenerates_rights_and_credits(tmp_path: Path) -> None:
     )
 
 
+def _audio_row(row_id: str, kind: str) -> RightsRow:
+    """One row in the shape `sound.rights_rows` produces (022)."""
+    return RightsRow(
+        id=row_id, beat_ids=["b02"], kind="music" if kind == "music" else "sfx",
+        origin="library", source_url=f"https://audio.example.org/{row_id}",
+        licence="CC0-1.0", author="Some Artist", file=f"files/{row_id}.wav",
+        sha256="0" * 64, width=0, height=0, fetched_at="2026-09-24T00:00:00+00:00",
+    )  # fmt: skip
+
+
+def test_the_renderers_audio_rows_survive_a_re_run_of_the_asset_step(tmp_path: Path) -> None:
+    """022 / the 016 note: `rights.write` rebuilds the picture rows from the manifest on
+    every sourcing run, so the music and SFX rows the renderer wrote are kept beside the
+    manifest and appended again rather than dropped."""
+    plan = _plan(("b01", "photo", "a1"))
+    manifest = _manifest([_record("a1", author="Jane Doe")], [_beat_asset("b01", "a1")])
+    rights.write(tmp_path, manifest, plan)
+    assert [r.kind for r in rights.load(tmp_path) or []] == ["image"]
+
+    rights.write_audio(tmp_path, [_audio_row("bed_x", "music"), _audio_row("sfx_y", "sfx")])
+    rights.write(tmp_path, manifest, plan)  # the asset step runs again (a retry, 043)
+    rows = rights.load(tmp_path) or []
+    assert [(r.id, r.kind) for r in rows] == [
+        ("a1", "image"), ("bed_x", "music"), ("sfx_y", "sfx"),
+    ]  # fmt: skip
+    assert rights.completeness(rows, manifest, plan) == [], "library rows pass T9"
+    credits = (tmp_path / "out" / "credits.md").read_text(encoding="utf-8")
+    assert credits == (
+        "Photo: Jane Doe via https://www.example.org/wiki/a1\n"
+        "\n"
+        "Music: Some Artist via https://audio.example.org/bed_x\n"
+        "Sound: Some Artist via https://audio.example.org/sfx_y\n"
+    )
+
+
+def test_audio_rows_are_empty_before_the_renderer_runs(tmp_path: Path) -> None:
+    assert rights.audio_rows(tmp_path) == []
+
+
 # --- credits and disclosure (5.4) -----------------------------------------------------------
 
 

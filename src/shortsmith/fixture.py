@@ -73,6 +73,117 @@ def smoke_specs(specs: Mapping[str, StyleSpec]) -> dict[str, StyleSpec]:
     return {**specs, styles.DEFAULT: scaled}
 
 
+# --- the synthesised audio catalogue (ticket 022; decisions 7.2, 12.1) ------------------
+#
+# The real seed library is hand-sourced and hand-listened by the operator (ticket 025);
+# tests and the smoke need a catalogue that exists on any machine and is never committed,
+# so `make_catalogue` synthesises one with ffmpeg exactly as `make_fixture` synthesises
+# the clip: tone beds and click SFX, tagged so the fake plan's bed query and every cue
+# intent it names resolve. The sound director never knows a fixture exists.
+
+# id, theme tags, mood tags, energy, drop points, fundamental Hz. The fundamentals sit
+# under the 250 Hz-4 kHz speech band, as a real bed's energy does: a bed that crowded the
+# band would fail the 7.3 speech-band margin, which is the point of that check.
+BedRow = tuple[str, tuple[str, ...], tuple[str, ...], int, tuple[float, ...], int]
+CATALOGUE_BEDS: tuple[BedRow, ...] = (
+    ("bed_tech_curious", ("tech", "science"), ("curious", "bright"), 3, (1.0, 3.5), 110),
+    ("bed_tech_tense", ("tech",), ("tense", "dark"), 4, (2.0,), 82),
+    ("bed_history_calm", ("history",), ("calm",), 1, (), 65),
+)  # fmt: skip
+# id, intent tags, click Hz. The first three carry the 7.1 floor-hit classes.
+CATALOGUE_SFX: tuple[tuple[str, tuple[str, ...], int], ...] = (
+    ("sfx_bass_hit", ("bass", "cold_open_hit", "reveal"), 70),
+    ("sfx_drum_hit", ("drum", "money", "finale_hit"), 95),
+    ("sfx_thump", ("thump", "card_fly_in"), 130),
+    ("sfx_tick", ("popup_tick", "tick"), 1400),
+    ("sfx_changeover", ("changeover",), 620),
+)
+CATALOGUE_BED_S = 8.0
+CATALOGUE_SFX_S = 0.4
+CATALOGUE_NAME = "catalog.yaml"
+CATALOGUE_LICENCE = "CC0-1.0"
+CATALOGUE_SOURCE = "synthetic"
+
+
+def _wav(path: Path, *, expr: str, duration_s: float) -> Path:
+    run(
+        [
+            FFMPEG, "-v", "error", "-y", "-f", "lavfi",
+            "-i", f"aevalsrc=exprs='{expr}':s=48000:c=mono:d={duration_s:g}",
+            "-c:a", "pcm_s16le", str(path),
+        ],  # fmt: skip
+    )
+    return path
+
+
+def make_catalogue(root: Path) -> Path:
+    """Write `<root>/catalog.yaml` and `<root>/files/*.wav`; return the catalogue path.
+
+    Beds are a steady tone under a slow amplitude wobble, so a bed has a measurable RMS
+    and loops without a seam; SFX are short decaying clicks, so a cue has a peak the
+    level match can aim at. Neither is music: the catalogue is measured, not listened to.
+    """
+    files = root / "files"
+    files.mkdir(parents=True, exist_ok=True)
+    entries: list[str] = []
+    for name, theme, mood, energy, drops, hz in CATALOGUE_BEDS:
+        _wav(
+            files / f"{name}.wav",
+            expr=(
+                f"(0.25*sin(2*PI*{hz}*t)+0.05*sin(2*PI*{3 * hz}*t))"
+                "*(0.7+0.3*sin(2*PI*0.5*t))"
+            ),
+            duration_s=CATALOGUE_BED_S,
+        )
+        entries.append(
+            _entry_yaml(
+                name, kind="bed", duration_s=CATALOGUE_BED_S, energy=energy,
+                theme=theme, mood=mood, intent=(), drops=drops, loop_ok=True,
+            )  # fmt: skip
+        )
+    for name, intent, hz in CATALOGUE_SFX:
+        _wav(
+            files / f"{name}.wav",
+            expr=f"0.8*sin(2*PI*{hz}*t)*exp(-14*t)",
+            duration_s=CATALOGUE_SFX_S,
+        )
+        entries.append(
+            _entry_yaml(
+                name, kind="sfx", duration_s=CATALOGUE_SFX_S, energy=3,
+                theme=(), mood=(), intent=intent, drops=(), loop_ok=False,
+            )  # fmt: skip
+        )
+    path = root / CATALOGUE_NAME
+    path.write_text("entries:\n" + "".join(entries), encoding="utf-8")
+    return path
+
+
+def _entry_yaml(
+    name: str, *, kind: str, duration_s: float, energy: int, theme: tuple[str, ...],
+    mood: tuple[str, ...], intent: tuple[str, ...], drops: tuple[float, ...], loop_ok: bool,
+) -> str:  # fmt: skip
+    def listed(values: tuple[str, ...] | tuple[float, ...]) -> str:
+        return "[" + ", ".join(f"{v}" for v in values) + "]"
+
+    return (
+        f"  - id: {name}\n"
+        f"    kind: {kind}\n"
+        f"    file: files/{name}.wav\n"
+        f"    source: {CATALOGUE_SOURCE}\n"
+        f"    source_url: https://example.invalid/fixture/{name}\n"
+        f"    licence: {CATALOGUE_LICENCE}\n"
+        f"    author: shortsmith fixture\n"
+        f"    duration_s: {duration_s:g}\n"
+        f"    tags:\n"
+        f"      theme: {listed(theme)}\n"
+        f"      mood: {listed(mood)}\n"
+        f"      intent: {listed(intent)}\n"
+        f"    drop_points_s: {listed(drops)}\n"
+        f"    loop_ok: {str(loop_ok).lower()}\n"
+        f"    energy: {energy}\n"
+    )
+
+
 def make_fixture(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     fx, fy = FACE_HALF

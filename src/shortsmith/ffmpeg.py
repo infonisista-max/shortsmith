@@ -18,6 +18,7 @@ from shortsmith import subproc
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
 MEASURE_TIMEOUT_S = 600.0
+SAMPLE_RATE = 48000  # 7.3: every stem and the master are 48 kHz
 
 
 class FFmpegError(RuntimeError):
@@ -100,10 +101,11 @@ def speech_onset_s(path: Path) -> float:
 
 
 _MEAN_VOLUME = re.compile(r"mean_volume:\s*(-?[\d.]+|-inf)\s*dB")
+_MAX_VOLUME = re.compile(r"max_volume:\s*(-?[\d.]+|-inf)\s*dB")
 
 
-def mean_volume_db(path: Path) -> float | None:
-    """Mean volume of the first audio stream via `volumedetect`; None when silent or absent."""
+def _volumedetect(path: Path, prefilter: str) -> str | None:
+    chain = f"{prefilter},volumedetect" if prefilter else "volumedetect"
     proc = subprocess.run(
         [
             FFMPEG,
@@ -115,7 +117,7 @@ def mean_volume_db(path: Path) -> float | None:
             "-map",
             "0:a:0",
             "-af",
-            "volumedetect",
+            chain,
             "-vn",
             "-f",
             "null",
@@ -126,10 +128,60 @@ def mean_volume_db(path: Path) -> float | None:
     )
     if proc.returncode != 0:
         return None
-    match = _MEAN_VOLUME.search(proc.stderr.decode("utf-8", errors="replace"))
+    return proc.stderr.decode("utf-8", errors="replace")
+
+
+def mean_volume_db(path: Path, *, prefilter: str = "") -> float | None:
+    """RMS level of the first audio stream (after `prefilter`) via `volumedetect`; None
+    when silent or absent."""
+    text = _volumedetect(path, prefilter)
+    if text is None:
+        return None
+    match = _MEAN_VOLUME.search(text)
     if match is None or match.group(1) == "-inf":
         return None
     return float(match.group(1))
+
+
+def max_volume_db(path: Path, *, prefilter: str = "") -> float | None:
+    """Peak level of the first audio stream (after `prefilter`); None when silent."""
+    text = _volumedetect(path, prefilter)
+    if text is None:
+        return None
+    match = _MAX_VOLUME.search(text)
+    if match is None or match.group(1) == "-inf":
+        return None
+    return float(match.group(1))
+
+
+_RMS_LEVEL = re.compile(r"lavfi\.astats\.Overall\.RMS_level=(-?[\d.]+|-?inf|nan)")
+
+
+def rms_windows_db(path: Path, *, window_s: float = 1.0) -> list[float]:
+    """The RMS level of each `window_s` window of the first audio stream, in dB.
+
+    `asetnsamples` makes one filter frame per window so `astats` resets on exactly that
+    span; silent windows come back as -inf and are left out, so the median of the result
+    is the median level of the audible signal (7.3)."""
+    samples = max(1, round(window_s * SAMPLE_RATE))
+    proc = run(
+        [
+            FFMPEG, "-v", "info", "-nostats", "-i", str(path), "-map", "0:a:0",
+            "-af",
+            f"asetnsamples=n={samples}:p=0,astats=metadata=1:reset=1,"
+            "ametadata=print:key=lavfi.astats.Overall.RMS_level",
+            "-vn", "-f", "null", "-",
+        ],  # fmt: skip
+        timeout_s=MEASURE_TIMEOUT_S,
+    )
+    text = proc.stderr.decode("utf-8", errors="replace")
+    out: list[float] = []
+    for match in _RMS_LEVEL.finditer(text):
+        raw = match.group(1)
+        if raw in ("-inf", "inf", "nan"):
+            continue
+        out.append(float(raw))
+    return out
 
 
 def video_md5(path: Path) -> str:

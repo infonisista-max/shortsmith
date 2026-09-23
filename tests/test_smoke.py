@@ -87,7 +87,10 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     with Image.open(sheet) as image:
         assert image.format == "JPEG" and image.width == contact_sheet.SHEET_W
     log = job.log_path.read_text(encoding="utf-8").splitlines()
-    assert [line.split(" ", 1)[1] for line in log] == [
+    noted = [line.split(" ", 1)[1] for line in log]
+    # 022: the steps' own notes sit between the status lines, so the trail is the status
+    # lines alone; the sound director's summary is one of those notes, inside `rendering`.
+    assert [line for line in noted if line == "created uploaded" or " -> " in line] == [
         "created uploaded",
         "uploaded -> transcribing",
         "transcribing -> planning",
@@ -96,6 +99,10 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
         "rendering -> qa",
         "qa -> delivered",
     ]
+    (sound_note,) = [line for line in noted if line.startswith("sound: bed ")]
+    assert noted.index("sourcing -> rendering") < noted.index(sound_note) < noted.index(
+        "rendering -> qa"
+    )
     assert "ok" in result.summary and job.id in result.summary
     assert "180 frames" in result.summary and "short" in result.summary
     assert "T1 T2 T3 T4 T8 T9 pass" in result.summary and "contact" in result.summary

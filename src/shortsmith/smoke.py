@@ -9,7 +9,9 @@ one as a full-bleed portrait) and the real Remotion renderer, assert `work/asr.j
 `work/plan.json`, `work/sound.json`, `work/captions.json`, `work/assets.json` (every
 sourced beat found, none rescued, the photo beat a photo and the card beat a card),
 `out/rights.json` complete and `out/credits.md`, `work/picture.mp4` (H.264,
-1080x1920, round(6 x 30) frames, silent), `out/short.mp4`, `out/qa.json` with T1-T4,
+1080x1920, round(6 x 30) frames, silent), the sound director's bed, cues, stems and
+balance report from a synthesised catalogue (022),
+`out/short.mp4`, `out/qa.json` with T1-T4,
 T8 and T9 passing, `out/contact.jpg` under
 2 MB at the sheet's width, and the job's `uploaded -> ... -> qa -> delivered` trail,
 print one summary line and exit 0. Any failed assertion exits non-zero with the
@@ -49,6 +51,7 @@ from shortsmith import (
     pipeline,
     render,
     rights,
+    sound,
     styles,
 )
 from shortsmith.contracts import (
@@ -137,6 +140,10 @@ def run_smoke(
     clip = fixture.make_fixture(root / "fixture" / "fixture.mp4")
     check(clip.stat().st_size < 1_000_000, "fixture must be under 1 MB (12.1)")
 
+    # 022: the synthesised audio catalogue, the one the shipped file will hold after 025.
+    library = sound.load_catalogue(fixture.make_catalogue(root / "audio"))
+    check(bool(library.beds()) and bool(library.sfx()), "the synthesised catalogue is empty")
+
     # 008: every spec loads against the registry, and the style line resolves in code.
     specs = styles.load_all(render.registry())
     check(styles.shipped(specs) == ["explainer"], f"shipped styles: {styles.shipped(specs)}")
@@ -163,7 +170,7 @@ def run_smoke(
     # 009: the fake plan is judged by the fixture-shaped copy of explainer.
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
-        sourcing=smoke_sourcing(), specs=fixture.smoke_specs(specs),
+        sourcing=smoke_sourcing(), specs=fixture.smoke_specs(specs), library=library,
     )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
@@ -243,8 +250,7 @@ def run_smoke(
     check((job.work_dir / "render.log").is_file(), "rendering did not keep work/render.log")
     frames = check_picture(picture)
     check_cut(job.work_dir / "cut.mp4")
-    for stem in ("voice.wav", "mix.wav"):
-        check((job.work_dir / "stems" / stem).is_file(), f"rendering did not write stems/{stem}")
+    cues = check_sound(reloaded, plan, story, library, specs)
     short = job.out_dir / "short.mp4"
     check(short.is_file(), "rendering did not write out/short.mp4")
     short_s, short_lufs = check_short(short, picture)
@@ -252,13 +258,20 @@ def run_smoke(
     sheet = job.out_dir / "contact.jpg"
     check_contact_sheet(sheet)
     log_lines = reloaded.log_path.read_text(encoding="utf-8").splitlines()
-    trail = [line.split(" ", 1)[1] for line in log_lines]
+    noted = [line.split(" ", 1)[1] for line in log_lines]
+    # The steps' own notes (the sound director's summary, 022) sit between the status
+    # lines; TRAIL is the status trail, so it is compared against those alone.
+    trail = [line for line in noted if line == "created uploaded" or " -> " in line]
     check(trail == TRAIL, f"unexpected job.log trail {trail}")
+    check(
+        any(line.startswith("sound: bed ") for line in noted),
+        f"the sound director left no summary in job.log: {noted}",
+    )
 
     elapsed = time.perf_counter() - started
     summary = (
         f"smoke ok: job {job.id} -> {reloaded.status}, {len(on_disk.words)} words, "
-        f"{len(plan.beats)} beats, {len(story.cues)} cues, {len(pages)} caption pages, "
+        f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, "
@@ -475,6 +488,66 @@ def check_list_split_wall(spec: RenderSpec, plan: PicturePlan) -> None:
         ]
         missing = [s for s in pictures if not Path(s).is_file()]
         check(not missing, f"{piece_beat.id} names files that do not exist: {missing}")
+
+
+def check_sound(
+    job: jobs.Job,
+    plan: PicturePlan,
+    story: SoundStory,
+    library: sound.Library,
+    specs: dict[str, styles.StyleSpec],
+) -> tuple[sound.PlacedCue, ...]:
+    """022: the fixture short has a bed and at least one floor hit. The stems sit beside
+    the mix, the balance report is inside the 7.3 acceptance band, and the bed and every
+    cue file the mix used carry a rights row with their source URL (5.4).
+
+    The director is pure above ffmpeg, so the smoke re-derives the bed and the cues from
+    the same plan, story and catalogue the renderer had, and checks the files it left.
+    The renderer reads the shipped spec's sound numbers, not the fixture-shaped copy the
+    grammar uses, so this is the real `cues_max_per_60s` scaled to six seconds."""
+    stems = job.work_dir / "stems"
+    for stem in ("voice.wav", "music.wav", "sfx.wav", "mix.wav"):
+        check((stems / stem).is_file(), f"rendering did not write stems/{stem}")
+    nums = specs[styles.DEFAULT].sound
+    bed, _ = sound.choose_bed(library, story.bed_query, first_stamp_s=sound.first_stamp_s(plan))
+    check(bed is not None, f"no bed was chosen for {story.bed_query}")
+    assert bed is not None
+    floor = sound.floor_hits(plan, nums)
+    check(bool(floor), "the plan's events earned no floor hit (7.1: a short is never flat)")
+    runtime = float(plan.beats[-1].end)
+    cues = sound.place_cues(plan, story, library, nums, runtime_s=runtime).cues
+    check(bool(cues), "the short has no cues")
+    check(
+        any(c.hit for c in cues),
+        f"no cue carries a floor class: {[(c.beat_id, c.intent, c.hit) for c in cues]}",
+    )
+    for cue in cues:
+        check(
+            nums.cue_db_min <= cue.gain_db <= nums.cue_db_max,
+            f"cue on {cue.beat_id} is {cue.gain_db:g} dB under the voice, outside the band",
+        )
+    balance = sound.balance_report(stems)
+    check(balance is not None, "the mix did not write stems/balance.json")
+    assert balance is not None
+    check(not balance.problems, f"the mix missed the 7.3 band: {balance.problems}")
+    low, high = nums.bed_accept_db
+    under = balance.bed_under_voice_db
+    check(
+        under is not None and low - 1e-9 <= under <= high + 1e-9,
+        f"the bed sits {under} dB under the voice, outside {low:g} to {high:g}",
+    )
+    rows = rights.load(job.path) or []
+    audio = {r.id: r for r in rows if r.kind in rights.AUDIO_KINDS}
+    check(bed.id in audio and audio[bed.id].kind == "music", f"no music row for {bed.id}")
+    for cue in cues:
+        check(cue.entry_id in audio, f"no rights row for the cue file {cue.entry_id}")
+    check(
+        all(r.origin == "library" and r.source_url for r in audio.values()),
+        "an audio rights row has no source URL or is not `library` (5.4)",
+    )
+    credits_text = (job.out_dir / "credits.md").read_text(encoding="utf-8")
+    check("Music:" in credits_text, "credits.md has no music line (5.4)")
+    return cues
 
 
 def check_qa(job: jobs.Job) -> None:

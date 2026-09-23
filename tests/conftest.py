@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith.fixture import make_clip, make_fixture, make_image
+from shortsmith import sound
+from shortsmith.fixture import make_catalogue, make_clip, make_fixture, make_image
 
 
 @pytest.fixture(scope="session")
@@ -55,3 +56,10 @@ class Media:
 @pytest.fixture(scope="session")
 def media(tmp_path_factory: pytest.TempPathFactory) -> Media:
     return Media(tmp_path_factory.mktemp("media"))
+
+
+@pytest.fixture(scope="session")
+def library(tmp_path_factory: pytest.TempPathFactory) -> sound.Library:
+    """The 022 audio catalogue: tone beds and click SFX synthesised once per session
+    into a temp dir, never committed. The real seed is ticket 025."""
+    return sound.load_catalogue(make_catalogue(tmp_path_factory.mktemp("audio")))

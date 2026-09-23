@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import assets, fixture, jobs, pipeline, render, rights, styles, subproc
+from shortsmith import assets, fixture, jobs, pipeline, render, rights, sound, styles, subproc
 from shortsmith.contracts import (
     Candidate,
     CaptionPage,
@@ -124,13 +124,16 @@ class _Watching(FakeRenderer):
         super().__init__()
         self.on_disk: list[int | None] = []
 
-    def render(self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+    def render(
+        self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> Path:  # fmt: skip
         def spy(pct: int) -> None:
             if on_progress is not None:
                 on_progress(pct)
             self.on_disk.append(jobs.load(job.path).record.progress)
 
-        return super().render(job, on_progress=spy)
+        return super().render(job, on_progress=spy, library=library)
 
 
 def test_rendering_step_reports_progress_into_job_json(
@@ -152,7 +155,10 @@ def test_rendering_step_reports_progress_into_job_json(
 
 
 class _BrokenRenderer(FakeRenderer):
-    def render(self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+    def render(
+        self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> Path:  # fmt: skip
         raise render.RenderError("remotion driver exited 1:\nno frame found")
 
 
@@ -1067,9 +1073,12 @@ class _PaidRenderer(FakeRenderer):
         super().__init__()
         self.book = book
 
-    def render(self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+    def render(
+        self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> Path:  # fmt: skip
         self.book.record(job, "rendering", "groq", "w", {"audio_minutes": 1})
-        return super().render(job, on_progress=on_progress)
+        return super().render(job, on_progress=on_progress, library=library)
 
 
 def test_a_retry_adds_ledger_rows_and_keeps_the_ones_already_paid_for(

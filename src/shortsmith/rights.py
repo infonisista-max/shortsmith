@@ -4,9 +4,13 @@
 in the 5.4 shape with every beat that shows it (sourced beats, and the hook-card and
 finale beats that point at it through the manifest's aliases), and derives
 `out/credits.md`: one "Photo: <author or domain> via <page url>" line per asset that
-is neither the owner's nor generated, then the AI-disclosure line when any row is
-generated. Both files are regenerated on every run, never hand-edited. The renderer
-appends music and SFX rows (022).
+is neither the owner's nor generated, the music and sound lines, then the AI-disclosure
+line when any row is generated. Both files are regenerated on every run, never
+hand-edited.
+
+The renderer's music and SFX rows (022) are not in the manifest, so they are kept beside
+it in `work/audio_rights.json` (`write_audio`) and appended by every later `write`: a
+re-run of the asset step rebuilds the picture rows and carries the audio ones through.
 
 `completeness` is the T9 rule set, a completeness check in code, not a licence check:
 every beat's asset has a row; every row has a `source_url` or an `owner_supplied` /
@@ -26,8 +30,11 @@ from shortsmith.contracts import AssetManifest, AssetRecord, Beat, PicturePlan, 
 
 RIGHTS_NAME = "rights.json"
 CREDITS_NAME = "credits.md"
+AUDIO_NAME = "audio_rights.json"  # under work/: the renderer's rows, carried by `write`
 DISCLOSURE = "Some scenes are AI-generated illustrations"
 UNCREDITED = frozenset({"owner_supplied", "generated"})
+AUDIO_KINDS = ("music", "sfx")
+CREDIT_LABELS = {"music": "Music", "sfx": "Sound"}
 
 _ROWS = TypeAdapter(list[RightsRow])
 
@@ -84,17 +91,23 @@ def rows(manifest: AssetManifest, plan: PicturePlan) -> list[RightsRow]:
 def credit_line(r: RightsRow) -> str:
     via = r.page_url or r.source_url
     who = r.author or urlparse(r.source_url or r.page_url).netloc
-    return f"Photo: {who} via {via}"
+    label = CREDIT_LABELS.get(r.kind, "Photo")
+    return f"{label}: {who} via {via}"
 
 
 def credits(rows: Sequence[RightsRow]) -> str:
-    """`credits.md`: the credit lines, then the disclosure line when one applies."""
-    lines = [
+    """`credits.md`: the picture credit lines, then the music and sound lines (5.4: the
+    music line is the bed and the cue files the mix used, once each), then the disclosure
+    line when one applies."""
+    pictures = [
         credit_line(r)
         for r in rows
         if r.kind in ("image", "clip_frame") and r.origin not in UNCREDITED
     ]
-    blocks = ["\n".join(lines)] if lines else []
+    audio = [
+        credit_line(r) for r in rows if r.kind in AUDIO_KINDS and r.origin not in UNCREDITED
+    ]
+    blocks = ["\n".join(lines) for lines in (pictures, audio) if lines]
     if any(r.generated is not None or r.origin == "generated" for r in rows):
         blocks.append(DISCLOSURE)
     return "\n\n".join(blocks) + "\n" if blocks else ""
@@ -125,11 +138,33 @@ def completeness(
     return problems
 
 
+def write_audio(job_dir: Path, audio: Sequence[RightsRow]) -> Path:
+    """The renderer's music and SFX rows (022), kept under `work/` so the next run of the
+    asset step carries them into `out/rights.json` instead of dropping them."""
+    work = job_dir / "work"
+    work.mkdir(parents=True, exist_ok=True)
+    path = work / AUDIO_NAME
+    path.write_text(_ROWS.dump_json(list(audio), indent=2).decode("utf-8"), encoding="utf-8")
+    return path
+
+
+def audio_rows(job_dir: Path) -> list[RightsRow]:
+    """The rows `write_audio` left, or none when the renderer has not run yet."""
+    path = job_dir / "work" / AUDIO_NAME
+    if not path.is_file():
+        return []
+    return _ROWS.validate_json(path.read_text(encoding="utf-8"))
+
+
 def write(job_dir: Path, manifest: AssetManifest, plan: PicturePlan) -> list[RightsRow]:
-    """Regenerate `out/rights.json` and `out/credits.md`; return the rows."""
+    """Regenerate `out/rights.json` and `out/credits.md`; return the rows.
+
+    The asset rows are rebuilt from the manifest every time the asset step runs; the
+    music and SFX rows the renderer wrote (5.4, 022) are appended after them, so they
+    survive that rebuild."""
     out = job_dir / "out"
     out.mkdir(parents=True, exist_ok=True)
-    logged = rows(manifest, plan)
+    logged = rows(manifest, plan) + audio_rows(job_dir)
     (out / RIGHTS_NAME).write_text(
         _ROWS.dump_json(logged, indent=2).decode("utf-8"), encoding="utf-8"
     )

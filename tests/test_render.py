@@ -15,7 +15,18 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from shortsmith import assets, captions, ffmpeg, fixture, jobs, presenter, render, styles
+from shortsmith import (
+    assets,
+    captions,
+    ffmpeg,
+    fixture,
+    jobs,
+    presenter,
+    render,
+    rights,
+    sound,
+    styles,
+)
 from shortsmith.contracts import (
     AssetManifest,
     Beat,
@@ -42,8 +53,8 @@ EXPLAINER = render.style_numbers("explainer")  # from styles/explainer.md front 
 EXPLAINER_SPEC = render.loaded_styles()["explainer"]
 
 
-def _plan() -> PicturePlan:
-    request = PlanRequest(
+def _plan_request() -> PlanRequest:
+    return PlanRequest(
         brief="Topic: a six-second synthetic clip.",
         style=PlanStyle(name="explainer"),
         style_note="explainer",
@@ -52,7 +63,10 @@ def _plan() -> PicturePlan:
         constraints=Constraints(max_duration_s=60.0, target_duration_s=fixture.DURATION_S),
         asset_policy="any",
     )
-    return FakePlanner().plan_picture(request)
+
+
+def _plan() -> PicturePlan:
+    return FakePlanner().plan_picture(_plan_request())
 
 
 def _captions(plan: PicturePlan) -> Captions:
@@ -936,6 +950,51 @@ def test_mux_copies_the_picture_stream_and_masters_the_voice(
     delivered = ffmpeg.measure_loudness(out)
     assert delivered.integrated == pytest.approx(render.MASTER_LUFS, abs=0.5)
     assert delivered.true_peak <= render.MASTER_TP
+
+
+# --- ticket 022: the sound director inside the render step (decisions 7.1-7.3, 5.4) ---
+
+
+def test_without_a_catalogue_the_mix_is_the_voice_alone(
+    tmp_path: Path, fixture_clip: Path, media: Media
+) -> None:
+    """The shipped catalogue is empty until the operator seeds it (025), and a job
+    planned before the sound call has no story: both leave the short as it was before
+    022, never a failure."""
+    job = _job_with(tmp_path, fixture_clip)
+    _synthetic_picture(job, media)
+    render.voice_stem(job)
+    assert render.sound_mix(job, library=sound.Library(root=tmp_path)) is None
+    render.mux(job, library=sound.Library(root=tmp_path))
+    stems = job.work_dir / "stems"
+    assert not (stems / "music.wav").exists() and not (stems / "sfx.wav").exists()
+    assert (stems / "mix.wav").is_file()
+
+
+def test_the_mix_carries_the_bed_and_the_cues_and_their_rights_rows(
+    tmp_path: Path, fixture_clip: Path, media: Media, library: sound.Library
+) -> None:
+    """The whole 022 slice through the renderer: the stems beside the mix, the balance
+    report inside the 7.3 band, the master still on T4, and the music and SFX rows in
+    `out/rights.json` beside the picture rows (5.4)."""
+    job = _job_with(tmp_path, fixture_clip)
+    _synthetic_picture(job, media)
+    story = FakePlanner().plan_sound(_plan_request(), _plan())
+    (job.work_dir / "sound.json").write_text(story.model_dump_json(indent=2), encoding="utf-8")
+    render.voice_stem(job)
+    out = render.mux(job, library=library)
+    stems = job.work_dir / "stems"
+    for name in ("voice.wav", "music.wav", "sfx.wav", "mix.wav"):
+        assert (stems / name).is_file(), name
+    balance = sound.balance_report(stems)
+    assert balance is not None and balance.problems == []
+    assert balance.cues > 0
+    delivered = ffmpeg.measure_loudness(out)
+    assert delivered.integrated == pytest.approx(render.MASTER_LUFS, abs=0.5)  # T4 holds
+    assert delivered.true_peak <= render.MASTER_TP
+    rows = rights.audio_rows(job.path)
+    assert {r.kind for r in rows} == {"music", "sfx"}
+    assert all(r.origin == "library" and r.source_url for r in rows)
 
 
 def test_master_chain_leaves_aac_headroom_under_the_true_peak_ceiling() -> None:

@@ -2,7 +2,9 @@
 
 Two sequential calls per job on one adapter: `plan_picture` then `plan_sound`, the
 sound call receiving the validated, snapped picture plan (ticket 009) and the audio
-catalogue tags (an empty list until 022). A call the grammar rejects is re-sent once
+catalogue tags (`sound.Library.tags()`, ticket 022; empty while the shipped catalogue
+is unseeded, and the prompt then asks for theme and mood in plain words). A call the
+grammar rejects is re-sent once
 with `feedback`: the previous output as JSON and the violation list (8.2); the
 adapter appends both to the same prompt.
 

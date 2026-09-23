@@ -46,9 +46,15 @@ not loaded fails at `planning`.
 gets its asset through the 4.4 ladder, and the step writes `work/assets.json`,
 `out/rights.json` and `out/credits.md`; a configured source with no adapter yet is
 noted in `job.log`. `rendering` runs the whole render (`render.Renderer`, Remotion
-plus ffmpeg by default; tickets 004 and 005): the presenter cut, the voice stem, the
-picture, the master and the mux to `out/short.mp4`, writing the picture render's
-frame progress into `job.json.progress` as the job page's percentage (11.1).
+plus ffmpeg by default; tickets 004, 005 and 022): the presenter cut, the voice stem, the
+picture, the sound director's music and SFX stems, the master and the mux to
+`out/short.mp4`, writing the picture render's frame progress into `job.json.progress` as
+the job page's percentage (11.1).
+
+The audio catalogue (7.2, ticket 022) is loaded once by whoever builds the worker, like
+the specs, and used twice: the sound call is told its tag words (8.1), and the renderer
+mixes from it. An empty catalogue - the shipped one, until the operator seeds it - leaves
+the short as the voice alone.
 
 `qa` runs the technical gate (`qa.gate.Gate`: T1-T4 today, T13 eventually) which
 writes `out/qa.json`; a failing check fails the job at `qa` naming the check. When
@@ -79,7 +85,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, TypeAdapter
 
-from shortsmith import assets, captions, grammar, jobs, render, subproc
+from shortsmith import assets, captions, grammar, jobs, render, sound, subproc
 from shortsmith.contracts import (
     Constraints,
     PlanFeedback,
@@ -122,8 +128,6 @@ ERROR_TEXT: dict[str, str] = {
 DELIVERABLES = ("short.mp4", "contact.jpg", "rights.json", "credits.md")  # 10.4
 
 MAX_DURATION_S = 60.0  # 3.1 / T3 (global, not a style number)
-# 7.2 / 8.1: the audio catalogue's tags for the sound call; empty until 022 seeds it.
-CATALOGUE_TAGS: tuple[str, ...] = ()
 
 _REFS = TypeAdapter(list[ReferenceRecord])
 Specs = Mapping[str, StyleSpec]
@@ -149,6 +153,7 @@ def run_job(
     gate: Gate | None = None,
     sourcing: assets.Sourcing | None = None,
     specs: Specs | None = None,
+    library: sound.Library | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
@@ -159,11 +164,12 @@ def run_job(
     gate = gate or TechnicalGate()
     sourcing = sourcing or assets.Sourcing()
     specs = specs if specs is not None else render.loaded_styles()
+    library = library if library is not None else sound.load_catalogue()
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber)),
-        ("planning", lambda j: _plan(j, planner, specs)),
+        ("planning", lambda j: _plan(j, planner, specs, library)),
         ("sourcing", lambda j: _source(j, sourcing, specs, clock)),
-        ("rendering", lambda j: _render(j, renderer, clock)),
+        ("rendering", lambda j: _render(j, renderer, clock, library)),
         ("qa", lambda j: _qa(j, gate)),
     ]
     steps = steps[jobs.STEPS.index(start_step(job)) :]
@@ -319,7 +325,7 @@ def _with_one_retry[Raw: BaseModel, Checked](
     raise AssertionError("unreachable")
 
 
-def _plan(job: Job, planner: Planner, specs: Specs) -> None:
+def _plan(job: Job, planner: Planner, specs: Specs, library: sound.Library) -> None:
     request = build_plan_request(job, specs)
     spec = style_of(job, specs)
     transcript = request.transcript
@@ -342,7 +348,7 @@ def _plan(job: Job, planner: Planner, specs: Specs) -> None:
         job,
         "sound story",
         lambda feedback: planner.plan_sound(
-            request, picture, CATALOGUE_TAGS, feedback=feedback
+            request, picture, library.tags(), feedback=feedback
         ),
         "sound.raw.json",
         lambda raw: grammar.validate_sound(raw, picture, spec),
@@ -374,11 +380,11 @@ def _source(job: Job, sourcing: assets.Sourcing, specs: Specs, clock: Clock) -> 
     sourcing.run(job, style_of(job, specs), clock=clock)
 
 
-def _render(job: Job, renderer: Renderer, clock: Clock) -> None:
+def _render(job: Job, renderer: Renderer, clock: Clock, library: sound.Library) -> None:
     def on_progress(pct: int) -> None:
         jobs.set_progress(job, pct, now=clock)
 
-    renderer.render(job, on_progress=on_progress)
+    renderer.render(job, on_progress=on_progress, library=library)
 
 
 class QaFailed(Exception):
@@ -414,6 +420,7 @@ class Worker:
         gate: Gate | None = None,
         sourcing: assets.Sourcing | None = None,
         specs: Specs | None = None,
+        library: sound.Library | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
         clock: Clock = _utc_now,
@@ -425,6 +432,7 @@ class Worker:
         self._gate = gate or TechnicalGate()
         self._sourcing = sourcing or assets.Sourcing()
         self._specs = specs if specs is not None else render.loaded_styles()
+        self._library = library if library is not None else sound.load_catalogue()
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
         self._clock = clock
@@ -517,6 +525,7 @@ class Worker:
                 gate=self._gate,
                 sourcing=self._sourcing,
                 specs=self._specs,
+                library=self._library,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,

@@ -20,12 +20,16 @@ once to constant-frame-rate H.264 with `-bf 0` so the B-frame pyramid failure ca
 occur; the composition reads this cut, never the raw upload. `voice_stem` runs the same
 span graph on the raw audio through the 7.3 voice chain verbatim (mono fold inside the
 graph, high-pass 80 Hz, compressor -18 dB ratio 2.5, two-pass loudnorm -19 LUFS /
--3 dBTP) into `work/stems/voice.wav`. `mux` masters the mix (voice only until 022:
-two-pass loudnorm -14 LUFS / -1.5 dBTP less `AAC_HEADROOM_DB` so the encoded file
-still meets -1.5 dBTP, then the 0.891 limiter with auto-level off so the target holds)
-into `work/stems/mix.wav` and muxes it with the picture stream copied bit-for-bit into
-`out/short.mp4` (revision proof (a), 10.1). Stems always sit beside the mix under
-`work/stems/`. `render_short` is the whole `rendering` step.
+-3 dBTP) into `work/stems/voice.wav`. `sound_mix` then runs the sound director over the
+job's plan and sound story (`sound.build_mix`, ticket 022): the bed and the cues from the
+audio catalogue become `work/stems/music.wav` and `work/stems/sfx.wav`, and the premix is
+what `mux` masters (two-pass loudnorm -14 LUFS / -1.5 dBTP less `AAC_HEADROOM_DB` so the
+encoded file still meets -1.5 dBTP, then the 0.891 limiter with auto-level off so the
+target holds) into `work/stems/mix.wav`, muxing it with the picture stream copied
+bit-for-bit into `out/short.mp4` (revision proof (a), 10.1). The music and SFX files get
+their rights rows here (5.4). An empty catalogue leaves the short as the voice alone.
+Stems always sit beside the mix under `work/stems/`. `render_short` is the whole
+`rendering` step.
 
 Style numbers come from the style front matter (ticket 008, decision 1.2):
 `numbers_for(spec)` narrows a loaded `StyleSpec` to the `StyleNumbers` the builder
@@ -105,7 +109,17 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from shortsmith import assets, ffmpeg, infographics, presenter, styles, subproc
+from shortsmith import (
+    assets,
+    ffmpeg,
+    infographics,
+    jobs,
+    presenter,
+    rights,
+    sound,
+    styles,
+    subproc,
+)
 from shortsmith.captions import measure
 from shortsmith.contracts import (
     AssetManifest,
@@ -131,6 +145,7 @@ from shortsmith.contracts import (
     PipGeometry,
     PunchIn,
     RenderSpec,
+    SoundStory,
     Span,
     SplitPane,
     SplitSpec,
@@ -1604,8 +1619,49 @@ def master(source: Path, mix: Path) -> ffmpeg.Loudness:
     return got
 
 
-def mux(job: Job) -> Path:
-    """`work/stems/mix.wav` (the mastered mix; voice only until 022) and
+def _load_story(job: Job) -> SoundStory | None:
+    path = job.work_dir / "sound.json"
+    if not path.is_file():
+        return None
+    return SoundStory.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def sound_mix(job: Job, *, library: sound.Library | None = None) -> sound.MixResult | None:
+    """The 022 sound director over the job's plan and sound story: the music and SFX
+    stems beside the voice, and the premix the master is cut from. None when there is
+    nothing to mix - an empty catalogue, or a job planned before the sound call (the
+    renderer's own tests) - and the short is then the voice alone, as it was before 022."""
+    library = library if library is not None else sound.load_catalogue()
+    story = _load_story(job)
+    if not library.entries or story is None:
+        return None
+    plan = _load_plan(job)
+    result = sound.build_mix(
+        stems=_stems_dir(job),
+        voice=_stems_dir(job) / "voice.wav",
+        plan=plan,
+        story=story,
+        nums=loaded_styles()[job.record.style].sound,
+        library=library,
+        runtime_s=presenter.total_duration(presenter.cut_list(plan)),
+    )
+    jobs.note(job, result.summary())
+    return result
+
+
+def _audio_rights(job: Job, result: sound.MixResult | None, library: sound.Library) -> None:
+    """5.4 / 016: the music and SFX rows are written where `rights.write` will pick them
+    up, then the log is regenerated, so they sit beside the asset rows and survive a
+    re-run of the asset step."""
+    rows = sound.rights_rows(result, library) if result is not None else []
+    rights.write_audio(job.path, rows)
+    manifest = assets.load_manifest(job.path)
+    if manifest is not None:
+        rights.write(job.path, manifest, _load_plan(job))
+
+
+def mux(job: Job, *, library: sound.Library | None = None) -> Path:
+    """`work/stems/mix.wav` (the mastered mix of voice, bed and cues; 022) and
     `out/short.mp4`: the picture stream copied, the mix as AAC."""
     stems = _stems_dir(job)
     voice = stems / "voice.wav"
@@ -1613,8 +1669,11 @@ def mux(job: Job) -> Path:
     for needed in (voice, picture):
         if not needed.is_file():
             raise RenderError(f"{needed.relative_to(job.path).as_posix()} is missing before mux")
+    library = library if library is not None else sound.load_catalogue()
+    result = sound_mix(job, library=library)
     mix = stems / "mix.wav"
-    master(voice, mix)
+    master(result.premix if result is not None else voice, mix)
+    _audio_rights(job, result, library)
     job.out_dir.mkdir(parents=True, exist_ok=True)
     out = job.out_dir / "short.mp4"
     ffmpeg.run(
@@ -1628,12 +1687,17 @@ def mux(job: Job) -> Path:
     return out
 
 
-def render_short(job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
-    """The whole `rendering` step (9.1): cut, voice stem, picture, master and mux."""
+def render_short(
+    job: Job,
+    *,
+    on_progress: Callable[[int], None] | None = None,
+    library: sound.Library | None = None,
+) -> Path:
+    """The whole `rendering` step (9.1): cut, voice stem, picture, sound and mux."""
     cut_presenter(job)
     voice_stem(job)
     render_picture(job, on_progress=on_progress)
-    return mux(job)
+    return mux(job, library=library)
 
 
 # --- the interface the pipeline uses ---------------------------------------------------
@@ -1646,14 +1710,28 @@ class Renderer(ABC):
     path is covered by test_render and smoke (12.1)."""
 
     @abstractmethod
-    def render(self, job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+    def render(
+        self,
+        job: Job,
+        *,
+        on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> Path:
         """Write `work/cut.mp4`, `work/stems/*`, `work/picture.mp4` and `out/short.mp4`;
-        return the short. `on_progress` gets the picture render's 0-100."""
+        return the short. `on_progress` gets the picture render's 0-100, and `library` is
+        the audio catalogue the sound director mixes from (022); None loads the shipped
+        one."""
 
 
 class RemotionRenderer(Renderer):
-    def render(self, job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
-        return render_short(job, on_progress=on_progress)
+    def render(
+        self,
+        job: Job,
+        *,
+        on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> Path:
+        return render_short(job, on_progress=on_progress, library=library)
 
 
 class FakeRenderer(Renderer):
@@ -1663,7 +1741,13 @@ class FakeRenderer(Renderer):
     def __init__(self) -> None:
         self.jobs: list[Path] = []
 
-    def render(self, job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+    def render(
+        self,
+        job: Job,
+        *,
+        on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> Path:
         self.jobs.append(job.path)
         cut = _cut_path(job)
         cut.write_bytes(b"")

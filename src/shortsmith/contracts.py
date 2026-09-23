@@ -355,6 +355,64 @@ class SoundStory(StrictModel):
     cues: list[Cue]
 
 
+# --- the audio catalogue (decision 7.2; ticket 022) ----------------------------------
+
+AudioKind = Literal["bed", "sfx"]
+
+
+class AudioTags(StrictModel):
+    """The hand-written tags of one catalogue entry (7.2): `theme` and `mood` are what
+    a bed is selected by, `intent` what a cue is matched by."""
+
+    theme: list[str] = []
+    mood: list[str] = []
+    intent: list[str] = []
+
+
+class AudioEntry(StrictModel):
+    """One file of the tagged free library, in the 7.2 shape. `file` is relative to the
+    catalogue, tags are hand-written at seed time and `duration_s` / `bpm` / `key` /
+    `energy` are measured by a script; the planner reads the tags as text and never
+    names a track."""
+
+    id: str
+    kind: AudioKind
+    file: str
+    source: str
+    source_url: str = ""
+    licence: str
+    author: str | None = None
+    duration_s: float
+    bpm: float | None = None
+    key: str | None = None
+    tags: AudioTags = Field(default_factory=AudioTags)
+    drop_points_s: list[float] = []
+    loop_ok: bool = False
+    energy: int = Field(ge=1, le=5)
+
+
+class Catalogue(StrictModel):
+    """`assets/audio/catalog.yaml`: the whole library as one list (7.2)."""
+
+    entries: list[AudioEntry] = []
+
+
+class BalanceReport(StrictModel):
+    """`work/stems/balance.json` (7.3): what the mix measured, and what the style asked
+    for. `problems` is empty when the mix is inside the acceptance band."""
+
+    voice_db: float
+    bed_median_db: float | None = None
+    bed_under_voice_db: float | None = None
+    duck_db: float | None = None
+    speech_band_margin_db: float | None = None
+    bed_accept_db: tuple[float, float]
+    speech_band_margin_min_db: float
+    duck_max_db: float
+    cues: int = 0
+    problems: list[str] = []
+
+
 # --- the validated plan (decision 8.2; ticket 009) -----------------------------------
 
 

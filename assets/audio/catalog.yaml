@@ -1,0 +1,33 @@
+# The tagged free audio library (decision 7.2), read as text by the sound director and
+# as tag words by the planner. One entry per file; `file` is relative to this file.
+#
+# The list is empty until the operator seeds it by hand (ticket 025): twelve beds
+# (suspense, money, history, tech, calm, upbeat; two each) and twenty SFX by intent,
+# sourced from the YouTube Audio Library and Mixkit, each one hand-listened and passed
+# through the sweep detector before it is committed, with its licence text beside it.
+# Audio files are never committed to this repo; see assets/audio/README.md.
+#
+# An empty catalogue is not an error: the short is then the voice alone.
+#
+# Shape (7.2):
+#
+#   entries:
+#     - id: bed_tech_curious          # unique, and what the rights row is keyed by
+#       kind: bed                     # bed | sfx
+#       file: beds/tech_curious.mp3
+#       source: YouTube Audio Library
+#       source_url: https://...       # every row needs one (5.4, gate T9)
+#       licence: YouTube Audio Library
+#       author: Some Artist
+#       duration_s: 124.0             # measured
+#       bpm: 100                      # measured
+#       key: Am                       # measured
+#       tags:
+#         theme: [tech, science]      # hand-written; what a bed is selected by
+#         mood: [curious, bright]
+#         intent: []                  # hand-written; what a cue is matched by
+#       drop_points_s: [16.0, 48.0]   # ties between equal beds are broken by these
+#       loop_ok: true
+#       energy: 3                     # 1-5, measured
+
+entries: []
