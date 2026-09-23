@@ -138,7 +138,11 @@ def _visual_spec(tmp_path: Path, plan: PicturePlan | None = None,
     )  # fmt: skip
 
 
-def test_photo_and_card_beats_carry_their_asset_and_other_kinds_do_not(tmp_path: Path) -> None:
+def test_only_the_kinds_with_a_base_still_carry_their_asset(tmp_path: Path) -> None:
+    """A photo and a card beat draw their asset as the beat (016); after 027 a `list`
+    and a `wall` draw theirs as the dimmed base under the set piece. Every other kind -
+    the presenter, the hook, the `split` (its asset is the badge) and the finale - has
+    no visual of its own."""
     spec = _visual_spec(tmp_path)
     visual = {b.id: b.visual for b in spec.beats}
     photo, card = visual["b03"], visual["b04"]
@@ -146,7 +150,11 @@ def test_photo_and_card_beats_carry_their_asset_and_other_kinds_do_not(tmp_path:
     assert card is not None and card.treatment == "card" and card.card is not None
     assert Path(photo.src).is_absolute() and Path(photo.src).is_file()
     assert (photo.width, photo.height) == (1080, 1920)
-    assert all(visual[b] is None for b in visual if b not in ("b03", "b04"))
+    assert (photo.dim, card.dim) == (0.0, 0.0)
+    base = {b: visual[b] for b in ("b08", "b10")}  # the list and the wall
+    assert all(v is not None and v.treatment == "photo" and v.dim > 0 for v in base.values())
+    carriers = ("b03", "b04", "b08", "b10")
+    assert all(visual[b] is None for b in visual if b not in carriers)
 
 
 def test_photo_ken_burns_numbers_come_from_the_style(tmp_path: Path) -> None:
@@ -467,6 +475,154 @@ def test_a_number_beat_stamps_over_the_previous_asset_with_its_ken_burns_continu
     assert first is not None and second is not None and first.src == second.src
     assert second.scale_from == first.scale_to  # the Ken Burns carries on, never restarts
     assert second.scale_to > second.scale_from and second.zoom == first.zoom
+
+
+# --- list, split and wall (ticket 027; decisions 4.1, 5.2, 5.3, 9.2) -------------------
+
+
+def _piece_beat(plan: PicturePlan, kind: str) -> Beat:
+    return next(b for b in plan.beats if b.kind == kind)
+
+
+def test_the_list_beat_draws_its_header_and_one_row_per_item(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "list")
+    piece = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id).list
+    assert piece is not None
+    assert piece.header == beat.set_piece_title
+    assert [r.text for r in piece.rows] == [i.text for i in beat.items]
+    delays = [r.delay_s for r in piece.rows]
+    assert delays == sorted(delays) and len(set(delays)) == len(delays)  # sequential entry
+    assert all(r.from_x != 0 for r in piece.rows)  # each row springs in
+    icons = [r.icon_src for r in piece.rows]
+    assert [bool(i) for i in icons] == [i.asset_id is not None for i in beat.items]
+
+
+def test_list_rows_stay_inside_the_safe_box_and_above_the_card_limit(tmp_path: Path) -> None:
+    plan = _plan()
+    piece = next(
+        b for b in _visual_spec(tmp_path, plan).beats if b.id == _piece_beat(plan, "list").id
+    ).list
+    assert piece is not None and piece.rows
+    assert min(r.left for r in piece.rows) >= render.SAFE_LEFT
+    assert max(r.left + r.width for r in piece.rows) <= render.WIDTH - render.SAFE_LEFT
+    assert max(r.top + r.height for r in piece.rows) <= EXPLAINER.broll.card_max_bottom_y
+    assert piece.header_top + piece.header_font_px <= min(r.top for r in piece.rows)
+
+
+def test_the_list_base_still_is_the_dimmed_ken_burns_of_the_style(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = next(
+        b for b in _visual_spec(tmp_path, plan).beats if b.id == _piece_beat(plan, "list").id
+    )
+    visual = beat.visual
+    assert visual is not None and visual.treatment == "photo"
+    b = EXPLAINER.broll
+    assert (visual.scale_from, visual.scale_to) == (b.list_scale_from, b.list_scale_to)
+    assert visual.dim == b.list_dim == 0.45
+
+
+def test_more_items_than_the_style_allows_are_cut_to_its_maximum() -> None:
+    items = [render.ItemSource(text=f"row {i}") for i in range(9)]
+    piece = render.list_spec("Header", items, numbers=EXPLAINER)
+    assert len(piece.rows) == EXPLAINER.broll.list_items_max == 6
+
+
+def test_the_split_beat_draws_two_labelled_panes_a_badge_and_a_title_strip(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "split")
+    piece = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id).split
+    assert piece is not None
+    left, right = piece.panes
+    assert [p.label for p in piece.panes] == [i.text for i in beat.items]
+    assert left.left < right.left and left.pane_width == right.pane_width
+    assert right.left - (left.left + left.pane_width) == piece.seam_px
+    assert right.from_x > 0 and left.from_x == 0  # the right half slides in (nkb_08)
+    assert " ".join(w.text for w in piece.title_words) == beat.set_piece_title
+    highlighted = {w.text for w in piece.title_words if w.highlight}
+    assert highlighted == {i.text for i in beat.items}  # the panes are the key words
+
+
+def test_the_split_card_sits_above_the_pip_with_its_badge_on_a_corner(tmp_path: Path) -> None:
+    plan = _plan()
+    piece = next(
+        b for b in _visual_spec(tmp_path, plan).beats if b.id == _piece_beat(plan, "split").id
+    ).split
+    assert piece is not None
+    assert piece.left >= render.SAFE_LEFT
+    assert piece.left + piece.width <= render.WIDTH - render.SAFE_LEFT
+    assert piece.top + piece.height <= EXPLAINER.broll.card_max_bottom_y
+    badge = piece.badge
+    assert badge is not None
+    assert badge.left >= render.SAFE_LEFT
+    assert badge.left + badge.diameter <= render.WIDTH - render.SAFE_RIGHT_PX
+    # it overlaps the card's top-left corner rather than floating beside it
+    assert badge.left < piece.left + piece.width and badge.top < piece.top
+    assert badge.top + badge.diameter > piece.top
+
+
+def test_the_wall_draws_a_grid_with_staggered_entry_and_ken_burns_per_cell(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "wall")
+    piece = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id).wall
+    assert piece is not None
+    assert len(piece.cells) == len(beat.items) == 4
+    assert piece.columns == 2  # 2x2 for four cells
+    delays = [c.delay_s for c in piece.cells]
+    assert delays == sorted(delays) and len(set(delays)) > 1
+    assert all(c.scale_from != c.scale_to for c in piece.cells)  # Ken Burns on every cell
+    signs = [c.from_x > 0 for c in piece.cells]
+    assert signs == [i % 2 == 1 for i in range(len(signs))]  # alternating sides (nkb_09)
+
+
+def test_wall_cells_tile_the_band_inside_the_safe_box(tmp_path: Path) -> None:
+    plan = _plan()
+    piece = next(
+        b for b in _visual_spec(tmp_path, plan).beats if b.id == _piece_beat(plan, "wall").id
+    ).wall
+    assert piece is not None
+    assert min(c.left for c in piece.cells) >= render.SAFE_LEFT
+    assert max(c.left + c.box_width for c in piece.cells) <= render.WIDTH - render.SAFE_LEFT
+    assert max(c.top + c.box_height for c in piece.cells) <= EXPLAINER.broll.card_max_bottom_y
+    assert len({c.left for c in piece.cells}) == piece.columns
+
+
+@pytest.mark.parametrize(
+    ("cells", "columns"), [(4, 2), (5, 3), (6, 3), (7, 3), (9, 3)]
+)
+def test_the_wall_grid_runs_from_two_by_two_to_three_by_three(cells: int, columns: int) -> None:
+    sources = [render.ItemSource(text=f"c{i}", card=_fake_card(i)) for i in range(cells)]
+    piece = render.wall_spec(sources, numbers=EXPLAINER)
+    assert piece.columns == columns and len(piece.cells) == cells
+
+
+def _fake_card(i: int) -> render.CardSource:
+    return render.CardSource(src=f"/tmp/a{i}.png", width=1200, height=800)
+
+
+def test_an_item_naming_an_asset_the_manifest_never_sourced_fails_the_build(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "wall")
+    items = [i.model_copy(update={"asset_id": "nope"}) for i in beat.items]
+    plan = plan.model_copy(
+        update={
+            "beats": [
+                b.model_copy(update={"items": items}) if b.id == beat.id else b for b in plan.beats
+            ]
+        }
+    )
+    with pytest.raises(render.RenderError, match="nope"):
+        _visual_spec(tmp_path, plan)
+
+
+def test_registry_exports_list_split_and_wall_after_027() -> None:
+    assert {"list", "split", "wall"} <= set(render.registry())
 
 
 # --- frames and beats -----------------------------------------------------------------

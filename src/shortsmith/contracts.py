@@ -207,6 +207,17 @@ class Event(StrictModel):
     text: str | None = None
 
 
+class SetPieceItem(StrictModel):
+    """One row, pane or cell of a `list`, `split` or `wall` beat (4.1, 5.2; ticket 027).
+
+    `asset_id` points at an asset another beat sources, the way the hook's cards do, so
+    an item adds nothing to the asset count and spends no reuse (4.3). A `list` row may
+    be text only; a `split` pane and a `wall` cell always name one."""
+
+    text: str = ""
+    asset_id: str | None = None
+
+
 class Beat(StrictModel):
     id: str
     start: float
@@ -215,6 +226,10 @@ class Beat(StrictModel):
     reason: ReasonTag | None = None
     kind: Kind
     overlays: list[OverlayKind] = []
+    # 027: the set pieces only. `set_piece_title` is the list's header and the split's
+    # title strip; `items` are its rows, panes or cells.
+    set_piece_title: str = ""
+    items: list[SetPieceItem] = []
     motion: Motion | None = None
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
@@ -594,7 +609,9 @@ class VisualSpec(StrictModel):
     """A beat's asset as drawn (016): `src` is the file (the driver serves it), `width`
     and `height` its real size. `scale_from` -> `scale_to` is the Ken Burns over the
     beat (the full-bleed photo, or the card body), `pan_px` the horizontal drift, and
-    `zoom` / `focus_*` the framing (a re-dress differs here, 4.4)."""
+    `zoom` / `focus_*` the framing (a re-dress differs here, 4.4). `dim` is the black
+    scrim over it: 0 for a photo or card beat, the style's `broll.motion.<kind>.dim`
+    where the still is only the base of a set piece (027)."""
 
     treatment: Literal["photo", "card"]
     src: str
@@ -606,13 +623,16 @@ class VisualSpec(StrictModel):
     scale_from: float
     scale_to: float
     pan_px: float
+    dim: float = 0.0
     card: CardSpec | None = None
 
 
 class CardBox(StrictModel):
     """One placed card of a set piece (3.4; ticket 026), in composition pixels: the
     outer white box, the image that covers its window, the label strip under it, and
-    the offset it springs in from. The image is `src` at its real `width`/`height`."""
+    the offset it springs in from. The image is `src` at its real `width`/`height`.
+    `scale_from` -> `scale_to` is the Ken Burns inside the window: 1 to 1 (still) on
+    the hook's and the finale's cards, the style's photo motion on a wall cell (027)."""
 
     src: str
     width: int
@@ -631,6 +651,8 @@ class CardBox(StrictModel):
     from_x: float = 0.0
     from_y: float = 0.0
     delay_s: float = 0.0
+    scale_from: float = 1.0
+    scale_to: float = 1.0
 
 
 class HookCardsSpec(StrictModel):
@@ -705,6 +727,116 @@ class LowerThirdSpec(StrictModel):
     fade_s: float
 
 
+class ListRow(StrictModel):
+    """One row of the `list` set piece (4.1; ticket 027), in composition pixels: the
+    pill it draws in, the text inside it at the size that fitted, the optional circular
+    icon on its left, and the x it springs in from."""
+
+    text: str
+    font_px: int
+    left: float
+    top: float
+    width: float
+    height: float
+    text_left: float
+    icon_src: str = ""
+    icon_width: int = 0
+    icon_height: int = 0
+    icon_left: float = 0.0
+    icon_size: float = 0.0
+    from_x: float = 0.0
+    delay_s: float = 0.0
+
+
+class ListSpec(StrictModel):
+    """The `list` set piece (nkb_04): a header over up to `broll.motion.list.items_max`
+    rows springing in one after another, over the beat's dimmed base still."""
+
+    header: str
+    header_font_px: int
+    header_left: float
+    header_top: float
+    header_color: str
+    rows: list[ListRow]
+    row_fill: str
+    row_radius_px: int
+    spring_s: float
+
+
+class TitleWord(StrictModel):
+    """One word of a set piece's title strip, measured: `highlight` boxes it in the
+    style's accent (5.2: the key words of the news-card strip)."""
+
+    text: str
+    left: float
+    width: float
+    highlight: bool = False
+
+
+class SplitPane(StrictModel):
+    """One half of the `split` composite: the image window and the label under it.
+    `from_x` is the x it slides in from (nkb_08: the right half slides in)."""
+
+    src: str
+    width: int
+    height: int
+    left: float
+    top: float
+    pane_width: float
+    pane_height: float
+    label: str = ""
+    from_x: float = 0.0
+
+
+class BadgeSpec(StrictModel):
+    """The circular logo badge overlapping a corner of the split card (5.2)."""
+
+    src: str
+    width: int
+    height: int
+    left: float
+    top: float
+    diameter: float
+    ring_px: int
+    ring_color: str
+
+
+class SplitSpec(StrictModel):
+    """The `split` news-card composite (5.2): two re-dressed portraits side by side in
+    one framed card, a circular badge overlapping a corner, and a title strip along the
+    bottom with the pane words boxed in the accent."""
+
+    left: float
+    top: float
+    width: float
+    height: float
+    border_px: int
+    rotate_deg: float
+    seam_px: int
+    panes: list[SplitPane]
+    label_px: int
+    label_font_px: int
+    title_px: int
+    title_font_px: int
+    title_color: str
+    title_words: list[TitleWord]
+    highlight_fg: str
+    highlight_bg: str
+    highlight_pad_px: int
+    highlight_radius_px: int
+    badge: BadgeSpec | None = None
+    slide_s: float
+
+
+class WallSpec(StrictModel):
+    """The `wall` set piece (nkb_09): a 2x2 to 3x3 grid of cards over the beat's dimmed
+    base still, each cell flying in from an alternating side with its own Ken Burns."""
+
+    cells: list[CardBox]
+    columns: int
+    spring_s: float
+
+
 class PunchIn(StrictModel):
     """The full-frame presenter punch-in (research S2): scale `scale_from` easing to
     `settle_to` by `settle_s`, then to 1 over the rest of the beat, with the grade."""
@@ -719,9 +851,12 @@ class PunchIn(StrictModel):
 
 class BeatSpec(StrictModel):
     """A plan beat as frame range; `end_frame` is exclusive. A rung-4 rescue arrives
-    here as `pip` with no visual (4.4). The set pieces and the two overlay kinds (026)
-    ride along resolved: at most one of `hook` / `finale`, and at most one landed
-    event (`stamp` or `lower_third`, 3.1)."""
+    here as `pip` with no visual (4.4). The set pieces and the two overlay kinds (026,
+    027) ride along resolved: at most one of `hook` / `finale` / `list` / `split` /
+    `wall`, and at most one landed event (`stamp` or `lower_third`, 3.1).
+
+    `list` shadows the builtin inside this class body only; no annotation below it
+    needs `list[...]`, and the field name matches its kind as `hook` and `finale` do."""
 
     id: str
     start_frame: int
@@ -735,6 +870,9 @@ class BeatSpec(StrictModel):
     lower_third: LowerThirdSpec | None = None
     hook: HookCardsSpec | None = None
     finale: FinaleCardSpec | None = None
+    split: SplitSpec | None = None
+    wall: WallSpec | None = None
+    list: ListSpec | None = None
 
 
 class PipGeometry(StrictModel):

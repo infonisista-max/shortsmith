@@ -1,7 +1,7 @@
 ---
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
-requires_components: [captions, pip, hook_cards, finale, stamp, lower_third]
+requires_components: [captions, pip, hook_cards, finale, stamp, lower_third, list, split, wall]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -47,6 +47,11 @@ broll:
     lower_third: {kind: fade, duration_s: 0.35, top_y: 1150, bottom_y: 1240}
     hook_cards: {kind: spring, cards: 3}
     finale: {kind: fade, duration_s: 0.35}
+    list: {kind: reveal, items_max: 6, duration_s: 0.35, scale_from: 1.15, scale_to: 1.25,
+           dim: 0.45}
+    split: {kind: slide, panes: 2, duration_s: 0.30}
+    wall: {kind: spring, cells_min: 4, cells_max: 9, duration_s: 0.30, scale_from: 1.2,
+           scale_to: 1.3, dim: 0.65}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
   unique_assets_min_per_60s: 12
@@ -137,6 +142,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - Label every non-presenter beat with `subject_kind` and a `query` plus a broader `query_fallback` (4.2): `entity` beats get a card or photo from owner references first, then search, then generation as the last resort, plus a lower-third; `concept` beats get a Ken Burns photo and a stamp of the key word; `number` and `quote` beats reuse the previous asset with a stamp and add nothing to the asset count.
 - Source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration (5.1); web images are always re-dressed as cards, never shown raw. Generated depictions of a named person or product are illustration-style (`illustration_look`); scenes and unnamed people may be photoreal (`photo_look`).
 - Count unique assets, not beats: between `unique_assets_min_per_60s` and `unique_assets_max_per_60s` per minute, each reused at most `reuse_max` times (4.3). Reuse is encouraged for callbacks, payoffs and number beats; a short with no reused asset is a warning.
+- The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).
 - Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4). Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
 
 ## Captions

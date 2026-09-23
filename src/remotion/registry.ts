@@ -5,10 +5,13 @@ import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Finale } from "./components/finale";
 import { HookCards } from "./components/hook_cards";
+import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { Photo } from "./components/photo";
 import { Pip } from "./components/pip";
+import { Split } from "./components/split";
 import { Stamp } from "./components/stamp";
+import { Wall } from "./components/wall";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const REGISTRY: Record<string, React.ComponentType<any>> = {
@@ -16,8 +19,11 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   card: Card,
   finale: Finale,
   hook_cards: HookCards,
+  list: List,
   lower_third: LowerThird,
   photo: Photo,
   pip: Pip,
+  split: Split,
   stamp: Stamp,
+  wall: Wall,
 };

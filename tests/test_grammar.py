@@ -30,6 +30,7 @@ from shortsmith.contracts import (
     PlanRequest,
     PlanStyle,
     Segment,
+    SetPieceItem,
     SoundStory,
     Span,
     Transcript,
@@ -41,6 +42,14 @@ from shortsmith.transcriber import FakeTranscriber
 
 BRIEF = "Topic: why the sky is blue. Angle: scattering in one breath. Hook wish: none."
 WORD_LEN_S = 0.3
+# 027: turning a body beat into a set piece means giving it the content a set piece
+# carries, so the length and mean tests below still pass the item rules.
+AS_LIST: dict[str, Any] = {
+    "kind": "list",
+    "motion": "reveal",
+    "set_piece_title": "Three things",
+    "items": [SetPieceItem(text="one"), SetPieceItem(text="two")],
+}
 
 
 @pytest.fixture(scope="module")
@@ -270,10 +279,10 @@ def test_set_pieces_get_the_set_piece_maximum_and_others_max_s(spec: StyleSpec) 
     lengths[2] = 6.1
     plan = make_plan(body_lengths=lengths)
     assert ("b05", "3.1") in rules(picture(plan, spec))
-    as_list = replace(plan, "b05", kind="list", motion="reveal")
+    as_list = replace(plan, "b05", **AS_LIST)
     assert isinstance(picture(as_list, spec), grammar.PictureCheck)
     lengths[2] = 8.1
-    too_long = replace(make_plan(body_lengths=lengths), "b05", kind="list", motion="reveal")
+    too_long = replace(make_plan(body_lengths=lengths), "b05", **AS_LIST)
     assert ("b05", "3.1") in rules(picture(too_long, spec))
 
 
@@ -288,7 +297,7 @@ def test_plan_mean_boundaries(spec: StyleSpec, mean: float, ok: bool) -> None:
     length = round((total - 1.5 - 3.0 - 1.0) / body, 4)
     plan = make_plan(body_lengths=[length] * body, assets=15)  # 73.6 s needs 14 assets
     for b in plan.beats[2:-1]:
-        plan = replace(plan, b.id, kind="list", motion="reveal", event=Event())
+        plan = replace(plan, b.id, event=Event(), **AS_LIST)
     if ok:
         checked(plan, spec)
     else:
@@ -487,6 +496,73 @@ def test_entity_beat_per_sixty_seconds_when_the_brief_names_something(spec: Styl
     assert (None, "4.2") in rules(picture(no_entities, spec, brief=named))
     checked(no_entities, spec, brief="Topic: why the sky is blue. Angle: one breath.")
     checked(plan, spec, brief=named)
+
+
+# --- set-piece items (ticket 027; decisions 4.1, 5.2) ------------------------------------
+
+
+def _items(n: int, *, asset: str | None = "a01") -> list[SetPieceItem]:
+    return [SetPieceItem(text=f"item {i}", asset_id=asset) for i in range(n)]
+
+
+def _piece(
+    plan: PicturePlan, beat_id: str, kind: str, items: Sequence[SetPieceItem]
+) -> PicturePlan:
+    return replace(
+        plan, beat_id, kind=kind, motion="reveal", set_piece_title="One two", items=list(items)
+    )
+
+
+def test_a_list_split_or_wall_beat_passes_with_the_items_the_style_allows(
+    spec: StyleSpec,
+) -> None:
+    plan = _piece(make_plan(), "b05", "list", _items(6))
+    checked(plan, spec)
+    checked(_piece(make_plan(), "b05", "split", _items(2)), spec)
+    checked(_piece(make_plan(), "b05", "wall", _items(9)), spec)
+
+
+def test_items_on_a_kind_that_is_not_a_set_piece_are_rejected(spec: StyleSpec) -> None:
+    plan = replace(make_plan(), "b05", items=_items(2))
+    assert ("b05", "4.1") in rules(picture(plan, spec))
+
+
+def test_item_counts_outside_the_style_numbers_are_rejected(spec: StyleSpec) -> None:
+    assert ("b05", "4.1") in rules(picture(_piece(make_plan(), "b05", "list", _items(7)), spec))
+    assert ("b05", "4.1") in rules(picture(_piece(make_plan(), "b05", "list", []), spec))
+    assert ("b05", "4.1") in rules(picture(_piece(make_plan(), "b05", "split", _items(3)), spec))
+    assert ("b05", "4.1") in rules(picture(_piece(make_plan(), "b05", "wall", _items(3)), spec))
+    assert ("b05", "4.1") in rules(picture(_piece(make_plan(), "b05", "wall", _items(10)), spec))
+
+
+def test_a_split_or_wall_item_without_an_asset_is_rejected(spec: StyleSpec) -> None:
+    plan = _piece(make_plan(), "b05", "split", _items(2, asset=None))
+    assert ("b05", "5.2") in rules(picture(plan, spec))
+    # a list row may be text only
+    checked(_piece(make_plan(), "b05", "list", _items(3, asset=None)), spec)
+
+
+def test_an_item_asset_id_that_is_not_a_plan_asset_is_rejected(spec: StyleSpec) -> None:
+    plan = _piece(make_plan(), "b05", "wall", _items(4, asset="nope"))
+    assert ("b05", "4.3") in rules(picture(plan, spec))
+
+
+def test_a_set_piece_title_on_an_ordinary_beat_is_rejected(spec: StyleSpec) -> None:
+    assert ("b05", "4.1") in rules(picture(replace(make_plan(), "b05", set_piece_title="x"), spec))
+
+
+def test_a_list_or_split_without_a_title_is_rejected(spec: StyleSpec) -> None:
+    plan = replace(
+        make_plan(), "b05", kind="split", motion="reveal", set_piece_title="", items=_items(2)
+    )
+    assert ("b05", "4.1") in rules(picture(plan, spec))
+
+
+def test_set_piece_items_are_not_asset_showings(spec: StyleSpec) -> None:
+    """4.3: like the hook's cards, an item is a montage member, never a showing, so it
+    neither adds a unique asset nor spends the asset's `reuse_max`."""
+    plan = _piece(make_plan(assets=12), "b05", "wall", _items(9, asset="a01"))
+    checked(plan, spec)
 
 
 # --- assets (4.3) ------------------------------------------------------------------------

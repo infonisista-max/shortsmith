@@ -72,6 +72,21 @@ Set pieces and overlays (ticket 026; decisions 3.2, 3.4, 4.1, 4.2, 6.1, 6.3): ev
   over it (6.3) or the beat's own card strip already carries the same text.
 - `punch_in` on every `full` beat: the research section 2 push with its grade.
 
+The three remaining tier-1 set pieces (ticket 027; decisions 4.1, 5.2, 5.3, 9.2) are
+built the same way, from the beat's own `set_piece_title` and `items`, whose asset ids
+resolve through the manifest's aliases exactly as the hook's cards do (an item is a
+montage member, never a showing):
+
+- `list` on a `list` beat: a header over one pill per item, each springing in from an
+  alternating side over the beat's dimmed base still (nkb_04).
+- `split` on a `split` beat: the 5.2 news-card composite - two panes in one framed card
+  above the PIP, the right one sliding in, a circular badge (the beat's own asset)
+  overlapping the top-left corner, and a title strip whose pane words are boxed in the
+  accent.
+- `wall` on a `wall` beat: a 2x2 to 3x3 grid filling the band above
+  `broll.card_max_bottom_y`, cells flying in from alternating sides, each with its own
+  Ken Burns, over the dimmed base still (nkb_09).
+
 Every number the style front matter carries (the four `broll.motion` rows, the two y
 bands, the card count, the stamp palette name, `finale.min_s`/`max_s`) is read from
 it; the geometry read off the reference frames stays in the constants below.
@@ -94,6 +109,7 @@ from shortsmith import assets, ffmpeg, presenter, styles, subproc
 from shortsmith.captions import measure
 from shortsmith.contracts import (
     AssetManifest,
+    BadgeSpec,
     Beat,
     BeatSpec,
     CaptionPageSpec,
@@ -104,6 +120,8 @@ from shortsmith.contracts import (
     Crop,
     FinaleCardSpec,
     HookCardsSpec,
+    ListRow,
+    ListSpec,
     LowerThirdSpec,
     Mode,
     Palette,
@@ -112,8 +130,12 @@ from shortsmith.contracts import (
     PunchIn,
     RenderSpec,
     Span,
+    SplitPane,
+    SplitSpec,
     StampSpec,
+    TitleWord,
     VisualSpec,
+    WallSpec,
 )
 from shortsmith.jobs import Job
 from shortsmith.styles import StyleSpec
@@ -180,6 +202,20 @@ class BrollNumbers:
     lower_third_bottom_y: int
     hook_cards: int
     finale_fade_s: float
+    # 027: the three set pieces' counts, entry times and (list, wall) base still motion.
+    list_items_max: int
+    list_reveal_s: float
+    list_scale_from: float
+    list_scale_to: float
+    list_dim: float
+    split_panes: int
+    split_slide_s: float
+    wall_cells_min: int
+    wall_cells_max: int
+    wall_spring_s: float
+    wall_scale_from: float
+    wall_scale_to: float
+    wall_dim: float
 
 
 @dataclass(frozen=True)
@@ -204,6 +240,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         motion = spec.broll.motion
         photo, card = motion["photo"], motion["card"]
         stamp, lower, finale = motion["stamp"], motion["lower_third"], motion["finale"]
+        rows, split, wall = motion["list"], motion["split"], motion["wall"]
         return BrollNumbers(
             photo_scale_from=float(photo["scale_from"]),
             photo_scale_to=float(photo["scale_to"]),
@@ -224,6 +261,19 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             lower_third_bottom_y=int(lower["bottom_y"]),
             hook_cards=int(motion["hook_cards"]["cards"]),
             finale_fade_s=float(finale["duration_s"]),
+            list_items_max=int(rows["items_max"]),
+            list_reveal_s=float(rows["duration_s"]),
+            list_scale_from=float(rows["scale_from"]),
+            list_scale_to=float(rows["scale_to"]),
+            list_dim=float(rows["dim"]),
+            split_panes=int(split["panes"]),
+            split_slide_s=float(split["duration_s"]),
+            wall_cells_min=int(wall["cells_min"]),
+            wall_cells_max=int(wall["cells_max"]),
+            wall_spring_s=float(wall["duration_s"]),
+            wall_scale_from=float(wall["scale_from"]),
+            wall_scale_to=float(wall["scale_to"]),
+            wall_dim=float(wall["dim"]),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -325,6 +375,19 @@ def photo_visual(src: str, width: int, height: int, *, index: int, crop: Crop,
     )  # fmt: skip
 
 
+def base_visual(src: str, width: int, height: int, *, crop: Crop, scale_from: float,
+                scale_to: float, dim: float) -> VisualSpec:  # fmt: skip
+    """The still a `list` or `wall` set piece is built over (027): the full-bleed photo
+    with the piece's own Ken Burns from the style and a black scrim at `dim`, so the
+    rows or cells above it read (nkb_04: dim 0.45, nkb_09: 0.65). It never alternates
+    and never drifts: the set piece on top carries the movement."""
+    return VisualSpec(
+        treatment="photo", src=src, width=width, height=height, zoom=crop.zoom,
+        focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=scale_from, scale_to=scale_to,
+        pan_px=0.0, dim=dim,
+    )  # fmt: skip
+
+
 def _half_extent(card: CardSpec, scale: float) -> float:
     """Half the height of the card's box once tilted and pushed to `scale`."""
     theta = math.radians(card.rotate_deg)
@@ -371,6 +434,9 @@ def card_visual(src: str, width: int, height: int, *, strip_text: str, ring: boo
 # 4.2: a number or quote beat stamps over the asset already on screen, so its motion
 # carries on from the previous beat instead of restarting.
 CONTINUING_SUBJECTS = frozenset({"number", "quote"})
+# The kinds whose own asset is drawn behind them: the two B-roll treatments, and (027)
+# the dimmed base still of a `list` or a `wall`. A `split` fills its card instead.
+BASE_STILL_KINDS = frozenset({"photo", "card", "list", "wall"})
 
 
 def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSpec:
@@ -414,9 +480,22 @@ def _visuals(
             previous = None
             continue
         record = manifest.asset(decided.asset_id)
-        if beat.kind not in ("photo", "card") or record is None:
+        if beat.kind not in BASE_STILL_KINDS or record is None:
             continue
         src = str((job_dir / record.file).resolve())
+        if beat.kind in ("list", "wall"):
+            # 027: the beat's own asset is the set piece's dimmed base, never a card.
+            b = numbers.broll
+            low, high, dim = (
+                (b.list_scale_from, b.list_scale_to, b.list_dim)
+                if beat.kind == "list"
+                else (b.wall_scale_from, b.wall_scale_to, b.wall_dim)
+            )
+            out[beat.id] = (beat.mode, base_visual(src, record.width, record.height,
+                                                   crop=decided.crop, scale_from=low,
+                                                   scale_to=high, dim=dim))  # fmt: skip
+            previous = None
+            continue
         carries_on = (
             beat.subject_kind in CONTINUING_SUBJECTS
             and previous is not None
@@ -769,6 +848,275 @@ def card_sources(
     return out
 
 
+# --- list, split and wall (ticket 027; decisions 4.1, 5.2, 5.3, 9.2) --------------------
+#
+# The three tier-1 set pieces. Their counts, entry times and base-still motion come from
+# `broll.motion.list` / `.split` / `.wall`; the geometry below is read off nkb_04 (list:
+# a header over rows with icons on a dimmed base), nkb_08 / decision 5.2 (split: the
+# news-card composite, two panes in one framed card with a badge and a highlighted title
+# strip) and nkb_09 (wall: cards flying in from alternating sides on a dimmed base).
+
+LIST_HEADER_TOP, LIST_HEADER_FONT_PX, LIST_HEADER_MIN_FONT_PX = 250.0, 64, 40
+LIST_BAND_TOP = 380.0
+LIST_ROW_H, LIST_ROW_GAP = 116.0, 22.0
+LIST_ROW_FONT_PX, LIST_ROW_MIN_FONT_PX = 46, 26
+LIST_ROW_PAD_X = 28.0
+LIST_ICON_PAD = 16.0
+LIST_ROW_FILL, LIST_ROW_RADIUS_PX = "rgba(17,17,17,0.74)", 18
+LIST_FLY_SIDE_PX, LIST_STAGGER_S = 760.0, 0.18
+
+SPLIT_CARD_W = 940.0  # inside the archival card's 980 px limit (5.3), badge room to spare
+SPLIT_PANE_ASPECT = 1.15  # head plus collar: a touch taller than square
+SPLIT_SEAM_PX = 6
+SPLIT_LABEL_PX, SPLIT_LABEL_FONT_PX = 56, 30
+SPLIT_TITLE_PX, SPLIT_TITLE_FONT_PX, SPLIT_TITLE_MIN_FONT_PX = 88, 44, 26
+SPLIT_TITLE_GAP_PX = 14.0
+SPLIT_HIGHLIGHT_PAD_PX, SPLIT_HIGHLIGHT_RADIUS_PX = 10, 10
+SPLIT_BADGE_DIAMETER, SPLIT_BADGE_RING_PX = 160.0, 8
+SPLIT_BADGE_DROP = 0.4  # how far the badge hangs above the card's top edge
+
+WALL_BAND_TOP, WALL_GAP_PX = 330.0, 24.0
+WALL_MAX_COLUMNS, WALL_SMALL_COLUMNS = 3, 2  # 2x2 up to four cells, 3 across above it
+WALL_FLY_SIDE_PX, WALL_STAGGER_S = 900.0, 0.1
+WALL_ROTATES = (-2.0, 2.5, -1.5, 3.0, -2.5, 1.5, -3.0, 2.0, -1.0)
+
+
+@dataclass(frozen=True)
+class ItemSource:
+    """One resolved item of a set piece (027): its text and the asset it shows, or none
+    where the plan gave it none (a text-only list row) or the asset step rescued the
+    beat that sourced it."""
+
+    text: str
+    card: CardSource | None = None
+
+
+def _fitted(text: str, *, font_px: int, min_font_px: int, style: CaptionStyle,
+            room: float) -> int:  # fmt: skip
+    """The largest size from `font_px` down in `FONT_STEP_PX` steps whose measured line
+    fits `room`, never under `min_font_px` (the stamp's rule, 026)."""
+    while font_px > min_font_px and _measured(text, font_px=font_px, style=style) > room:
+        font_px -= FONT_STEP_PX
+    return font_px
+
+
+def list_spec(header: str, items: Sequence[ItemSource], *, numbers: StyleNumbers) -> ListSpec:
+    """The `list` set piece (nkb_04): the header over one pill per item, each springing
+    in from the side, the whole stack inside the safe box and above the style's
+    `broll.card_max_bottom_y`. More items than `broll.motion.list.items_max` are cut."""
+    b, style = numbers.broll, numbers.captions
+    rows_wanted = list(items[: b.list_items_max])
+    width = WIDTH - 2 * SAFE_LEFT
+    band = b.card_max_bottom_y - LIST_BAND_TOP
+    pitch = min(LIST_ROW_H + LIST_ROW_GAP, band / max(1, len(rows_wanted)))
+    height = pitch - LIST_ROW_GAP
+    rows: list[ListRow] = []
+    for i, item in enumerate(rows_wanted):
+        icon = height - 2 * LIST_ICON_PAD if item.card is not None else 0.0
+        text_left = LIST_ROW_PAD_X + (icon + LIST_ICON_PAD if icon else 0.0)
+        font_px = _fitted(item.text, font_px=LIST_ROW_FONT_PX,
+                          min_font_px=LIST_ROW_MIN_FONT_PX, style=style,
+                          room=width - text_left - LIST_ROW_PAD_X)  # fmt: skip
+        rows.append(
+            ListRow(
+                text=item.text, font_px=font_px, left=SAFE_LEFT,
+                top=LIST_BAND_TOP + i * pitch, width=width, height=height,
+                text_left=text_left,
+                icon_src=item.card.src if item.card is not None else "",
+                icon_width=item.card.width if item.card is not None else 0,
+                icon_height=item.card.height if item.card is not None else 0,
+                icon_left=LIST_ROW_PAD_X if icon else 0.0, icon_size=icon,
+                from_x=-LIST_FLY_SIDE_PX if i % 2 == 0 else LIST_FLY_SIDE_PX,
+                delay_s=i * LIST_STAGGER_S,
+            )  # fmt: skip
+        )
+    header_px = _fitted(header, font_px=LIST_HEADER_FONT_PX,
+                        min_font_px=LIST_HEADER_MIN_FONT_PX, style=style, room=width)  # fmt: skip
+    return ListSpec(
+        header=header, header_font_px=header_px, header_left=SAFE_LEFT,
+        header_top=LIST_HEADER_TOP, header_color=numbers.palette.accent, rows=rows,
+        row_fill=LIST_ROW_FILL, row_radius_px=LIST_ROW_RADIUS_PX, spring_s=b.list_reveal_s,
+    )  # fmt: skip
+
+
+def title_words(title: str, highlights: Sequence[str], *, font_px: int,
+                style: CaptionStyle) -> list[TitleWord]:  # fmt: skip
+    """The title strip's words measured and laid out in one centred line, the words the
+    panes are labelled with boxed in the accent (5.2)."""
+    wanted = {w.lower() for label in highlights for w in label.split()}
+    words = title.split()
+    gap = style.word_gap_px
+    widths = [_measured(w, font_px=font_px, style=style) for w in words]
+    total = sum(widths) + gap * max(0, len(words) - 1)
+    x = (WIDTH - total) / 2
+    out: list[TitleWord] = []
+    for word, width in zip(words, widths, strict=True):
+        out.append(TitleWord(text=word, left=x, width=width, highlight=word.lower() in wanted))
+        x += width + gap
+    return out
+
+
+def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None, *,
+               numbers: StyleNumbers) -> SplitSpec:  # fmt: skip
+    """The `split` news-card composite (5.2): the style's `broll.motion.split.panes`
+    panes side by side in one framed card above the PIP, the badge overlapping its
+    top-left corner inside the safe box, and the title strip under them."""
+    b, style = numbers.broll, numbers.captions
+    # A pane the asset step rescued has no picture; it is left out, never drawn blank.
+    panes_wanted = [p for p in items[: b.split_panes] if p.card is not None]
+    border = b.card_border_px
+    inner = SPLIT_CARD_W - 2 * border
+    pane_w = (inner - SPLIT_SEAM_PX * (len(panes_wanted) - 1)) / max(1, len(panes_wanted))
+    pane_h = pane_w * SPLIT_PANE_ASPECT
+    labelled = any(p.text for p in panes_wanted)
+    label_px = SPLIT_LABEL_PX if labelled else 0
+    height = pane_h + label_px + 2 * border + SPLIT_TITLE_PX
+    left = (WIDTH - SPLIT_CARD_W) / 2
+    half = _tilt_extent(SPLIT_CARD_W, height, b.card_rotate_deg)
+    top = min(b.pip_top - PIP_GAP_PX, b.card_max_bottom_y) - half - height / 2
+    panes: list[SplitPane] = []
+    for i, p in enumerate(panes_wanted):
+        assert p.card is not None
+        panes.append(
+            SplitPane(
+                src=p.card.src, width=p.card.width, height=p.card.height,
+                left=border + i * (pane_w + SPLIT_SEAM_PX), top=float(border),
+                pane_width=pane_w, pane_height=pane_h + label_px, label=p.text,
+                from_x=0.0 if i == 0 else SPLIT_CARD_W,
+            )  # fmt: skip
+        )
+    font_px = _fitted(title, font_px=SPLIT_TITLE_FONT_PX, min_font_px=SPLIT_TITLE_MIN_FONT_PX,
+                      style=style, room=WIDTH - 2 * SAFE_LEFT)  # fmt: skip
+    return SplitSpec(
+        left=left, top=top, width=SPLIT_CARD_W, height=height, border_px=border,
+        rotate_deg=b.card_rotate_deg, seam_px=SPLIT_SEAM_PX, panes=panes,
+        label_px=label_px, label_font_px=SPLIT_LABEL_FONT_PX, title_px=SPLIT_TITLE_PX,
+        title_font_px=font_px, title_color="#FFFFFF",
+        title_words=title_words(title, [p.text for p in panes_wanted], font_px=font_px,
+                                style=style),  # fmt: skip
+        highlight_fg=style.keyword_fg, highlight_bg=numbers.palette.accent,
+        highlight_pad_px=SPLIT_HIGHLIGHT_PAD_PX, highlight_radius_px=SPLIT_HIGHLIGHT_RADIUS_PX,
+        badge=(
+            BadgeSpec(
+                src=badge.src, width=badge.width, height=badge.height,
+                left=max(SAFE_LEFT, left - SPLIT_BADGE_DIAMETER / 2),
+                top=top - SPLIT_BADGE_DIAMETER * SPLIT_BADGE_DROP,
+                diameter=SPLIT_BADGE_DIAMETER, ring_px=SPLIT_BADGE_RING_PX,
+                ring_color="#FFFFFF",
+            )  # fmt: skip
+            if badge is not None
+            else None
+        ),
+        slide_s=b.split_slide_s,
+    )
+
+
+def wall_columns(cells: int) -> int:
+    """2x2 up to four cells, three across above it (the AC's 2x2 to 3x3 grid)."""
+    if cells <= 1:
+        return 1
+    return WALL_SMALL_COLUMNS if cells <= WALL_SMALL_COLUMNS**2 else WALL_MAX_COLUMNS
+
+
+def wall_spec(items: Sequence[ItemSource], *, numbers: StyleNumbers) -> WallSpec:
+    """The `wall` set piece (nkb_09): the grid laid out to fill the band between
+    `WALL_BAND_TOP` and the style's `broll.card_max_bottom_y`, every cell flying in from
+    an alternating side on the style's stagger, each with its own Ken Burns."""
+    b = numbers.broll
+    cells_wanted = [i for i in items[: b.wall_cells_max] if i.card is not None]
+    columns = wall_columns(len(cells_wanted))
+    rows = math.ceil(len(cells_wanted) / columns) if cells_wanted else 0
+    width = (WIDTH - 2 * SAFE_LEFT - (columns - 1) * WALL_GAP_PX) / columns
+    band = b.card_max_bottom_y - WALL_BAND_TOP
+    height = (band - (rows - 1) * WALL_GAP_PX) / rows if rows else 0.0
+    border = b.card_border_px
+    cells: list[CardBox] = []
+    for i, item in enumerate(cells_wanted):
+        card = item.card
+        assert card is not None
+        strip = SPLIT_LABEL_PX if item.text else 0
+        scale_from, scale_to = _ken_burns(i, b.photo_scale_from, b.photo_scale_to, True)
+        cells.append(
+            CardBox(
+                src=card.src, width=card.width, height=card.height,
+                left=SAFE_LEFT + (i % columns) * (width + WALL_GAP_PX),
+                top=WALL_BAND_TOP + (i // columns) * (height + WALL_GAP_PX),
+                box_width=width, box_height=height, image_width=width - 2 * border,
+                image_height=height - 2 * border - strip, border_px=border,
+                rotate_deg=WALL_ROTATES[i % len(WALL_ROTATES)], label=item.text,
+                strip_px=strip, strip_font_px=SPLIT_LABEL_FONT_PX,
+                from_x=-WALL_FLY_SIDE_PX if i % 2 == 0 else WALL_FLY_SIDE_PX,
+                delay_s=i * WALL_STAGGER_S, scale_from=scale_from, scale_to=scale_to,
+            )  # fmt: skip
+        )
+    return WallSpec(cells=cells, columns=columns, spring_s=b.wall_spring_s)
+
+
+def item_sources(
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None
+) -> list[ItemSource]:
+    """A set-piece beat's items resolved through the manifest's aliases (027). An item
+    naming an id the asset step never saw is a render-spec error - the plan and the
+    manifest disagree. An id the asset step resolved to nothing (a rung-4 rescue of the
+    beat that sourced it) leaves the item without a picture: a list row draws as text,
+    and a pane or a cell is left out rather than drawn blank."""
+    out: list[ItemSource] = []
+    for item in beat.items:
+        if item.asset_id is None or manifest is None or job_dir is None:
+            out.append(ItemSource(text=item.text))
+            continue
+        if item.asset_id not in manifest.aliases and manifest.asset(item.asset_id) is None:
+            raise RenderError(
+                f"{beat.id}: set-piece item asset {item.asset_id!r} was never sourced "
+                "(4.1: every item reads its asset by id from the manifest)"
+            )
+        asset_id = manifest.aliases.get(item.asset_id, item.asset_id)
+        record = manifest.asset(asset_id) if asset_id is not None else None
+        out.append(
+            ItemSource(
+                text=item.text,
+                card=(
+                    CardSource(src=str((job_dir / record.file).resolve()), width=record.width,
+                               height=record.height, label=item.text)  # fmt: skip
+                    if record is not None
+                    else None
+                ),
+            )
+        )
+    return out
+
+
+def badge_source(
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None
+) -> CardSource | None:
+    """The split's circular badge (5.2): the beat's own sourced asset, the mark the
+    two panes belong to. None where the beat was rescued onto the gradient (4.4)."""
+    if manifest is None or job_dir is None:
+        return None
+    decided = manifest.beat(beat.id)
+    record = manifest.asset(decided.asset_id) if decided and decided.asset_id else None
+    if record is None:
+        return None
+    return CardSource(
+        src=str((job_dir / record.file).resolve()), width=record.width, height=record.height
+    )
+
+
+def set_piece(
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *, numbers: StyleNumbers
+) -> tuple[ListSpec | None, SplitSpec | None, WallSpec | None]:
+    """The `list`, `split` or `wall` this beat draws, already measured and placed."""
+    if beat.kind not in ("list", "split", "wall"):
+        return None, None, None
+    items = item_sources(beat, manifest, job_dir)
+    if beat.kind == "list":
+        return list_spec(beat.set_piece_title, items, numbers=numbers), None, None
+    if beat.kind == "split":
+        badge = badge_source(beat, manifest, job_dir)
+        return None, split_spec(beat.set_piece_title, items, badge, numbers=numbers), None
+    return None, None, wall_spec(items, numbers=numbers)
+
+
 def _stamp_text(beat: Beat, manifest: AssetManifest | None) -> str | None:
     """The beat's stamp word: its own landed event, else the rescue word a rung-3 or
     rung-4 beat carries (4.4, 016)."""
@@ -826,6 +1174,7 @@ def build_spec(
         stamp = _stamp_text(b, manifest)
         labelled = visual is not None and visual.card is not None and visual.card.strip_px > 0
         label = b.event.text if b.event.kind == "lower_third" and b.event.text else None
+        rows, split, wall = set_piece(b, manifest, job_dir, numbers=numbers)
         beats.append(
             BeatSpec(
                 id=b.id,
@@ -852,6 +1201,9 @@ def build_spec(
                     if finale_beat is not None and b.id == finale_beat.id
                     else None
                 ),
+                split=split,
+                wall=wall,
+                list=rows,
             )
         )
     return RenderSpec(

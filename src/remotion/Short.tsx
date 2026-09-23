@@ -5,6 +5,8 @@
 // rescue arrives as `pip` with no visual. Ticket 026 adds the two set pieces (the
 // hook's cards and the finale) between the B-roll and the presenter, the full-frame
 // punch-in, and the two landed overlays (`stamp`, `lower_third`) over the presenter.
+// Ticket 027 adds the other three tier-1 set pieces in the same layer: `list` and
+// `wall` over the beat's dimmed base still, `split` as the news-card composite.
 // Other kinds arrive with their tickets.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
@@ -12,10 +14,13 @@ import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Finale } from "./components/finale";
 import { HookCards } from "./components/hook_cards";
+import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { Photo } from "./components/photo";
 import { Pip, Presenter } from "./components/pip";
+import { Split } from "./components/split";
 import { Stamp } from "./components/stamp";
+import { Wall } from "./components/wall";
 import { fontsReady } from "./fonts";
 import type { RenderSpec } from "./types";
 
@@ -55,6 +60,20 @@ export const Short: React.FC<RenderSpec> = (spec) => {
           style={spec.caption_style}
           frame={since}
           fps={spec.fps}
+        />
+      ) : null}
+      {beat?.list ? (
+        <List spec={beat.list} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat?.split ? (
+        <Split spec={beat.split} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat?.wall ? (
+        <Wall
+          spec={beat.wall}
+          frame={since}
+          fps={spec.fps}
+          lengthS={(beat.end_frame - beat.start_frame) / spec.fps}
         />
       ) : null}
       {beat?.mode === "full" ? <Presenter spec={spec} beat={beat} frame={frame} /> : null}

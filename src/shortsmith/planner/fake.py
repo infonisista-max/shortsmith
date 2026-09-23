@@ -33,6 +33,9 @@ from shortsmith.contracts import (
     SoundStory,
     Span,
 )
+from shortsmith.contracts import (
+    SetPieceItem as Item,
+)
 from shortsmith.planner.base import Planner
 
 
@@ -84,17 +87,25 @@ class FakePlanner(Planner):
               overlays=["label_flyin"], motion="fly_in", subject_kind="concept",
               depicts="scene", query="labelled diagram of a tone burst",
               query_fallback="sound wave diagram", source_intent="generate", asset_id="a6"),
+            # 027: the three set pieces carry their own content. Their items name assets
+            # other beats already source, so the montage adds nothing to the asset count.
             B(id="b08", start=3.5, end=4.0, mode="off", kind="list", motion="reveal",
               subject_kind="concept", query="three things about nothing",
               query_fallback="empty list", source_intent="generate", asset_id="a7",
-              enter="spring"),
+              enter="spring", set_piece_title="Three kinds of nothing",
+              items=[Item(text="Nothing to see", asset_id="a5"),
+                     Item(text="Nothing to hear", asset_id="a6"),
+                     Item(text="Nothing at all")]),
             B(id="b09", start=4.0, end=4.5, mode="pip", kind="split", motion="pan_left",
               subject_kind="entity", query="two synthetic faces side by side",
               query_fallback="two portraits", source_intent="search", asset_id="a8",
-              enter="zoom"),
+              enter="zoom", set_piece_title="Delhi versus Mumbai",
+              items=[Item(text="Delhi", asset_id="a1"), Item(text="Mumbai", asset_id="a2")]),
             B(id="b10", start=4.5, end=5.0, mode="off", kind="wall", motion="pan_right",
               subject_kind="concept", depicts="scene", query="grid of colour gradients",
-              query_fallback="colour swatches", source_intent="generate", asset_id="a9"),
+              query_fallback="colour swatches", source_intent="generate", asset_id="a9",
+              items=[Item(asset_id="a1"), Item(asset_id="a2"), Item(asset_id="a5"),
+                     Item(asset_id="a6")]),
             # 006: the finale is one 1.0 s beat so T3 (finale 0.8-1.2 s) holds on the
             # fixture; the former b11 (photo, ken_burns_out, stamp "6 s") folded into it.
             B(id="b11", start=5.0, end=6.0, mode="off", kind="finale", asset_id="a1"),

@@ -326,8 +326,12 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
     spec = RenderSpec.model_validate_json(
         (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
     )
+    # 027: b08 (list) and b10 (wall) also carry a visual - their dimmed base still.
     drawn = {b.id: b.visual.treatment for b in spec.beats if b.visual is not None}
-    check(drawn == {"b03": "photo", "b04": "card"}, f"render spec draws {drawn}")
+    check(
+        drawn == {"b03": "photo", "b04": "card", "b08": "photo", "b10": "photo"},
+        f"render spec draws {drawn}",
+    )
     check_set_pieces(spec, plan)
     return manifest
 
@@ -361,6 +365,67 @@ def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
         check(low <= limit, f"{beat.id}'s stamp ends at y {low:g}, past the top {limit:g}")
     labelled = [b.id for b in spec.beats if b.lower_third is not None]
     check(not labelled, f"lower-thirds drawn on {labelled}; b04's card strip carries it")
+    check_list_split_wall(spec, plan)
+
+
+def check_list_split_wall(spec: RenderSpec, plan: PicturePlan) -> None:
+    """027: the fake plan's `list`, `split` and `wall` beats are drawn with the items
+    the plan gave them, every picture resolved through the manifest, and every box
+    inside the safe area and above the style's `broll.card_max_bottom_y`."""
+    numbers = render.style_numbers(styles.DEFAULT)
+    limit = numbers.broll.card_max_bottom_y
+    planned = {b.kind: b for b in plan.beats if b.kind in ("list", "split", "wall")}
+    check(set(planned) == {"list", "split", "wall"}, f"the fake plan names {sorted(planned)}")
+    rows = next(b for b in spec.beats if b.id == planned["list"].id)
+    piece = rows.list
+    check(piece is not None, "the list beat carries no list")
+    assert piece is not None
+    check(
+        [r.text for r in piece.rows] == [i.text for i in planned["list"].items],
+        f"the list draws {[r.text for r in piece.rows]}",
+    )
+    check(rows.visual is not None, "the list has no base still to sit on")
+    assert rows.visual is not None
+    check(rows.visual.dim > 0, "the list's base still is not dimmed (nkb_04)")
+    low = max(r.top + r.height for r in piece.rows)
+    check(low <= limit, f"the list's last row ends at y {low:g}, past {limit}")
+    split = next(b for b in spec.beats if b.id == planned["split"].id).split
+    check(split is not None, "the split beat carries no composite")
+    assert split is not None
+    check(len(split.panes) == 2, f"the split draws {len(split.panes)} panes, not two")
+    check(split.badge is not None, "the split draws no badge (5.2)")
+    boxed = {w.text for w in split.title_words if w.highlight}
+    check(
+        boxed == {i.text for i in planned["split"].items},
+        f"the title strip highlights {sorted(boxed)}, not the pane words",
+    )
+    check(
+        split.top + split.height <= limit,
+        f"the split card ends at y {split.top + split.height:g}, past {limit}",
+    )
+    wall = next(b for b in spec.beats if b.id == planned["wall"].id)
+    grid = wall.wall
+    check(grid is not None, "the wall beat carries no grid")
+    assert grid is not None
+    check(
+        len(grid.cells) == len(planned["wall"].items),
+        f"the wall draws {len(grid.cells)} cells for {len(planned['wall'].items)} items",
+    )
+    check(2 <= grid.columns <= 3, f"the wall is {grid.columns} columns wide, not 2 or 3")
+    check(wall.visual is not None and wall.visual.dim > 0, "the wall has no dimmed base")
+    lowest = max(c.top + c.box_height for c in grid.cells)
+    check(lowest <= limit, f"the wall's last row ends at y {lowest:g}, past {limit}")
+    for piece_beat in (rows, wall):
+        pictures = [
+            s
+            for s in (
+                [r.icon_src for r in (piece_beat.list.rows if piece_beat.list else [])]
+                + [c.src for c in (piece_beat.wall.cells if piece_beat.wall else [])]
+            )
+            if s
+        ]
+        missing = [s for s in pictures if not Path(s).is_file()]
+        check(not missing, f"{piece_beat.id} names files that do not exist: {missing}")
 
 
 def check_qa(job: jobs.Job) -> None:

@@ -57,6 +57,9 @@ export type VisualSpec = {
   scale_from: number;
   scale_to: number;
   pan_px: number;
+  // The black scrim over the still: 0 on a photo or card beat, the style's
+  // broll.motion.<kind>.dim where it is only a set piece's base (027).
+  dim: number;
   card: CardSpec | null;
 };
 
@@ -81,6 +84,10 @@ export type CardBox = {
   from_x: number;
   from_y: number;
   delay_s: number;
+  // The Ken Burns inside the window: 1 to 1 on a hook or finale card, the style's
+  // photo motion on a wall cell (027).
+  scale_from: number;
+  scale_to: number;
 };
 
 export type HookCardsSpec = {
@@ -139,6 +146,97 @@ export type LowerThirdSpec = {
   fade_s: number;
 };
 
+// The three remaining tier-1 set pieces (ticket 027): the list's rows, the news-card
+// split and the wall grid, all placed and measured in Python.
+
+export type ListRow = {
+  text: string;
+  font_px: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  text_left: number;
+  icon_src: string;
+  icon_width: number;
+  icon_height: number;
+  icon_left: number;
+  icon_size: number;
+  from_x: number;
+  delay_s: number;
+};
+
+export type ListSpec = {
+  header: string;
+  header_font_px: number;
+  header_left: number;
+  header_top: number;
+  header_color: string;
+  rows: ListRow[];
+  row_fill: string;
+  row_radius_px: number;
+  spring_s: number;
+};
+
+export type TitleWord = {
+  text: string;
+  left: number;
+  width: number;
+  highlight: boolean;
+};
+
+export type SplitPane = {
+  src: string;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  pane_width: number;
+  pane_height: number;
+  label: string;
+  from_x: number;
+};
+
+export type BadgeSpec = {
+  src: string;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  diameter: number;
+  ring_px: number;
+  ring_color: string;
+};
+
+export type SplitSpec = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  border_px: number;
+  rotate_deg: number;
+  seam_px: number;
+  panes: SplitPane[];
+  label_px: number;
+  label_font_px: number;
+  title_px: number;
+  title_font_px: number;
+  title_color: string;
+  title_words: TitleWord[];
+  highlight_fg: string;
+  highlight_bg: string;
+  highlight_pad_px: number;
+  highlight_radius_px: number;
+  badge: BadgeSpec | null;
+  slide_s: number;
+};
+
+export type WallSpec = {
+  cells: CardBox[];
+  columns: number;
+  spring_s: number;
+};
+
 export type PunchIn = {
   scale_from: number;
   settle_to: number;
@@ -161,6 +259,9 @@ export type BeatSpec = {
   lower_third?: LowerThirdSpec | null;
   hook?: HookCardsSpec | null;
   finale?: FinaleCardSpec | null;
+  split?: SplitSpec | null;
+  wall?: WallSpec | null;
+  list?: ListSpec | null;
 };
 
 export type PipGeometry = {

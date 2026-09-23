@@ -15,11 +15,14 @@ const TITLE_ENTER_S = 0.3;
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-export const PlacedCard: React.FC<{ card: CardBox; frame: number; fps: number }> = ({
-  card,
-  frame,
-  fps,
-}) => {
+// `hold_s` is how long the card stays on screen after it has sprung in: a wall cell
+// takes its Ken Burns over it (027), the hook's and the finale's cards are 1 to 1.
+export const PlacedCard: React.FC<{
+  card: CardBox;
+  frame: number;
+  fps: number;
+  holdS?: number;
+}> = ({ card, frame, fps, holdS }) => {
   const entered = spring({
     frame: frame - Math.round(card.delay_s * fps),
     fps,
@@ -27,6 +30,8 @@ export const PlacedCard: React.FC<{ card: CardBox; frame: number; fps: number }>
   });
   const x = interpolate(entered, [0, 1], [card.from_x, 0]);
   const y = interpolate(entered, [0, 1], [card.from_y, 0]);
+  const held = holdS && holdS > 0 ? Math.min(1, frame / fps / holdS) : entered;
+  const scale = interpolate(held, [0, 1], [card.scale_from, card.scale_to]);
   return (
     <div
       style={{
@@ -44,7 +49,15 @@ export const PlacedCard: React.FC<{ card: CardBox; frame: number; fps: number }>
       }}
     >
       <div style={{ width: card.image_width, height: card.image_height, overflow: "hidden" }}>
-        <Img src={card.src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Img
+          src={card.src}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: `scale(${scale})`,
+          }}
+        />
       </div>
       {card.strip_px > 0 ? (
         <div

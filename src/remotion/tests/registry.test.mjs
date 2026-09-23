@@ -41,11 +41,18 @@ test("the composition lists the set pieces and overlays after ticket 026", () =>
   }
 });
 
+test("the composition lists list, split and wall after ticket 027", () => {
+  for (const name of ["list", "split", "wall"]) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+  }
+});
+
 test("Short.tsx draws every registered component", () => {
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
   const drawn = { hook_cards: "HookCards", finale: "Finale", stamp: "Stamp",
                   lower_third: "LowerThird", photo: "Photo", card: "Card",
-                  captions: "Captions", pip: "Pip" };
+                  captions: "Captions", pip: "Pip", list: "List", split: "Split",
+                  wall: "Wall" };
   for (const name of registry.components) {
     assert.match(short, new RegExp(`<${drawn[name]}\\b`), `Short.tsx never draws ${name}`);
   }
@@ -63,4 +70,15 @@ test("the driver rewrites the set pieces' card sources to served URLs", () => {
   assert.match(driver, /hook\?\.cards/, "hook cards are never collected");
   assert.match(driver, /finale\?\.cards/, "finale cards are never collected");
   assert.match(driver, /cards: piece\.cards\.map/, "set-piece card srcs are never rewritten");
+});
+
+test("the driver serves the list, split and wall assets too (027)", () => {
+  const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
+  assert.match(driver, /wall\?\.cells/, "wall cells are never collected");
+  assert.match(driver, /split\?\.panes/, "split panes are never collected");
+  assert.match(driver, /split\?\.badge/, "the split badge is never collected");
+  assert.match(driver, /list\?\.rows/, "list row icons are never collected");
+  assert.match(driver, /cells: piece\.cells\.map/, "wall cell srcs are never rewritten");
+  assert.match(driver, /icon_src: url\(r\.icon_src\)/, "list icons are never rewritten");
+  assert.match(driver, /panes: piece\.panes\.map/, "split pane srcs are never rewritten");
 });

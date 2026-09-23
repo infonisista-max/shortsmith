@@ -59,7 +59,7 @@ def _resolve(manifest: AssetManifest, asset_id: str) -> str | None:
 def shown(beat: Beat, manifest: AssetManifest, plan: PicturePlan) -> list[str]:
     """The asset ids a beat puts on screen, once each: its sourced asset, or the
     planned id resolved through the aliases; a hook-cards beat also shows the hook's
-    cards."""
+    cards, and a `list`, `split` or `wall` beat the assets of its items (027)."""
     decided = manifest.beat(beat.id)
     ids: list[str | None] = []
     if decided is not None:
@@ -68,6 +68,7 @@ def shown(beat: Beat, manifest: AssetManifest, plan: PicturePlan) -> list[str]:
         ids.append(_resolve(manifest, beat.asset_id))
     if beat.kind == "hook_cards":
         ids += [_resolve(manifest, card) for card in plan.hook.card_asset_ids]
+    ids += [_resolve(manifest, i.asset_id) for i in beat.items if i.asset_id is not None]
     return list(dict.fromkeys(i for i in ids if i is not None))
 
 

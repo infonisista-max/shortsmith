@@ -63,6 +63,8 @@ PRESENTER_KINDS = frozenset({"presenter_full", "presenter_pip"})
 FIXED_MOTION_KINDS = frozenset({"hook_cards", "finale"})  # motion comes from the spec table
 SET_PIECE_KINDS = frozenset({"list", "chart", "split", "wall", "finale"})  # 3.1
 DENSITY_EXEMPT_KINDS = SET_PIECE_KINDS | {"hook_cards"}
+ITEM_KINDS = frozenset({"list", "split", "wall"})  # 027: the set pieces with own content
+TITLED_KINDS = frozenset({"list", "split"})  # a header (nkb_04) and a title strip (5.2)
 TIER2_SUBSTITUTES: dict[str, str] = {"parallax": "photo", "vector_illustration": "card"}
 NUMBER_WORDS = {
     "1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six",
@@ -148,6 +150,7 @@ def validate_picture(
     found += _presenter(beats, plan, spec)
     found += _hook(beats, plan, words, spec)
     found += _kinds(beats, spec)
+    found += _items(beats, spec)
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
@@ -523,6 +526,68 @@ def _kinds(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
                     "has exactly one",
                 )
             )
+    return found
+
+
+def _item_count(spec: StyleSpec, kind: str) -> tuple[int, int, str]:
+    """The style's item range for a set-piece kind and the front-matter key it came
+    from (027): `list` 1..items_max, `split` exactly `panes`, `wall` cells_min..max."""
+    row = spec.broll.motion.get(kind, {})
+    if kind == "list":
+        top = int(row.get("items_max", 0))
+        return 1, top, "broll.motion.list.items_max"
+    if kind == "split":
+        panes = int(row.get("panes", 0))
+        return panes, panes, "broll.motion.split.panes"
+    return (
+        int(row.get("cells_min", 0)),
+        int(row.get("cells_max", 0)),
+        "broll.motion.wall.cells_min-cells_max",
+    )
+
+
+def _items(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
+    """4.1 / 5.2 (ticket 027): a set piece's own content. `items` and `set_piece_title`
+    belong to `list`, `split` and `wall` only; each kind's count comes from its
+    `broll.motion` row; a list row may be text only but a pane and a cell always name
+    an asset; and an item's asset id is one the plan already sources (4.3), the way the
+    hook's cards are."""
+    found: list[Violation] = []
+    planned = {b.asset_id for b in beats if b.asset_id}
+    for b in beats:
+        if b.kind not in ITEM_KINDS:
+            if b.items:
+                found.append(
+                    _v("4.1", b.id, f"kind {b.kind!r} carries items; only {sorted(ITEM_KINDS)} do")
+                )
+            if b.set_piece_title:
+                found.append(
+                    _v("4.1", b.id, f"kind {b.kind!r} carries a set_piece_title; only a "
+                                    "list or a split has one")  # fmt: skip
+                )
+            continue
+        low, high, key = _item_count(spec, b.kind)
+        if not low <= len(b.items) <= high:
+            found.append(
+                _v("4.1", b.id, f"{b.kind} has {len(b.items)} items; {key} allows {low}-{high}")
+            )
+        if b.kind in TITLED_KINDS and not b.set_piece_title.strip():
+            found.append(
+                _v("4.1", b.id, f"a {b.kind} needs a set_piece_title (its header or title strip)")
+            )
+        for i, item in enumerate(b.items):
+            if item.asset_id is None:
+                if b.kind != "list":
+                    found.append(
+                        _v("5.2", b.id, f"item {i} of this {b.kind} names no asset; only a list "
+                                        "row may be text only")  # fmt: skip
+                    )
+            elif item.asset_id not in planned:
+                found.append(
+                    _v("4.3", b.id, f"item {i} asset id {item.asset_id!r} is not a plan asset")
+                )
+            if b.kind != "wall" and not item.text.strip():
+                found.append(_v("4.1", b.id, f"item {i} of this {b.kind} has no text"))
     return found
 
 

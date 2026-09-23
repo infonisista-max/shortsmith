@@ -55,6 +55,10 @@ export const Photo: React.FC<{ beat: BeatSpec; frame: number; width: number; hei
   return (
     <AbsoluteFill>
       <Framed visual={visual} width={width} height={height} scale={scale} shiftX={shiftX} />
+      {visual.dim > 0 ? (
+        // 027: a set piece's base still is dimmed so its rows or cells read over it.
+        <AbsoluteFill style={{ background: "#000", opacity: visual.dim }} />
+      ) : null}
     </AbsoluteFill>
   );
 };

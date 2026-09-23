@@ -206,12 +206,20 @@ async function render(args) {
 
   let server = null;
   const inputProps = { ...spec };
-  // Every file the composition reads: the presenter cut, each beat's B-roll (016) and
-  // the cards of the hook and finale set pieces (026).
-  const setPieceCards = (beat) => [...(beat.hook?.cards ?? []), ...(beat.finale?.cards ?? [])];
+  // Every file the composition reads: the presenter cut, each beat's B-roll (016), the
+  // cards of the hook and finale set pieces (026) and the wall's cells, the list's row
+  // icons and the split's panes and badge (027).
+  const setPieceCards = (beat) => [
+    ...(beat.hook?.cards ?? []),
+    ...(beat.finale?.cards ?? []),
+    ...(beat.wall?.cells ?? []),
+    ...(beat.split?.panes ?? []),
+    ...(beat.split?.badge ? [beat.split.badge] : []),
+  ];
   const assetFiles = spec.beats.flatMap((b) => [
     ...(b.visual ? [b.visual.src] : []),
     ...setPieceCards(b).map((c) => c.src),
+    ...(b.list?.rows ?? []).map((r) => r.icon_src).filter(Boolean),
   ]);
   const files = [...(spec.presenter ? [spec.presenter] : []), ...assetFiles];
   if (files.length) {
@@ -220,12 +228,34 @@ async function render(args) {
     const url = (file) => urlFor(server.base, root, file);
     const served = (piece) =>
       piece ? { ...piece, cards: piece.cards.map((c) => ({ ...c, src: url(c.src) })) } : piece;
+    const servedWall = (piece) =>
+      piece ? { ...piece, cells: piece.cells.map((c) => ({ ...c, src: url(c.src) })) } : piece;
+    const servedList = (piece) =>
+      piece
+        ? {
+            ...piece,
+            rows: piece.rows.map((r) =>
+              r.icon_src ? { ...r, icon_src: url(r.icon_src) } : r,
+            ),
+          }
+        : piece;
+    const servedSplit = (piece) =>
+      piece
+        ? {
+            ...piece,
+            panes: piece.panes.map((p) => ({ ...p, src: url(p.src) })),
+            badge: piece.badge ? { ...piece.badge, src: url(piece.badge.src) } : null,
+          }
+        : piece;
     if (spec.presenter) inputProps.presenter = url(spec.presenter);
     inputProps.beats = spec.beats.map((b) => ({
       ...b,
       ...(b.visual ? { visual: { ...b.visual, src: url(b.visual.src) } } : {}),
       ...(b.hook ? { hook: served(b.hook) } : {}),
       ...(b.finale ? { finale: served(b.finale) } : {}),
+      ...(b.wall ? { wall: servedWall(b.wall) } : {}),
+      ...(b.list ? { list: servedList(b.list) } : {}),
+      ...(b.split ? { split: servedSplit(b.split) } : {}),
     }));
   }
   const started = performance.now();
