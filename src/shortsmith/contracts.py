@@ -609,9 +609,119 @@ class VisualSpec(StrictModel):
     card: CardSpec | None = None
 
 
+class CardBox(StrictModel):
+    """One placed card of a set piece (3.4; ticket 026), in composition pixels: the
+    outer white box, the image that covers its window, the label strip under it, and
+    the offset it springs in from. The image is `src` at its real `width`/`height`."""
+
+    src: str
+    width: int
+    height: int
+    left: float
+    top: float
+    box_width: float
+    box_height: float
+    image_width: float
+    image_height: float
+    border_px: int
+    rotate_deg: float
+    label: str = ""
+    strip_px: int = 0
+    strip_font_px: int = 0
+    from_x: float = 0.0
+    from_y: float = 0.0
+    delay_s: float = 0.0
+
+
+class HookCardsSpec(StrictModel):
+    """The hook's second beat (3.4): the title in the style's caption typography over
+    the cards of `hook.card_asset_ids` in priority order. Fewer than the style's card
+    count resolved leaves one centred card; none leaves the title alone, never a blank
+    frame."""
+
+    title_lines: list[str]
+    title_font_px: int
+    title_top: float
+    title_line_px: float
+    title_color: str
+    cards: list[CardBox]
+    spring_s: float
+
+
+class FinaleCardSpec(StrictModel):
+    """The finale set piece (3.4): the presenter cut in the centre circle, the payoff
+    word under it and the hook's cards around it, over the style gradient."""
+
+    text: str
+    text_font_px: int
+    text_top: float
+    text_color: str
+    circle_left: float
+    circle_top: float
+    circle_diameter: float
+    ring_px: int
+    ring_color: str
+    cards: list[CardBox]
+    fade_s: float
+
+
+class StampSpec(StrictModel):
+    """A landed stamp (4.1): rotated text that lands from `scale_from` in `land_s`
+    with a shake, drawn in the top `broll.stamp_max_y_fraction` of the frame and clear
+    of the platform's right rail."""
+
+    text: str
+    left: float
+    top: float
+    width: float
+    height: float
+    rotate_deg: float
+    font_px: int
+    border_px: int
+    radius_px: int
+    color: str
+    fill: str
+    scale_from: float
+    land_s: float
+    shake_s: float
+
+
+class LowerThirdSpec(StrictModel):
+    """A name-and-role label in the style's `lower_third` band (6.3), faded in over
+    `fade_s`. Suppressed where a two-line caption page shows, or where the beat's card
+    strip already carries the same text."""
+
+    name: str
+    role: str
+    left: float
+    top: float
+    width: float
+    height: float
+    bar_px: int
+    accent: str
+    fill: str
+    name_font_px: int
+    role_font_px: int
+    fade_s: float
+
+
+class PunchIn(StrictModel):
+    """The full-frame presenter punch-in (research S2): scale `scale_from` easing to
+    `settle_to` by `settle_s`, then to 1 over the rest of the beat, with the grade."""
+
+    scale_from: float
+    settle_to: float
+    settle_s: float
+    origin_y: float
+    contrast: float
+    saturate: float
+
+
 class BeatSpec(StrictModel):
     """A plan beat as frame range; `end_frame` is exclusive. A rung-4 rescue arrives
-    here as `pip` with no visual (4.4)."""
+    here as `pip` with no visual (4.4). The set pieces and the two overlay kinds (026)
+    ride along resolved: at most one of `hook` / `finale`, and at most one landed
+    event (`stamp` or `lower_third`, 3.1)."""
 
     id: str
     start_frame: int
@@ -620,6 +730,11 @@ class BeatSpec(StrictModel):
     kind: Kind
     enter: Transition = "cut"
     visual: VisualSpec | None = None
+    punch_in: PunchIn | None = None
+    stamp: StampSpec | None = None
+    lower_third: LowerThirdSpec | None = None
+    hook: HookCardsSpec | None = None
+    finale: FinaleCardSpec | None = None
 
 
 class PipGeometry(StrictModel):

@@ -35,9 +35,32 @@ test("the composition lists photo and card after ticket 016", () => {
   assert.ok(registry.components.includes("card"));
 });
 
+test("the composition lists the set pieces and overlays after ticket 026", () => {
+  for (const name of ["hook_cards", "finale", "stamp", "lower_third"]) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+  }
+});
+
+test("Short.tsx draws every registered component", () => {
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const drawn = { hook_cards: "HookCards", finale: "Finale", stamp: "Stamp",
+                  lower_third: "LowerThird", photo: "Photo", card: "Card",
+                  captions: "Captions", pip: "Pip" };
+  for (const name of registry.components) {
+    assert.match(short, new RegExp(`<${drawn[name]}\\b`), `Short.tsx never draws ${name}`);
+  }
+});
+
 test("the driver serves the asset image types", () => {
   const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
   for (const ext of [".png", ".jpg", ".jpeg", ".webp"]) {
     assert.match(driver, new RegExp(`"\\${ext}": "image/`), `driver does not serve ${ext}`);
   }
+});
+
+test("the driver rewrites the set pieces' card sources to served URLs", () => {
+  const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
+  assert.match(driver, /hook\?\.cards/, "hook cards are never collected");
+  assert.match(driver, /finale\?\.cards/, "finale cards are never collected");
+  assert.match(driver, /cards: piece\.cards\.map/, "set-piece card srcs are never rewritten");
 });

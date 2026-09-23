@@ -108,7 +108,9 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert (ex.finale.mode, ex.finale.min_s, ex.finale.max_s) == ("off", 0.8, 1.2)
     assert (ex.budget.judge_max_calls, ex.budget.search_max_queries) == (40, 60)  # 5.6
     assert ex.budget.gen_max_per_short == 8  # 5.5
-    assert ex.requires_components == ["captions", "pip"]
+    assert ex.requires_components == [
+        "captions", "pip", "hook_cards", "finale", "stamp", "lower_third",
+    ]  # fmt: skip
     assert ex.palette.accent == "#FFD60A"
 
 

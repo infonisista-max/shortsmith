@@ -206,15 +206,27 @@ async function render(args) {
 
   let server = null;
   const inputProps = { ...spec };
-  const visuals = spec.beats.filter((b) => b.visual).map((b) => b.visual.src);
-  const files = [...(spec.presenter ? [spec.presenter] : []), ...visuals];
+  // Every file the composition reads: the presenter cut, each beat's B-roll (016) and
+  // the cards of the hook and finale set pieces (026).
+  const setPieceCards = (beat) => [...(beat.hook?.cards ?? []), ...(beat.finale?.cards ?? [])];
+  const assetFiles = spec.beats.flatMap((b) => [
+    ...(b.visual ? [b.visual.src] : []),
+    ...setPieceCards(b).map((c) => c.src),
+  ]);
+  const files = [...(spec.presenter ? [spec.presenter] : []), ...assetFiles];
   if (files.length) {
     const root = commonDir(files);
     server = await serve(root);
-    if (spec.presenter) inputProps.presenter = urlFor(server.base, root, spec.presenter);
-    inputProps.beats = spec.beats.map((b) =>
-      b.visual ? { ...b, visual: { ...b.visual, src: urlFor(server.base, root, b.visual.src) } } : b,
-    );
+    const url = (file) => urlFor(server.base, root, file);
+    const served = (piece) =>
+      piece ? { ...piece, cards: piece.cards.map((c) => ({ ...c, src: url(c.src) })) } : piece;
+    if (spec.presenter) inputProps.presenter = url(spec.presenter);
+    inputProps.beats = spec.beats.map((b) => ({
+      ...b,
+      ...(b.visual ? { visual: { ...b.visual, src: url(b.visual.src) } } : {}),
+      ...(b.hook ? { hook: served(b.hook) } : {}),
+      ...(b.finale ? { finale: served(b.finale) } : {}),
+    }));
   }
   const started = performance.now();
   try {

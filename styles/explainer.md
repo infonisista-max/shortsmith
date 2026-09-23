@@ -1,7 +1,7 @@
 ---
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
-requires_components: [captions, pip]
+requires_components: [captions, pip, hook_cards, finale, stamp, lower_third]
 beats:
   min_s: 0.7
   max_s: 6.0

@@ -100,11 +100,25 @@ def _font(family: str, weight: int, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(path), size)
 
 
+def measure(
+    text: str, *, family: str, weight: int, size_px: int, letter_spacing_px: float = 0.0
+) -> float:
+    """Resting width of `text` in a bundled font at any size, letter spacing included
+    as the composition applies it (after every character). The set pieces of ticket
+    026 measure their titles and labels through this."""
+    return _font(family, weight, size_px).getlength(text) + letter_spacing_px * len(text)
+
+
 def text_width(text: str, style: CaptionStyle) -> float:
     """Resting width of `text` at the style's font, weight and size, letter spacing
     included as the composition applies it (after every character)."""
-    font = _font(style.font_family, style.font_weight, style.size_px)
-    return font.getlength(text) + style.letter_spacing_px * len(text)
+    return measure(
+        text,
+        family=style.font_family,
+        weight=style.font_weight,
+        size_px=style.size_px,
+        letter_spacing_px=style.letter_spacing_px,
+    )
 
 
 def box_width(text: str, *, keyword: bool, style: CaptionStyle) -> float:

@@ -60,6 +60,94 @@ export type VisualSpec = {
   card: CardSpec | null;
 };
 
+// Set pieces and overlays (ticket 026): everything is already placed and measured in
+// composition pixels; the components below animate the boxes, they never lay them out.
+
+export type CardBox = {
+  src: string;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  box_width: number;
+  box_height: number;
+  image_width: number;
+  image_height: number;
+  border_px: number;
+  rotate_deg: number;
+  label: string;
+  strip_px: number;
+  strip_font_px: number;
+  from_x: number;
+  from_y: number;
+  delay_s: number;
+};
+
+export type HookCardsSpec = {
+  title_lines: string[];
+  title_font_px: number;
+  title_top: number;
+  title_line_px: number;
+  title_color: string;
+  cards: CardBox[];
+  spring_s: number;
+};
+
+export type FinaleCardSpec = {
+  text: string;
+  text_font_px: number;
+  text_top: number;
+  text_color: string;
+  circle_left: number;
+  circle_top: number;
+  circle_diameter: number;
+  ring_px: number;
+  ring_color: string;
+  cards: CardBox[];
+  fade_s: number;
+};
+
+export type StampSpec = {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  rotate_deg: number;
+  font_px: number;
+  border_px: number;
+  radius_px: number;
+  color: string;
+  fill: string;
+  scale_from: number;
+  land_s: number;
+  shake_s: number;
+};
+
+export type LowerThirdSpec = {
+  name: string;
+  role: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  bar_px: number;
+  accent: string;
+  fill: string;
+  name_font_px: number;
+  role_font_px: number;
+  fade_s: number;
+};
+
+export type PunchIn = {
+  scale_from: number;
+  settle_to: number;
+  settle_s: number;
+  origin_y: number;
+  contrast: number;
+  saturate: number;
+};
+
 export type BeatSpec = {
   id: string;
   start_frame: number;
@@ -68,6 +156,11 @@ export type BeatSpec = {
   kind: string;
   enter: string;
   visual?: VisualSpec | null;
+  punch_in?: PunchIn | null;
+  stamp?: StampSpec | null;
+  lower_third?: LowerThirdSpec | null;
+  hook?: HookCardsSpec | null;
+  finale?: FinaleCardSpec | null;
 };
 
 export type PipGeometry = {

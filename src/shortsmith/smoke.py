@@ -328,7 +328,39 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
     )
     drawn = {b.id: b.visual.treatment for b in spec.beats if b.visual is not None}
     check(drawn == {"b03": "photo", "b04": "card"}, f"render spec draws {drawn}")
+    check_set_pieces(spec, plan)
     return manifest
+
+
+def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
+    """026: the short opens with the two-beat hook (a full-frame cold open that punches
+    in, then the title and three cards) and ends with the finale card; the two landed
+    events are drawn where the plan puts them, inside the style's geometry."""
+    cold_open, hook_beat = spec.beats[0], spec.beats[1]
+    check(cold_open.mode == "full", f"the cold open is {cold_open.mode}, not full")
+    check(cold_open.punch_in is not None, "the cold open does not punch in (research S2)")
+    hook = hook_beat.hook
+    check(hook is not None, "the hook-cards beat carries no hook")
+    assert hook is not None
+    check(bool(hook.title_lines), "the hook draws no title")
+    check(len(hook.cards) == 3, f"the hook draws {len(hook.cards)} cards, not three")
+    finale_beat = next(b for b in spec.beats if b.id == plan.finale.beat_id)
+    card = finale_beat.finale
+    check(card is not None, "the finale beat carries no finale card")
+    assert card is not None
+    check(card.text == plan.finale.text, f"the finale word is {card.text!r}")
+    check(finale_beat is spec.beats[-1], "the finale is not the last beat of the spec")
+    stamped = sorted(b.id for b in spec.beats if b.stamp is not None)
+    check(stamped == ["b03", "b06"], f"stamps land on {stamped}, not the plan's stamp beats")
+    numbers = render.style_numbers(styles.DEFAULT)
+    limit = numbers.broll.stamp_max_y_fraction * render.HEIGHT
+    for beat in spec.beats:
+        if beat.stamp is None:
+            continue
+        low = beat.stamp.top + beat.stamp.height
+        check(low <= limit, f"{beat.id}'s stamp ends at y {low:g}, past the top {limit:g}")
+    labelled = [b.id for b in spec.beats if b.lower_third is not None]
+    check(not labelled, f"lower-thirds drawn on {labelled}; b04's card strip carries it")
 
 
 def check_qa(job: jobs.Job) -> None:

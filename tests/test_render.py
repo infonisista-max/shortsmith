@@ -20,6 +20,7 @@ from shortsmith.contracts import (
     AssetManifest,
     Beat,
     BedQuery,
+    CaptionPage,
     Captions,
     Constraints,
     Crop,
@@ -248,6 +249,224 @@ def test_the_card_strip_shows_the_lower_third_label(tmp_path: Path) -> None:
     card = _visual_spec(tmp_path).beats[3].visual
     assert card is not None and card.card is not None
     assert card.card.strip_text == "India Gate · Delhi"
+
+
+# --- set pieces and overlays (ticket 026; decisions 3.2, 3.4, 4.1, 4.2, 6.3) -----------
+
+
+def _only(manifest: AssetManifest, *keep: str) -> AssetManifest:
+    """The manifest with every hook-card alias but `keep` resolved to nothing."""
+    aliases = {k: (v if k in keep else None) for k, v in manifest.aliases.items()}
+    return manifest.model_copy(update={"aliases": aliases})
+
+
+def test_the_hook_beat_carries_its_title_and_three_cards_in_plan_order(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _visual_spec(tmp_path, plan)
+    hook = next(b for b in spec.beats if b.id == "b02").hook
+    assert hook is not None
+    assert " ".join(hook.title_lines) == plan.hook.title
+    assert len(hook.cards) == EXPLAINER.broll.hook_cards == 3
+    manifest = _sourced(tmp_path, plan)
+    wanted = [manifest.aliases[i] for i in plan.hook.card_asset_ids]
+    assert all(Path(c.src).is_absolute() and Path(c.src).is_file() for c in hook.cards)
+    assert len({c.src for c in hook.cards}) == 3 and len(set(wanted)) == 3
+    assert hook.cards[0].left < hook.cards[1].left  # left slot, then the right one
+
+
+def test_fewer_than_three_hook_assets_give_one_centred_card(tmp_path: Path) -> None:
+    plan = _plan()
+    manifest = _only(_sourced(tmp_path, plan), "a1")
+    hook = next(b for b in _visual_spec(tmp_path, plan, manifest).beats if b.id == "b02").hook
+    assert hook is not None and len(hook.cards) == 1
+    card = hook.cards[0]
+    assert card.left + card.box_width / 2 == pytest.approx(render.WIDTH / 2)
+
+
+def test_a_hook_with_no_resolved_asset_still_draws_its_title(tmp_path: Path) -> None:
+    plan = _plan()
+    manifest = _only(_sourced(tmp_path, plan))
+    hook = next(b for b in _visual_spec(tmp_path, plan, manifest).beats if b.id == "b02").hook
+    assert hook is not None and hook.cards == [] and hook.title_lines
+
+
+def test_hook_cards_end_above_the_caption_block(tmp_path: Path) -> None:
+    plan = _plan()
+    hook = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == "b02").hook
+    assert hook is not None
+    block_top = styles.caption_block_top(EXPLAINER.captions)
+    assert max(c.top + c.box_height for c in hook.cards) <= block_top
+    assert min(c.left for c in hook.cards) >= render.SAFE_LEFT
+    assert max(c.left + c.box_width for c in hook.cards) <= render.WIDTH - render.SAFE_LEFT
+
+
+def test_the_hook_title_wraps_to_at_most_two_lines_inside_the_caption_width() -> None:
+    long_title = "Why this one small change made everything suddenly cheaper"
+    plan = _plan()
+    plan = plan.model_copy(update={"hook": plan.hook.model_copy(update={"title": long_title})})
+    spec = render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+    )  # fmt: skip
+    hook = next(b for b in spec.beats if b.id == "b02").hook
+    assert hook is not None and 1 <= len(hook.title_lines) <= render.HOOK_TITLE_MAX_LINES
+    assert " ".join(hook.title_lines) == long_title
+    style = EXPLAINER.captions
+    for line in hook.title_lines:
+        width = captions.measure(line, family=style.font_family, weight=style.font_weight,
+                                 size_px=hook.title_font_px,
+                                 letter_spacing_px=style.letter_spacing_px)  # fmt: skip
+        assert width <= style.max_width_px + 1e-6
+
+
+def test_the_cold_open_beat_is_full_frame_with_the_research_punch_in() -> None:
+    cold_open = _spec().beats[0]
+    assert cold_open.mode == "full"
+    punch = cold_open.punch_in
+    assert punch is not None
+    assert (punch.scale_from, punch.settle_to, punch.settle_s) == (1.22, 1.03, 0.9)
+    assert (punch.contrast, punch.saturate, punch.origin_y) == (1.06, 1.08, 0.30)
+    assert all(b.punch_in is None for b in _spec().beats if b.mode != "full")
+
+
+def test_the_finale_carries_the_presenter_circle_the_payoff_word_and_the_hook_cards(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    spec = _visual_spec(tmp_path, plan)
+    beat = next(b for b in spec.beats if b.id == plan.finale.beat_id)
+    finale = beat.finale
+    assert beat.mode == "off" and finale is not None
+    assert finale.text == plan.finale.text
+    assert finale.circle_diameter == render.FINALE_DIAMETER
+    assert finale.circle_left + finale.circle_diameter / 2 == pytest.approx(render.WIDTH / 2)
+    assert finale.ring_color == EXPLAINER.palette.accent
+    assert finale.fade_s == 0.35  # explainer broll.motion.finale.duration_s
+    assert len(finale.cards) == 3
+    assert all(b.finale is None for b in spec.beats if b.id != plan.finale.beat_id)
+
+
+def test_a_finale_outside_the_style_length_fails_the_build() -> None:
+    plan = _plan()
+    beats = list(plan.beats)
+    beats[-1] = beats[-1].model_copy(update={"start": 3.0})  # 3.0 s, over finale.max_s
+    beats[-2] = beats[-2].model_copy(update={"end": 3.0})
+    plan = plan.model_copy(update={"beats": beats})
+    with pytest.raises(render.RenderError, match="finale"):
+        render.build_spec(
+            plan, Captions(pages=[]), presenter=Path("work/cut.mp4"),
+            source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        )  # fmt: skip
+
+
+def test_a_caption_page_that_runs_into_the_finale_fails_the_build() -> None:
+    plan = _plan()
+    late = CaptionPage(index=0, word_indices=[0], texts=["x"], start=4.9, end=5.4)
+    with pytest.raises(render.RenderError, match="finale"):
+        render.build_spec(
+            plan, Captions(pages=[late]), presenter=Path("work/cut.mp4"),
+            source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        )  # fmt: skip
+
+
+def test_the_stamp_look_comes_from_the_style_front_matter() -> None:
+    stamp = _spec().beats[2].stamp
+    assert stamp is not None and stamp.text == "NOTHING"
+    assert (stamp.land_s, stamp.shake_s) == (0.16, render.STAMP_SHAKE_S)  # motion.stamp
+    assert stamp.color == "#FFD60A"  # broll.motion.stamp.palette yellow_green_red
+    assert stamp.rotate_deg != 0.0 and stamp.scale_from == render.STAMP_SCALE_FROM
+    assert all(b.stamp is None for b in _spec().beats if b.id not in ("b03", "b06"))
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["12", "NOTHING", "SIX SECONDS", "A VERY LONG STAMP WORD THAT WILL NOT FIT AT ALL"],
+)
+def test_stamps_stay_in_the_top_60_percent_and_clear_of_the_right_rail(text: str) -> None:
+    stamp = render.stamp_spec(text, numbers=EXPLAINER)
+    limit = EXPLAINER.broll.stamp_max_y_fraction * render.HEIGHT
+    assert stamp.top >= 0.0 and stamp.top + stamp.height <= limit + 1e-6
+    assert stamp.left >= render.SAFE_LEFT - 1e-6
+    assert stamp.left + stamp.width <= render.WIDTH - render.SAFE_RIGHT_PX + 1e-6
+    assert stamp.font_px <= render.STAMP_FONT_PX
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("India Gate · Delhi", ("India Gate", "Delhi")),
+        ("Steve Jobs — Apple co-founder", ("Steve Jobs", "Apple co-founder")),
+        ("Virat Kohli", ("Virat Kohli", "")),
+    ],
+)
+def test_the_lower_third_sits_in_the_style_band_and_splits_name_from_role(
+    text: str, expected: tuple[str, str]
+) -> None:
+    label = render.lower_third_spec(text, numbers=EXPLAINER)
+    assert (label.name, label.role) == expected
+    assert label.top == EXPLAINER.broll.lower_third_top_y == 1150
+    assert label.top + label.height == EXPLAINER.broll.lower_third_bottom_y == 1240
+    assert label.fade_s == 0.35 and label.left == render.SAFE_LEFT
+    assert label.left + label.width <= render.WIDTH - render.SAFE_RIGHT_PX + 1e-6
+
+
+def _label_beat(i: int) -> Beat:
+    """A portrait entity beat: drawn as a full-bleed photo, so nothing but the
+    lower-third carries its label."""
+    return Beat.model_validate({
+        "id": f"b{i}", "start": float(i - 1), "end": float(i), "mode": "pip", "kind": "photo",
+        "motion": "ken_burns_in", "subject_kind": "entity", "query": PORTRAIT_SKY,
+        "query_fallback": "sky", "source_intent": "search", "asset_id": f"a{i}",
+        "event": {"kind": "lower_third", "text": "India Gate · Delhi"},
+    })  # fmt: skip
+
+
+def test_an_entity_beat_with_a_lower_third_event_renders_it(tmp_path: Path) -> None:
+    plan = _plan().model_copy(update={"beats": [_label_beat(1)]})
+    beat = _visual_spec(tmp_path, plan).beats[0]
+    assert beat.visual is not None and beat.visual.treatment == "photo"
+    assert beat.lower_third is not None and beat.lower_third.name == "India Gate"
+
+
+def test_the_lower_third_is_suppressed_under_a_two_line_caption_page(tmp_path: Path) -> None:
+    plan = _plan().model_copy(update={"beats": [_label_beat(1)]})
+    manifest = _sourced(tmp_path, plan)
+    spec = render.build_spec(
+        plan, Captions(pages=[], beats_with_two_lines=["b1"]),
+        presenter=Path("work/cut.mp4"), source_size=(fixture.WIDTH, fixture.HEIGHT),
+        duration_s=fixture.DURATION_S, manifest=manifest, job_dir=tmp_path / "job",
+    )  # fmt: skip
+    assert spec.beats[0].lower_third is None
+
+
+def test_the_lower_third_is_suppressed_where_the_card_strip_already_shows_it(
+    tmp_path: Path,
+) -> None:
+    spec = _visual_spec(tmp_path)
+    beat = next(b for b in spec.beats if b.id == "b04")
+    assert beat.visual is not None and beat.visual.card is not None
+    assert beat.visual.card.strip_text == "India Gate · Delhi" and beat.lower_third is None
+
+
+def _number_beat(i: int, asset_id: str) -> Beat:
+    return Beat.model_validate({
+        "id": f"b{i}", "start": float(i - 1), "end": float(i), "mode": "pip", "kind": "photo",
+        "motion": "ken_burns_in", "subject_kind": "number", "query": "the number",
+        "query_fallback": "a number", "asset_id": asset_id,
+        "event": {"kind": "stamp", "text": "12"},
+    })  # fmt: skip
+
+
+def test_a_number_beat_stamps_over_the_previous_asset_with_its_ken_burns_continued(
+    tmp_path: Path,
+) -> None:
+    plan = _plan().model_copy(update={"beats": [_photo_beat(1), _number_beat(2, "a1")]})
+    manifest = _sourced(tmp_path, plan)
+    assert len(manifest.assets) == 1  # 4.2: a number beat adds no asset
+    first, second = (b.visual for b in _visual_spec(tmp_path, plan, manifest).beats)
+    assert first is not None and second is not None and first.src == second.src
+    assert second.scale_from == first.scale_to  # the Ken Burns carries on, never restarts
+    assert second.scale_to > second.scale_from and second.zoom == first.zoom
 
 
 # --- frames and beats -----------------------------------------------------------------

@@ -10,7 +10,9 @@ const ACTIVE_HOLD_S = 0.06; // stays active this long after its end
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-function shadow(style: CaptionStyle): string {
+// The four-direction fake stroke plus drop and glow (6.2); the set pieces of ticket
+// 026 draw their title and payoff word with the same treatment.
+export function shadow(style: CaptionStyle): string {
   const s = style.stroke_px;
   const ring = [
     `-${s}px 0 #000`, `${s}px 0 #000`, `0 -${s}px #000`, `0 ${s}px #000`,

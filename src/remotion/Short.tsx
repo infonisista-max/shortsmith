@@ -2,13 +2,20 @@
 // full-frame presenter, PIP over the palette gradient, or the gradient alone (`off`),
 // with the caption layer on top. Ticket 016 draws the beat's B-roll between the
 // gradient and the presenter: a full-bleed `photo` or a framed `card`. A rung-4
-// rescue arrives as `pip` with no visual. Other kinds arrive with their tickets.
+// rescue arrives as `pip` with no visual. Ticket 026 adds the two set pieces (the
+// hook's cards and the finale) between the B-roll and the presenter, the full-frame
+// punch-in, and the two landed overlays (`stamp`, `lower_third`) over the presenter.
+// Other kinds arrive with their tickets.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
+import { Finale } from "./components/finale";
+import { HookCards } from "./components/hook_cards";
+import { LowerThird } from "./components/lower_third";
 import { Photo } from "./components/photo";
 import { Pip, Presenter } from "./components/pip";
+import { Stamp } from "./components/stamp";
 import { fontsReady } from "./fonts";
 import type { RenderSpec } from "./types";
 
@@ -22,6 +29,7 @@ export const Short: React.FC<RenderSpec> = (spec) => {
     spec.beats[spec.beats.length - 1];
   const [from, to] = spec.palette.gradient;
   const visual = beat?.mode === "full" ? null : beat?.visual;
+  const since = beat ? frame - beat.start_frame : 0;
   return (
     <AbsoluteFill
       style={{ background: `linear-gradient(${spec.palette.angle_deg}deg, ${from}, ${to})` }}
@@ -32,8 +40,36 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       {beat && visual?.treatment === "card" ? (
         <Card beat={beat} frame={frame} fps={spec.fps} width={spec.width} height={spec.height} />
       ) : null}
-      {beat?.mode === "full" ? <Presenter spec={spec} /> : null}
+      {beat?.hook ? (
+        <HookCards
+          spec={beat.hook}
+          style={spec.caption_style}
+          frame={since}
+          fps={spec.fps}
+        />
+      ) : null}
+      {beat?.finale ? (
+        <Finale
+          spec={beat.finale}
+          render={spec}
+          style={spec.caption_style}
+          frame={since}
+          fps={spec.fps}
+        />
+      ) : null}
+      {beat?.mode === "full" ? <Presenter spec={spec} beat={beat} frame={frame} /> : null}
       {beat?.mode === "pip" ? <Pip spec={spec} /> : null}
+      {beat?.stamp ? (
+        <Stamp spec={beat.stamp} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat?.lower_third ? (
+        <LowerThird
+          spec={beat.lower_third}
+          style={spec.caption_style}
+          frame={since}
+          fps={spec.fps}
+        />
+      ) : null}
       <Captions spec={spec} t={t} />
     </AbsoluteFill>
   );

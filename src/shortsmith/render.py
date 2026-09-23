@@ -52,6 +52,29 @@ card from y ~190 to ~925 over a PIP at 960), and never below
 `broll.card_max_bottom_y`. A rung-4 rescue is drawn as `pip` over the gradient;
 other kinds keep their visuals for their own tickets. The engine constants below
 (strip, blur, ring) are not style numbers yet.
+
+Set pieces and overlays (ticket 026; decisions 3.2, 3.4, 4.1, 4.2, 6.1, 6.3): every
+`BeatSpec` also carries what lands on it, already measured and placed.
+
+- `hook` on the hook-cards beat: the title wrapped into at most two lines of caption
+  typography, and the cards of `hook.card_asset_ids` resolved through the manifest's
+  aliases into the three reference slots, labelled with the lower-third of the beat
+  that sourced them. Fewer than the style's `broll.motion.hook_cards.cards` resolved
+  leaves one centred card; none leaves the title alone, never a blank frame.
+- `finale` on the finale beat: the presenter cut in a ringed centre circle with the
+  same cards around it and the payoff word under them (the references close the loop
+  with the hook's faces). The beat's length must sit inside `finale.min_s`-`max_s`
+  and no caption page may run into it, or the build fails here rather than on screen.
+- `stamp` wherever a beat lands one, or carries a rescue word (4.4): the text measured
+  at 92 px, shrunk until it fits, and clamped into the style's top
+  `broll.stamp_max_y_fraction` of the frame, clear of the platform's right rail.
+- `lower_third` on a beat whose event is one, unless a two-line caption page shows
+  over it (6.3) or the beat's own card strip already carries the same text.
+- `punch_in` on every `full` beat: the research section 2 push with its grade.
+
+Every number the style front matter carries (the four `broll.motion` rows, the two y
+bands, the card count, the stamp palette name, `finale.min_s`/`max_s`) is read from
+it; the geometry read off the reference frames stays in the constants below.
 """
 
 from __future__ import annotations
@@ -62,26 +85,34 @@ import re
 import shutil
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
 from shortsmith import assets, ffmpeg, presenter, styles, subproc
+from shortsmith.captions import measure
 from shortsmith.contracts import (
     AssetManifest,
+    Beat,
     BeatSpec,
     CaptionPageSpec,
     Captions,
     CaptionStyle,
+    CardBox,
     CardSpec,
     Crop,
+    FinaleCardSpec,
+    HookCardsSpec,
+    LowerThirdSpec,
     Mode,
     Palette,
     PicturePlan,
     PipGeometry,
+    PunchIn,
     RenderSpec,
     Span,
+    StampSpec,
     VisualSpec,
 )
 from shortsmith.jobs import Job
@@ -126,7 +157,9 @@ class PipNumbers:
 
 @dataclass(frozen=True)
 class BrollNumbers:
-    """`broll.motion.photo` / `broll.motion.card` and the card's bottom limit (4.1)."""
+    """`broll.motion.*` and the geometry limits of 4.1 / 6.3: the photo and card
+    motions, the card's bottom limit, and (026) the stamp, lower-third, hook-card and
+    finale motion rows plus the stamp's y band."""
 
     photo_scale_from: float
     photo_scale_to: float
@@ -138,6 +171,23 @@ class BrollNumbers:
     card_ring_color: str
     card_max_bottom_y: int
     pip_top: int
+    stamp_land_s: float
+    stamp_shake: bool
+    stamp_palette: str
+    stamp_max_y_fraction: float
+    lower_third_fade_s: float
+    lower_third_top_y: int
+    lower_third_bottom_y: int
+    hook_cards: int
+    finale_fade_s: float
+
+
+@dataclass(frozen=True)
+class FinaleNumbers:
+    """The `finale` key group: the set piece's length band (3.4)."""
+
+    min_s: float
+    max_s: float
 
 
 @dataclass(frozen=True)
@@ -146,11 +196,14 @@ class StyleNumbers:
     pip: PipNumbers
     palette: Palette
     broll: BrollNumbers
+    finale: FinaleNumbers
 
 
 def broll_numbers(spec: StyleSpec) -> BrollNumbers:
     try:
-        photo, card = spec.broll.motion["photo"], spec.broll.motion["card"]
+        motion = spec.broll.motion
+        photo, card = motion["photo"], motion["card"]
+        stamp, lower, finale = motion["stamp"], motion["lower_third"], motion["finale"]
         return BrollNumbers(
             photo_scale_from=float(photo["scale_from"]),
             photo_scale_to=float(photo["scale_to"]),
@@ -162,6 +215,15 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             card_ring_color=str(card["ring_color"]),
             card_max_bottom_y=spec.broll.card_max_bottom_y,
             pip_top=spec.pip.top,
+            stamp_land_s=float(stamp["duration_s"]),
+            stamp_shake=bool(stamp["shake"]),
+            stamp_palette=str(stamp["palette"]),
+            stamp_max_y_fraction=spec.broll.stamp_max_y_fraction,
+            lower_third_fade_s=float(lower["duration_s"]),
+            lower_third_top_y=int(lower["top_y"]),
+            lower_third_bottom_y=int(lower["bottom_y"]),
+            hook_cards=int(motion["hook_cards"]["cards"]),
+            finale_fade_s=float(finale["duration_s"]),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -181,6 +243,7 @@ def numbers_for(spec: StyleSpec) -> StyleNumbers:
             ring_color=spec.pip.ring_color,
         ),
         palette=spec.palette,
+        finale=FinaleNumbers(min_s=spec.finale.min_s, max_s=spec.finale.max_s),
     )
 
 
@@ -305,6 +368,31 @@ def card_visual(src: str, width: int, height: int, *, strip_text: str, ring: boo
     )  # fmt: skip
 
 
+# 4.2: a number or quote beat stamps over the asset already on screen, so its motion
+# carries on from the previous beat instead of restarting.
+CONTINUING_SUBJECTS = frozenset({"number", "quote"})
+
+
+def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSpec:
+    """`previous` carried on for `own_s` more seconds at the rate it was moving: the
+    same framing, the Ken Burns picked up where it stopped, never restarted (4.2)."""
+    span = max(previous_s, 1e-6)
+    step = (previous.scale_to - previous.scale_from) * own_s / span
+    updates: dict[str, object] = {
+        "scale_from": previous.scale_to,
+        "scale_to": max(1.0, previous.scale_to + step),
+        "pan_px": previous.pan_px * own_s / span,
+    }
+    card = previous.card
+    if card is not None:
+        cover = (card.cover_scale_to - card.cover_scale_from) * own_s / span
+        updates["card"] = card.model_copy(update={
+            "cover_scale_from": card.cover_scale_to,
+            "cover_scale_to": max(1.0, card.cover_scale_to + cover),
+        })  # fmt: skip
+    return previous.model_copy(update=updates)
+
+
 def _visuals(
     plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None,
     numbers: StyleNumbers,
@@ -316,18 +404,28 @@ def _visuals(
     if job_dir is None:
         raise ValueError("build_spec needs job_dir to resolve the manifest's asset files")
     index = 0
+    previous: tuple[Beat, VisualSpec, str] | None = None
     for beat in plan.beats:
         decided = manifest.beat(beat.id)
         if decided is None:
             continue
         if decided.fallback_rung == 4 or decided.asset_id is None:
             out[beat.id] = ("pip", None)
+            previous = None
             continue
         record = manifest.asset(decided.asset_id)
         if beat.kind not in ("photo", "card") or record is None:
             continue
         src = str((job_dir / record.file).resolve())
-        if decided.treatment == "photo":
+        carries_on = (
+            beat.subject_kind in CONTINUING_SUBJECTS
+            and previous is not None
+            and previous[2] == decided.asset_id
+        )
+        if carries_on and previous is not None:
+            earlier, visual, _ = previous
+            visual = continued(visual, earlier.end - earlier.start, beat.end - beat.start)
+        elif decided.treatment == "photo":
             visual = photo_visual(src, record.width, record.height, index=index,
                                   crop=decided.crop, numbers=numbers)  # fmt: skip
         else:
@@ -336,8 +434,369 @@ def _visuals(
                                  ring=beat.event.kind == "ring", index=index,
                                  crop=decided.crop, numbers=numbers)  # fmt: skip
         out[beat.id] = (beat.mode, visual)
-        index += 1
+        if not carries_on:
+            index += 1
+        previous = (beat, visual, decided.asset_id)
     return out
+
+
+# --- set pieces and overlays (ticket 026; decisions 3.4, 4.1, 4.2, 6.3) -----------------
+#
+# The style front matter carries the durations, the stamp palette name, the hook's card
+# count and the two y bands; these constants are the engine's look, like the card
+# constants above. The hook and finale geometry is read off the reference frames
+# (nkb_02 / nkb_11, dyson_02 / dyson_10), the stamp and punch-in numbers off research
+# sections 2 and 3.
+
+SAFE_LEFT = 60.0  # the style's left margin, the caption block's too (6.2)
+SAFE_RIGHT_PX = 140.0  # the platform's right rail: nothing lands under it
+FONT_STEP_PX = 4  # type shrinks in steps until a measured line fits
+
+HOOK_TITLE_TOP, HOOK_TITLE_FONT_PX, HOOK_TITLE_MAX_LINES = 170.0, 80, 2
+HOOK_TITLE_MIN_FONT_PX = 48
+HOOK_CARD_IMAGE_W = 402.0  # 430 across with the style's 14 px border
+HOOK_IMAGE_MIN_H, HOOK_IMAGE_MAX_H = 300.0, 560.0
+HOOK_STRIP_PX, HOOK_STRIP_FONT_PX = 52, 30
+HOOK_BAND_TOP = 340.0
+HOOK_SECOND_DROP_PX = 100.0  # the right-hand card hangs lower (nkb_02, dyson_02)
+HOOK_ROTATES = (-3.0, 4.0, -2.0)
+HOOK_SPRING_S, HOOK_STAGGER_S = 0.45, 0.08
+HOOK_FLY_SIDE_PX, HOOK_FLY_UP_PX = 900.0, 1200.0  # research S3: from 900 or 1200 px
+
+FINALE_DIAMETER, FINALE_CENTER_Y, FINALE_RING_PX = 440.0, 850.0, 10
+FINALE_TEXT_FONT_PX, FINALE_TEXT_TOP = 96, 1180.0
+FINALE_CARD_IMAGE_W = 262.0
+FINALE_IMAGE_MIN_H, FINALE_IMAGE_MAX_H = 200.0, 360.0
+FINALE_SLOT_TOPS = (170.0, 470.0, 460.0)  # top centre, left, right (dyson_10)
+FINALE_ROTATES = (2.0, -6.0, 5.0)
+
+STAMP_FONT_PX, STAMP_MIN_FONT_PX = 92, 24  # research S3: 92 px type, 9 px border
+STAMP_BORDER_PX, STAMP_RADIUS_PX = 9, 10
+STAMP_PAD_X, STAMP_PAD_Y = 34.0, 16.0
+STAMP_LINE_HEIGHT = 1.25
+STAMP_ROTATE_DEG, STAMP_SCALE_FROM, STAMP_SHAKE_S = -4.0, 2.6, 0.25
+STAMP_CENTER_Y = 620.0  # the reference stamps land around a third down the frame
+STAMP_FILL = "rgba(17,17,17,0.82)"
+# `broll.motion.stamp.palette` names the colour set. The plan carries no sentiment, so
+# every stamp takes the set's lead colour (the references' most common one, the yellow
+# price and status stamps); picking the green payoff or the red counter needs a field
+# the plan does not have yet.
+STAMP_PALETTES: Mapping[str, tuple[str, ...]] = {
+    "yellow_green_red": ("#FFD60A", "#2ECC71", "#E53935"),
+    "cyan_white": ("#22D3EE", "#FFFFFF"),
+    "teal": ("#14B8A6",),
+}
+
+LOWER_THIRD_BAR_PX, LOWER_THIRD_PAD_X = 12, 24.0
+LOWER_THIRD_NAME_PX, LOWER_THIRD_ROLE_PX = 40, 28
+LOWER_THIRD_NAME_WEIGHT, LOWER_THIRD_ROLE_WEIGHT = 700, 600
+LOWER_THIRD_FILL = "rgba(17,17,17,0.72)"
+LOWER_THIRD_SEPARATORS = ("·", "—", "–", "|", " - ")
+
+# Research S2: the full-frame punch-in, scale and grade.
+PUNCH_IN = PunchIn(
+    scale_from=1.22, settle_to=1.03, settle_s=0.9, origin_y=0.30, contrast=1.06, saturate=1.08
+)
+
+
+@dataclass(frozen=True)
+class CardSource:
+    """One asset a set piece shows: the file the driver serves and its real size."""
+
+    src: str
+    width: int
+    height: int
+    label: str = ""
+
+
+def _tilt_extent(width: float, height: float, rotate_deg: float) -> float:
+    """Half the height of a box once tilted by `rotate_deg`."""
+    theta = math.radians(rotate_deg)
+    return (width * abs(math.sin(theta)) + height * math.cos(theta)) / 2
+
+
+def _measured(text: str, *, font_px: int, style: CaptionStyle, weight: int | None = None) -> float:
+    return measure(
+        text,
+        family=style.font_family,
+        weight=weight if weight is not None else style.font_weight,
+        size_px=font_px,
+        letter_spacing_px=style.letter_spacing_px,
+    )
+
+
+def _wrap(
+    words: Sequence[str], *, font_px: int, style: CaptionStyle, max_width: float
+) -> list[str]:
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        trial = f"{current} {word}".strip()
+        if current and _measured(trial, font_px=font_px, style=style) > max_width:
+            lines.append(current)
+            current = word
+        else:
+            current = trial
+    if current:
+        lines.append(current)
+    return lines
+
+
+def title_lines(title: str, *, style: CaptionStyle) -> tuple[list[str], int]:
+    """The hook title in caption typography, wrapped into at most two lines inside the
+    caption width, the type shrinking until it fits (3.4)."""
+    words = title.split()
+    font_px = HOOK_TITLE_FONT_PX
+    while True:
+        lines = _wrap(words, font_px=font_px, style=style, max_width=style.max_width_px)
+        fits = len(lines) <= HOOK_TITLE_MAX_LINES and all(
+            _measured(line, font_px=font_px, style=style) <= style.max_width_px for line in lines
+        )
+        if fits or font_px <= HOOK_TITLE_MIN_FONT_PX:
+            return lines or [""], font_px
+        font_px -= FONT_STEP_PX
+
+
+def _box(
+    source: CardSource, *, image_w: float, min_h: float, max_h: float, strip_px: int,
+    strip_font_px: int, border_px: int,
+) -> CardBox:  # fmt: skip
+    """One card at the origin: the image covers a window of `image_w` by the height its
+    aspect asks for, inside a white border with the label strip under it."""
+    image_h = min(max_h, max(min_h, image_w * source.height / max(1, source.width)))
+    strip = strip_px if source.label else 0
+    return CardBox(
+        src=source.src, width=source.width, height=source.height, left=0.0, top=0.0,
+        box_width=image_w + 2 * border_px, box_height=image_h + 2 * border_px + strip,
+        image_width=image_w, image_height=image_h, border_px=border_px, rotate_deg=0.0,
+        label=source.label, strip_px=strip, strip_font_px=strip_font_px,
+    )  # fmt: skip
+
+
+def hook_card_boxes(sources: Sequence[CardSource], *, numbers: StyleNumbers) -> list[CardBox]:
+    """The hook's cards placed (3.4): the style's card count in priority order across
+    the three reference slots, one centred card when fewer resolved, none when the
+    manifest resolved nothing (the title still draws, never a blank frame)."""
+    b = numbers.broll
+    wanted = min(b.hook_cards, len(HOOK_ROTATES))
+    chosen = list(sources[:wanted]) if len(sources) >= wanted else list(sources[:1])
+    boxes = [
+        _box(s, image_w=HOOK_CARD_IMAGE_W, min_h=HOOK_IMAGE_MIN_H, max_h=HOOK_IMAGE_MAX_H,
+             strip_px=HOOK_STRIP_PX, strip_font_px=HOOK_STRIP_FONT_PX,
+             border_px=b.card_border_px)  # fmt: skip
+        for s in chosen
+    ]
+    placed: list[CardBox] = []
+    for i, box in enumerate(boxes):
+        rotate = HOOK_ROTATES[i if len(boxes) > 1 else 2]
+        # The lowest the card's centre may sit for its tilted box to end above the limit.
+        lowest = b.card_max_bottom_y - _tilt_extent(box.box_width, box.box_height, rotate)
+        if len(boxes) == 1:
+            centre = min(lowest, max(HOOK_BAND_TOP + box.box_height / 2,
+                                     (HOOK_BAND_TOP + b.card_max_bottom_y) / 2))  # fmt: skip
+            left = (WIDTH - box.box_width) / 2
+            top = centre - box.box_height / 2
+            from_x, from_y = 0.0, HOOK_FLY_UP_PX
+        elif i == 0:
+            left, top = SAFE_LEFT, HOOK_BAND_TOP
+            from_x, from_y = -HOOK_FLY_SIDE_PX, 0.0
+        elif i == 1:
+            left = WIDTH - SAFE_LEFT - box.box_width
+            top = HOOK_BAND_TOP + HOOK_SECOND_DROP_PX
+            from_x, from_y = HOOK_FLY_SIDE_PX, 0.0
+        else:
+            left = (WIDTH - box.box_width) / 2
+            top = lowest - box.box_height / 2
+            from_x, from_y = 0.0, HOOK_FLY_UP_PX
+        placed.append(box.model_copy(update={
+            "left": left, "top": top, "rotate_deg": rotate,
+            "from_x": from_x, "from_y": from_y, "delay_s": i * HOOK_STAGGER_S,
+        }))  # fmt: skip
+    return placed
+
+
+def hook_spec(title: str, sources: Sequence[CardSource], *, numbers: StyleNumbers) -> HookCardsSpec:
+    lines, font_px = title_lines(title, style=numbers.captions)
+    return HookCardsSpec(
+        title_lines=lines,
+        title_font_px=font_px,
+        title_top=HOOK_TITLE_TOP,
+        title_line_px=font_px * numbers.captions.line_height,
+        title_color="#FFFFFF",
+        cards=hook_card_boxes(sources, numbers=numbers),
+        spring_s=HOOK_SPRING_S,
+    )
+
+
+def finale_card_boxes(sources: Sequence[CardSource], *, numbers: StyleNumbers) -> list[CardBox]:
+    """The hook's cards again, around the finale circle (the references close the loop
+    with the same faces)."""
+    border = numbers.broll.card_border_px
+    boxes = [
+        _box(s, image_w=FINALE_CARD_IMAGE_W, min_h=FINALE_IMAGE_MIN_H, max_h=FINALE_IMAGE_MAX_H,
+             strip_px=0, strip_font_px=0, border_px=border)  # fmt: skip
+        for s in sources[: len(FINALE_SLOT_TOPS)]
+    ]
+    def left_of(slot: int, width: float) -> float:
+        """Top centre, then the left and right shoulders of the circle (dyson_10)."""
+        if slot == 0:
+            return (WIDTH - width) / 2
+        return SAFE_LEFT if slot == 1 else WIDTH - SAFE_LEFT - width
+
+    return [
+        box.model_copy(update={
+            "left": left_of(i, box.box_width), "top": FINALE_SLOT_TOPS[i],
+            "rotate_deg": FINALE_ROTATES[i], "delay_s": i * HOOK_STAGGER_S,
+            "from_y": HOOK_FLY_UP_PX if i == 0 else 0.0,
+            "from_x": 0.0 if i == 0 else (-HOOK_FLY_SIDE_PX if i == 1 else HOOK_FLY_SIDE_PX),
+        })  # fmt: skip
+        for i, box in enumerate(boxes)
+    ]
+
+
+def finale_spec(
+    text: str, sources: Sequence[CardSource], *, numbers: StyleNumbers
+) -> FinaleCardSpec:
+    return FinaleCardSpec(
+        text=text,
+        text_font_px=FINALE_TEXT_FONT_PX,
+        text_top=FINALE_TEXT_TOP,
+        text_color=numbers.palette.accent,
+        circle_left=(WIDTH - FINALE_DIAMETER) / 2,
+        circle_top=FINALE_CENTER_Y - FINALE_DIAMETER / 2,
+        circle_diameter=FINALE_DIAMETER,
+        ring_px=FINALE_RING_PX,
+        ring_color=numbers.palette.accent,
+        cards=finale_card_boxes(sources, numbers=numbers),
+        fade_s=numbers.broll.finale_fade_s,
+    )
+
+
+def stamp_colors(numbers: StyleNumbers) -> tuple[str, ...]:
+    """The style's stamp colour set; an unnamed set falls back to the palette accent."""
+    return STAMP_PALETTES.get(numbers.broll.stamp_palette) or (numbers.palette.accent,)
+
+
+def stamp_spec(text: str, *, numbers: StyleNumbers) -> StampSpec:
+    """A landed stamp, measured and clamped: inside the style's top
+    `broll.stamp_max_y_fraction` of the frame and clear of the platform's right rail."""
+    style = numbers.captions
+    available = WIDTH - SAFE_RIGHT_PX - SAFE_LEFT
+    room = available - 2 * STAMP_PAD_X - 2 * STAMP_BORDER_PX
+    font_px = STAMP_FONT_PX
+    while font_px > STAMP_MIN_FONT_PX and _measured(text, font_px=font_px, style=style) > room:
+        font_px -= FONT_STEP_PX
+    width = min(
+        _measured(text, font_px=font_px, style=style) + 2 * STAMP_PAD_X + 2 * STAMP_BORDER_PX,
+        available,
+    )
+    height = font_px * STAMP_LINE_HEIGHT + 2 * STAMP_PAD_Y + 2 * STAMP_BORDER_PX
+    left = min(max(SAFE_LEFT, (WIDTH - width) / 2), WIDTH - SAFE_RIGHT_PX - width)
+    half = _tilt_extent(width, height, STAMP_ROTATE_DEG)
+    limit = numbers.broll.stamp_max_y_fraction * HEIGHT
+    centre = max(half, min(STAMP_CENTER_Y, limit - half))
+    return StampSpec(
+        text=text, left=left, top=centre - height / 2, width=width, height=height,
+        rotate_deg=STAMP_ROTATE_DEG, font_px=font_px, border_px=STAMP_BORDER_PX,
+        radius_px=STAMP_RADIUS_PX, color=stamp_colors(numbers)[0], fill=STAMP_FILL,
+        scale_from=STAMP_SCALE_FROM,
+        land_s=numbers.broll.stamp_land_s,
+        shake_s=STAMP_SHAKE_S if numbers.broll.stamp_shake else 0.0,
+    )  # fmt: skip
+
+
+def split_label(text: str) -> tuple[str, str]:
+    """`"India Gate · Delhi"` -> name and role; no separator means no role."""
+    for separator in LOWER_THIRD_SEPARATORS:
+        if separator in text:
+            name, _, role = text.partition(separator)
+            return name.strip(), role.strip()
+    return text.strip(), ""
+
+
+def lower_third_spec(text: str, *, numbers: StyleNumbers) -> LowerThirdSpec:
+    """The name-and-role label in the style's `lower_third` band (6.3)."""
+    b, style = numbers.broll, numbers.captions
+    name, role = split_label(text)
+    widest = max(
+        _measured(name, font_px=LOWER_THIRD_NAME_PX, style=style, weight=LOWER_THIRD_NAME_WEIGHT),
+        _measured(role, font_px=LOWER_THIRD_ROLE_PX, style=style, weight=LOWER_THIRD_ROLE_WEIGHT),
+    )
+    width = min(
+        LOWER_THIRD_BAR_PX + 2 * LOWER_THIRD_PAD_X + widest, WIDTH - SAFE_RIGHT_PX - SAFE_LEFT
+    )
+    return LowerThirdSpec(
+        name=name, role=role, left=SAFE_LEFT, top=float(b.lower_third_top_y), width=width,
+        height=float(b.lower_third_bottom_y - b.lower_third_top_y), bar_px=LOWER_THIRD_BAR_PX,
+        accent=numbers.palette.accent, fill=LOWER_THIRD_FILL,
+        name_font_px=LOWER_THIRD_NAME_PX, role_font_px=LOWER_THIRD_ROLE_PX,
+        fade_s=b.lower_third_fade_s,
+    )  # fmt: skip
+
+
+def card_sources(
+    plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None
+) -> list[CardSource]:
+    """The hook's planned card ids resolved through the manifest's aliases, once each,
+    labelled with the lower-third the beat that sourced them carries."""
+    if manifest is None or job_dir is None:
+        return []
+    labels: dict[str, str] = {}
+    for beat in plan.beats:
+        decided = manifest.beat(beat.id)
+        if decided is None or decided.asset_id is None:
+            continue
+        if beat.event.kind == "lower_third" and beat.event.text:
+            labels.setdefault(decided.asset_id, beat.event.text)
+    out: list[CardSource] = []
+    seen: set[str] = set()
+    for planned in plan.hook.card_asset_ids:
+        asset_id = manifest.aliases.get(planned, planned)
+        if asset_id is None or asset_id in seen:
+            continue
+        record = manifest.asset(asset_id)
+        if record is None:
+            continue
+        seen.add(asset_id)
+        out.append(
+            CardSource(
+                src=str((job_dir / record.file).resolve()),
+                width=record.width,
+                height=record.height,
+                label=labels.get(asset_id, ""),
+            )
+        )
+    return out
+
+
+def _stamp_text(beat: Beat, manifest: AssetManifest | None) -> str | None:
+    """The beat's stamp word: its own landed event, else the rescue word a rung-3 or
+    rung-4 beat carries (4.4, 016)."""
+    if beat.event.kind == "stamp" and beat.event.text:
+        return beat.event.text
+    decided = manifest.beat(beat.id) if manifest is not None else None
+    return decided.stamp if decided is not None and decided.rescued else None
+
+
+def _check_finale(plan: PicturePlan, captions: Captions, numbers: StyleNumbers) -> Beat | None:
+    """The finale beat, its length inside the style's band and no caption page running
+    into it (3.4, 6.1). A plan with no finale beat is the grammar's rejection (3.2)."""
+    beat = next((b for b in plan.beats if b.id == plan.finale.beat_id), None)
+    if beat is None:
+        return None
+    length = beat.end - beat.start
+    if not numbers.finale.min_s - 1e-9 <= length <= numbers.finale.max_s + 1e-9:
+        raise RenderError(
+            f"the finale beat {beat.id} runs {length:g} s, outside finale.min_s-finale.max_s "
+            f"{numbers.finale.min_s:g}-{numbers.finale.max_s:g} s"
+        )
+    late = [p.index for p in captions.pages if p.end > beat.start + 1e-9]
+    if late:
+        raise RenderError(
+            f"caption pages {late} run into the finale beat {beat.id} at {beat.start:g} s "
+            "(6.1: captions are hidden from the finale word onward)"
+        )
+    return beat
 
 
 # --- the spec --------------------------------------------------------------------------
@@ -358,18 +817,43 @@ def build_spec(
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     visuals = _visuals(plan, manifest, job_dir, numbers)
-    beats = [
-        BeatSpec(
-            id=b.id,
-            start_frame=round(b.start * fps),
-            end_frame=round(b.end * fps),
-            mode=visuals.get(b.id, (b.mode, None))[0],
-            kind=b.kind,
-            enter=b.enter,
-            visual=visuals.get(b.id, (b.mode, None))[1],
+    finale_beat = _check_finale(plan, captions, numbers)
+    sources = card_sources(plan, manifest, job_dir)
+    two_lines = set(captions.beats_with_two_lines)
+    beats: list[BeatSpec] = []
+    for b in plan.beats:
+        mode, visual = visuals.get(b.id, (b.mode, None))
+        stamp = _stamp_text(b, manifest)
+        labelled = visual is not None and visual.card is not None and visual.card.strip_px > 0
+        label = b.event.text if b.event.kind == "lower_third" and b.event.text else None
+        beats.append(
+            BeatSpec(
+                id=b.id,
+                start_frame=round(b.start * fps),
+                end_frame=round(b.end * fps),
+                mode=mode,
+                kind=b.kind,
+                enter=b.enter,
+                visual=visual,
+                punch_in=PUNCH_IN if mode == "full" else None,
+                stamp=stamp_spec(stamp, numbers=numbers) if stamp else None,
+                lower_third=(
+                    lower_third_spec(label, numbers=numbers)
+                    if label and not labelled and b.id not in two_lines
+                    else None
+                ),
+                hook=(
+                    hook_spec(plan.hook.title, sources, numbers=numbers)
+                    if b.kind == "hook_cards"
+                    else None
+                ),
+                finale=(
+                    finale_spec(plan.finale.text, sources, numbers=numbers)
+                    if finale_beat is not None and b.id == finale_beat.id
+                    else None
+                ),
+            )
         )
-        for b in plan.beats
-    ]
     return RenderSpec(
         width=WIDTH,
         height=HEIGHT,
