@@ -110,12 +110,16 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.budget.gen_max_per_short == 8  # 5.5
     assert ex.requires_components == [
         "captions", "pip", "hook_cards", "finale", "stamp", "lower_third",
-        "list", "split", "wall",
+        "list", "split", "wall", "chart", "infographic",
     ]  # fmt: skip
     # 027: the three tier-1 set pieces carry their own counts and base motion (4.1, 5.2).
     assert ex.broll.motion["list"]["items_max"] == 6
     assert ex.broll.motion["split"]["panes"] == 2
     assert (ex.broll.motion["wall"]["cells_min"], ex.broll.motion["wall"]["cells_max"]) == (4, 9)
+    # 021: the two infographic kinds are drawn in code from these numbers (9.2, 9.3).
+    assert ex.broll.motion["chart"]["marks_max"] == 6
+    assert ex.broll.motion["chart"]["grouping"] == "indian"
+    assert ex.broll.motion["infographic"]["labels_max"] == 5
     assert ex.palette.accent == "#FFD60A"
 
 

@@ -105,7 +105,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from shortsmith import assets, ffmpeg, presenter, styles, subproc
+from shortsmith import assets, ffmpeg, infographics, presenter, styles, subproc
 from shortsmith.captions import measure
 from shortsmith.contracts import (
     AssetManifest,
@@ -117,7 +117,9 @@ from shortsmith.contracts import (
     CaptionStyle,
     CardBox,
     CardSpec,
+    ChartLayout,
     Crop,
+    DiagramLayout,
     FinaleCardSpec,
     HookCardsSpec,
     ListRow,
@@ -233,6 +235,8 @@ class StyleNumbers:
     palette: Palette
     broll: BrollNumbers
     finale: FinaleNumbers
+    # 021: the `chart` and `infographic` rows, read by `infographics`.
+    info: infographics.InfographicNumbers
 
 
 def broll_numbers(spec: StyleSpec) -> BrollNumbers:
@@ -294,6 +298,7 @@ def numbers_for(spec: StyleSpec) -> StyleNumbers:
         ),
         palette=spec.palette,
         finale=FinaleNumbers(min_s=spec.finale.min_s, max_s=spec.finale.max_s),
+        info=infographics.numbers_for(spec),
     )
 
 
@@ -480,6 +485,10 @@ def _visuals(
             previous = None
             continue
         record = manifest.asset(decided.asset_id)
+        if decided.diagram_base:
+            # 021 / 9.3: a diagram base is drawn by its own layer, under the labels,
+            # never as a bare photo or card.
+            continue
         if beat.kind not in BASE_STILL_KINDS or record is None:
             continue
         src = str((job_dir / record.file).resolve())
@@ -1117,6 +1126,53 @@ def set_piece(
     return None, None, wall_spec(items, numbers=numbers)
 
 
+# --- charts and labelled diagrams (ticket 021; decisions 9.2, 9.3, 5.5) -----------------
+
+
+def diagram_base(
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None
+) -> infographics.DiagramAsset | None:
+    """The label-free base of an `infographic` beat: the beat's own asset as the step
+    classified it (5.3). None where the beat was rescued onto the gradient (4.4) - a
+    diagram with no picture under it is the PIP and its stamp word, not blank labels."""
+    if manifest is None or job_dir is None:
+        return None
+    decided = manifest.beat(beat.id)
+    record = manifest.asset(decided.asset_id) if decided and decided.asset_id else None
+    if decided is None or record is None or decided.treatment == "gradient":
+        return None
+    return infographics.DiagramAsset(
+        src=str((job_dir / record.file).resolve()), width=record.width, height=record.height,
+        treatment=decided.treatment, crop=decided.crop,
+    )  # fmt: skip
+
+
+def infographic(
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *, numbers: StyleNumbers
+) -> tuple[ChartLayout | None, DiagramLayout | None]:
+    """The `chart` drawn from the beat's series, or the labelled diagram drawn over its
+    base (021). A recipe the frame cannot hold is a build failure with the numbers in the
+    message, as a finale outside its band is (026)."""
+    if beat.kind not in ("chart", "infographic"):
+        return None, None
+    try:
+        if beat.kind == "chart":
+            return (
+                infographics.resolve_chart(
+                    infographics.chart_recipe(beat), numbers=numbers.info
+                ),
+                None,
+            )
+        base = diagram_base(beat, manifest, job_dir)
+        if base is None:
+            return None, None
+        return None, infographics.resolve_diagram(
+            infographics.diagram_recipe(beat), base, numbers=numbers.info
+        )
+    except infographics.InfographicError as exc:
+        raise RenderError(f"{beat.id}: {exc}") from None
+
+
 def _stamp_text(beat: Beat, manifest: AssetManifest | None) -> str | None:
     """The beat's stamp word: its own landed event, else the rescue word a rung-3 or
     rung-4 beat carries (4.4, 016)."""
@@ -1175,6 +1231,7 @@ def build_spec(
         labelled = visual is not None and visual.card is not None and visual.card.strip_px > 0
         label = b.event.text if b.event.kind == "lower_third" and b.event.text else None
         rows, split, wall = set_piece(b, manifest, job_dir, numbers=numbers)
+        chart, diagram = infographic(b, manifest, job_dir, numbers=numbers)
         beats.append(
             BeatSpec(
                 id=b.id,
@@ -1204,6 +1261,8 @@ def build_spec(
                 split=split,
                 wall=wall,
                 list=rows,
+                chart=chart,
+                infographic=diagram,
             )
         )
     return RenderSpec(

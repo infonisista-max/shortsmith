@@ -105,6 +105,18 @@ def test_every_prompt_forbids_text_watermarks_and_logos() -> None:
         assert gen.build_prompt(beat, SPEC).text.endswith(gen.TAIL)
 
 
+def test_a_diagram_base_prompt_also_forbids_labels() -> None:
+    """021 / 9.3: a labelled diagram's base is generated label-free; the labels are
+    drawn in code, so text never goes inside the generated image (5.5)."""
+    diagram = _beat("concept", query="a jet engine cutaway").model_copy(
+        update={"kind": "infographic"}
+    )
+    prompt = gen.build_prompt(diagram, SPEC)
+    assert gen.is_diagram_base(diagram)
+    assert prompt.text.endswith(f"{gen.TAIL}, {gen.DIAGRAM_TAIL}")
+    assert not gen.build_prompt(_beat("concept"), SPEC).text.endswith(gen.DIAGRAM_TAIL)
+
+
 # --- the fake (12.1) ---------------------------------------------------------------------
 
 

@@ -47,12 +47,18 @@ test("the composition lists list, split and wall after ticket 027", () => {
   }
 });
 
+test("the composition lists chart and infographic after ticket 021", () => {
+  for (const name of ["chart", "infographic"]) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+  }
+});
+
 test("Short.tsx draws every registered component", () => {
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
   const drawn = { hook_cards: "HookCards", finale: "Finale", stamp: "Stamp",
                   lower_third: "LowerThird", photo: "Photo", card: "Card",
                   captions: "Captions", pip: "Pip", list: "List", split: "Split",
-                  wall: "Wall" };
+                  wall: "Wall", chart: "Chart", infographic: "Infographic" };
   for (const name of registry.components) {
     assert.match(short, new RegExp(`<${drawn[name]}\\b`), `Short.tsx never draws ${name}`);
   }
@@ -81,4 +87,14 @@ test("the driver serves the list, split and wall assets too (027)", () => {
   assert.match(driver, /cells: piece\.cells\.map/, "wall cell srcs are never rewritten");
   assert.match(driver, /icon_src: url\(r\.icon_src\)/, "list icons are never rewritten");
   assert.match(driver, /panes: piece\.panes\.map/, "split pane srcs are never rewritten");
+});
+
+test("the driver serves the labelled diagram's base picture (021)", () => {
+  const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
+  assert.match(driver, /infographic\?\.src/, "the diagram base is never collected");
+  assert.match(
+    driver,
+    /infographic: \{ \.\.\.b\.infographic, src: url\(b\.infographic\.src\) \}/,
+    "the diagram base src is never rewritten",
+  );
 });

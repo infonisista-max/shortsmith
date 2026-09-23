@@ -3,8 +3,10 @@
 import type React from "react";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
+import { Chart } from "./components/chart";
 import { Finale } from "./components/finale";
 import { HookCards } from "./components/hook_cards";
+import { Infographic } from "./components/infographic";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { Photo } from "./components/photo";
@@ -17,8 +19,10 @@ import { Wall } from "./components/wall";
 export const REGISTRY: Record<string, React.ComponentType<any>> = {
   captions: Captions,
   card: Card,
+  chart: Chart,
   finale: Finale,
   hook_cards: HookCards,
+  infographic: Infographic,
   list: List,
   lower_third: LowerThird,
   photo: Photo,

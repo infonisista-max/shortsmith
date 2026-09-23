@@ -625,6 +625,84 @@ def test_registry_exports_list_split_and_wall_after_027() -> None:
     assert {"list", "split", "wall"} <= set(render.registry())
 
 
+# --- charts and labelled diagrams (ticket 021; decisions 9.2, 9.3, 5.5) ----------------
+
+
+def test_the_chart_beat_draws_the_planners_series_in_the_style_format(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "chart")
+    drawn = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id)
+    chart = drawn.chart
+    assert chart is not None
+    assert chart.form == beat.chart_form
+    assert chart.title == beat.set_piece_title
+    assert [m.label for m in chart.marks] == [p.label for p in beat.series]
+    assert [m.value for m in chart.marks] == [p.value for p in beat.series]
+    assert chart.marks[0].value_text == "12 words"  # explainer decimals 0, the beat's unit
+    # the chart is drawn, never sourced: its beat shows no picture of its own
+    assert drawn.visual is None
+
+
+def test_the_infographic_beat_draws_its_base_and_its_labels(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "infographic")
+    drawn = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id)
+    diagram = drawn.infographic
+    assert diagram is not None
+    assert [label.text for label in diagram.labels] == [label.text for label in beat.labels]
+    assert Path(diagram.src).is_file()
+    manifest_beat = _sourced(tmp_path, plan).beat(beat.id)
+    assert manifest_beat is not None and manifest_beat.asset_id is not None
+    record = _sourced(tmp_path, plan).asset(manifest_beat.asset_id)
+    assert record is not None and (diagram.width, diagram.height) == (record.width, record.height)
+    # a landscape base is boxed like a card, inside the safe box and above the limit
+    assert diagram.left >= render.SAFE_LEFT
+    assert diagram.top + diagram.box_height <= EXPLAINER.broll.card_max_bottom_y
+    # 5.5: the base is the diagram's own layer, never a bare photo beat
+    assert drawn.visual is None
+
+
+def test_the_asset_step_marks_the_diagram_base(tmp_path: Path) -> None:
+    plan = _plan()
+    manifest = _sourced(tmp_path, plan)
+    beat = _piece_beat(plan, "infographic")
+    decided = manifest.beat(beat.id)
+    assert decided is not None and decided.diagram_base
+    others = [b.beat_id for b in manifest.beats if b.diagram_base]
+    assert others == [beat.id]
+
+
+def test_a_label_outside_the_safe_area_fails_the_build(tmp_path: Path) -> None:
+    """9.3: on a full-bleed base the percentages are the frame's, so a label at 95 % of
+    the height lands under the platform's chrome - a build failure, not a silent clamp."""
+    plan = _plan()
+    beat = _piece_beat(plan, "infographic")
+    low = [label.model_copy(update={"y": 95.0}) for label in beat.labels]
+    plan = plan.model_copy(update={"beats": [
+        b.model_copy(update={"labels": low}) if b.id == beat.id else b for b in plan.beats
+    ]})  # fmt: skip
+    portrait = {PORTRAIT_SKY: (1080, 1920), beat.query: (1080, 1920)}
+    manifest = _sourced(
+        tmp_path, plan,
+        web=assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY, beat.query}),
+        commons=assets.FakeImageSource("commons", sizes=portrait),
+    )  # fmt: skip
+    with pytest.raises(render.RenderError, match="safe area"):
+        _visual_spec(tmp_path, plan, manifest)
+
+
+def test_a_rescued_infographic_beat_draws_no_diagram(tmp_path: Path) -> None:
+    plan = _plan()
+    empty = assets.FakeImageSource("web", nothing_found=True)
+    spec = _visual_spec(tmp_path, plan, _sourced(tmp_path, plan, web=empty, commons=empty))
+    beat = next(b for b in spec.beats if b.id == _piece_beat(plan, "infographic").id)
+    assert beat.infographic is None and beat.mode == "pip"
+
+
+def test_registry_exports_chart_and_infographic_after_021() -> None:
+    assert {"chart", "infographic"} <= set(render.registry())
+
+
 # --- frames and beats -----------------------------------------------------------------
 
 

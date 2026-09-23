@@ -1,7 +1,8 @@
 ---
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
-requires_components: [captions, pip, hook_cards, finale, stamp, lower_third, list, split, wall]
+requires_components: [captions, pip, hook_cards, finale, stamp, lower_third, list, split, wall,
+                      chart, infographic]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -52,6 +53,9 @@ broll:
     split: {kind: slide, panes: 2, duration_s: 0.30}
     wall: {kind: spring, cells_min: 4, cells_max: 9, duration_s: 0.30, scale_from: 1.2,
            scale_to: 1.3, dim: 0.65}
+    chart: {kind: draw_on, marks_max: 6, duration_s: 0.6, decimals: 0, grouping: indian}
+    infographic: {kind: fly_in, labels_max: 5, duration_s: 0.35, scale_from: 1.06,
+                  scale_to: 1.12, dim: 0.3}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
   unique_assets_min_per_60s: 12
@@ -143,6 +147,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - Source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration (5.1); web images are always re-dressed as cards, never shown raw. Generated depictions of a named person or product are illustration-style (`illustration_look`); scenes and unnamed people may be photoreal (`photo_look`).
 - Count unique assets, not beats: between `unique_assets_min_per_60s` and `unique_assets_max_per_60s` per minute, each reused at most `reuse_max` times (4.3). Reuse is encouraged for callbacks, payoffs and number beats; a short with no reused asset is a warning.
 - The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).
+- The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture; a label that would land outside the phone's safe area fails the build.
 - Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4). Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
 
 ## Captions

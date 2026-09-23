@@ -34,6 +34,12 @@ from shortsmith.contracts import (
     Span,
 )
 from shortsmith.contracts import (
+    PlanLabel as Label,
+)
+from shortsmith.contracts import (
+    SeriesPoint as Point,
+)
+from shortsmith.contracts import (
     SetPieceItem as Item,
 )
 from shortsmith.planner.base import Planner
@@ -79,14 +85,22 @@ class FakePlanner(Planner):
               subject_kind="entity", query="Delhi to Mumbai route",
               query_fallback="India map", source_intent="generate", asset_id="a4",
               enter="fade"),  # 009: `wipe` is not an explainer transition (9.4)
+            # 021: the chart is drawn from the series, the diagram's labels in code.
             B(id="b06", start=2.5, end=3.0, mode="off", kind="chart", overlays=["counter"],
               motion="count_up", subject_kind="number", query="twelve words in six seconds",
               query_fallback="word count", source_intent="generate", asset_id="a5",
-              event=Event(kind="stamp", text="12 WORDS"), money_reveal=True),
+              event=Event(kind="stamp", text="12 WORDS"), money_reveal=True,
+              set_piece_title="Nothing per second", value_unit="words",
+              chart_form="bar",
+              series=[Point(label="Words", value=12), Point(label="Bursts", value=6),
+                      Point(label="Seconds", value=6)]),
             B(id="b07", start=3.0, end=3.5, mode="pip", kind="infographic",
               overlays=["label_flyin"], motion="fly_in", subject_kind="concept",
               depicts="scene", query="labelled diagram of a tone burst",
-              query_fallback="sound wave diagram", source_intent="generate", asset_id="a6"),
+              query_fallback="sound wave diagram", source_intent="generate", asset_id="a6",
+              labels=[Label(text="Tone", x=30.0, y=22.0),
+                      Label(text="Burst", x=60.0, y=38.0),
+                      Label(text="Silence", x=45.0, y=55.0)]),
             # 027: the three set pieces carry their own content. Their items name assets
             # other beats already source, so the montage adds nothing to the asset count.
             B(id="b08", start=3.5, end=4.0, mode="off", kind="list", motion="reveal",

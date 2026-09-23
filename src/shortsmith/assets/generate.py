@@ -74,6 +74,10 @@ ATTEMPTS = 2  # 5.5: the call, then one retry, then "nothing generated"
 # 5.5: appended to every prompt - text in a generated image is never trusted (9.3).
 TAIL = "no text, no watermarks, no logos"
 NO_FACES = "no faces clearly visible"
+# 021 / 9.3: a labelled diagram's base carries no labels either; `infographics` draws
+# them in code over it, so the generator is told twice, in the words 5.5 asks for.
+DIAGRAM_TAIL = "no text, no labels"
+DIAGRAM_KIND = "infographic"
 
 # 5.5 / 4.2: a person is intended when the scene says so, and then faces stay in.
 PERSON_WORDS = frozenset(
@@ -148,21 +152,28 @@ def depicts_of(beat: Beat) -> Depicts:
     return "named_entity" if beat.subject_kind == "entity" else "scene"
 
 
+def is_diagram_base(beat: Beat) -> bool:
+    """Whether the beat's asset is the base of a labelled diagram (9.3, ticket 021):
+    generated label-free, shown only under the code-rendered labels."""
+    return beat.kind == DIAGRAM_KIND
+
+
 def build_prompt(beat: Beat, spec: StyleSpec) -> Prompt:
     """The 5.5 template the beat's `depicts` picks, in the style's own look words."""
     scene = beat.query.strip()
     look = spec.broll
+    tail = f"{TAIL}, {DIAGRAM_TAIL}" if is_diagram_base(beat) else TAIL
     if depicts_of(beat) == "named_entity":
         return Prompt(
             f"{look.illustration_look}, vertical 9:16, illustration of {scene}, "
-            f"clearly stylised, not a photograph, {TAIL}",
+            f"clearly stylised, not a photograph, {tail}",
             "illustration",
             "named_entity",
         )
     faces = "" if wants_person(scene) else f"{NO_FACES}, "
     return Prompt(
         f"{look.photo_look} photograph, vertical 9:16: {scene}, "
-        f"{look.scene_mood}, {look.scene_lighting}, realistic, {faces}{TAIL}",
+        f"{look.scene_mood}, {look.scene_lighting}, realistic, {faces}{tail}",
         "photoreal",
         "scene",
     )

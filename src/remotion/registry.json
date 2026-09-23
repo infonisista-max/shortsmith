@@ -2,8 +2,10 @@
   "components": [
     "captions",
     "card",
+    "chart",
     "finale",
     "hook_cards",
+    "infographic",
     "list",
     "lower_third",
     "photo",

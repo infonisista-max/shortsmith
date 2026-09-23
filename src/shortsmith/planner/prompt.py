@@ -38,9 +38,10 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v2 (ticket 027): the picture file gained the set-piece content rules for `list`,
-# `split` and `wall`; the sound file is v1's text under the new version.
-PROMPT_VERSION = "v2"
+# v3 (ticket 021): the picture file gained the infographic rules - the `chart` beat's
+# form, series and unit and the `infographic` beat's percentage labels; the sound file is
+# v1's text under the new version. (v2, ticket 027: the set-piece content rules.)
+PROMPT_VERSION = "v3"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

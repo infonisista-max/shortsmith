@@ -218,6 +218,30 @@ class SetPieceItem(StrictModel):
     asset_id: str | None = None
 
 
+ChartForm = Literal["bar", "line", "comparison"]
+LabelAnchor = Literal["left", "center", "right"]
+
+
+class SeriesPoint(StrictModel):
+    """One point of a `chart` beat's series (9.2): its axis label and its value. The
+    chart is drawn in code from these numbers; the planner never sends a picture of a
+    chart and never puts the numbers inside a generated image."""
+
+    label: str
+    value: float
+
+
+class PlanLabel(StrictModel):
+    """One label of an `infographic` beat (9.3): the text and where it sits on the base
+    picture as percentages of that picture, with the edge `x` pins. Labels are rendered
+    in code over a label-free base (5.5), never generated into it."""
+
+    text: str
+    x: float = Field(ge=0.0, le=100.0)
+    y: float = Field(ge=0.0, le=100.0)
+    anchor: LabelAnchor = "center"
+
+
 class Beat(StrictModel):
     id: str
     start: float
@@ -227,9 +251,16 @@ class Beat(StrictModel):
     kind: Kind
     overlays: list[OverlayKind] = []
     # 027: the set pieces only. `set_piece_title` is the list's header and the split's
-    # title strip; `items` are its rows, panes or cells.
+    # title strip; `items` are its rows, panes or cells. 021: a `chart` may carry the
+    # title too (its title strip).
     set_piece_title: str = ""
     items: list[SetPieceItem] = []
+    # 021: the two infographic kinds carry their own data. `chart_form`, `series` and
+    # `value_unit` belong to a `chart` beat, `labels` to an `infographic` beat.
+    chart_form: ChartForm | None = None
+    series: list[SeriesPoint] = []
+    value_unit: str = ""
+    labels: list[PlanLabel] = []
     motion: Motion | None = None
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
@@ -460,6 +491,9 @@ class BeatAsset(StrictModel):
     # `judge_max_calls` spent, or the judge could not answer. The ladder ran on the
     # source's own order instead; the beat is never rejected for it.
     judge_skipped: bool = False
+    # 021 / 9.3: the base of a labelled diagram, asked for with "no text, no labels" and
+    # shown only under the code-rendered labels, never as a bare photo.
+    diagram_base: bool = False
 
     @property
     def rescued(self) -> bool:
@@ -837,6 +871,91 @@ class WallSpec(StrictModel):
     spring_s: float
 
 
+class ChartMark(StrictModel):
+    """One mark of a chart (ticket 021), in composition pixels: the column it owns, the
+    bar drawn inside it up from the baseline (a dot at the value height on a `line`
+    chart), the point the value label hangs off, and the axis label under it."""
+
+    label: str
+    value: float
+    value_text: str
+    left: float
+    width: float
+    bar_left: float
+    bar_top: float
+    bar_width: float
+    bar_height: float
+    point_x: float
+    point_y: float
+    color: str
+    delay_s: float
+
+
+class ChartLayout(StrictModel):
+    """The `chart` set piece drawn in code from the planner's series (9.2): the title
+    over a plot box inside the safe area, one mark per series point with the axes scaled
+    to the real numbers, and the axis labels under the baseline, outside the plot."""
+
+    form: ChartForm
+    title: str
+    title_font_px: int
+    title_top: float
+    title_color: str
+    plot_left: float
+    plot_top: float
+    plot_width: float
+    plot_height: float
+    baseline_y: float
+    baseline_px: int
+    axis_color: str
+    label_top: float
+    label_font_px: int
+    value_font_px: int
+    dot_px: int
+    marks: list[ChartMark]
+    grow_s: float
+
+
+class DiagramLabel(StrictModel):
+    """One code-rendered label of a labelled diagram (9.3), placed in composition
+    pixels: the pill it draws in, the size the text fitted at, and the edge the
+    planner's percentage pinned (`anchor`, kept so 029 can fly it in from there)."""
+
+    text: str
+    left: float
+    top: float
+    width: float
+    height: float
+    font_px: int
+    anchor: LabelAnchor
+    delay_s: float
+
+
+class DiagramLayout(StrictModel):
+    """The `infographic` set piece (9.2, 9.3): the label-free base picture in its box
+    with the style's Ken Burns and scrim, and the labels drawn over it in code - text
+    never goes inside a generated image (5.5)."""
+
+    src: str
+    width: int
+    height: int
+    left: float
+    top: float
+    box_width: float
+    box_height: float
+    zoom: float
+    focus_x: float
+    focus_y: float
+    scale_from: float
+    scale_to: float
+    dim: float
+    labels: list[DiagramLabel]
+    fill: str
+    radius_px: int
+    text_color: str
+    fly_s: float
+
+
 class PunchIn(StrictModel):
     """The full-frame presenter punch-in (research S2): scale `scale_from` easing to
     `settle_to` by `settle_s`, then to 1 over the rest of the beat, with the grade."""
@@ -852,8 +971,9 @@ class PunchIn(StrictModel):
 class BeatSpec(StrictModel):
     """A plan beat as frame range; `end_frame` is exclusive. A rung-4 rescue arrives
     here as `pip` with no visual (4.4). The set pieces and the two overlay kinds (026,
-    027) ride along resolved: at most one of `hook` / `finale` / `list` / `split` /
-    `wall`, and at most one landed event (`stamp` or `lower_third`, 3.1).
+    027, 021) ride along resolved: at most one of `hook` / `finale` / `list` / `split` /
+    `wall` / `chart` / `infographic`, and at most one landed event (`stamp` or
+    `lower_third`, 3.1).
 
     `list` shadows the builtin inside this class body only; no annotation below it
     needs `list[...]`, and the field name matches its kind as `hook` and `finale` do."""
@@ -873,6 +993,9 @@ class BeatSpec(StrictModel):
     split: SplitSpec | None = None
     wall: WallSpec | None = None
     list: ListSpec | None = None
+    # 021: the two infographic kinds, laid out by `infographics`.
+    chart: ChartLayout | None = None
+    infographic: DiagramLayout | None = None
 
 
 class PipGeometry(StrictModel):

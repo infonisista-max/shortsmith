@@ -91,6 +91,7 @@ from shortsmith.assets.generate import (
     Generating,
     GeneratorError,
     ImageGenerator,
+    is_diagram_base,
 )
 from shortsmith.assets.judge import (
     FakeRelevanceJudge,
@@ -543,6 +544,7 @@ class _Walk:
                 crop=crop,
                 stamp=stamp_word(beat) if rung >= 3 else None,
                 judge_skipped=judge_skipped,
+                diagram_base=is_diagram_base(beat),
             )
         )
         self.subjects[beat.id] = beat.subject_kind or ""

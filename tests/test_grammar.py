@@ -26,10 +26,12 @@ from shortsmith.contracts import (
     Mode,
     MoodPoint,
     PicturePlan,
+    PlanLabel,
     PlanReference,
     PlanRequest,
     PlanStyle,
     Segment,
+    SeriesPoint,
     SetPieceItem,
     SoundStory,
     Span,
@@ -563,6 +565,90 @@ def test_set_piece_items_are_not_asset_showings(spec: StyleSpec) -> None:
     neither adds a unique asset nor spends the asset's `reuse_max`."""
     plan = _piece(make_plan(assets=12), "b05", "wall", _items(9, asset="a01"))
     checked(plan, spec)
+
+
+# --- charts and labelled diagrams (ticket 021; decisions 9.2, 9.3) -----------------------
+
+
+def _points(n: int, *, value: float = 1.0) -> list[SeriesPoint]:
+    return [SeriesPoint(label=f"p{i}", value=value + i) for i in range(n)]
+
+
+def _chart(
+    plan: PicturePlan, beat_id: str, form: str, points: Sequence[SeriesPoint]
+) -> PicturePlan:
+    return replace(
+        plan, beat_id, kind="chart", motion="count_up", subject_kind="number",
+        chart_form=form, series=list(points), set_piece_title="Where it went",
+    )  # fmt: skip
+
+
+def _diagram(plan: PicturePlan, beat_id: str, labels: Sequence[PlanLabel]) -> PicturePlan:
+    return replace(
+        plan, beat_id, kind="infographic", motion="fly_in", subject_kind="concept",
+        labels=list(labels),
+    )  # fmt: skip
+
+
+def _labels(n: int) -> list[PlanLabel]:
+    return [PlanLabel(text=f"L{i}", x=40.0, y=30.0 + i, anchor="center") for i in range(n)]
+
+
+def test_a_chart_and_a_diagram_beat_pass_with_the_data_the_style_allows(
+    spec: StyleSpec,
+) -> None:
+    checked(_chart(make_plan(), "b05", "bar", _points(6)), spec)
+    checked(_chart(make_plan(), "b05", "comparison", _points(2)), spec)
+    checked(_diagram(make_plan(), "b05", _labels(5)), spec)
+
+
+def test_a_chart_beat_without_a_form_or_a_series_is_rejected(spec: StyleSpec) -> None:
+    bare = replace(make_plan(), "b05", kind="chart", motion="count_up")
+    assert ("b05", "9.2") in rules(picture(bare, spec))
+    formless = replace(
+        make_plan(), "b05", kind="chart", motion="count_up", series=_points(3)
+    )
+    assert ("b05", "9.2") in rules(picture(formless, spec))
+
+
+def test_series_counts_outside_the_style_numbers_are_rejected(spec: StyleSpec) -> None:
+    assert ("b05", "9.2") in rules(picture(_chart(make_plan(), "b05", "bar", _points(7)), spec))
+    assert ("b05", "9.2") in rules(picture(_chart(make_plan(), "b05", "line", _points(1)), spec))
+    assert (
+        ("b05", "9.2") in rules(picture(_chart(make_plan(), "b05", "comparison", _points(3)), spec))
+    )
+
+
+def test_a_negative_or_unlabelled_series_value_is_rejected(spec: StyleSpec) -> None:
+    negative = [SeriesPoint(label="a", value=4.0), SeriesPoint(label="b", value=-2.0)]
+    assert ("b05", "9.2") in rules(picture(_chart(make_plan(), "b05", "bar", negative), spec))
+    bare = [SeriesPoint(label="", value=4.0), SeriesPoint(label="b", value=2.0)]
+    assert ("b05", "9.2") in rules(picture(_chart(make_plan(), "b05", "bar", bare), spec))
+
+
+def test_chart_data_on_a_beat_that_is_not_a_chart_is_rejected(spec: StyleSpec) -> None:
+    plan = replace(make_plan(), "b05", series=_points(2))
+    assert ("b05", "9.2") in rules(picture(plan, spec))
+    plan = replace(make_plan(), "b05", chart_form="bar")
+    assert ("b05", "9.2") in rules(picture(plan, spec))
+    plan = replace(make_plan(), "b05", value_unit="crore")
+    assert ("b05", "9.2") in rules(picture(plan, spec))
+
+
+def test_a_chart_may_carry_the_title_strip_an_ordinary_beat_may_not(spec: StyleSpec) -> None:
+    checked(_chart(make_plan(), "b05", "bar", _points(2)), spec)
+    assert ("b05", "4.1") in rules(picture(replace(make_plan(), "b05", set_piece_title="x"), spec))
+
+
+def test_labels_on_a_beat_that_is_not_an_infographic_are_rejected(spec: StyleSpec) -> None:
+    assert ("b05", "9.3") in rules(picture(replace(make_plan(), "b05", labels=_labels(2)), spec))
+
+
+def test_an_infographic_needs_one_to_labels_max_labels_each_with_text(spec: StyleSpec) -> None:
+    assert ("b05", "9.3") in rules(picture(_diagram(make_plan(), "b05", []), spec))
+    assert ("b05", "9.3") in rules(picture(_diagram(make_plan(), "b05", _labels(6)), spec))
+    blank = [PlanLabel(text="  ", x=40.0, y=40.0)]
+    assert ("b05", "9.3") in rules(picture(_diagram(make_plan(), "b05", blank), spec))
 
 
 # --- assets (4.3) ------------------------------------------------------------------------

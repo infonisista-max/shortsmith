@@ -43,6 +43,7 @@ from shortsmith import (
     contact_sheet,
     ffmpeg,
     fixture,
+    infographics,
     ingest,
     jobs,
     pipeline,
@@ -366,6 +367,54 @@ def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
     labelled = [b.id for b in spec.beats if b.lower_third is not None]
     check(not labelled, f"lower-thirds drawn on {labelled}; b04's card strip carries it")
     check_list_split_wall(spec, plan)
+    check_infographics(spec, plan)
+
+
+def check_infographics(spec: RenderSpec, plan: PicturePlan) -> None:
+    """021: the fake plan's `chart` beat is drawn from its series (the numbers written in
+    the style's grouping, the axes scaled, the plot above `broll.card_max_bottom_y`) and
+    its `infographic` beat draws its label-free base with every label in code, inside the
+    safe area."""
+    numbers = render.style_numbers(styles.DEFAULT)
+    limit = numbers.broll.card_max_bottom_y
+    planned = {b.kind: b for b in plan.beats if b.kind in ("chart", "infographic")}
+    check(set(planned) == {"chart", "infographic"}, f"the fake plan names {sorted(planned)}")
+    drawn = next(b for b in spec.beats if b.id == planned["chart"].id)
+    chart = drawn.chart
+    check(chart is not None, "the chart beat carries no chart")
+    assert chart is not None
+    check(
+        [m.label for m in chart.marks] == [p.label for p in planned["chart"].series],
+        f"the chart draws {[m.label for m in chart.marks]}",
+    )
+    check(
+        [m.value for m in chart.marks] == [p.value for p in planned["chart"].series],
+        "the chart's values are not the plan's series (9.2)",
+    )
+    tallest = max(m.bar_height for m in chart.marks)
+    check(tallest == chart.plot_height, f"the largest bar is {tallest:g}, not the plot height")
+    lowest = max(chart.label_top + chart.label_font_px, chart.baseline_y)
+    check(lowest <= limit, f"the chart's axis ends at y {lowest:g}, past {limit}")
+    check(drawn.visual is None, "the chart beat draws a picture; a chart is drawn in code")
+    diagram_beat = next(b for b in spec.beats if b.id == planned["infographic"].id)
+    diagram = diagram_beat.infographic
+    check(diagram is not None, "the infographic beat carries no diagram")
+    assert diagram is not None
+    check(
+        [label.text for label in diagram.labels]
+        == [label.text for label in planned["infographic"].labels],
+        f"the diagram draws {[label.text for label in diagram.labels]}",
+    )
+    check(Path(diagram.src).is_file(), f"the diagram base {diagram.src} does not exist")
+    check(diagram_beat.visual is None, "the diagram base is drawn as a bare photo too (9.3)")
+    for label in diagram.labels:
+        inside = (
+            label.left >= infographics.SAFE_LEFT
+            and label.left + label.width <= render.WIDTH - infographics.SAFE_RIGHT_PX
+            and label.top >= infographics.SAFE_TOP
+            and label.top + label.height <= limit
+        )
+        check(inside, f"the label {label.text!r} draws outside the safe area")
 
 
 def check_list_split_wall(spec: RenderSpec, plan: PicturePlan) -> None:

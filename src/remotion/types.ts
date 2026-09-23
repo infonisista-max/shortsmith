@@ -237,6 +237,79 @@ export type WallSpec = {
   spring_s: number;
 };
 
+// The two infographic kinds (ticket 021): the chart is drawn from the planner's series
+// and the diagram's labels are drawn in code over a label-free base, both measured and
+// placed by `shortsmith.infographics`.
+
+export type ChartMark = {
+  label: string;
+  value: number;
+  value_text: string;
+  left: number;
+  width: number;
+  bar_left: number;
+  bar_top: number;
+  bar_width: number;
+  bar_height: number;
+  point_x: number;
+  point_y: number;
+  color: string;
+  delay_s: number;
+};
+
+export type ChartLayout = {
+  form: "bar" | "line" | "comparison";
+  title: string;
+  title_font_px: number;
+  title_top: number;
+  title_color: string;
+  plot_left: number;
+  plot_top: number;
+  plot_width: number;
+  plot_height: number;
+  baseline_y: number;
+  baseline_px: number;
+  axis_color: string;
+  label_top: number;
+  label_font_px: number;
+  value_font_px: number;
+  dot_px: number;
+  marks: ChartMark[];
+  grow_s: number;
+};
+
+export type DiagramLabel = {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  font_px: number;
+  anchor: "left" | "center" | "right";
+  delay_s: number;
+};
+
+export type DiagramLayout = {
+  src: string;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  box_width: number;
+  box_height: number;
+  zoom: number;
+  focus_x: number;
+  focus_y: number;
+  scale_from: number;
+  scale_to: number;
+  dim: number;
+  labels: DiagramLabel[];
+  fill: string;
+  radius_px: number;
+  text_color: string;
+  fly_s: number;
+};
+
 export type PunchIn = {
   scale_from: number;
   settle_to: number;
@@ -262,6 +335,8 @@ export type BeatSpec = {
   split?: SplitSpec | null;
   wall?: WallSpec | null;
   list?: ListSpec | null;
+  chart?: ChartLayout | null;
+  infographic?: DiagramLayout | null;
 };
 
 export type PipGeometry = {

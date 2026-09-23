@@ -65,6 +65,9 @@ SET_PIECE_KINDS = frozenset({"list", "chart", "split", "wall", "finale"})  # 3.1
 DENSITY_EXEMPT_KINDS = SET_PIECE_KINDS | {"hook_cards"}
 ITEM_KINDS = frozenset({"list", "split", "wall"})  # 027: the set pieces with own content
 TITLED_KINDS = frozenset({"list", "split"})  # a header (nkb_04) and a title strip (5.2)
+# 021: a chart carries its title strip in the same field, but needs no items.
+TITLE_KINDS = TITLED_KINDS | {"chart"}
+CHART_KIND, DIAGRAM_KIND = "chart", "infographic"
 TIER2_SUBSTITUTES: dict[str, str] = {"parallax": "photo", "vector_illustration": "card"}
 NUMBER_WORDS = {
     "1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six",
@@ -151,6 +154,7 @@ def validate_picture(
     found += _hook(beats, plan, words, spec)
     found += _kinds(beats, spec)
     found += _items(beats, spec)
+    found += _charts(beats, spec)
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
@@ -560,10 +564,10 @@ def _items(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
                 found.append(
                     _v("4.1", b.id, f"kind {b.kind!r} carries items; only {sorted(ITEM_KINDS)} do")
                 )
-            if b.set_piece_title:
+            if b.set_piece_title and b.kind not in TITLE_KINDS:
                 found.append(
                     _v("4.1", b.id, f"kind {b.kind!r} carries a set_piece_title; only a "
-                                    "list or a split has one")  # fmt: skip
+                                    "list, a split or a chart has one")  # fmt: skip
                 )
             continue
         low, high, key = _item_count(spec, b.kind)
@@ -588,6 +592,73 @@ def _items(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
                 )
             if b.kind != "wall" and not item.text.strip():
                 found.append(_v("4.1", b.id, f"item {i} of this {b.kind} has no text"))
+    return found
+
+
+def _motion_count(spec: StyleSpec, kind: str, key: str) -> int:
+    return int(spec.broll.motion.get(kind, {}).get(key, 0))
+
+
+def _charts(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
+    """9.2 / 9.3 (ticket 021): the two infographic kinds carry their own data.
+    `chart_form`, `series` and `value_unit` belong to a `chart` beat and `labels` to an
+    `infographic` beat; the counts come from `broll.motion.chart.marks_max` and
+    `broll.motion.infographic.labels_max`; every value is labelled and non-negative
+    (the chart is drawn from the real numbers, so a chart that cannot be drawn is a
+    rejection, not a clamp)."""
+    found: list[Violation] = []
+    marks_max = _motion_count(spec, CHART_KIND, "marks_max")
+    labels_max = _motion_count(spec, DIAGRAM_KIND, "labels_max")
+    for b in beats:
+        if b.kind != CHART_KIND:
+            if b.series or b.chart_form is not None or b.value_unit:
+                found.append(
+                    _v("9.2", b.id, f"kind {b.kind!r} carries chart data (chart_form, series "
+                                    "or value_unit); only a chart does")  # fmt: skip
+                )
+        else:
+            found += _chart_beat(b, marks_max)
+        if b.kind != DIAGRAM_KIND:
+            if b.labels:
+                found.append(
+                    _v("9.3", b.id, f"kind {b.kind!r} carries labels; only an infographic "
+                                    "(a labelled diagram) does")  # fmt: skip
+                )
+            continue
+        if not 1 <= len(b.labels) <= labels_max:
+            found.append(
+                _v("9.3", b.id, f"this infographic has {len(b.labels)} labels; broll.motion."
+                                f"infographic.labels_max allows 1-{labels_max}")  # fmt: skip
+            )
+        for i, label in enumerate(b.labels):
+            if not label.text.strip():
+                found.append(_v("9.3", b.id, f"label {i} has no text"))
+    return found
+
+
+def _chart_beat(b: Beat, marks_max: int) -> list[Violation]:
+    """One `chart` beat's form and series (9.2)."""
+    found: list[Violation] = []
+    if b.chart_form is None:
+        found.append(
+            _v("9.2", b.id, "a chart beat needs a chart_form (bar | line | comparison)")
+        )
+    if b.chart_form == "comparison":
+        low, high, key = 2, 2, "a comparison draws exactly two values"
+    else:
+        low, high, key = 2, marks_max, f"broll.motion.chart.marks_max allows 2-{marks_max}"
+    if not low <= len(b.series) <= high:
+        found.append(_v("9.2", b.id, f"this chart has {len(b.series)} series values; {key}"))
+    for i, point in enumerate(b.series):
+        if not point.label.strip():
+            found.append(_v("9.2", b.id, f"series value {i} ({point.value:g}) has no label"))
+        if point.value < 0:
+            found.append(
+                _v("9.2", b.id, f"series value {point.label!r} is {point.value:g}; chart "
+                                "values are non-negative in v1")  # fmt: skip
+            )
+    if b.series and max(p.value for p in b.series) <= 0:
+        found.append(_v("9.2", b.id, "every series value is zero: there is no scale to draw"))
     return found
 
 

@@ -7,13 +7,17 @@
 // punch-in, and the two landed overlays (`stamp`, `lower_third`) over the presenter.
 // Ticket 027 adds the other three tier-1 set pieces in the same layer: `list` and
 // `wall` over the beat's dimmed base still, `split` as the news-card composite.
-// Other kinds arrive with their tickets.
+// Ticket 021 adds the two infographic kinds: `infographic` draws its own label-free base
+// with the labels in code over it, `chart` is drawn from the planner's series over the
+// gradient. Other kinds arrive with their tickets.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
+import { Chart } from "./components/chart";
 import { Finale } from "./components/finale";
 import { HookCards } from "./components/hook_cards";
+import { Infographic } from "./components/infographic";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { Photo } from "./components/photo";
@@ -75,6 +79,18 @@ export const Short: React.FC<RenderSpec> = (spec) => {
           fps={spec.fps}
           lengthS={(beat.end_frame - beat.start_frame) / spec.fps}
         />
+      ) : null}
+      {beat?.infographic ? (
+        <Infographic
+          spec={beat.infographic}
+          style={spec.caption_style}
+          frame={since}
+          fps={spec.fps}
+          lengthS={(beat.end_frame - beat.start_frame) / spec.fps}
+        />
+      ) : null}
+      {beat?.chart ? (
+        <Chart spec={beat.chart} style={spec.caption_style} frame={since} fps={spec.fps} />
       ) : null}
       {beat?.mode === "full" ? <Presenter spec={spec} beat={beat} frame={frame} /> : null}
       {beat?.mode === "pip" ? <Pip spec={spec} /> : null}

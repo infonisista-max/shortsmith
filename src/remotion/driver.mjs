@@ -208,7 +208,7 @@ async function render(args) {
   const inputProps = { ...spec };
   // Every file the composition reads: the presenter cut, each beat's B-roll (016), the
   // cards of the hook and finale set pieces (026) and the wall's cells, the list's row
-  // icons and the split's panes and badge (027).
+  // icons and the split's panes and badge (027), and the diagram's base picture (021).
   const setPieceCards = (beat) => [
     ...(beat.hook?.cards ?? []),
     ...(beat.finale?.cards ?? []),
@@ -220,6 +220,8 @@ async function render(args) {
     ...(b.visual ? [b.visual.src] : []),
     ...setPieceCards(b).map((c) => c.src),
     ...(b.list?.rows ?? []).map((r) => r.icon_src).filter(Boolean),
+    // 021: the labelled diagram's own base picture.
+    ...(b.infographic?.src ? [b.infographic.src] : []),
   ]);
   const files = [...(spec.presenter ? [spec.presenter] : []), ...assetFiles];
   if (files.length) {
@@ -256,6 +258,7 @@ async function render(args) {
       ...(b.wall ? { wall: servedWall(b.wall) } : {}),
       ...(b.list ? { list: servedList(b.list) } : {}),
       ...(b.split ? { split: servedSplit(b.split) } : {}),
+      ...(b.infographic ? { infographic: { ...b.infographic, src: url(b.infographic.src) } } : {}),
     }));
   }
   const started = performance.now();
