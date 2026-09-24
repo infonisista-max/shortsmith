@@ -34,6 +34,9 @@ from shortsmith.contracts import (
     Span,
 )
 from shortsmith.contracts import (
+    CounterPlan as Counter,
+)
+from shortsmith.contracts import (
     PlanLabel as Label,
 )
 from shortsmith.contracts import (
@@ -85,11 +88,12 @@ class FakePlanner(Planner):
               subject_kind="entity", query="Delhi to Mumbai route",
               query_fallback="India map", source_intent="generate", asset_id="a4",
               enter="fade"),  # 009: `wipe` is not an explainer transition (9.4)
-            # 021: the chart is drawn from the series, the diagram's labels in code.
+            # 021: the chart is drawn from the series, the diagram's labels in code. 029:
+            # the counter is the chart beat's landed event, counting to its top value.
             B(id="b06", start=2.5, end=3.0, mode="off", kind="chart", overlays=["counter"],
               motion="count_up", subject_kind="number", query="twelve words in six seconds",
               query_fallback="word count", source_intent="generate", asset_id="a5",
-              event=Event(kind="stamp", text="12 WORDS"), money_reveal=True,
+              counter=Counter(start=0, target=12, unit="words"), money_reveal=True,
               set_piece_title="Nothing per second", value_unit="words",
               chart_form="bar",
               series=[Point(label="Words", value=12), Point(label="Bursts", value=6),
@@ -159,7 +163,7 @@ class FakePlanner(Planner):
         cues += [
             Cue(beat_id=b.id, intent="money" if b.money_reveal else "popup_tick", at="event")
             for b in picture.beats
-            if b.event.kind == "stamp"
+            if b.event.kind == "stamp" or b.counter is not None
         ]
         cues.append(Cue(beat_id=last, intent="finale_hit", at="start"))
         end = picture.beats[-1].end

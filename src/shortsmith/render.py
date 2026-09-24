@@ -91,6 +91,12 @@ montage member, never a showing):
   `broll.card_max_bottom_y`, cells flying in from alternating sides, each with its own
   Ken Burns, over the dimmed base still (nkb_09).
 
+Ticket 029 adds the two overlays: `label_flyin` is the diagram's labels flying in (their
+stagger and edges are `infographics.resolve_diagram`'s), and `counter` on a beat whose plan
+carries `counter` numbers - the digits of every frame written in
+`broll.motion.counter.grouping`, landing in the stamp's time with its shake, in the stamp's
+box measured on the widest text it shows (`counter_spec`).
+
 Every number the style front matter carries (the four `broll.motion` rows, the two y
 bands, the card count, the stamp palette name, `finale.min_s`/`max_s`) is read from
 it; the geometry read off the reference frames stays in the constants below.
@@ -132,6 +138,8 @@ from shortsmith.contracts import (
     CardBox,
     CardSpec,
     ChartLayout,
+    CounterPlan,
+    CounterSpec,
     Crop,
     DiagramLayout,
     FinaleCardSpec,
@@ -233,6 +241,8 @@ class BrollNumbers:
     wall_scale_from: float
     wall_scale_to: float
     wall_dim: float
+    # 029: the counter's digit grouping; it lands in the stamp's time with its shake.
+    counter_grouping: str
 
 
 @dataclass(frozen=True)
@@ -293,6 +303,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             wall_scale_from=float(wall["scale_from"]),
             wall_scale_to=float(wall["scale_to"]),
             wall_dim=float(wall["dim"]),
+            counter_grouping=str(motion["counter"]["grouping"]),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -589,6 +600,9 @@ STAMP_PALETTES: Mapping[str, tuple[str, ...]] = {
     "cyan_white": ("#22D3EE", "#FFFFFF"),
     "teal": ("#14B8A6",),
 }
+# 029: the counter is on screen while it counts, so its landing is a pop from this scale
+# rather than the stamp's drop from 2.6.
+COUNTER_POP_FROM = 1.3
 
 LOWER_THIRD_BAR_PX, LOWER_THIRD_PAD_X = 12, 24.0
 LOWER_THIRD_NAME_PX, LOWER_THIRD_ROLE_PX = 40, 28
@@ -780,13 +794,14 @@ def stamp_colors(numbers: StyleNumbers) -> tuple[str, ...]:
     return STAMP_PALETTES.get(numbers.broll.stamp_palette) or (numbers.palette.accent,)
 
 
-def stamp_spec(text: str, *, numbers: StyleNumbers) -> StampSpec:
+def stamp_spec(text: str, *, numbers: StyleNumbers, max_font_px: int = STAMP_FONT_PX) -> StampSpec:
     """A landed stamp, measured and clamped: inside the style's top
-    `broll.stamp_max_y_fraction` of the frame and clear of the platform's right rail."""
+    `broll.stamp_max_y_fraction` of the frame and clear of the platform's right rail.
+    `max_font_px` lets the counter (029) hold one size across every frame's text."""
     style = numbers.captions
     available = WIDTH - SAFE_RIGHT_PX - SAFE_LEFT
     room = available - 2 * STAMP_PAD_X - 2 * STAMP_BORDER_PX
-    font_px = STAMP_FONT_PX
+    font_px = max_font_px
     while font_px > STAMP_MIN_FONT_PX and _measured(text, font_px=font_px, style=style) > room:
         font_px -= FONT_STEP_PX
     width = min(
@@ -805,6 +820,30 @@ def stamp_spec(text: str, *, numbers: StyleNumbers) -> StampSpec:
         scale_from=STAMP_SCALE_FROM,
         land_s=numbers.broll.stamp_land_s,
         shake_s=STAMP_SHAKE_S if numbers.broll.stamp_shake else 0.0,
+    )  # fmt: skip
+
+
+def counter_spec(
+    counter: CounterPlan, *, frames: int, fps: int, numbers: StyleNumbers
+) -> CounterSpec:
+    """The `counter` overlay (029): the digits for every frame of the beat, counting to
+    the target and holding it through the last `broll.motion.stamp.duration_s`, where it
+    lands with the stamp's shake. The box is the stamp's, measured on the widest text it
+    shows so no frame spills out, and clamped into the same top band clear of the rail."""
+    b = numbers.broll
+    land_frames = min(frames, round(b.stamp_land_s * fps))
+    texts = infographics.counter_texts(
+        counter.start, counter.target, frames=frames, land_frames=land_frames,
+        decimals=counter.decimals, grouping=b.counter_grouping, unit=counter.unit,
+    )  # fmt: skip
+    shown = set(texts)
+    font_px = min(stamp_spec(t, numbers=numbers).font_px for t in shown)
+    widest = max(shown, key=lambda t: _measured(t, font_px=font_px, style=numbers.captions))
+    box = stamp_spec(widest, numbers=numbers, max_font_px=font_px)
+    return CounterSpec(
+        **box.model_dump(exclude={"text", "scale_from"}),
+        text=texts[-1], scale_from=COUNTER_POP_FROM, texts=texts,
+        land_frame=frames - land_frames,
     )  # fmt: skip
 
 
@@ -1182,8 +1221,9 @@ def infographic(
         if base is None:
             return None, None
         return None, infographics.resolve_diagram(
-            infographics.diagram_recipe(beat), base, numbers=numbers.info
-        )
+            infographics.diagram_recipe(beat), base, numbers=numbers.info,
+            length_s=beat.end - beat.start,
+        )  # fmt: skip
     except infographics.InfographicError as exc:
         raise RenderError(f"{beat.id}: {exc}") from None
 
@@ -1247,11 +1287,12 @@ def build_spec(
         label = b.event.text if b.event.kind == "lower_third" and b.event.text else None
         rows, split, wall = set_piece(b, manifest, job_dir, numbers=numbers)
         chart, diagram = infographic(b, manifest, job_dir, numbers=numbers)
+        start_frame, end_frame = round(b.start * fps), round(b.end * fps)
         beats.append(
             BeatSpec(
                 id=b.id,
-                start_frame=round(b.start * fps),
-                end_frame=round(b.end * fps),
+                start_frame=start_frame,
+                end_frame=end_frame,
                 mode=mode,
                 kind=b.kind,
                 enter=b.enter,
@@ -1278,6 +1319,12 @@ def build_spec(
                 list=rows,
                 chart=chart,
                 infographic=diagram,
+                counter=(
+                    counter_spec(b.counter, frames=end_frame - start_frame, fps=fps,
+                                 numbers=numbers)  # fmt: skip
+                    if b.counter is not None
+                    else None
+                ),
             )
         )
     return RenderSpec(
@@ -1644,9 +1691,17 @@ def sound_mix(job: Job, *, library: sound.Library | None = None) -> sound.MixRes
         nums=loaded_styles()[job.record.style].sound,
         library=library,
         runtime_s=presenter.total_duration(presenter.cut_list(plan)),
+        counter_land_s=counter_land_s(loaded_styles()[job.record.style]),
     )
     jobs.note(job, result.summary())
     return result
+
+
+def counter_land_s(spec: StyleSpec) -> float | None:
+    """How long a counter takes to land (029): the stamp's `duration_s`, so the sound
+    director fires its hit where the picture lands it. None on a spec with no stamp row."""
+    land = spec.broll.motion.get("stamp", {}).get("duration_s")
+    return float(land) if land is not None else None
 
 
 def _audio_rights(job: Job, result: sound.MixResult | None, library: sound.Library) -> None:

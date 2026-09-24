@@ -2,7 +2,7 @@
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, hook_cards, finale, stamp, lower_third, list, split, wall,
-                      chart, infographic]
+                      chart, infographic, label_flyin, counter]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -56,6 +56,7 @@ broll:
     chart: {kind: draw_on, marks_max: 6, duration_s: 0.6, decimals: 0, grouping: indian}
     infographic: {kind: fly_in, labels_max: 5, duration_s: 0.35, scale_from: 1.06,
                   scale_to: 1.12, dim: 0.3}
+    counter: {kind: count_up, grouping: indian}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
   unique_assets_min_per_60s: 12
@@ -143,11 +144,11 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 
 ## B-roll
 - Only kinds in `kinds` may be used; `tier2_kinds` is empty here, so parallax depth and vector-illustration looks are validation errors naming the nearest tier-1 substitute (4.1 as amended by 9.2). Every non-presenter beat has exactly one motion; there is never a static still.
-- Label every non-presenter beat with `subject_kind` and a `query` plus a broader `query_fallback` (4.2): `entity` beats get a card or photo from owner references first, then search, then generation as the last resort, plus a lower-third; `concept` beats get a Ken Burns photo and a stamp of the key word; `number` and `quote` beats reuse the previous asset with a stamp and add nothing to the asset count.
+- Label every non-presenter beat with `subject_kind` and a `query` plus a broader `query_fallback` (4.2): `entity` beats get a card or photo from owner references first, then search, then generation as the last resort, plus a lower-third; `concept` beats get a Ken Burns photo and a stamp of the key word; `number` and `quote` beats reuse the previous asset with a stamp and add nothing to the asset count; a `number` beat may instead carry a `counter` that counts up to the real figure and lands on it like a stamp, its digits written in `motion.counter.grouping`.
 - Source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration (5.1); web images are always re-dressed as cards, never shown raw. Generated depictions of a named person or product are illustration-style (`illustration_look`); scenes and unnamed people may be photoreal (`photo_look`).
 - Count unique assets, not beats: between `unique_assets_min_per_60s` and `unique_assets_max_per_60s` per minute, each reused at most `reuse_max` times (4.3). Reuse is encouraged for callbacks, payoffs and number beats; a short with no reused asset is a warning.
 - The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).
-- The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture; a label that would land outside the phone's safe area fails the build.
+- The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture, flying in one after another (`label_flyin`); a label that would land outside the phone's safe area fails the build.
 - Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4). Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
 
 ## Captions

@@ -194,6 +194,38 @@ def test_the_floor_classes_come_from_the_style(plan: PicturePlan, nums: styles.S
     assert "b02" not in hits, "card_fly_in earns nothing when the style drops it"
 
 
+LAND_S = 0.16  # the stamp's land time, which the counter lands in (029)
+
+
+def test_a_counter_lands_with_the_stamps_bass_at_its_landing(
+    plan: PicturePlan, nums: styles.Sound
+) -> None:
+    """029: the counter is a stamp-style landing, so it earns the stamp's floor class,
+    and the hit fires where the digits land - the last `LAND_S` of the beat - not at
+    the beat's start."""
+    plain = plan.model_copy(
+        update={"beats": [b.model_copy(update={"money_reveal": False}) if b.id == "b06" else b
+                          for b in plan.beats]}  # fmt: skip
+    )
+    b06 = next(b for b in plain.beats if b.id == "b06")
+    assert b06.counter is not None and b06.event.kind == "none"
+    hits = {h.beat_id: h for h in sound.floor_hits(plain, nums, counter_land_s=LAND_S)}
+    assert hits["b06"].hit == "bass" and hits["b06"].trigger == "stamp"
+    assert hits["b06"].at_s == pytest.approx(b06.end - LAND_S)
+    # the money reveal outranks it (7.1) and still lands on the counter's landing
+    money = {h.beat_id: h for h in sound.floor_hits(plan, nums, counter_land_s=LAND_S)}
+    assert money["b06"].hit == "drum" and money["b06"].at_s == pytest.approx(b06.end - LAND_S)
+
+
+def test_an_event_cue_on_a_counter_fires_at_its_landing(
+    plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
+) -> None:
+    placed = sound.place_cues(plan, story, library, nums, runtime_s=6.0, counter_land_s=LAND_S)
+    cue = next(c for c in placed.cues if c.beat_id == "b06")
+    b06 = next(b for b in plan.beats if b.id == "b06")
+    assert cue.source == "planner" and cue.at_s == pytest.approx(b06.end - LAND_S)
+
+
 # --- cues (7.1, 7.3) --------------------------------------------------------------------
 
 

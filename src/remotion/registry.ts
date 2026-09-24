@@ -4,9 +4,11 @@ import type React from "react";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
+import { Counter } from "./components/counter";
 import { Finale } from "./components/finale";
 import { HookCards } from "./components/hook_cards";
 import { Infographic } from "./components/infographic";
+import { LabelFlyin } from "./components/label_flyin";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { Photo } from "./components/photo";
@@ -20,9 +22,11 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   captions: Captions,
   card: Card,
   chart: Chart,
+  counter: Counter,
   finale: Finale,
   hook_cards: HookCards,
   infographic: Infographic,
+  label_flyin: LabelFlyin,
   list: List,
   lower_third: LowerThird,
   photo: Photo,

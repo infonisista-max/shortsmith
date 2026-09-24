@@ -8,6 +8,7 @@ rule, the voice stem through the 7.3 chain, and the mux with `-c:v copy`."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shutil
 from pathlib import Path
@@ -20,6 +21,7 @@ from shortsmith import (
     captions,
     ffmpeg,
     fixture,
+    infographics,
     jobs,
     presenter,
     render,
@@ -34,8 +36,10 @@ from shortsmith.contracts import (
     CaptionPage,
     Captions,
     Constraints,
+    CounterPlan,
     Crop,
     CutPlan,
+    Event,
     PicturePlan,
     PlanRequest,
     PlanStyle,
@@ -397,7 +401,7 @@ def test_the_stamp_look_comes_from_the_style_front_matter() -> None:
     assert (stamp.land_s, stamp.shake_s) == (0.16, render.STAMP_SHAKE_S)  # motion.stamp
     assert stamp.color == "#FFD60A"  # broll.motion.stamp.palette yellow_green_red
     assert stamp.rotate_deg != 0.0 and stamp.scale_from == render.STAMP_SCALE_FROM
-    assert all(b.stamp is None for b in _spec().beats if b.id not in ("b03", "b06"))
+    assert all(b.stamp is None for b in _spec().beats if b.id != "b03")
 
 
 @pytest.mark.parametrize(
@@ -715,6 +719,88 @@ def test_a_rescued_infographic_beat_draws_no_diagram(tmp_path: Path) -> None:
 
 def test_registry_exports_chart_and_infographic_after_021() -> None:
     assert {"chart", "infographic"} <= set(render.registry())
+
+
+# --- label fly-ins and the counter (ticket 029; decisions 4.2, 7.1, 9.2, 9.3) ----------
+
+
+def test_the_diagram_labels_fly_in_on_a_stagger_from_the_beats_length(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "infographic")
+    drawn = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id)
+    diagram = drawn.infographic
+    assert diagram is not None
+    stagger, fly_s = infographics.label_stagger(
+        len(beat.labels), length_s=beat.end - beat.start, fly_s=EXPLAINER.info.diagram.fly_s
+    )
+    assert [label.delay_s for label in diagram.labels] == pytest.approx(
+        [i * stagger for i in range(len(beat.labels))]
+    )
+    assert diagram.fly_s == pytest.approx(fly_s)
+    assert all((label.from_x, label.from_y) != (0.0, 0.0) for label in diagram.labels)
+
+
+def test_the_counter_beat_counts_to_its_target_and_lands_in_the_stamp_time() -> None:
+    plan = _plan()
+    beat = next(b for b in plan.beats if b.counter is not None)
+    drawn = next(b for b in _spec().beats if b.id == beat.id)
+    counter = drawn.counter
+    assert counter is not None and drawn.stamp is None  # the counter is its landed event
+    frames = drawn.end_frame - drawn.start_frame
+    assert len(counter.texts) == frames
+    assert counter.texts[0] == "0 words" and counter.texts[-1] == counter.text == "12 words"
+    assert counter.land_s == EXPLAINER.broll.stamp_land_s == 0.16  # motion.stamp.duration_s
+    assert counter.land_frame == frames - round(counter.land_s * 30)
+    assert counter.shake_s > 0 and counter.color == render.stamp_colors(EXPLAINER)[0]
+
+
+@pytest.mark.parametrize(("target", "grouping", "last"), [
+    (12500000, "indian", "1,25,00,000 crore"),
+    (12500000, "western", "12,500,000 crore"),
+])  # fmt: skip
+def test_the_counter_writes_the_styles_grouping_and_stays_in_the_top_60_percent(
+    target: float, grouping: str, last: str
+) -> None:
+    numbers = dataclasses.replace(
+        EXPLAINER, broll=dataclasses.replace(EXPLAINER.broll, counter_grouping=grouping)
+    )
+    counter = render.counter_spec(
+        CounterPlan(start=0, target=target, unit="crore"), frames=90, fps=30, numbers=numbers
+    )
+    assert counter.texts[-1] == last
+    limit = EXPLAINER.broll.stamp_max_y_fraction * render.HEIGHT
+    tilt = render._tilt_extent(counter.width, counter.height, counter.rotate_deg)  # pyright: ignore[reportPrivateUsage]
+    assert counter.top + counter.height / 2 + tilt <= limit + 1e-6
+    assert counter.left + counter.width <= render.WIDTH - render.SAFE_RIGHT_PX + 1e-6
+    # one size for every frame, the box measured on the widest text it will show, so no
+    # frame's digits spill out
+    pads = 2 * render.STAMP_PAD_X + 2 * render.STAMP_BORDER_PX
+    widths = [
+        render._measured(t, font_px=counter.font_px, style=EXPLAINER.captions) + pads  # pyright: ignore[reportPrivateUsage]
+        for t in set(counter.texts)
+    ]
+    assert max(widths) == pytest.approx(counter.width)
+
+
+def test_a_counter_on_a_number_beat_rides_the_previous_asset(tmp_path: Path) -> None:
+    """4.2: a counter beat is a number beat - it adds no asset and its picture is the
+    previous beat's with the Ken Burns carried on."""
+    counted = _number_beat(2, "a1").model_copy(update={
+        "event": Event(), "overlays": ["counter"], "counter": CounterPlan(target=40, unit="%"),
+    })  # fmt: skip
+    plan = _plan().model_copy(update={"beats": [_photo_beat(1), counted]})
+    manifest = _sourced(tmp_path, plan)
+    assert len(manifest.assets) == 1
+    first, second = _visual_spec(tmp_path, plan, manifest).beats
+    assert first.visual is not None and second.visual is not None
+    assert second.visual.scale_from == first.visual.scale_to
+    assert second.counter is not None and second.counter.text == "40%"
+
+
+def test_registry_exports_label_flyin_and_counter_after_029() -> None:
+    assert {"label_flyin", "counter"} <= set(render.registry())
+    required = render.loaded_styles()["explainer"].requires_components
+    assert {"label_flyin", "counter"} <= set(required)
 
 
 # --- frames and beats -----------------------------------------------------------------

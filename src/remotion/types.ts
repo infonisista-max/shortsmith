@@ -131,6 +131,13 @@ export type StampSpec = {
   shake_s: number;
 };
 
+// 029: the counter is the stamp's box with the digits of every frame of its beat; the
+// target lands from `land_frame`.
+export type CounterSpec = StampSpec & {
+  texts: string[];
+  land_frame: number;
+};
+
 export type LowerThirdSpec = {
   name: string;
   role: string;
@@ -287,6 +294,9 @@ export type DiagramLabel = {
   font_px: number;
   anchor: "left" | "center" | "right";
   delay_s: number;
+  // 029: the offset past the nearest frame edge the label springs in from.
+  from_x: number;
+  from_y: number;
 };
 
 export type DiagramLayout = {
@@ -337,6 +347,7 @@ export type BeatSpec = {
   list?: ListSpec | null;
   chart?: ChartLayout | null;
   infographic?: DiagramLayout | null;
+  counter?: CounterSpec | null;
 };
 
 export type PipGeometry = {

@@ -155,6 +155,7 @@ def validate_picture(
     found += _kinds(beats, spec)
     found += _items(beats, spec)
     found += _charts(beats, spec)
+    found += _overlays(beats)
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
@@ -662,6 +663,43 @@ def _chart_beat(b: Beat, marks_max: int) -> list[Violation]:
     return found
 
 
+def _overlays(beats: Sequence[Beat]) -> list[Violation]:
+    """Ticket 029: the two overlays the renderer draws. `label_flyin` flies an
+    infographic's labels in (9.3), so it rides on nothing else. A `counter` overlay and
+    the `counter` numbers come together (9.2) and must count somewhere; the counter is
+    the beat's one landed event (3.1), so the beat carries no stamp or lower-third; and
+    it counts as a `number` beat over the previous asset (4.2)."""
+    found: list[Violation] = []
+    for b in beats:
+        if "label_flyin" in b.overlays and b.kind != DIAGRAM_KIND:
+            found.append(
+                _v("9.3", b.id, f"label_flyin rides on an infographic's labels; this beat is "
+                                f"a {b.kind!r}")  # fmt: skip
+            )
+        if ("counter" in b.overlays) != (b.counter is not None):
+            found.append(
+                _v("9.2", b.id, "a counter overlay needs `counter` (start, target, unit, "
+                                "decimals), and `counter` needs the overlay")  # fmt: skip
+            )
+        if b.counter is None:
+            continue
+        if b.counter.start == b.counter.target:
+            found.append(
+                _v("9.2", b.id, f"the counter starts at its target ({b.counter.target:g}); "
+                                "there is nothing to count")  # fmt: skip
+            )
+        if b.event.kind != "none":
+            found.append(
+                _v("3.1", b.id, "the counter is this beat's landed event; it cannot also "
+                                f"carry a {b.event.kind}")  # fmt: skip
+            )
+        if b.subject_kind != "number":
+            found.append(
+                _v("4.2", b.id, f"a counter beat is a number beat, not {b.subject_kind!r}")
+            )
+    return found
+
+
 def _subjects(beats: Sequence[Beat], runtime: float, brief: str) -> list[Violation]:
     """4.2: subject_kind and query on every B-roll beat; an entity beat per 60 s when
     the brief names something."""
@@ -855,7 +893,7 @@ def validate_sound(
                 _v("8.2", cue.beat_id, f"cue {cue.intent!r} names a beat that is not in the plan")
             )
             continue
-        bare = beat.event.kind == "none"
+        bare = beat.event.kind == "none" and beat.counter is None  # 029: a counter lands
         if cue.at == "event" and bare:
             found.append(
                 _v(

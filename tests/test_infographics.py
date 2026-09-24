@@ -47,9 +47,11 @@ def _base(width: int = 1080, height: int = 1920, treatment: str = "photo"):
     )
 
 
-def _diagram(*labels: PlanLabel, base: infographics.DiagramAsset | None = None):
+def _diagram(*labels: PlanLabel, base: infographics.DiagramAsset | None = None,
+             length_s: float = 3.0):  # fmt: skip
     return infographics.resolve_diagram(
-        infographics.DiagramRecipe(labels=labels), base or _base(), numbers=NUMBERS
+        infographics.DiagramRecipe(labels=labels), base or _base(), numbers=NUMBERS,
+        length_s=length_s,
     )
 
 
@@ -230,6 +232,99 @@ def test_labels_beyond_the_style_maximum_are_cut_to_it() -> None:
     assert len(diagram.labels) == NUMBERS.diagram.labels_max == 5
     delays = [label.delay_s for label in diagram.labels]
     assert delays == sorted(delays) and len(set(delays)) == len(delays)
+
+
+# --- label fly-ins (ticket 029; decisions 9.2, 9.3) ------------------------------------
+
+
+def test_labels_enter_one_after_another_inside_the_first_part_of_the_beat() -> None:
+    labels = [PlanLabel(text=f"L{i}", x=40.0, y=20.0 + 8 * i) for i in range(4)]
+    for length in (0.5, 1.2, 3.0, 6.0):
+        diagram = _diagram(*labels, length_s=length)
+        delays = [label.delay_s for label in diagram.labels]
+        assert delays[0] == 0.0
+        assert all(b > a for a, b in zip(delays, delays[1:], strict=False)), (length, delays)
+        # the last label has landed by the style's share of the beat, so it is read
+        landed = delays[-1] + diagram.fly_s
+        assert landed <= length * infographics.LABELS_IN_FRACTION + 1e-9, (length, landed)
+
+
+def test_the_stagger_grows_with_the_beat_and_stops_at_its_ceiling() -> None:
+    short = infographics.label_stagger(3, length_s=0.5, fly_s=0.35)
+    longer = infographics.label_stagger(3, length_s=2.0, fly_s=0.35)
+    longest = infographics.label_stagger(3, length_s=30.0, fly_s=0.35)
+    assert 0 < short[0] < longer[0] <= longest[0] == infographics.LABEL_STAGGER_MAX_S
+    # a beat with room keeps the style's fly-in time; a short one shortens it to fit
+    assert longer[1] == longest[1] == 0.35
+    assert short[1] < 0.35
+    assert infographics.label_stagger(1, length_s=3.0, fly_s=0.35) == (0.0, 0.35)
+
+
+@pytest.mark.parametrize(
+    ("x", "y", "anchor", "edge"),
+    [
+        (20.0, 45.0, "left", "left"),
+        (85.0, 45.0, "right", "right"),
+        (50.0, 16.0, "center", "top"),
+    ],
+)
+def test_each_label_flies_in_from_its_nearest_frame_edge(
+    x: float, y: float, anchor: str, edge: str
+) -> None:
+    label = PlanLabel(text="Rotor", x=x, y=y, anchor=anchor)  # pyright: ignore[reportArgumentType]
+    (placed,) = _diagram(label).labels
+    start_left, start_top = placed.left + placed.from_x, placed.top + placed.from_y
+    if edge == "left":
+        assert placed.from_y == 0 and start_left + placed.width <= 0
+    elif edge == "right":
+        assert placed.from_y == 0 and start_left >= infographics.WIDTH
+    else:
+        assert placed.from_x == 0 and start_top + placed.height <= 0
+
+
+# --- the counter (ticket 029; decisions 4.2, 9.2) ---------------------------------------
+
+
+def _count(start: float, target: float, *, frames: int = 30, land: int = 5,
+           decimals: int = 0, grouping: str = "indian", unit: str = "") -> list[str]:  # fmt: skip
+    return infographics.counter_texts(
+        start, target, frames=frames, land_frames=land, decimals=decimals,
+        grouping=grouping, unit=unit,
+    )  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("grouping", "target", "expected"),
+    [
+        ("indian", 1250000, "12,50,000 crore"),
+        ("western", 1250000, "1,250,000 crore"),
+        ("indian", 850, "850 crore"),
+    ],
+)
+def test_the_counter_writes_its_numbers_in_the_styles_digit_grouping(
+    grouping: str, target: float, expected: str
+) -> None:
+    texts = _count(0, target, grouping=grouping, unit="crore")
+    assert texts[0] == ("0 crore")
+    assert texts[-1] == expected
+
+
+def test_the_counter_eases_to_the_target_and_holds_it_through_the_landing() -> None:
+    texts = _count(0, 1000, frames=30, land=5, grouping="plain")
+    assert len(texts) == 30
+    values = [int(t) for t in texts]
+    assert values == sorted(values)
+    assert values[24] == 1000  # there by the landing
+    assert set(values[25:]) == {1000}  # the last 0.16 s is the landing, not counting
+    assert values[1] - values[0] > values[23] - values[22]  # eases out
+
+
+def test_the_counter_keeps_the_plans_decimals_and_counts_down_too() -> None:
+    texts = _count(12.5, 2.5, frames=20, land=4, decimals=1, grouping="western", unit="%")
+    assert texts[0] == "12.5%" and texts[-1] == "2.5%"
+    assert all(t.endswith("%") and "." in t for t in texts)
+    values = [float(t.rstrip("%")) for t in texts]
+    assert values == sorted(values, reverse=True)
 
 
 # --- the style numbers (1.2) ----------------------------------------------------------

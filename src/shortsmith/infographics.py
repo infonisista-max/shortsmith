@@ -16,7 +16,13 @@ same division of labour as the set pieces of 026 / 027.
   base, a boxed card above the style's `broll.card_max_bottom_y` otherwise - and
   refuses a label whose box would leave the safe area (decision 9.3's promise that a
   label is readable on a phone). Labels past the style's `labels_max` are cut, not
-  refused: losing a label is not a false statement.
+  refused: losing a label is not a false statement. Ticket 029 flies the labels in one
+  after another (`label_flyin`): each from the frame edge nearest its box, on a stagger
+  from the beat's length (`label_stagger`), so the last one has landed early enough in
+  the beat to be read.
+- `counter_texts` is the `counter` overlay's digits, one string per frame (029): easing
+  from the plan's start value to its target and holding the target through the landing,
+  every value written in the style's digit grouping with the plan's decimals and unit.
 
 The base picture is always label-free: `assets.generate` appends "no text, no labels"
 to a diagram base's prompt (5.5) and the asset step marks the asset as a diagram base,
@@ -78,7 +84,11 @@ DIAGRAM_BAND_TOP = 330.0
 DIAGRAM_LABEL_FONT_PX, DIAGRAM_LABEL_MIN_FONT_PX = 40, 26
 DIAGRAM_LABEL_PAD_X, DIAGRAM_LABEL_PAD_Y = 22.0, 12.0
 DIAGRAM_LABEL_FILL, DIAGRAM_LABEL_RADIUS_PX = "rgba(17,17,17,0.78)", 14
-DIAGRAM_STAGGER_S = 0.12
+# 029: the labels share the first part of the beat, one after another, so the last one
+# has landed while there is still time to read it; a long beat never drips them slower
+# than the ceiling.
+LABELS_IN_FRACTION = 0.6
+LABEL_STAGGER_MAX_S = 0.3
 
 
 class InfographicError(ValueError):
@@ -190,6 +200,24 @@ def with_unit(text: str, unit: str) -> str:
     if not unit:
         return text
     return f"{text}{unit}" if not unit[0].isalnum() else f"{text} {unit}"
+
+
+def counter_texts(
+    start: float, target: float, *, frames: int, land_frames: int, decimals: int,
+    grouping: str, unit: str,
+) -> list[str]:  # fmt: skip
+    """The `counter` overlay's text on each frame of its beat (029, 9.2): the value eases
+    out from `start` to `target` over the frames before the landing, then holds the
+    target through the last `land_frames`, where it lands with the stamp's shake. Every
+    value is written as the chart's are: the plan's decimals, the style's grouping."""
+    counting = max(1, frames - land_frames)
+    out: list[str] = []
+    for frame in range(frames):
+        progress = min(1.0, frame / max(1, counting - 1))
+        eased = 1.0 - (1.0 - progress) ** 3
+        value = start + (target - start) * eased
+        out.append(with_unit(format_value(value, decimals=decimals, grouping=grouping), unit))
+    return out
 
 
 # --- measuring text (the same bundled fonts the pager uses) ----------------------------
@@ -401,16 +429,44 @@ def diagram_box(asset: DiagramAsset, *, numbers: DiagramNumbers) -> Box:
     return (WIDTH - box_w) / 2, top, box_w, box_h
 
 
+def label_stagger(count: int, *, length_s: float, fly_s: float) -> tuple[float, float]:
+    """(stagger, fly time) for `count` labels on a beat of `length_s` (029): they share
+    the first `LABELS_IN_FRACTION` of the beat, one after another, never more than
+    `LABEL_STAGGER_MAX_S` apart. The style's `fly_s` holds where the beat has room; a
+    short beat flies them faster rather than landing the last one as the beat cuts."""
+    window = length_s * LABELS_IN_FRACTION
+    if count <= 1:
+        return 0.0, min(fly_s, window)
+    stagger = min(LABEL_STAGGER_MAX_S, window / count)
+    return stagger, min(fly_s, window - (count - 1) * stagger)
+
+
+def fly_from(left: float, top: float, width: float, height: float) -> tuple[float, float]:
+    """The offset that puts a label box just past the frame edge nearest it (029): the
+    fly-in starts there and springs back to the anchored position."""
+    edges = [
+        (left, (-(left + width), 0.0)),
+        (WIDTH - (left + width), (WIDTH - left, 0.0)),
+        (top, (0.0, -(top + height))),
+        (HEIGHT - (top + height), (0.0, HEIGHT - top)),
+    ]
+    return min(edges, key=lambda edge: edge[0])[1]
+
+
 def resolve_diagram(
-    recipe: DiagramRecipe, asset: DiagramAsset, *, numbers: InfographicNumbers
-) -> DiagramLayout:
+    recipe: DiagramRecipe, asset: DiagramAsset, *, numbers: InfographicNumbers,
+    length_s: float,
+) -> DiagramLayout:  # fmt: skip
     """The labelled diagram (9.3): the planner's percentages mapped onto the base as it
-    is drawn, each label pilled and measured, every box inside the safe area."""
+    is drawn, each label pilled and measured, every box inside the safe area, each one
+    flying in from its nearest edge on the beat's stagger (029)."""
     style, d = numbers.captions, numbers.diagram
     left, top, box_w, box_h = diagram_box(asset, numbers=d)
     room = WIDTH - SAFE_RIGHT_PX - SAFE_LEFT
+    planned_labels = recipe.labels[: d.labels_max]
+    stagger, fly_s = label_stagger(len(planned_labels), length_s=length_s, fly_s=d.fly_s)
     labels: list[DiagramLabel] = []
-    for i, planned in enumerate(recipe.labels[: d.labels_max]):
+    for i, planned in enumerate(planned_labels):
         font_px = _fitted(planned.text, font_px=DIAGRAM_LABEL_FONT_PX, style=style,
                           min_font_px=DIAGRAM_LABEL_MIN_FONT_PX, room=room)  # fmt: skip
         width = _measured(planned.text, font_px=font_px, style=style) + 2 * DIAGRAM_LABEL_PAD_X
@@ -420,10 +476,12 @@ def resolve_diagram(
         box_left = {"left": x, "center": x - width / 2, "right": x - width}[planned.anchor]
         box_top = y - height / 2
         _check_inside(planned, box_left, box_top, width, height, numbers=d)
+        from_x, from_y = fly_from(box_left, box_top, width, height)
         labels.append(
             DiagramLabel(
                 text=planned.text, left=box_left, top=box_top, width=width, height=height,
-                font_px=font_px, anchor=planned.anchor, delay_s=i * DIAGRAM_STAGGER_S,
+                font_px=font_px, anchor=planned.anchor, delay_s=i * stagger,
+                from_x=from_x, from_y=from_y,
             )  # fmt: skip
         )
     return DiagramLayout(
@@ -431,7 +489,7 @@ def resolve_diagram(
         box_width=box_w, box_height=box_h, zoom=asset.crop.zoom, focus_x=asset.crop.focus_x,
         focus_y=asset.crop.focus_y, scale_from=d.scale_from, scale_to=d.scale_to, dim=d.dim,
         labels=labels, fill=DIAGRAM_LABEL_FILL, radius_px=DIAGRAM_LABEL_RADIUS_PX,
-        text_color="#FFFFFF", fly_s=d.fly_s,
+        text_color="#FFFFFF", fly_s=fly_s,
     )  # fmt: skip
 
 

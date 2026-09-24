@@ -24,7 +24,9 @@ drop point lands nearest the first stamp. Below `BED_SCORE_MIN` - no tag hit at 
 guaranteed floor so a short is never flat: `floor_hits` reads the style's
 `sound.floor_hits` map (which hit class each event earns) and the plan (which beats earn
 which events). A whip cut, a punch-in, a ring and a lower-third earn nothing, because no
-style names them.
+style names them. A `counter` (029) lands as a stamp does and earns the stamp's class; its
+hit, and any `event` cue on its beat, fires where its digits land - the last
+`broll.motion.stamp.duration_s` of the beat (`landing_s`) - not at the beat's start.
 
 **Cues (7.1, 7.3).** One cue per beat (`cues_per_beat_max`): the planner's intent when it
 named one for that beat, else the beat's floor hit. An intent that matches no SFX `intent`
@@ -76,6 +78,7 @@ from shortsmith import ffmpeg, styles
 from shortsmith.contracts import (
     AudioEntry,
     BalanceReport,
+    Beat,
     BedQuery,
     Catalogue,
     PicturePlan,
@@ -270,8 +273,8 @@ def beat_triggers(plan: PicturePlan) -> dict[str, tuple[str, ...]]:
             found.add("header")
         if beat.motion == "reveal":
             found.add("reveal")
-        if beat.event.kind == "stamp":
-            found.add("stamp")
+        if beat.event.kind == "stamp" or beat.counter is not None:
+            found.add("stamp")  # 029: the counter lands as a stamp does
         if beat.kind in CARD_KINDS:
             found.add("card_fly_in")
         out[beat.id] = tuple(t for t in TRIGGER_ORDER if t in found)
@@ -283,9 +286,21 @@ def hit_classes(nums: styles.Sound) -> dict[str, str]:
     return {event: hit for hit, events in nums.floor_hits.items() for event in events}
 
 
-def floor_hits(plan: PicturePlan, nums: styles.Sound) -> list[FloorHit]:
-    """The guaranteed floor (7.1): at most one hit per beat, at the beat's start, its
-    class read from the style."""
+def landing_s(beat: Beat, counter_land_s: float | None) -> float:
+    """When a beat's landed event lands: its start (a stamp lands there, 026), or for a
+    `counter` the start of its last `counter_land_s`, where the digits land (029). The
+    land time is the picture's (`broll.motion.stamp.duration_s`); without it the counter
+    is placed like a stamp."""
+    if beat.counter is None or counter_land_s is None:
+        return beat.start
+    return max(beat.start, beat.end - counter_land_s)
+
+
+def floor_hits(
+    plan: PicturePlan, nums: styles.Sound, *, counter_land_s: float | None = None
+) -> list[FloorHit]:
+    """The guaranteed floor (7.1): at most one hit per beat, where its event lands
+    (`landing_s`), its class read from the style."""
     classes = hit_classes(nums)
     triggers = beat_triggers(plan)
     out: list[FloorHit] = []
@@ -294,7 +309,8 @@ def floor_hits(plan: PicturePlan, nums: styles.Sound) -> list[FloorHit]:
         if trigger is None:
             continue
         out.append(
-            FloorHit(beat_id=beat.id, at_s=beat.start, hit=classes[trigger], trigger=trigger)
+            FloorHit(beat_id=beat.id, at_s=landing_s(beat, counter_land_s),
+                     hit=classes[trigger], trigger=trigger)  # fmt: skip
         )
     return out
 
@@ -366,16 +382,18 @@ def place_cues(
     nums: styles.Sound,
     *,
     runtime_s: float,
+    counter_land_s: float | None = None,
 ) -> PlacedCues:
     """The short's cues, matched to files, levelled and capped (7.1, 7.3).
 
     In order: the planner's intents, then a changeover on every drop the envelope steps,
     then the floor hits the plan's events earn. A beat takes at most
-    `sound.cues_per_beat_max` of them, so the earlier pass owns its slot."""
+    `sound.cues_per_beat_max` of them, so the earlier pass owns its slot. An `event` cue
+    and a floor hit sit where the beat's event lands (`landing_s`)."""
     if not library.sfx():
         return PlacedCues(notes=("no sfx in the audio catalogue: the short has no cues",))
     beats = {b.id: b for b in plan.beats}
-    floor = {h.beat_id: h for h in floor_hits(plan, nums)}
+    floor = {h.beat_id: h for h in floor_hits(plan, nums, counter_land_s=counter_land_s)}
     notes: list[str] = []
     placed: list[PlacedCue] = []
     per_beat: dict[str, int] = {}
@@ -411,7 +429,11 @@ def place_cues(
         placed.append(
             PlacedCue(
                 beat_id=cue.beat_id,
-                at_s=cue_time(beat.start, beat.end, cue.at),
+                at_s=(
+                    landing_s(beat, counter_land_s)
+                    if cue.at == "event"
+                    else cue_time(beat.start, beat.end, cue.at)
+                ),
                 intent=cue.intent,
                 hit=hit,
                 entry_id=entry.id,
@@ -690,6 +712,7 @@ def build_mix(
     library: Library,
     runtime_s: float,
     search: AudioSearch | None = None,
+    counter_land_s: float | None = None,
 ) -> MixResult:
     """Build the music and SFX stems beside `voice` and the premix the master is cut
     from, write `balance.json`, and fail the step when the mix misses the 7.3 band."""
@@ -707,7 +730,9 @@ def build_mix(
         stems, bed=bed, library=library, story=story, nums=nums,
         voice_db=voice_db, runtime_s=runtime_s,
     )  # fmt: skip
-    placed = place_cues(plan, story, library, nums, runtime_s=runtime_s)
+    placed = place_cues(
+        plan, story, library, nums, runtime_s=runtime_s, counter_land_s=counter_land_s
+    )
     notes += list(placed.notes)
     sfx = _sfx_stem(
         stems, cues=placed.cues, library=library, voice_db=voice_db, runtime_s=runtime_s

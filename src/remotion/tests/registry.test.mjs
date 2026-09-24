@@ -53,12 +53,19 @@ test("the composition lists chart and infographic after ticket 021", () => {
   }
 });
 
+test("the composition lists label_flyin and counter after ticket 029", () => {
+  for (const name of ["label_flyin", "counter"]) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+  }
+});
+
 test("Short.tsx draws every registered component", () => {
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
   const drawn = { hook_cards: "HookCards", finale: "Finale", stamp: "Stamp",
                   lower_third: "LowerThird", photo: "Photo", card: "Card",
                   captions: "Captions", pip: "Pip", list: "List", split: "Split",
-                  wall: "Wall", chart: "Chart", infographic: "Infographic" };
+                  wall: "Wall", chart: "Chart", infographic: "Infographic",
+                  label_flyin: "LabelFlyin", counter: "Counter" };
   for (const name of registry.components) {
     assert.match(short, new RegExp(`<${drawn[name]}\\b`), `Short.tsx never draws ${name}`);
   }

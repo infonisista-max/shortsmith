@@ -242,6 +242,18 @@ class PlanLabel(StrictModel):
     anchor: LabelAnchor = "center"
 
 
+class CounterPlan(StrictModel):
+    """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
+    to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
+    "crore"), `decimals` is the number's own precision; the style's digit grouping
+    writes the rest."""
+
+    start: float = 0.0
+    target: float
+    unit: str = ""
+    decimals: int = Field(default=0, ge=0, le=3)
+
+
 class Beat(StrictModel):
     id: str
     start: float
@@ -261,6 +273,8 @@ class Beat(StrictModel):
     series: list[SeriesPoint] = []
     value_unit: str = ""
     labels: list[PlanLabel] = []
+    # 029: the `counter` overlay's from/to values, unit and decimals.
+    counter: CounterPlan | None = None
     motion: Motion | None = None
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
@@ -800,6 +814,17 @@ class StampSpec(StrictModel):
     shake_s: float
 
 
+class CounterSpec(StampSpec):
+    """The `counter` overlay (029; 4.2, 9.2): the stamp's box, measured on the widest
+    text it will show and clamped as a stamp is, with the digits it shows on each frame
+    of the beat (`texts`, already written in the style's grouping). From `land_frame`
+    the target lands: a pop from `scale_from` over `land_s` with the stamp's shake.
+    `text` is the target."""
+
+    texts: list[str]
+    land_frame: int
+
+
 class LowerThirdSpec(StrictModel):
     """A name-and-role label in the style's `lower_third` band (6.3), faded in over
     `fade_s`. Suppressed where a two-line caption page shows, or where the beat's card
@@ -977,7 +1002,9 @@ class ChartLayout(StrictModel):
 class DiagramLabel(StrictModel):
     """One code-rendered label of a labelled diagram (9.3), placed in composition
     pixels: the pill it draws in, the size the text fitted at, and the edge the
-    planner's percentage pinned (`anchor`, kept so 029 can fly it in from there)."""
+    planner's percentage pinned (`anchor`, the point the fly-in grows from). 029:
+    `from_x` / `from_y` is the offset past the nearest frame edge it springs in from,
+    `delay_s` its place in the stagger."""
 
     text: str
     left: float
@@ -987,6 +1014,8 @@ class DiagramLabel(StrictModel):
     font_px: int
     anchor: LabelAnchor
     delay_s: float
+    from_x: float = 0.0
+    from_y: float = 0.0
 
 
 class DiagramLayout(StrictModel):
@@ -1030,8 +1059,8 @@ class BeatSpec(StrictModel):
     """A plan beat as frame range; `end_frame` is exclusive. A rung-4 rescue arrives
     here as `pip` with no visual (4.4). The set pieces and the two overlay kinds (026,
     027, 021) ride along resolved: at most one of `hook` / `finale` / `list` / `split` /
-    `wall` / `chart` / `infographic`, and at most one landed event (`stamp` or
-    `lower_third`, 3.1).
+    `wall` / `chart` / `infographic`, and at most one landed event (`stamp`,
+    `lower_third` or, 029, `counter`; 3.1).
 
     `list` shadows the builtin inside this class body only; no annotation below it
     needs `list[...]`, and the field name matches its kind as `hook` and `finale` do."""
@@ -1054,6 +1083,8 @@ class BeatSpec(StrictModel):
     # 021: the two infographic kinds, laid out by `infographics`.
     chart: ChartLayout | None = None
     infographic: DiagramLayout | None = None
+    # 029: the counter overlay, the beat's landed event in place of a stamp.
+    counter: CounterSpec | None = None
 
 
 class PipGeometry(StrictModel):

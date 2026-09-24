@@ -9,15 +9,19 @@
 // `wall` over the beat's dimmed base still, `split` as the news-card composite.
 // Ticket 021 adds the two infographic kinds: `infographic` draws its own label-free base
 // with the labels in code over it, `chart` is drawn from the planner's series over the
-// gradient. Other kinds arrive with their tickets.
+// gradient. Ticket 029 flies the diagram's labels in (`label_flyin`, over its base) and
+// adds the `counter`, a number beat's landed event in the stamp's layer. Other kinds
+// arrive with their tickets.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
+import { Counter } from "./components/counter";
 import { Finale } from "./components/finale";
 import { HookCards } from "./components/hook_cards";
 import { Infographic } from "./components/infographic";
+import { LabelFlyin } from "./components/label_flyin";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { Photo } from "./components/photo";
@@ -83,10 +87,17 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       {beat?.infographic ? (
         <Infographic
           spec={beat.infographic}
-          style={spec.caption_style}
           frame={since}
           fps={spec.fps}
           lengthS={(beat.end_frame - beat.start_frame) / spec.fps}
+        />
+      ) : null}
+      {beat?.infographic ? (
+        <LabelFlyin
+          spec={beat.infographic}
+          style={spec.caption_style}
+          frame={since}
+          fps={spec.fps}
         />
       ) : null}
       {beat?.chart ? (
@@ -96,6 +107,9 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       {beat?.mode === "pip" ? <Pip spec={spec} /> : null}
       {beat?.stamp ? (
         <Stamp spec={beat.stamp} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat?.counter ? (
+        <Counter spec={beat.counter} style={spec.caption_style} frame={since} fps={spec.fps} />
       ) : null}
       {beat?.lower_third ? (
         <LowerThird

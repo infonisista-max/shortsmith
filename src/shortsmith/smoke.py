@@ -57,6 +57,7 @@ from shortsmith import (
 from shortsmith.contracts import (
     TIER1_KINDS,
     Captions,
+    DiagramLayout,
     PicturePlan,
     RenderSpec,
     SoundStory,
@@ -369,7 +370,7 @@ def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
     check(card.text == plan.finale.text, f"the finale word is {card.text!r}")
     check(finale_beat is spec.beats[-1], "the finale is not the last beat of the spec")
     stamped = sorted(b.id for b in spec.beats if b.stamp is not None)
-    check(stamped == ["b03", "b06"], f"stamps land on {stamped}, not the plan's stamp beats")
+    check(stamped == ["b03"], f"stamps land on {stamped}, not the plan's stamp beats")
     numbers = render.style_numbers(styles.DEFAULT)
     limit = numbers.broll.stamp_max_y_fraction * render.HEIGHT
     for beat in spec.beats:
@@ -428,6 +429,62 @@ def check_infographics(spec: RenderSpec, plan: PicturePlan) -> None:
             and label.top + label.height <= limit
         )
         check(inside, f"the label {label.text!r} draws outside the safe area")
+    check_flyin_and_counter(spec, plan, diagram)
+
+
+def check_flyin_and_counter(spec: RenderSpec, plan: PicturePlan, diagram: DiagramLayout) -> None:
+    """029: the diagram's labels fly in one after another from off-frame and have all
+    landed inside the first part of their beat; the fake plan's counter beat counts from
+    its start to its target in the style's grouping, lands in the stamp's time, and
+    stays in the stamp's top band."""
+    delays = [label.delay_s for label in diagram.labels]
+    check(
+        all(b > a for a, b in zip(delays, delays[1:], strict=False)),
+        f"the labels do not enter one after another: delays {delays}",
+    )
+    offscreen = [
+        label.text
+        for label in diagram.labels
+        if (label.from_x, label.from_y) == (0.0, 0.0)
+    ]
+    check(not offscreen, f"the labels {offscreen} do not fly in from a frame edge")
+    beat = next(b for b in plan.beats if b.kind == "infographic")
+    landed = delays[-1] + diagram.fly_s
+    window = (beat.end - beat.start) * infographics.LABELS_IN_FRACTION
+    check(landed <= window + 1e-9, f"the last label lands at {landed:g} s, after {window:g} s")
+    counted = [b for b in plan.beats if b.counter is not None]
+    check(len(counted) == 1, f"the fake plan has {len(counted)} counter beats, not one")
+    planned = counted[0].counter
+    assert planned is not None
+    drawn = next(b for b in spec.beats if b.id == counted[0].id)
+    counter = drawn.counter
+    check(counter is not None, f"{drawn.id} carries no counter")
+    assert counter is not None
+    numbers = render.style_numbers(styles.DEFAULT)
+    first, last = (
+        infographics.with_unit(
+            infographics.format_value(v, decimals=planned.decimals,
+                                      grouping=numbers.broll.counter_grouping),  # fmt: skip
+            planned.unit,
+        )
+        for v in (planned.start, planned.target)
+    )
+    check(
+        (counter.texts[0], counter.texts[-1]) == (first, last),
+        f"the counter runs {counter.texts[0]!r} to {counter.texts[-1]!r}, not {first!r} "
+        f"to {last!r}",
+    )
+    frames = drawn.end_frame - drawn.start_frame
+    check(len(counter.texts) == frames, f"{len(counter.texts)} counter texts for {frames} frames")
+    check(
+        counter.land_s == numbers.broll.stamp_land_s
+        and counter.land_frame == frames - round(counter.land_s * spec.fps),
+        f"the counter lands at frame {counter.land_frame} over {counter.land_s:g} s",
+    )
+    limit = numbers.broll.stamp_max_y_fraction * render.HEIGHT
+    low = counter.top + counter.height
+    check(low <= limit, f"the counter ends at y {low:g}, past the top {limit:g}")
+    check(drawn.stamp is None, f"{drawn.id} draws a stamp as well as its counter (3.1)")
 
 
 def check_list_split_wall(spec: RenderSpec, plan: PicturePlan) -> None:
@@ -512,10 +569,21 @@ def check_sound(
     bed, _ = sound.choose_bed(library, story.bed_query, first_stamp_s=sound.first_stamp_s(plan))
     check(bed is not None, f"no bed was chosen for {story.bed_query}")
     assert bed is not None
-    floor = sound.floor_hits(plan, nums)
+    land_s = render.counter_land_s(specs[styles.DEFAULT])
+    floor = sound.floor_hits(plan, nums, counter_land_s=land_s)
     check(bool(floor), "the plan's events earned no floor hit (7.1: a short is never flat)")
+    # 029: the counter's hit fires where its digits land, not at its beat's start.
+    for hit in floor:
+        beat = next(b for b in plan.beats if b.id == hit.beat_id)
+        if beat.counter is not None and land_s is not None:
+            check(
+                abs(hit.at_s - (beat.end - land_s)) < 1e-9,
+                f"{beat.id}'s floor hit fires at {hit.at_s:g} s, not at its counter's landing",
+            )
     runtime = float(plan.beats[-1].end)
-    cues = sound.place_cues(plan, story, library, nums, runtime_s=runtime).cues
+    cues = sound.place_cues(
+        plan, story, library, nums, runtime_s=runtime, counter_land_s=land_s
+    ).cues
     check(bool(cues), "the short has no cues")
     check(
         any(c.hit for c in cues),

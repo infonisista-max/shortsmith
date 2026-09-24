@@ -18,6 +18,7 @@ from shortsmith.contracts import (
     Beat,
     BedQuery,
     Constraints,
+    CounterPlan,
     Cue,
     CutPlan,
     Event,
@@ -649,6 +650,56 @@ def test_an_infographic_needs_one_to_labels_max_labels_each_with_text(spec: Styl
     assert ("b05", "9.3") in rules(picture(_diagram(make_plan(), "b05", _labels(6)), spec))
     blank = [PlanLabel(text="  ", x=40.0, y=40.0)]
     assert ("b05", "9.3") in rules(picture(_diagram(make_plan(), "b05", blank), spec))
+
+
+# --- label fly-ins and counters (ticket 029; decisions 3.1, 4.2, 9.2, 9.3) ----------------
+
+
+def _counter(plan: PicturePlan, beat_id: str, **updates: Any) -> PicturePlan:
+    fields: dict[str, Any] = {
+        "overlays": ["counter"], "subject_kind": "number", "event": Event(),
+        "counter": CounterPlan(start=0, target=1250000, unit="crore"),
+    }  # fmt: skip
+    return replace(plan, beat_id, **{**fields, **updates})
+
+
+def test_a_counter_on_a_number_beat_or_a_chart_passes(spec: StyleSpec) -> None:
+    checked(_counter(make_plan(), "b05"), spec)
+    on_chart = _chart(make_plan(), "b05", "bar", _points(3))
+    checked(_counter(on_chart, "b05"), spec)
+    checked(replace(_diagram(make_plan(), "b05", _labels(3)), "b05", overlays=["label_flyin"]),
+            spec)  # fmt: skip
+
+
+def test_a_counter_overlay_needs_its_numbers_and_the_numbers_need_the_overlay(
+    spec: StyleSpec,
+) -> None:
+    assert ("b05", "9.2") in rules(picture(_counter(make_plan(), "b05", counter=None), spec))
+    assert ("b05", "9.2") in rules(picture(_counter(make_plan(), "b05", overlays=[]), spec))
+    same = CounterPlan(start=40, target=40)
+    assert ("b05", "9.2") in rules(picture(_counter(make_plan(), "b05", counter=same), spec))
+
+
+def test_the_counter_is_the_beats_one_landed_event(spec: StyleSpec) -> None:
+    stamped = _counter(make_plan(), "b05", event=Event(kind="stamp", text="12 LAKH"))
+    assert ("b05", "3.1") in rules(picture(stamped, spec))
+
+
+def test_a_counter_counts_as_a_number_beat(spec: StyleSpec) -> None:
+    concept = _counter(make_plan(), "b05", subject_kind="concept")
+    assert ("b05", "4.2") in rules(picture(concept, spec))
+
+
+def test_a_cue_may_sit_on_a_counters_landing(spec: StyleSpec) -> None:
+    """9.4: the counter is a landed event, so an `event` cue has something to hit."""
+    plan = _counter(make_plan(), "b05")
+    ok = cued(plan, spec, Cue(beat_id="b05", intent="money", at="event"))
+    assert isinstance(ok, grammar.SoundCheck)
+
+
+def test_label_flyin_rides_only_on_an_infographic(spec: StyleSpec) -> None:
+    plan = replace(make_plan(), "b05", overlays=["label_flyin"])
+    assert ("b05", "9.3") in rules(picture(plan, spec))
 
 
 # --- assets (4.3) ------------------------------------------------------------------------
