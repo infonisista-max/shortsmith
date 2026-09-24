@@ -1022,6 +1022,81 @@ def test_job_page_without_rows_shows_no_ledger(client: TestClient, media: Media)
     assert 'class="ledger"' not in client.get(location).text
 
 
+def test_job_page_cost_table_has_one_row_per_step_and_a_total_row(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    """044: per step, cash beside the tokens and their api-equivalent value; one total."""
+    location = _post(client, media.clip()).headers["location"]
+    job = jobs.find(app.state.data_dir, location.rsplit("/", 1)[1])
+    assert job is not None
+    book = Ledger(
+        Prices({"groq": {"audio_minutes": 0.5}, "api_equivalent": {"input_tokens": 0.25}}),
+        Caps(per_job=None, hard=None, per_day=500),
+    )
+    book.record(job, "transcribing", "groq", "w", {"audio_minutes": 2})  # 1.00
+    book.record(job, "transcribing", "groq", "w", {"audio_minutes": 1})  # 0.50
+    book.record(job, "planning", "claude_code", "cli", {"input_tokens": 4000})  # 1.00 equiv
+    body = client.get(location).text
+    table = body.split('<table class="ledger">', 1)[1].split("</table>", 1)[0]
+    assert table.count('<tr data-step="transcribing">') == 1
+    assert table.count('<tr data-step="planning">') == 1
+    step_row = table.split('<tr data-step="transcribing">', 1)[1].split("</tr>", 1)[0]
+    assert "INR 1.50" in step_row
+    planning_row = table.split('<tr data-step="planning">', 1)[1].split("</tr>", 1)[0]
+    assert "4000 tokens" in planning_row and "INR 1.00" in planning_row
+    total = table.split('<tr class="total">', 1)[1].split("</tr>", 1)[0]
+    assert "INR 1.50" in total and "4000 tokens" in total and "INR 1.00" in total
+    assert "over the soft cap" not in body
+
+
+def test_job_page_shows_the_running_average_per_passing_short(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    assert "per passing short" not in client.get(location).text  # nothing has passed yet
+    passed = jobs.create(app.state.data_dir, now=lambda: T0)
+    for step in (*jobs.STATUS_ORDER[1:], "passed"):
+        passed = jobs.transition(passed, step, now=lambda: T0)  # type: ignore[arg-type]
+    book = Ledger(Prices({"groq": {"audio_minutes": 0.5}}), Caps(None, None, 500))
+    book.record(passed, "transcribing", "groq", "w", {"audio_minutes": 5})  # 2.50
+    body = client.get(location).text  # a fake-only job: no table, but the average
+    assert 'class="ledger"' not in body
+    assert "INR 2.50 per passing short" in body and "over 1 passed" in body
+
+
+def test_daily_budget_closes_the_form_until_midnight_ist(tmp_path: Path, media: Media) -> None:
+    """044: `cash_spent_today` at `BUDGET_INR_PER_DAY` closes the form; 00:01 IST opens it."""
+    clock = Ticker(T0)  # 17:30 IST
+    book = Ledger(Prices({"groq": {"audio_minutes": 0.5}}), Caps(None, None, 1.0), clock=clock)
+    app = app_module.create_app(
+        _settings(tmp_path),
+        transcriber=FakeTranscriber(),
+        planner=FakePlanner(), specs=SPECS,
+        renderer=FakeRenderer(), gate=FakeGate(),
+        start_worker=False, clock=clock, book=book,
+    )  # fmt: skip
+    with TestClient(app) as client:
+        login(client)
+        clip = media.clip()
+        location = _post(client, clip).headers["location"]
+        job = jobs.find(app.state.data_dir, location.rsplit("/", 1)[1])
+        assert job is not None
+        book.record(job, "transcribing", "groq", "w", {"audio_minutes": 2})  # INR 1.00
+        closed = client.get("/")
+        assert closed.status_code == 200
+        assert 'name="video"' not in closed.text and "<form" not in closed.text
+        assert "daily budget reached" in closed.text.lower() and "midnight IST" in closed.text
+        refused = _post(client, clip)
+        assert refused.status_code == 503 and "daily budget reached" in refused.text.lower()
+        assert refused.headers["retry-after"] == str(6 * 3600 + 30 * 60)  # to midnight IST
+        assert len(_job_dirs(app)) == 1 and app.state.worker.depth() == 1
+        clock.now = datetime(2026, 9, 21, 18, 29, 0, tzinfo=UTC)  # 23:59 IST
+        assert "daily budget reached" in client.get("/").text.lower()
+        clock.now = datetime(2026, 9, 21, 18, 31, 0, tzinfo=UTC)  # 00:01 IST next day
+        assert 'name="video"' in client.get("/").text
+        assert _post(client, clip).status_code == 303
+
+
 def test_startup_refuses_to_run_when_a_paid_provider_has_no_price(tmp_path: Path) -> None:
     """5.6: the prices file is checked at startup, in the lifespan like the passcode,
     so importing the module never needs it and the server stops with the gap named."""

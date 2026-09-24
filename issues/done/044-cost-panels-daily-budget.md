@@ -16,10 +16,10 @@ Covers PRD `app` (cost panels), `ledger` (daily), `jobs` (running average). Deci
 
 ## Acceptance criteria
 
-- [ ] Job page cost table: one row per step with cash INR and tokens plus their api-equivalent INR, a total row, and the soft-cap flag when set.
-- [ ] Running average per passing short computed from all `passed` jobs' ledgers, shown on the job page and the job list.
-- [ ] `ledger.cash_spent_today(now)` ≥ `BUDGET_INR_PER_DAY` → the upload form is closed with "daily budget reached" and reopens after midnight IST (fake clock test at 23:59 and 00:01 IST).
-- [ ] Tokens never appear in any cash total (test).
+- [x] Job page cost table: one row per step with cash INR and tokens plus their api-equivalent INR, a total row, and the soft-cap flag when set.
+- [x] Running average per passing short computed from all `passed` jobs' ledgers, shown on the job page and the job list. (Job page done. The job list does not exist yet, so that half is handed to 045 in a note.)
+- [x] `ledger.cash_spent_today(now)` ≥ `BUDGET_INR_PER_DAY` → the upload form is closed with "daily budget reached" and reopens after midnight IST (fake clock test at 23:59 and 00:01 IST).
+- [x] Tokens never appear in any cash total (test).
 
 ## Notes from 011
 

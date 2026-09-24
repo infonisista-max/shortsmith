@@ -19,7 +19,9 @@ multipart body through `limited_receive`, which stops the read on the chunk that
 crosses the size limit instead of spooling the whole file. Refusals: 503 with
 Retry-After for the queue and the day limit, 413 for the size. A waiting job's page
 shows "queued, position N" and the JSON carries `queue_position` so the poll reloads
-as jobs finish. `MAX_JOB_MINUTES` reaches the worker. The disk guard (11.2, ticket 042) sits above
+as jobs finish. The daily cash budget (11.3, ticket 044) closes the form the same way
+as the day limit, until midnight IST, once `BUDGET_INR_PER_DAY` of cash rows is spent
+today. `MAX_JOB_MINUTES` reaches the worker. The disk guard (11.2, ticket 042) sits above
 all of them: under 5 GB free beneath the data directory the form is replaced by one
 plain sentence, `POST /jobs` answers 503 with Retry-After, and the sweeper runs at
 once so the next visit may find room.
@@ -318,8 +320,18 @@ def create_app(
         await delay(auth.WRONG_PASSCODE_DELAY_S)
         return HTMLResponse(render_passcode_form("Wrong passcode.", next_url), status_code=401)
 
-    def day_limit_reached() -> bool:
-        return jobs.created_since(data_dir, jobs.midnight_ist(clock())) >= max_jobs_per_day
+    def closed_until_midnight() -> str:
+        """Why the form is closed until midnight IST, or "": the day's job limit (11.2)
+        or the day's cash budget (11.3, 044). Tokens never count toward the budget."""
+        now = clock()
+        if jobs.created_since(data_dir, jobs.midnight_ist(now)) >= max_jobs_per_day:
+            return (
+                f"Today's limit of {max_jobs_per_day} shorts is reached. "
+                "Try again after midnight IST."
+            )
+        if _book().daily_budget_reached(data_dir, now):
+            return "Daily budget reached. Try again after midnight IST."
+        return ""
 
     def disk_guard_tripped() -> bool:
         """11.2: under the line the form refuses, and the sweeper runs at once, so the
@@ -330,18 +342,13 @@ def create_app(
             log.info("disk guard swept %s", action.line())
         return True
 
-    def day_closed_sentence() -> str:
-        return (
-            f"Today's limit of {max_jobs_per_day} shorts is reached. "
-            "Try again after midnight IST."
-        )
-
     @app.get("/", response_class=HTMLResponse)
     async def upload_form() -> HTMLResponse:
         if await run_in_threadpool(disk_guard_tripped):
             return HTMLResponse(render_upload_form(limits, closed=DISK_FULL_SENTENCE))
-        if await run_in_threadpool(day_limit_reached):
-            return HTMLResponse(render_upload_form(limits, closed=day_closed_sentence()))
+        closed = await run_in_threadpool(closed_until_midnight)
+        if closed:
+            return HTMLResponse(render_upload_form(limits, closed=closed))
         return HTMLResponse(render_upload_form(limits, chips=chips))
 
     @app.get("/styles/resolve")
@@ -358,9 +365,10 @@ def create_app(
                 status_code=503,
                 headers={"Retry-After": str(sweeper.INTERVAL_S)},
             )
-        if await run_in_threadpool(day_limit_reached):
+        closed = await run_in_threadpool(closed_until_midnight)
+        if closed:
             return HTMLResponse(
-                render_upload_form(limits, closed=day_closed_sentence()),
+                render_upload_form(limits, closed=closed),
                 status_code=503,
                 headers={"Retry-After": str(_seconds_to_next_midnight_ist(clock()))},
             )
@@ -457,7 +465,10 @@ def create_app(
         job = jobs.find(data_dir, job_id)
         if job is None:
             return HTMLResponse("<h1>No such job</h1>", status_code=404)
-        return HTMLResponse(render_job_page(job, position=_queue_position(job, worker)))
+        average = await run_in_threadpool(ledger.running_average, data_dir)
+        return HTMLResponse(
+            render_job_page(job, position=_queue_position(job, worker), average=average)
+        )
 
     @app.post("/jobs/{job_id}/retry")
     async def retry(job_id: str) -> Response:
@@ -716,7 +727,13 @@ def _step_items(job: Job) -> str:
     return "\n".join(items)
 
 
-def render_job_page(job: Job, *, now: datetime | None = None, position: int | None = None) -> str:
+def render_job_page(
+    job: Job,
+    *,
+    now: datetime | None = None,
+    position: int | None = None,
+    average: ledger.RunningAverage | None = None,
+) -> str:
     now = now or datetime.now(UTC)
     record = job.record
     brief_path = job.input_dir / "brief.md"
@@ -772,7 +789,7 @@ def render_job_page(job: Job, *, now: datetime | None = None, position: int | No
         references=references,
         brief=html.escape(brief),
         result=_result_block(job),
-        ledger=_ledger_block(job),
+        ledger=_ledger_block(job, average),
         json_url=f"/jobs/{html.escape(job.id)}.json",
         created_at=record.created_at.isoformat(),
         terminal="true" if record.status in SETTLED else "false",
@@ -801,39 +818,59 @@ def _result_block(job: Job) -> str:
     return f"{media}<h2>Technical checks</h2>\n<ul class=\"checks\">\n{items}\n</ul>\n"
 
 
-def _ledger_block(job: Job) -> str:
-    """The per-step cost (11.3): every row, the cash total, the subscription tokens
-    valued at the api-equivalent rate beside it, and the soft-cap flag. Nothing until
-    the first paid call, so a fake-only job shows no empty table."""
+def _ledger_block(job: Job, average: ledger.RunningAverage | None = None) -> str:
+    """The cost panel (11.3, 044): one row per step with its cash beside its
+    subscription tokens and their api-equivalent value, a total row, the soft-cap flag,
+    and the running average per passing short across jobs. The table waits for the
+    first paid call, so a fake-only job shows no empty table, only the average."""
     record = job.record
-    if not record.cost:
-        return ""
-    rows = "\n".join(
-        f"  <tr><td>{html.escape(r.step)}</td><td>{html.escape(r.provider)}</td>"
-        f"<td>{html.escape(r.model)}</td><td>{html.escape(_units(r.units))}</td>"
-        f"<td>{'INR ' + format(r.inr, '.2f') if r.inr > 0 else '-'}</td>"
-        f"<td>{f'{r.tokens_estimated} tokens' if r.tokens_estimated else '-'}</td></tr>"
-        for r in record.cost
-    )
-    cash = ledger.cash_total(record)
-    tokens = ledger.tokens_total(record)
-    summary = f"<p>Cash total: <strong>INR {cash:.2f}</strong>"
-    if tokens:
-        summary += (
-            f" · subscription: {tokens} tokens, worth about INR "
-            f"{ledger.equivalent_total(record):.2f} at the API rate (not counted)"
+    parts: list[str] = []
+    if record.cost:
+        rows = "\n".join(
+            f'  <tr data-step="{html.escape(s.step)}"><td>{html.escape(s.step)}</td>'
+            f"<td>{html.escape(_calls(s.rows))}</td>"
+            f"{_cost_cells(s.cash_inr, s.tokens, s.inr_equivalent)}</tr>"
+            for s in ledger.by_step(record)
         )
-    summary += "</p>"
-    flag = ""
-    if record.over_soft_cap:
-        flag = '<p class="warning">This job is over the soft cap; nothing was skipped for cost.</p>'
+        total = _cost_cells(
+            ledger.cash_total(record), ledger.tokens_total(record), ledger.equivalent_total(record)
+        )
+        parts.append(
+            '<table class="ledger">\n'
+            "  <tr><th>step</th><th>calls</th><th>cash</th><th>tokens</th>"
+            "<th>tokens at the API rate</th></tr>\n"
+            f"{rows}\n"
+            f'  <tr class="total"><th>total</th><td></td>{total}</tr>\n'
+            "</table>\n"
+            "<p>Only cash counts toward the budgets; subscription tokens are valued at "
+            "the API rate for comparison and never added to it.</p>"
+        )
+        if record.over_soft_cap:
+            parts.append(
+                '<p class="warning">This job is over the soft cap; nothing was skipped '
+                "for cost.</p>"
+            )
+    if average is not None:
+        line = f"Running average: INR {average.cash_inr:.2f} per passing short"
+        if average.inr_equivalent:
+            line += f" plus tokens worth INR {average.inr_equivalent:.2f} at the API rate"
+        passed = "short" if average.passed == 1 else "shorts"
+        parts.append(f'<p class="average">{line}, over {average.passed} passed {passed}.</p>')
+    if not parts:
+        return ""
+    return "<h2>Cost</h2>\n" + "\n".join(parts) + "\n"
+
+
+def _cost_cells(cash: float, tokens: int, equivalent: float) -> str:
     return (
-        "<h2>Cost</h2>\n"
-        '<table class="ledger">\n'
-        "  <tr><th>step</th><th>provider</th><th>model</th><th>units</th>"
-        "<th>cash</th><th>tokens</th></tr>\n"
-        f"{rows}\n</table>\n{summary}\n{flag}"
+        f"<td>{f'INR {cash:.2f}' if cash > 0 else '-'}</td>"
+        f"<td>{f'{tokens} tokens' if tokens else '-'}</td>"
+        f"<td>{f'INR {equivalent:.2f}' if tokens else '-'}</td>"
     )
+
+
+def _calls(rows: Sequence[jobs.CostRow]) -> str:
+    return "; ".join(f"{r.provider} {r.model} ({_units(r.units)})" for r in rows)
 
 
 def _units(units: dict[str, float]) -> str:

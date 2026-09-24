@@ -285,6 +285,80 @@ def test_cash_spent_today_sums_rows_since_midnight_ist(tmp_path: Path) -> None:
     assert book.cash_spent_today(data_dir, T0 + timedelta(hours=7)) == 0.0
 
 
+# --- 044: the cost panels ----------------------------------------------------------
+
+
+def test_by_step_sums_each_step_once_in_the_order_it_first_ran(tmp_path: Path) -> None:
+    job = _job(tmp_path)
+    book = _ledger()
+    book.record(job, "transcribing", "groq", "w", {"audio_minutes": 2})  # 1.0
+    book.record(job, "planning", "claude_code", "cli", {"input_tokens": 2000})  # 0.5 equiv
+    book.record(job, "planning", "planner", "m", {"output_tokens": 1000})  # 1.25 cash
+    book.record(job, "transcribing", "groq", "w", {"audio_minutes": 1})  # 0.5
+    steps = ledger.by_step(jobs.load(job.path).record)
+    assert [s.step for s in steps] == ["transcribing", "planning"]
+    transcribing, planning = steps
+    assert transcribing.cash_inr == pytest.approx(1.5)
+    assert transcribing.tokens == 0 and transcribing.inr_equivalent == 0.0
+    assert len(transcribing.rows) == 2
+    assert planning.cash_inr == pytest.approx(1.25)
+    assert planning.tokens == 2000
+    assert planning.inr_equivalent == pytest.approx(0.5)
+
+
+def _passed_job(data_dir: Path, created: datetime) -> jobs.Job:
+    job = jobs.create(data_dir, now=lambda: created)
+    for step in (*jobs.STATUS_ORDER[1:], "passed"):
+        job = jobs.transition(job, step, now=lambda: created)  # type: ignore[arg-type]
+    return job
+
+
+def test_running_average_is_over_passed_jobs_only(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    book = _ledger()
+    assert ledger.running_average(data_dir) is None  # no jobs at all
+    first = _passed_job(data_dir, T0)
+    second = _passed_job(data_dir, T0 + timedelta(seconds=1))
+    failed = jobs.create(data_dir, now=lambda: T0 + timedelta(seconds=2))
+    book.record(first, "transcribing", "groq", "w", {"audio_minutes": 2})  # 1.0
+    book.record(second, "transcribing", "groq", "w", {"audio_minutes": 6})  # 3.0
+    book.record(second, "planning", "claude_code", "cli", {"input_tokens": 4000})  # 1.0 equiv
+    book.record(failed, "transcribing", "groq", "w", {"audio_minutes": 100})  # not passed
+    average = ledger.running_average(data_dir)
+    assert average is not None
+    assert average.passed == 2
+    assert average.cash_inr == pytest.approx(2.0)
+    assert average.inr_equivalent == pytest.approx(0.5)
+
+
+def test_tokens_never_appear_in_any_cash_total(tmp_path: Path) -> None:
+    """044: the step sums, the running average and the daily guard count cash only."""
+    data_dir = tmp_path / "data"
+    job = _passed_job(data_dir, T0)
+    book = _ledger(per_day=0.01)
+    book.record(job, "planning", "claude_code", "cli", {"input_tokens": 10**7})
+    record = jobs.load(job.path).record
+    assert [s.cash_inr for s in ledger.by_step(record)] == [0.0]
+    assert ledger.cash_total(record) == 0.0
+    average = ledger.running_average(data_dir)
+    assert average is not None and average.cash_inr == 0.0
+    assert average.inr_equivalent > 0
+    assert book.cash_spent_today(data_dir, T0) == 0.0
+    assert not book.daily_budget_reached(data_dir, T0)
+
+
+def test_daily_budget_is_reached_at_the_cap_and_reopens_at_midnight_ist(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    book = _ledger(per_day=1.0)
+    job = jobs.create(data_dir, now=lambda: T0)
+    book.record(job, "transcribing", "groq", "w", {"audio_minutes": 1})  # 0.5
+    assert not book.daily_budget_reached(data_dir, T0)
+    book.record(job, "transcribing", "groq", "w", {"audio_minutes": 1})  # 1.0: exactly the cap
+    assert book.daily_budget_reached(data_dir, T0)
+    assert book.daily_budget_reached(data_dir, datetime(2026, 9, 22, 18, 29, tzinfo=UTC))  # 23:59
+    assert not book.daily_budget_reached(data_dir, datetime(2026, 9, 22, 18, 31, tzinfo=UTC))
+
+
 # --- 11.3: nothing is ever degraded for cost ---------------------------------------
 
 

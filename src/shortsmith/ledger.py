@@ -13,8 +13,9 @@ pass the hard cap, so the paid call never happens; the pipeline turns that into 
 `failed` job with "budget exceeded at step X" and the rows so far on the page. Passing
 the soft cap sets `job.json.over_soft_cap` and nothing else: no step is ever skipped
 or degraded for cost. Both per-job caps are unset until the operator derives them from
-the first ten metered passing jobs; the daily guard (`BUDGET_INR_PER_DAY`) is read
-through `cash_spent_today`, which ticket 044 wires to the upload form.
+the first ten metered passing jobs; `running_average` is that number, shown on the job
+page (044). The daily guard (`BUDGET_INR_PER_DAY`) is `daily_budget_reached`: at or
+over it the upload form closes until midnight IST.
 
 Subscription calls (8.3, `PLANNER=claude_code`) are rows with `inr` zero, the tokens
 in `tokens_estimated`, and `inr_equivalent` valued at the file's `api_equivalent` rate
@@ -177,6 +178,58 @@ def equivalent_total(record: JobRecord) -> float:
     return sum(row.inr_equivalent for row in record.cost)
 
 
+@dataclass(frozen=True)
+class StepCost:
+    """One step's line on the job page's cost table (044): its cash and, beside it, its
+    subscription tokens with their api-equivalent value."""
+
+    step: str
+    rows: tuple[CostRow, ...]
+
+    @property
+    def cash_inr(self) -> float:
+        return sum(row.inr for row in self.rows if row.inr > 0)
+
+    @property
+    def tokens(self) -> int:
+        return sum(row.tokens_estimated for row in self.rows)
+
+    @property
+    def inr_equivalent(self) -> float:
+        return sum(row.inr_equivalent for row in self.rows)
+
+
+def by_step(record: JobRecord) -> list[StepCost]:
+    """The rows grouped by step, each step once, in the order it first ran (a retry's
+    rows join the step they belong to)."""
+    grouped: dict[str, list[CostRow]] = {}
+    for row in record.cost:
+        grouped.setdefault(row.step, []).append(row)
+    return [StepCost(step, tuple(rows)) for step, rows in grouped.items()]
+
+
+@dataclass(frozen=True)
+class RunningAverage:
+    """Cost per passing short across every `passed` job (044, 11.3): the number the
+    operator derives the per-job caps from."""
+
+    passed: int
+    cash_inr: float
+    inr_equivalent: float
+
+
+def running_average(data_dir: Path) -> RunningAverage | None:
+    """None until a job has passed: an average of nothing is not zero."""
+    records = [job.record for job in jobs.iter_jobs(data_dir) if job.status == "passed"]
+    if not records:
+        return None
+    return RunningAverage(
+        passed=len(records),
+        cash_inr=sum(cash_total(r) for r in records) / len(records),
+        inr_equivalent=sum(equivalent_total(r) for r in records) / len(records),
+    )
+
+
 class Ledger:
     def __init__(self, prices: Prices, caps: Caps, *, clock: Clock = _utc_now) -> None:
         self.prices = prices
@@ -239,3 +292,7 @@ class Ledger:
         for job in jobs.iter_jobs(data_dir):
             total += sum(row.inr for row in job.record.cost if row.inr > 0 and row.at >= since)
         return total
+
+    def daily_budget_reached(self, data_dir: Path, now: datetime) -> bool:
+        """`BUDGET_INR_PER_DAY` spent since midnight IST: the upload form closes (044)."""
+        return self.cash_spent_today(data_dir, now) >= self.caps.per_day
