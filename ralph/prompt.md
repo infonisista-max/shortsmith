@@ -6,6 +6,13 @@ You will work on the AFK issues only, not the HITL ones.
 
 Run `git log -n 5` to review recent work.
 
+Run `git status`. If tracked files are modified, a previous session was
+killed mid-ticket. Do NOT select a new ticket. Work out which ticket the
+changes belong to from the issue files and `git log`, verify the work
+against that ticket's acceptance criteria, finish it, and commit it.
+Finishing it counts as this session's one ticket. If the changes match no
+ticket, stop and report — never commit work you cannot attribute.
+
 If all AFK tasks are complete, output <promise>NO MORE TASKS</promise>.
 
 # TASK SELECTION
@@ -73,6 +80,13 @@ Dependencies only via `uv add`. If a task needs a new dependency that is not alr
   when the session's launch prompt names it.
 - If your ticket needs a package that is not installed, do not install
   it: add a BLOCKED note to the ticket and stop.
+- Never stop with work in limbo. Before you stop for any reason — done,
+  blocked, or no tasks left — wait for any running feedback loop to
+  return, then either commit (only with every loop green) or leave the
+  tree dirty AND write its exact state into the ticket file.
+  Dirty-and-silent is the one forbidden ending.
+- Never commit merely to satisfy that rule. Red loops plus a dirty tree
+  is a correct ending — it is the signal the next session needs.
 
 # SELF-CHECK BEFORE DONE
 
