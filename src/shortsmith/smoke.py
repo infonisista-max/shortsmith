@@ -82,7 +82,7 @@ TRAIL = [
     "rendering -> qa",
     "qa -> delivered",
 ]
-TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T8", "T9")  # grows with the gate tickets
+TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T6", "T8", "T9")  # grows with the gate tickets
 SMOKE_BRIEF = (
     "Topic: a six-second synthetic clip. Angle: prove the pipeline end to end. "
     "Must-say: twelve words on six tone bursts. Hook wish: none."
@@ -619,8 +619,9 @@ def check_sound(
 
 
 def check_qa(job: jobs.Job) -> None:
-    """`out/qa.json`: T1-T4 (006), T8's rescue limit and T9 (016) ran in order and every
-    one passed (10.1)."""
+    """`out/qa.json`: T1-T4 (006), T6 (023), T8's rescue limit and T9 (016) ran in order
+    and every one passed (10.1). The smoke mixes cues, so T6 must have scanned a real SFX
+    stem - its no-stem pass would mean the detector never ran."""
     report = technical.load_report(job)
     check(report is not None, "qa did not write out/qa.json")
     assert report is not None
@@ -628,6 +629,11 @@ def check_qa(job: jobs.Job) -> None:
     check(names == list(TECHNICAL_CHECKS), f"qa.json lists {names}, expected {TECHNICAL_CHECKS}")
     for c in report.checks:
         check(c.passed, f"{c.name} failed: {c.detail}")
+    t6 = next((c for c in report.checks if c.name == "T6"), None)
+    check(
+        t6 is not None and t6.detail.startswith("R1-R4 clean on the SFX stem"),
+        f"T6 did not scan the SFX stem: {t6.detail if t6 else 'missing'}",
+    )
     check(report.passed, "qa.json says the report failed although every check passed")
 
 

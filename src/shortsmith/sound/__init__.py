@@ -45,14 +45,19 @@ a fall faster than `ramp_min_s` realised as a step - the level holds until the b
 boundary and drops there - with a changeover cue scheduled on the step.
 
 **Mix (7.3, research §5).** `build_mix` writes `work/stems/{voice,music,sfx}.wav` and the
-premix the master is cut from, plus `work/stems/balance.json`. The bed is looped or padded
-to the runtime, level-matched to `bed_db_under_voice` under the voice's RMS, run through
-the envelope and the style's fades, then ducked under the voice with the 7.3 sidechain
-(threshold 0.06, ratio 2, attack 20, release 400). Each cue is delayed to its time and
-peak-matched to its class level. The acceptance is in code: the bed's median must sit
-inside `bed_accept_db` under the voice, the speech band must clear the bed by
-`speech_band_margin_db`, and the ducking must stay under `duck_max_db` - outside any of
-them the step fails with the measured numbers, after writing the report.
+premix the master is cut from, plus `work/stems/balance.json` and `work/stems/cues.json`
+(023: every cue's start and end, so gate T6 can name the cue a sweep hit falls in).
+The bed is looped or padded to the runtime, level-matched to `bed_db_under_voice` under
+the voice's RMS, run through the envelope and the style's fades, then ducked under the
+voice with the 7.3 sidechain (threshold 0.06, ratio 2, attack 20, release 400). Each cue
+is delayed to its time and peak-matched to its class level. The acceptance is in code:
+the bed's median must sit inside `bed_accept_db` under the voice, the speech band must
+clear the bed by `speech_band_margin_db`, and the ducking must stay under `duck_max_db`
+- outside any of them the step fails with the measured numbers, after writing the report.
+
+**No sweeps (7.3; 023).** `sound.sweep` is the R1-R4 detector gate T6 runs on the SFX
+stem, and `sound.seed` the seed-time commands: `check` runs it on every catalogue SFX,
+`measure` fills each entry's `duration_s` / `bpm` / `key` / `energy`.
 
 **Rights (5.4).** `rights_rows` gives the bed and every SFX file its row with origin
 `library` and the catalogue's source URL; the renderer writes them beside the asset rows.
@@ -81,12 +86,14 @@ from shortsmith.contracts import (
     Beat,
     BedQuery,
     Catalogue,
+    CueRecord,
+    CueSheet,
     PicturePlan,
     RightsRow,
     SoundStory,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOGUE_PATH = REPO_ROOT / "assets" / "audio" / "catalog.yaml"
 SAMPLE_RATE = ffmpeg.SAMPLE_RATE
 MIX_TIMEOUT_S = 1800.0
@@ -653,6 +660,7 @@ def sfx_graph(
 # --- the mix (7.3) ----------------------------------------------------------------------
 
 BALANCE_NAME = "balance.json"
+CUES_NAME = "cues.json"
 
 
 @dataclass(frozen=True)
@@ -737,6 +745,8 @@ def build_mix(
     sfx = _sfx_stem(
         stems, cues=placed.cues, library=library, voice_db=voice_db, runtime_s=runtime_s
     )
+    sheet = cue_records(placed.cues, library, runtime_s=runtime_s)
+    (stems / CUES_NAME).write_text(sheet.model_dump_json(indent=2), encoding="utf-8")
     ducked = _ducked(stems, voice=voice, music=music)
     premix = _premix(stems, voice=voice, ducked=ducked, sfx=sfx)
     balance = _balance(
@@ -988,6 +998,30 @@ def rights_rows(result: MixResult, library: Library) -> list[RightsRow]:
             continue
         rows.append(_audio_row(entry, library, kind="sfx", beat_ids=beat_ids))
     return rows
+
+
+def cue_records(
+    cues: Sequence[PlacedCue], library: Library, *, runtime_s: float
+) -> CueSheet:
+    """Each placed cue from where it fires to where its file ends, inside the runtime."""
+    records: list[CueRecord] = []
+    for cue in cues:
+        entry = library.entry(cue.entry_id)
+        length = entry.duration_s if entry is not None else 0.0
+        records.append(
+            CueRecord(
+                beat_id=cue.beat_id, intent=cue.intent, entry_id=cue.entry_id,
+                start_s=cue.at_s, end_s=min(cue.at_s + length, runtime_s),
+            )  # fmt: skip
+        )
+    return CueSheet(cues=records)
+
+
+def cue_sheet(stems: Path) -> CueSheet | None:
+    path = stems / CUES_NAME
+    if not path.is_file():
+        return None
+    return CueSheet.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 def balance_report(stems: Path) -> BalanceReport | None:

@@ -18,6 +18,7 @@ from shortsmith import ffmpeg, fixture, grammar, render, sound, styles
 from shortsmith.contracts import (
     BedQuery,
     Cue,
+    CueSheet,
     Event,
     MoodPoint,
     PicturePlan,
@@ -469,6 +470,17 @@ def test_build_mix_writes_the_three_stems_and_the_balance(
         assert (stems / name).is_file(), f"{name} was not written"
     assert result.bed is not None and result.bed.id == "bed_tech_curious"
     assert result.cues, "the fixture short has at least one cue"
+    sheet = sound.cue_sheet(stems)  # 023: what T6 names a sweep hit by
+    assert sheet is not None
+    assert [(c.beat_id, c.entry_id, c.start_s) for c in sheet.cues] == [
+        (c.beat_id, c.entry_id, c.at_s) for c in result.cues
+    ]
+    for record in sheet.cues:
+        entry = library.entry(record.entry_id)
+        assert entry is not None
+        assert record.end_s == pytest.approx(
+            min(record.start_s + entry.duration_s, fixture.DURATION_S)
+        )
     balance = json.loads((stems / "balance.json").read_text(encoding="utf-8"))
     assert balance["problems"] == [], balance
     low, high = nums.bed_accept_db
@@ -509,6 +521,8 @@ def test_an_empty_library_leaves_the_voice_alone(
     assert result.bed is None and result.cues == ()
     assert result.premix == voice, "with nothing to mix the voice is the premix"
     assert (stems / "balance.json").is_file()
+    assert not (stems / "sfx.wav").exists()
+    assert sound.cue_sheet(stems) == CueSheet(cues=[])
 
 
 def test_the_rights_rows_name_the_files_the_mix_used(

@@ -184,6 +184,20 @@ def rms_windows_db(path: Path, *, window_s: float = 1.0) -> list[float]:
     return out
 
 
+def pcm_f32(path: Path, *, rate: int = SAMPLE_RATE) -> bytes:
+    """The first audio stream folded to mono and resampled to `rate`, as raw
+    little-endian float32 samples: what the 023 detector and the catalogue measure read
+    (ffmpeg decodes every format, numpy only measures)."""
+    proc = run(
+        [
+            FFMPEG, "-v", "error", "-i", str(path), "-map", "0:a:0",
+            "-ac", "1", "-ar", str(rate), "-f", "f32le", "-c:a", "pcm_f32le", "-",
+        ],  # fmt: skip
+        timeout_s=MEASURE_TIMEOUT_S,
+    )
+    return proc.stdout
+
+
 def video_md5(path: Path) -> str:
     """MD5 of the first video stream's packets, bit-exact (`-c copy`): equal for two
     files whose video was muxed without re-encoding (revision proof (a), 10.1)."""

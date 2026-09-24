@@ -427,6 +427,23 @@ class BalanceReport(StrictModel):
     problems: list[str] = []
 
 
+class CueRecord(StrictModel):
+    """One cue on the SFX stem, from where it fires to where its file ends."""
+
+    beat_id: str
+    intent: str
+    entry_id: str
+    start_s: float
+    end_s: float
+
+
+class CueSheet(StrictModel):
+    """`work/stems/cues.json` (023): the cues the SFX stem holds, so gate T6 can name
+    the cue a sweep hit falls in."""
+
+    cues: list[CueRecord] = []
+
+
 # --- the validated plan (decision 8.2; ticket 009) -----------------------------------
 
 

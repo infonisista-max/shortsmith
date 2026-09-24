@@ -7,17 +7,20 @@ real-file cases encode small synthetic clips (12.1: never a committed video)."""
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from shortsmith import assets, ffmpeg, jobs, rights
+from shortsmith import assets, ffmpeg, jobs, rights, sound
 from shortsmith.contracts import (
     AssetManifest,
     AssetRecord,
     Beat,
     BeatAsset,
+    CueRecord,
+    CueSheet,
     CutPlan,
     Finale,
     Hook,
@@ -27,7 +30,8 @@ from shortsmith.contracts import (
 from shortsmith.ffmpeg import Loudness
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
-from tests.conftest import Media
+from shortsmith.sound import sweep
+from tests.conftest import Media, Sounds
 
 MP4 = "mov,mp4,m4a,3gp,3g2,mj2"
 
@@ -312,6 +316,83 @@ def test_t9_without_a_rights_log_fails() -> None:
     assert not check.passed and "out/rights.json" in check.detail
 
 
+# --- T6 no sweep on the SFX stem (7.3) -------------------------------------------------------
+
+
+def _sheet() -> CueSheet:
+    return CueSheet(
+        cues=[
+            CueRecord(beat_id="b1", intent="bass", entry_id="sfx_bass", start_s=0.5, end_s=0.9),
+            CueRecord(beat_id="b2", intent="reveal", entry_id="sfx_rise", start_s=2.0, end_s=4.0),
+        ]
+    )
+
+
+def test_t6_without_an_sfx_stem_passes_with_its_reason() -> None:
+    check = technical.t6(None, None)
+    assert (check.name, check.passed) == ("T6", True)
+    assert check.detail == (
+        "no SFX stem: work/stems/sfx.wav is absent, so the short has no cues to scan"
+    )
+
+
+def test_t6_passes_a_clean_stem() -> None:
+    check = technical.t6([], _sheet())
+    assert (check.name, check.passed) == ("T6", True)
+    assert check.detail == "R1-R4 clean on the SFX stem (2 cues)"
+
+
+def test_t6_fails_naming_the_cue_sounding_at_the_hit() -> None:
+    hit = sweep.Hit(rule="R2", at_s=2.1, detail="crescendo of 9.0 dB over 0.23 s")
+    check = technical.t6([hit], _sheet())
+    assert not check.passed
+    assert check.detail == (
+        "R2 at 2.10 s in cue sfx_rise on b2 ('reveal'): crescendo of 9.0 dB over 0.23 s"
+    )
+
+
+def test_t6_names_the_last_cue_before_a_hit_between_cues() -> None:
+    hit = sweep.Hit(rule="R3", at_s=1.5, detail="one sound 5.10 s long")
+    check = technical.t6([hit], _sheet())
+    assert not check.passed and "cue sfx_bass on b1" in check.detail
+
+
+def test_t6_says_so_when_no_cue_sounds_before_a_hit() -> None:
+    hit = sweep.Hit(rule="R1", at_s=0.1, detail="flat")
+    check = technical.t6([hit], _sheet())
+    assert not check.passed and "no cue sounds there" in check.detail
+
+
+def _with_sfx_stem(job: jobs.Job, source: Path, sheet: CueSheet) -> None:
+    stems = job.work_dir / "stems"
+    stems.mkdir(parents=True, exist_ok=True)
+    shutil.copy(source, stems / "sfx.wav")
+    (stems / sound.CUES_NAME).write_text(sheet.model_dump_json(indent=2), encoding="utf-8")
+
+
+def test_run_fails_t6_naming_the_offending_cue(
+    media: Media, sounds: Sounds, tmp_path: Path
+) -> None:
+    job = _job_with(tmp_path, media.clip(duration_s=2.0, ext=".mp4"), _good_plan())
+    sheet = CueSheet(
+        cues=[CueRecord(beat_id="b1", intent="whoosh", entry_id="sfx_noise", start_s=0.0,
+                        end_s=1.0)]  # fmt: skip
+    )
+    _with_sfx_stem(job, sounds("noise_500ms"), sheet)
+    report = technical.run(job)
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T6"]
+    assert report.failed is not None and report.failed.name == "T6"
+    assert report.failed.detail.startswith("R1 at 0.00 s in cue sfx_noise on b1 ('whoosh')")
+
+
+def test_run_passes_t6_on_a_clean_stem(media: Media, sounds: Sounds, tmp_path: Path) -> None:
+    job = _job_with(tmp_path, media.clip(duration_s=2.0, ext=".mp4"), _good_plan())
+    _with_sfx_stem(job, sounds("clicks"), _sheet())
+    report = technical.run(job)
+    t6 = next(c for c in report.checks if c.name == "T6")
+    assert t6.passed and t6.detail == "R1-R4 clean on the SFX stem (2 cues)"
+
+
 # --- run(job) ------------------------------------------------------------------------------
 
 
@@ -331,10 +412,12 @@ def test_run_writes_qa_json_with_every_check_passing(media: Media, tmp_path: Pat
     job = _job_with(tmp_path, media.clip(duration_s=2.0, amplitude=0.3, ext=".mp4"), _good_plan())
     report = technical.run(job)
     assert report.passed
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T8", "T9"]
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T6", "T8", "T9"]
     on_disk = QaReport.model_validate_json((job.out_dir / "qa.json").read_text(encoding="utf-8"))
     assert on_disk == report
     assert all(c.detail for c in on_disk.checks)
+    t6 = next(c for c in on_disk.checks if c.name == "T6")
+    assert t6.passed and "work/stems/sfx.wav is absent" in t6.detail, "never a bare pass"
 
 
 def test_run_stops_at_the_first_failure_and_names_it(media: Media, tmp_path: Path) -> None:
@@ -361,7 +444,7 @@ def test_run_fails_t8_on_too_many_rescues(media: Media, tmp_path: Path) -> None:
     manifest = _manifest([_owner("a1")], _rescues(2, total=3), rescued_max=1, runtime_s=5.0)
     job = _job_with(tmp_path, media.clip(duration_s=2.0, ext=".mp4"), _good_plan(), manifest)
     report = technical.run(job)
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T8"]
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T6", "T8"]
     assert report.failed is not None and report.failed.name == "T8"
 
 

@@ -50,7 +50,7 @@ LABEL_H = 20
 STRIP_H = 20
 SUMMARY_H = 72
 MAX_BYTES = 2_000_000
-TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T8", "T9")  # T8 partial until 032; grows to T13
+TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T6", "T8", "T9")  # T8 partial until 032; grows to T13
 
 BG_COLOUR = (24, 24, 24)
 PANEL_COLOUR = (40, 40, 40)

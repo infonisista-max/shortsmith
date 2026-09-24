@@ -1,6 +1,6 @@
 """The technical gate (decision 10.1): T1-T13 in order, stop at the first FAIL, write
 `out/qa.json`. Ticket 006 shipped T1-T4; 016 adds the rescue limit as T8 (the rest of
-T8 arrives with 032) and T9; later tickets append the others to `run`.
+T8 arrives with 032) and T9; 023 adds T6; later tickets append the others to `run`.
 
 Each check is a pure function over what ffprobe or the loudness pass measured plus the
 plan, so the boundaries in 10.1 are unit-tested on both sides without encoding
@@ -11,6 +11,8 @@ failed report ends at the failing check.
     T2  frame count = round(duration x 30) on the video stream
     T3  duration <= 60.000 s, beats contiguous within 0.011 s, finale beat 0.8-1.2 s
     T4  master -14.0 +/- 0.5 LUFS integrated, true peak <= -1.5 dBTP (EBU R128 via loudnorm)
+    T6  no sweep: `sound.sweep` R1-R4 on work/stems/sfx.wav, a hit named by the cue at its
+        time (work/stems/cues.json); no stem is a pass that says so, never a bare pass
     T8  (016 part) rescued beats (ladder rung 3-4) <= the style limit scaled to the runtime
     T9  rights log complete: every beat's asset has a row, every row a source URL or an
         owner/generated origin, every generated row a prompt, no photoreal named entity
@@ -22,10 +24,18 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from shortsmith import assets, ffmpeg, rights
-from shortsmith.contracts import AssetManifest, PicturePlan, RightsRow, StrictModel
+from shortsmith import assets, ffmpeg, rights, sound
+from shortsmith.contracts import (
+    AssetManifest,
+    CueRecord,
+    CueSheet,
+    PicturePlan,
+    RightsRow,
+    StrictModel,
+)
 from shortsmith.ffmpeg import Loudness
 from shortsmith.jobs import Job
+from shortsmith.sound import sweep
 
 REPORT_NAME = "qa.json"
 
@@ -146,6 +156,45 @@ def t4(loudness: Loudness) -> QaCheck:
     return QaCheck(name="T4", passed=ok, detail=detail)
 
 
+CUE_TOL_S = 0.05  # a hit this close to a cue's span is that cue's
+
+
+def cue_at(at_s: float, sheet: CueSheet | None) -> CueRecord | None:
+    """The cue sounding at `at_s` (the latest to start, if two overlap), else the last
+    one to start before it; None when no cue has started by then."""
+    cues = sheet.cues if sheet is not None else []
+    sounding = [c for c in cues if c.start_s - CUE_TOL_S <= at_s <= c.end_s + CUE_TOL_S]
+    earlier = sounding or [c for c in cues if c.start_s <= at_s]
+    return max(earlier, key=lambda c: c.start_s) if earlier else None
+
+
+def t6(hits: Sequence[sweep.Hit] | None, sheet: CueSheet | None) -> QaCheck:
+    """No sweep (7.3): R1-R4 on `work/stems/sfx.wav`, each hit named by its cue. `hits`
+    is None when there is no SFX stem - a pass, with the reason written down."""
+    if hits is None:
+        return QaCheck(
+            name="T6",
+            passed=True,
+            detail="no SFX stem: work/stems/sfx.wav is absent, so the short has no cues to scan",
+        )
+    if not hits:
+        count = len(sheet.cues) if sheet is not None else 0
+        noun = "cue" if count == 1 else "cues"
+        return QaCheck(
+            name="T6", passed=True, detail=f"R1-R4 clean on the SFX stem ({count} {noun})"
+        )
+    problems: list[str] = []
+    for hit in hits:
+        cue = cue_at(hit.at_s, sheet)
+        where = (
+            f"cue {cue.entry_id} on {cue.beat_id} ({cue.intent!r})"
+            if cue is not None
+            else "no cue sounds there"
+        )
+        problems.append(f"{hit.rule} at {hit.at_s:.2f} s in {where}: {hit.detail}")
+    return QaCheck(name="T6", passed=False, detail="; ".join(problems))
+
+
 def t8(manifest: AssetManifest | None) -> QaCheck:
     """The 4.4 rescue limit: more rescued beats than `rescued_max` fails (032 folds the
     plan re-validation and the NetworkError scan into the same check)."""
@@ -198,10 +247,19 @@ def load_report(job: Job) -> QaReport | None:
     return QaReport.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def _sfx_scan(job: Job) -> tuple[list[sweep.Hit] | None, CueSheet | None]:
+    """The detector's hits on the job's SFX stem, None when there is no stem, and the
+    cue sheet that names them."""
+    stems = job.work_dir / "stems"
+    stem = stems / "sfx.wav"
+    hits = sweep.detect(stem) if stem.is_file() else None
+    return hits, sound.cue_sheet(stems)
+
+
 def run(job: Job) -> QaReport:
-    """T1-T4, T8 and T9 in order on `out/short.mp4`, `work/plan.json`,
-    `work/assets.json` and `out/rights.json`; stops at the first FAIL and writes
-    `out/qa.json` either way."""
+    """T1-T4, T6, T8 and T9 in order on `out/short.mp4`, `work/plan.json`,
+    `work/stems/`, `work/assets.json` and `out/rights.json`; stops at the first FAIL and
+    writes `out/qa.json` either way."""
     short = job.out_dir / "short.mp4"
     info = ffmpeg.probe(short)
     plan = PicturePlan.model_validate_json(
@@ -213,6 +271,7 @@ def run(job: Job) -> QaReport:
         lambda: t2(info),
         lambda: t3(info, plan),
         lambda: t4(ffmpeg.measure_loudness(short)),
+        lambda: t6(*_sfx_scan(job)),
         lambda: t8(assets.load_manifest(job.path)),
         lambda: t9(rights.load(job.path), assets.load_manifest(job.path), plan),
     ):

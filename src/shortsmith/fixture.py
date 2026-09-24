@@ -105,7 +105,9 @@ CATALOGUE_LICENCE = "CC0-1.0"
 CATALOGUE_SOURCE = "synthetic"
 
 
-def _wav(path: Path, *, expr: str, duration_s: float) -> Path:
+def make_wav(path: Path, *, expr: str, duration_s: float) -> Path:
+    """A 48 kHz mono 16-bit WAV of the `aevalsrc` expression `expr` in `t`: the
+    catalogue's beds and clicks, and the 023 sweep offenders `tests/conftest.py` builds."""
     run(
         [
             FFMPEG, "-v", "error", "-y", "-f", "lavfi",
@@ -127,7 +129,7 @@ def make_catalogue(root: Path) -> Path:
     files.mkdir(parents=True, exist_ok=True)
     entries: list[str] = []
     for name, theme, mood, energy, drops, hz in CATALOGUE_BEDS:
-        _wav(
+        make_wav(
             files / f"{name}.wav",
             expr=(
                 f"(0.25*sin(2*PI*{hz}*t)+0.05*sin(2*PI*{3 * hz}*t))"
@@ -142,7 +144,7 @@ def make_catalogue(root: Path) -> Path:
             )  # fmt: skip
         )
     for name, intent, hz in CATALOGUE_SFX:
-        _wav(
+        make_wav(
             files / f"{name}.wav",
             expr=f"0.8*sin(2*PI*{hz}*t)*exp(-14*t)",
             duration_s=CATALOGUE_SFX_S,

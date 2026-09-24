@@ -24,6 +24,7 @@ Covers PRD "Operator-supplied inputs". Decisions 7.1, 7.2, 7.3.
 ## Blocked by
 
 - Blocked by `issues/023-sweep-detector-t6-catalogue-measure.md`
+- Blocked by `issues/050-t6-segment-stem-by-cue-sheet.md` (real reverb tails would trip a false T6 on the merged stem)
 
 ## User stories addressed
 

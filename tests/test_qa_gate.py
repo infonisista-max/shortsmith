@@ -19,7 +19,7 @@ def test_fake_gate_passes_every_check_and_writes_qa_json(tmp_path: Path) -> None
     gate: Gate = FakeGate()
     report = gate.check(job)
     assert report.passed
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T8", "T9"]
+    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T6", "T8", "T9"]
     assert technical.load_report(job) == report
 
 
