@@ -16,9 +16,9 @@ Covers PRD `app` (job list), `jobs.list_recent`. Decisions 11.1, 2.2.
 
 ## Acceptance criteria
 
-- [ ] `jobs.list_recent(data_dir, n=50)` reads `job.json` files only, sorted by creation time, tolerant of a job directory mid-write.
-- [ ] `GET /jobs` renders the table; jobs past 24 h show "inputs swept", past 7 days are absent.
-- [ ] Test with the test client over sixty synthetic job directories shows exactly fifty.
+- [x] `jobs.list_recent(data_dir, n=50)` reads `job.json` files only, sorted by creation time, tolerant of a job directory mid-write.
+- [x] `GET /jobs` renders the table; jobs past 24 h show "inputs swept", past 7 days are absent.
+- [x] Test with the test client over sixty synthetic job directories shows exactly fifty.
 
 ## Notes from 044
 

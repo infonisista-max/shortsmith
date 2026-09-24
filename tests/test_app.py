@@ -1196,6 +1196,67 @@ def test_a_swept_job_page_says_where_the_recording_went(tmp_path: Path) -> None:
         assert "stay for 7 days" in swept
 
 
+def _list_rows(body: str) -> list[str]:
+    return [row.split('"', 1)[0] for row in body.split('<tr data-job="')[1:]]
+
+
+def test_job_list_shows_the_last_fifty_newest_first(tmp_path: Path) -> None:
+    """045, 11.1: sixty jobs on disk, fifty rows, newest first, each linking its page."""
+    app = _sweeper_app(tmp_path, [sweeper.MIN_FREE_BYTES], start_sweeper=False)
+    made = [
+        jobs.create(app.state.data_dir, now=lambda n=n: T0 - timedelta(minutes=n)).id
+        for n in range(60)
+    ]
+    with TestClient(app) as client:
+        login(client)
+        page = client.get("/jobs")
+        assert page.status_code == 200
+        assert _list_rows(page.text) == made[:50]
+        assert f'href="/jobs/{made[0]}"' in page.text
+        assert made[50] not in page.text
+        assert 'href="/jobs"' in client.get("/").text
+        assert 'href="/jobs"' in client.get(f"/jobs/{made[0]}").text
+
+
+def test_job_list_shows_status_cost_time_and_retention(tmp_path: Path) -> None:
+    """045: status, cash cost (never tokens), elapsed for a running job and the finish
+    time for a settled one; past 24 h "inputs swept", past 7 days absent."""
+    app = _sweeper_app(tmp_path, [sweeper.MIN_FREE_BYTES], start_sweeper=False)
+    data_dir = app.state.data_dir
+    running = jobs.create(data_dir, now=lambda: T0 - timedelta(minutes=3, seconds=5))
+    running = jobs.transition(running, "transcribing", now=lambda: T0)
+    book = Ledger(Prices({"groq": {"audio_minutes": 0.5}}), Caps(None, None, 500))
+    book.record(running, "transcribing", "groq", "w", {"audio_minutes": 3})  # INR 1.50
+    day_old = _old_job(app, created=T0 - timedelta(days=2))
+    week_old = _old_job(app, created=T0 - timedelta(days=8))
+    with TestClient(app) as client:
+        login(client)
+        body = client.get("/jobs").text
+    rows = dict(zip(_list_rows(body), body.split('<tr data-job="')[1:], strict=True))
+    assert week_old.name not in rows
+    live = rows[running.id]
+    assert "transcribing" in live and "INR 1.50" in live and "3m 5s" in live
+    assert "inputs swept" not in live
+    old = rows[day_old.name]
+    assert "delivered" in old and "inputs swept" in old
+    assert "19 Sep 17:30 IST" in old  # finished: updated_at, shown in IST
+
+
+def test_job_list_shows_the_running_average_and_needs_the_cookie(
+    client: TestClient, anon: TestClient, app: FastAPI
+) -> None:
+    assert "per passing short" not in client.get("/jobs").text
+    passed = jobs.create(app.state.data_dir, now=lambda: T0)
+    for step in (*jobs.STATUS_ORDER[1:], "passed"):
+        passed = jobs.transition(passed, step, now=lambda: T0)  # type: ignore[arg-type]
+    book = Ledger(Prices({"groq": {"audio_minutes": 0.5}}), Caps(None, None, 500))
+    book.record(passed, "transcribing", "groq", "w", {"audio_minutes": 5})  # 2.50
+    assert "INR 2.50 per passing short" in client.get("/jobs").text
+    anon.cookies.clear()
+    refused = anon.get("/jobs")
+    assert refused.status_code == 401 and 'name="passcode"' in refused.text
+
+
 def test_without_the_background_task_nothing_is_swept(tmp_path: Path) -> None:
     app = _sweeper_app(tmp_path, [sweeper.MIN_FREE_BYTES], start_sweeper=False)
     job_dir = _old_job(app, created=T0 - timedelta(days=2))

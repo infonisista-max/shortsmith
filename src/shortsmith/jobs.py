@@ -22,7 +22,6 @@ There is one worker thread, so read-apply-write needs no lock.
 
 from __future__ import annotations
 
-import itertools
 import re
 import secrets
 import time
@@ -32,7 +31,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: no tzdata needed on Windows
 
@@ -260,18 +259,25 @@ def find(data_dir: Path, job_id: str) -> Job | None:
 
 
 def iter_jobs(data_dir: Path) -> Iterator[Job]:
-    """Every job on disk, newest first (the ids sort by submission time)."""
+    """Every job on disk, newest first (the ids sort by submission time). A directory
+    mid-write - no job.json yet, one that does not parse, or one the sweeper took
+    between the listing and the read - is skipped: one job never breaks a listing."""
     root = data_dir / "jobs"
     if not root.is_dir():
         return
     for d in sorted((d for d in root.iterdir() if JOB_ID.match(d.name)), reverse=True):
-        if (d / "job.json").is_file():
+        try:
             yield load(d)
+        except (OSError, ValidationError):
+            continue
 
 
-def list_jobs(data_dir: Path, *, limit: int = 50) -> list[Job]:
-    """The most recent `limit` jobs, newest first (11.1: the job list page)."""
-    return list(itertools.islice(iter_jobs(data_dir), limit))
+def list_recent(data_dir: Path, n: int = 50, *, since: datetime | None = None) -> list[Job]:
+    """The `n` most recent jobs by `created_at`, newest first (11.1: the job list).
+    The directory name only resolves to the second, so job.json decides the order.
+    With `since`, jobs created before it are left out before the cut to `n`."""
+    found = [j for j in iter_jobs(data_dir) if since is None or j.record.created_at >= since]
+    return sorted(found, key=lambda j: j.record.created_at, reverse=True)[:n]
 
 
 def created_since(data_dir: Path, since: datetime) -> int:

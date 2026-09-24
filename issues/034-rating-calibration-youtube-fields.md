@@ -23,6 +23,10 @@ Covers PRD `qa.critic` (calibration), `jobs` rating and performance fields, `app
 - [ ] `job.json` and `meta.json` (035) carry rating, critic scores and performance.
 - [ ] Unit tests: streak arithmetic at 3 of 5 and 4 of 5, mode flip and flip-back, status semantics in both modes.
 
+## Notes from 045
+
+- The job list (`GET /jobs`, `app.render_job_list` / `_job_row`) already has a rating column, which shows `-` for now because `job.json` has no rating yet. When `rating` lands on `JobRecord`, put its score in that cell (`<td>-</td>` in `_job_row`).
+
 ## Blocked by
 
 - Blocked by `issues/033-vision-critic.md`

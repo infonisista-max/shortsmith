@@ -262,6 +262,46 @@ def test_created_since_counts_jobs_at_and_after_the_instant(tmp_path: Path) -> N
     assert jobs.created_since(tmp_path / "elsewhere", midnight) == 0
 
 
+def test_list_recent_is_the_newest_n_by_creation_time(tmp_path: Path) -> None:
+    """11.1 job list: newest first by `created_at` from job.json, not by directory
+    name, which only resolves to the second (two jobs in one second sort at random)."""
+    t = datetime(2026, 9, 20, 9, 0, 0, tzinfo=UTC)
+    stamps = [t + timedelta(microseconds=us) for us in (300, 100, 200)]
+    stamps.append(t - timedelta(hours=1))
+    made = [jobs.create(tmp_path, now=lambda s=s: s) for s in stamps]
+    listed = jobs.list_recent(tmp_path)
+    assert [j.id for j in listed] == [made[0].id, made[2].id, made[1].id, made[3].id]
+    assert [j.id for j in jobs.list_recent(tmp_path, n=2)] == [made[0].id, made[2].id]
+    assert jobs.list_recent(tmp_path / "elsewhere") == []
+
+
+def test_list_recent_can_leave_out_jobs_created_before_an_instant(tmp_path: Path) -> None:
+    """2.2: a job past 7 days is gone from the list even if the sweeper has not run
+    yet, and the cut to `n` is taken after that, so old jobs never crowd out new ones."""
+    t = datetime(2026, 9, 20, 9, 0, 0, tzinfo=UTC)
+    old = jobs.create(tmp_path, now=lambda: t - timedelta(days=8))
+    new = jobs.create(tmp_path, now=lambda: t)
+    assert [j.id for j in jobs.list_recent(tmp_path, since=t - timedelta(days=7))] == [new.id]
+    assert [j.id for j in jobs.list_recent(tmp_path)] == [new.id, old.id]
+
+
+def test_listing_tolerates_a_job_directory_mid_write(tmp_path: Path, clock: Clock) -> None:
+    """A directory whose job.json is not there yet, is half written, or went between
+    the listing and the read is skipped, never an error for the whole page."""
+    good = jobs.create(tmp_path, now=clock)
+    root = tmp_path / "jobs"
+    (root / "20260920-090010-aaaaaa" / "input").mkdir(parents=True)  # no job.json yet
+    half = root / "20260920-090011-bbbbbb"
+    half.mkdir()
+    (half / "job.json").write_text('{"id": "20260920-090011-bbbbbb", "sta', encoding="utf-8")
+    wrong = root / "20260920-090012-cccccc"
+    wrong.mkdir()
+    (wrong / "job.json").write_text('{"id": 1}', encoding="utf-8")
+    (root / "not-a-job").mkdir()
+    assert [j.id for j in jobs.list_recent(tmp_path)] == [good.id]
+    assert [j.id for j in jobs.iter_jobs(tmp_path)] == [good.id]
+
+
 def test_write_survives_a_concurrent_reader(tmp_path: Path) -> None:
     """The job page polls job.json while the worker rewrites it. On Windows the atomic
     replace fails with PermissionError while a reader holds the file open, so the

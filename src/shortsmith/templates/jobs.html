@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jobs</title>
+<style>
+  :root { color-scheme: light dark; --accent: #ffd60a; --muted: #777; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; margin-bottom: .25rem; }
+  .sub, .average, .swept, .empty { color: var(--muted); }
+  a { color: inherit; }
+  table.jobs { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  table.jobs th, table.jobs td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid #8884; }
+  td.status-failed { color: #c0392b; font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>Jobs</h1>
+<p class="sub">The last $limit jobs, newest first. A job's recording goes after 24 hours; the short stays for 7 days.</p>
+$average
+$table
+<p><a href="/">Upload another</a></p>
+</body>
+</html>

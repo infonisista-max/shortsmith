@@ -1,4 +1,10 @@
-"""FastAPI app (PRD `app`): upload form, `POST /jobs`, job page, job JSON, retry.
+"""FastAPI app (PRD `app`): upload form, `POST /jobs`, job list, job page, job JSON,
+retry.
+
+Job list (11.1, ticket 045): `GET /jobs` shows the last fifty jobs from
+`jobs.list_recent`, newest first, with status, cash cost, time and retention state,
+and the running average per passing short above the table. A job past 7 days is left
+out even before the sweeper deletes it; a settled job past 24 h reads "inputs swept".
 
 Pages are stdlib `string.Template` files under `templates/`; every user-supplied or
 model-generated string passes through `html.escape` before it is substituted. The
@@ -120,6 +126,7 @@ OUT_FILES: dict[str, str] = {
 }
 SHOWS_SHORT: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 QUEUE_RETRY_S = 3600  # "try in an hour"
+JOB_LIST_SIZE = 50  # 11.1: the job list shows the last fifty
 # 11.2: what the form says when the data disk is under `sweeper.MIN_FREE_BYTES`.
 DISK_FULL_SENTENCE = (
     "There is not enough disk space for a new short right now. Try again later."
@@ -450,6 +457,17 @@ def create_app(
                 return _rejection(limits, chips, str(exc), brief, style_line, captions)
         worker.submit(job.path, reserved=True)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
+    @app.get("/jobs", response_class=HTMLResponse)
+    async def job_list() -> HTMLResponse:
+        """The last fifty jobs (11.1, 045); anything past 7 days is gone from the list
+        even before the sweeper's next pass deletes it (2.2)."""
+        now = clock()
+        listed = await run_in_threadpool(
+            jobs.list_recent, data_dir, JOB_LIST_SIZE, since=now - sweeper.JOB_AFTER
+        )
+        average = await run_in_threadpool(ledger.running_average, data_dir)
+        return HTMLResponse(render_job_list(listed, now=now, average=average))
 
     @app.get("/jobs/{job_id}.json")
     async def job_json(job_id: str) -> Response:
@@ -851,14 +869,69 @@ def _ledger_block(job: Job, average: ledger.RunningAverage | None = None) -> str
                 "for cost.</p>"
             )
     if average is not None:
-        line = f"Running average: INR {average.cash_inr:.2f} per passing short"
-        if average.inr_equivalent:
-            line += f" plus tokens worth INR {average.inr_equivalent:.2f} at the API rate"
-        passed = "short" if average.passed == 1 else "shorts"
-        parts.append(f'<p class="average">{line}, over {average.passed} passed {passed}.</p>')
+        parts.append(_average_line(average))
     if not parts:
         return ""
     return "<h2>Cost</h2>\n" + "\n".join(parts) + "\n"
+
+
+def _average_line(average: ledger.RunningAverage) -> str:
+    """The running average per passing short (044), on the job page and the job list."""
+    line = f"Running average: INR {average.cash_inr:.2f} per passing short"
+    if average.inr_equivalent:
+        line += f" plus tokens worth INR {average.inr_equivalent:.2f} at the API rate"
+    passed = "short" if average.passed == 1 else "shorts"
+    return f'<p class="average">{line}, over {average.passed} passed {passed}.</p>'
+
+
+def render_job_list(
+    listed: Sequence[Job], *, now: datetime, average: ledger.RunningAverage | None = None
+) -> str:
+    """The job list (11.1, 045): one row per job with its status, rating, cash cost
+    (tokens never count as cash), the elapsed time of a job still moving or the finish
+    time of a settled one, and its retention state (2.2)."""
+    rows = "\n".join(_job_row(job, now) for job in listed)
+    if listed:
+        table = (
+            '<table class="jobs">\n'
+            "  <tr><th>job</th><th>status</th><th>rating</th><th>cost</th><th>time</th>"
+            "<th>files</th></tr>\n"
+            f"{rows}\n</table>"
+        )
+    else:
+        table = '<p class="empty">No jobs yet.</p>'
+    return _template("jobs.html").substitute(
+        limit=JOB_LIST_SIZE,
+        average=_average_line(average) if average is not None else "",
+        table=table,
+    )
+
+
+def _job_row(job: Job, now: datetime) -> str:
+    record = job.record
+    job_id = html.escape(job.id)
+    cash = ledger.cash_total(record)
+    if job.status in SETTLED:
+        when = f"finished {record.updated_at.astimezone(jobs.IST):%d %b %H:%M} IST"
+    else:
+        when = f"running {_elapsed(job, now)}"
+    return (
+        f'  <tr data-job="{job_id}"><td><a href="/jobs/{job_id}">{job_id}</a></td>'
+        f'<td class="status-{html.escape(record.status)}">{html.escape(record.status)}</td>'
+        "<td>-</td>"  # the rating arrives with 034
+        f"<td>{f'INR {cash:.2f}' if cash > 0 else '-'}</td>"
+        f"<td>{when}</td>"
+        f"<td>{_retention(job, now)}</td></tr>"
+    )
+
+
+def _retention(job: Job, now: datetime) -> str:
+    """2.2: past 24 h a settled job's recording and working files are gone. The list
+    says so from the 24 h mark, not only once the sweeper's next pass has run."""
+    swept = job.record.swept_at is not None or (
+        job.status in SETTLED and now - job.record.created_at > sweeper.WORKING_AFTER
+    )
+    return '<span class="swept">inputs swept</span>' if swept else "all files"
 
 
 def _cost_cells(cash: float, tokens: int, equivalent: float) -> str:
