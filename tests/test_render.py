@@ -22,6 +22,7 @@ from shortsmith import (
     captions,
     ffmpeg,
     fixture,
+    geo,
     infographics,
     jobs,
     presenter,
@@ -42,6 +43,7 @@ from shortsmith.contracts import (
     CutPlan,
     Event,
     FaceBox,
+    MapMarker,
     PicturePlan,
     PlanRequest,
     PlanStyle,
@@ -1219,3 +1221,79 @@ def test_the_photo_and_the_card_are_drawn_from_their_asset_files(
     assert _near(centre, colour("b04"))
     cover = _pixel(frames[7], 1000, 1800)
     assert sum(cover) < sum(centre)
+
+
+# --- maps (ticket 020; decisions 9.3, 12.1) ----------------------------------------------------
+
+
+def test_the_map_beat_draws_the_bundled_base_with_markers_at_geocoded_points(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "map")
+    drawn = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id)
+    layout = drawn.map
+    assert layout is not None
+    assert beat.map is not None
+    assert [m.name for m in layout.markers] == [m.name for m in beat.map.markers]
+    assert layout.land and layout.coast and layout.borders
+    assert layout.region == "India" and layout.object == "plane"
+    assert len(layout.route) == 2
+    # the default geocoder is the bundled gazetteer: no network, real coordinates
+    assert {m.source for m in layout.markers} == {"gazetteer"}
+    delhi, mumbai = layout.markers
+    assert delhi.y < mumbai.y and delhi.x > mumbai.x
+    # the map is drawn, never sourced: its beat shows no picture of its own
+    assert drawn.visual is None
+    assert drawn.chart is None and drawn.infographic is None
+
+
+def test_the_map_beat_is_never_sourced_and_needs_no_rights_row(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "map")
+    manifest = _sourced(tmp_path, plan)
+    assert manifest.beat(beat.id) is None
+    assert beat.id not in {b.beat_id for b in manifest.beats}
+
+
+def test_a_geocoding_miss_fails_the_build_naming_the_place(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "map")
+    assert beat.map is not None
+    lost = beat.map.model_copy(update={"markers": [*beat.map.markers, MapMarker(name="Atlantis")]})
+    plan = plan.model_copy(update={"beats": [
+        b.model_copy(update={"map": lost}) if b.id == beat.id else b for b in plan.beats
+    ]})  # fmt: skip
+    with pytest.raises(render.RenderError, match=r"b05.*Atlantis"):
+        _visual_spec(tmp_path, plan)
+
+
+def test_build_spec_takes_the_geocoder_and_binds_it_to_the_job(tmp_path: Path) -> None:
+    plan = _plan()
+
+    class Recording(geo.FakeGeocoder):
+        bound: list[Path] = []
+
+        def for_job(self, job_dir: Path) -> geo.Geocoder:
+            self.bound.append(job_dir)
+            return self
+
+    coder = Recording()
+    spec = render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        manifest=_sourced(tmp_path, plan), job_dir=tmp_path / "job", geocoder=coder,
+    )  # fmt: skip
+    layout = next(b for b in spec.beats if b.kind == "map").map
+    assert layout is not None and {m.source for m in layout.markers} == {"fake"}
+    assert coder.bound == [tmp_path / "job"]
+
+
+def test_the_remotion_renderer_carries_a_geocoder_the_gazetteer_by_default() -> None:
+    assert isinstance(render.RemotionRenderer().geocoder, geo.GazetteerGeocoder)
+    fake = geo.FakeGeocoder()
+    assert render.RemotionRenderer(geocoder=fake).geocoder is fake
+
+
+def test_registry_exports_map_after_020() -> None:
+    assert "map" in render.registry()

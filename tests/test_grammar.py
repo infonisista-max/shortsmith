@@ -24,6 +24,8 @@ from shortsmith.contracts import (
     Event,
     Finale,
     Hook,
+    MapMarker,
+    MapPlan,
     Mode,
     MoodPoint,
     PicturePlan,
@@ -933,3 +935,86 @@ def test_the_fake_plan_passes_the_fixture_rules_with_zero_violations() -> None:
     assert scaled.finale == explainer.finale and scaled.palette == explainer.palette
     assert scaled.name == "explainer" and scaled.status == "shipped"
     assert specs["hitech"] is not None
+
+
+# --- maps (ticket 020; decisions 9.2, 9.3) ---------------------------------------------------
+
+
+def _map(plan: PicturePlan, beat_id: str, **updates: Any) -> PicturePlan:
+    fields: dict[str, Any] = {
+        "kind": "map", "motion": "travel", "subject_kind": "entity", "asset_id": None,
+        "map": MapPlan(region="India", markers=[MapMarker(name="Delhi"), MapMarker(name="Mumbai")]),
+    }  # fmt: skip
+    return replace(plan, beat_id, **{**fields, **updates})
+
+
+def test_a_map_beat_passes_with_a_region_and_markers_and_needs_no_asset(spec: StyleSpec) -> None:
+    checked(_map(make_plan(), "b05"), spec)
+    boxed = MapPlan(bbox=(68.0, 6.0, 98.0, 36.0), markers=[MapMarker(name="Delhi")])
+    checked(_map(make_plan(), "b05", map=boxed), spec)
+    routed = MapPlan(region="India", markers=[MapMarker(name="Delhi"), MapMarker(name="Mumbai")],
+                     route=["Delhi", "Mumbai"], object="plane")  # fmt: skip
+    checked(_map(make_plan(), "b05", map=routed,
+                 overlays=["pin_drop", "route_arrow", "object_path"]), spec)  # fmt: skip
+
+
+def test_a_map_beat_without_its_recipe_or_without_a_region_or_bbox_is_rejected(
+    spec: StyleSpec,
+) -> None:
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=None), spec))
+    bare = MapPlan(markers=[MapMarker(name="Delhi")])
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=bare), spec))
+
+
+def test_a_map_recipe_on_a_beat_that_is_not_a_map_is_rejected(spec: StyleSpec) -> None:
+    plan = replace(make_plan(), "b05", map=MapPlan(region="India", markers=[MapMarker(name="x")]))
+    assert ("b05", "9.3") in rules(picture(plan, spec))
+
+
+@pytest.mark.parametrize("bbox", [(98.0, 6.0, 68.0, 36.0), (68.0, 36.0, 98.0, 6.0),
+                                  (68.0, 6.0, 190.0, 36.0), (68.0, -90.0, 98.0, 36.0)])  # fmt: skip
+def test_a_bbox_must_be_west_south_east_north_on_the_earth(
+    spec: StyleSpec, bbox: tuple[float, float, float, float]
+) -> None:
+    boxed = MapPlan(bbox=bbox, markers=[MapMarker(name="Delhi")])
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=boxed), spec))
+
+
+def test_marker_counts_come_from_the_style_and_every_marker_has_a_name(spec: StyleSpec) -> None:
+    top = int(spec.broll.motion["map"]["markers_max"])
+    many = MapPlan(region="India", markers=[MapMarker(name=f"m{i}") for i in range(top + 1)])
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=many), spec))
+    enough = MapPlan(region="India", markers=[MapMarker(name=f"m{i}") for i in range(top)])
+    checked(_map(make_plan(), "b05", map=enough), spec)
+    none = MapPlan(region="India")
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=none), spec))
+    blank = MapPlan(region="India", markers=[MapMarker(name="  ")])
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=blank), spec))
+
+
+def test_a_route_is_two_or_more_named_places(spec: StyleSpec) -> None:
+    one = MapPlan(region="India", markers=[MapMarker(name="Delhi")], route=["Delhi"])
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=one), spec))
+    blank = MapPlan(region="India", markers=[MapMarker(name="Delhi")], route=["Delhi", " "])
+    assert ("b05", "9.3") in rules(picture(_map(make_plan(), "b05", map=blank), spec))
+
+
+def test_the_map_overlays_ride_on_a_map_with_what_they_animate(spec: StyleSpec) -> None:
+    # pin drops, route arrows and moving objects live on a map, nowhere else
+    for overlay in ("pin_drop", "route_arrow", "object_path"):
+        plan = replace(make_plan(), "b05", overlays=[overlay])
+        assert ("b05", "9.3") in rules(picture(plan, spec)), overlay
+    # a route arrow and a moving object need a route; the object needs its sprite
+    no_route = _map(make_plan(), "b05", overlays=["route_arrow"])
+    assert ("b05", "9.3") in rules(picture(no_route, spec))
+    routed = MapPlan(region="India", markers=[MapMarker(name="Delhi"), MapMarker(name="Mumbai")],
+                     route=["Delhi", "Mumbai"])  # fmt: skip
+    checked(_map(make_plan(), "b05", map=routed, overlays=["route_arrow"]), spec)
+    no_object = _map(make_plan(), "b05", map=routed, overlays=["object_path"])
+    assert ("b05", "9.3") in rules(picture(no_object, spec))
+
+
+def test_planner_coordinates_on_a_marker_are_carried_not_rejected(spec: StyleSpec) -> None:
+    """9.3: the plan may write lat/lon; code ignores them (test in test_infographics)."""
+    wrong = MapPlan(region="India", markers=[MapMarker(name="Delhi", lat=0.0, lon=0.0)])
+    checked(_map(make_plan(), "b05", map=wrong), spec)

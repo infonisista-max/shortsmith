@@ -20,6 +20,7 @@ from shortsmith.contracts import (
     PicturePlan,
     PlanFeedback,
     PlanRequest,
+    RenderSpec,
     SoundStory,
     Transcript,
     ValidatedPlan,
@@ -77,8 +78,13 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     manifest = assets.load_manifest(job.path)
     assert manifest is not None and manifest.rescued == 0
     assert [b.beat_id for b in manifest.beats] == [
-        b.id for b in plan.beats if b.subject_kind is not None
-    ]
+        b.id for b in plan.beats
+        if b.subject_kind is not None and b.kind not in assets.NOT_SOURCED
+    ]  # fmt: skip
+    # 020: the map beat is drawn, not sourced, and its markers are fake-geocoded
+    spec = RenderSpec.model_validate_json((job.work_dir / "render_spec.json").read_text("utf-8"))
+    layout = next(b for b in spec.beats if b.kind == "map").map
+    assert layout is not None and [m.source for m in layout.markers] == ["fake", "fake"]
     treatments = {b.beat_id: b.treatment for b in manifest.beats}
     assert (treatments["b03"], treatments["b04"]) == ("photo", "card")
     rows = rights.load(job.path)

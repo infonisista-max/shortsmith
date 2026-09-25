@@ -7,7 +7,8 @@ the web app's thread runs) with the fake transcriber, the fake planner, the fake
 image sources (016: web answers every query but the photo beat's, Commons has that
 one as a full-bleed portrait) and the real Remotion renderer, assert `work/asr.json`,
 `work/plan.json`, `work/sound.json`, `work/captions.json`, `work/assets.json` (every
-sourced beat found, none rescued, the photo beat a photo and the card beat a card),
+sourced beat found, none rescued, the photo beat a photo and the card beat a card, the
+map beat drawn from the bundled geodata with fake-geocoded markers and no picture, 020),
 `out/rights.json` complete and `out/credits.md`, the face measured by the real
 cascade on all eight strip stills with the 3.3 geometry on `job.json` and in the
 render spec (013), `work/picture.mp4` (H.264,
@@ -46,6 +47,7 @@ from shortsmith import (
     contact_sheet,
     ffmpeg,
     fixture,
+    geo,
     infographics,
     ingest,
     jobs,
@@ -150,7 +152,9 @@ def run_smoke(
     # director asked it, and the fake plan's bed query scores in the library, so it is
     # never asked - the gate is proved shut, not just present.
     search = sound.FakeAudioSearch()
-    renderer = renderer or render.RemotionRenderer(search=search)
+    # 020: the map's markers come from the fake geocoder's ten places; the land under
+    # them is the real bundled geodata, read with no network (13.1).
+    renderer = renderer or render.RemotionRenderer(search=search, geocoder=geo.FakeGeocoder())
 
     # 008: every spec loads against the registry, and the style line resolves in code.
     specs = styles.load_all(render.registry())
@@ -305,7 +309,10 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
     manifest = assets.load_manifest(job.path)
     check(manifest is not None, "sourcing did not write work/assets.json")
     assert manifest is not None
-    sourced = [b.id for b in plan.beats if b.subject_kind is not None]
+    sourced = [
+        b.id for b in plan.beats
+        if b.subject_kind is not None and b.kind not in assets.NOT_SOURCED
+    ]  # fmt: skip
     check([b.beat_id for b in manifest.beats] == sourced, "a labelled beat was not sourced")
     rescued = [b.beat_id for b in manifest.beats if b.rescued]
     check(not rescued, f"beats rescued although the fakes answer: {rescued}")
@@ -432,6 +439,40 @@ def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
     check(not labelled, f"lower-thirds drawn on {labelled}; b04's card strip carries it")
     check_list_split_wall(spec, plan)
     check_infographics(spec, plan)
+    check_map(spec, plan)
+
+
+def check_map(spec: RenderSpec, plan: PicturePlan) -> None:
+    """020: the fake plan's `map` beat draws a region of the bundled land with its two
+    markers at the fake geocoder's coordinates (never the plan's), Delhi north-east of
+    Mumbai, every dot and label inside the safe band, the route ready for 028, and no
+    picture sourced for it."""
+    beat = next(b for b in plan.beats if b.kind == "map")
+    drawn = next(b for b in spec.beats if b.id == beat.id)
+    layout = drawn.map
+    check(layout is not None, "the map beat carries no map")
+    assert layout is not None and beat.map is not None
+    check(drawn.visual is None, "the map beat draws a picture; a map is drawn in code (9.3)")
+    check(bool(layout.land) and bool(layout.coast) and bool(layout.borders),
+          "the map draws no land, coast or borders from the bundled data")  # fmt: skip
+    names = [m.name for m in layout.markers]
+    check(names == [m.name for m in beat.map.markers], f"the map places {names}")
+    check({m.source for m in layout.markers} == {"fake"}, "the markers were not fake-geocoded")
+    delhi, mumbai = layout.markers
+    check(delhi.y < mumbai.y and delhi.x > mumbai.x, "Delhi is not north-east of Mumbai")
+    limit = render.style_numbers(styles.DEFAULT).broll.card_max_bottom_y
+    for m in layout.markers:
+        inside = (
+            infographics.SAFE_LEFT <= m.x <= render.WIDTH - infographics.SAFE_RIGHT_PX
+            and infographics.DIAGRAM_BAND_TOP <= m.y <= limit
+            and m.label_left >= infographics.SAFE_LEFT
+            and m.label_left + m.label_width <= render.WIDTH - infographics.SAFE_RIGHT_PX
+            and m.label_top >= infographics.SAFE_TOP
+            and m.label_top + m.label_height <= limit
+        )
+        check(inside, f"the marker {m.name!r} or its label is outside the safe band")
+    check(len(layout.route) == len(beat.map.route), f"the route has {len(layout.route)} points")
+    check(layout.object == beat.map.object, f"the map object is {layout.object!r}")
 
 
 def check_infographics(spec: RenderSpec, plan: PicturePlan) -> None:

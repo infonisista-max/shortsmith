@@ -10,8 +10,9 @@
 // Ticket 021 adds the two infographic kinds: `infographic` draws its own label-free base
 // with the labels in code over it, `chart` is drawn from the planner's series over the
 // gradient. Ticket 029 flies the diagram's labels in (`label_flyin`, over its base) and
-// adds the `counter`, a number beat's landed event in the stamp's layer. Other kinds
-// arrive with their tickets.
+// adds the `counter`, a number beat's landed event in the stamp's layer. Ticket 020 draws
+// the `map` from the bundled geodata over the gradient (the water), with its markers at
+// real coordinates; 028 animates them. Other kinds arrive with their tickets.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Captions } from "./components/captions";
@@ -24,6 +25,7 @@ import { Infographic } from "./components/infographic";
 import { LabelFlyin } from "./components/label_flyin";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
+import { MapBase } from "./components/map";
 import { Photo } from "./components/photo";
 import { Pip, Presenter } from "./components/pip";
 import { Split } from "./components/split";
@@ -102,6 +104,16 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       ) : null}
       {beat?.chart ? (
         <Chart spec={beat.chart} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat?.map ? (
+        <MapBase
+          spec={beat.map}
+          style={spec.caption_style}
+          frame={since}
+          fps={spec.fps}
+          width={spec.width}
+          height={spec.height}
+        />
       ) : null}
       {beat?.mode === "full" ? <Presenter spec={spec} beat={beat} frame={frame} /> : null}
       {beat?.mode === "pip" ? <Pip spec={spec} /> : null}

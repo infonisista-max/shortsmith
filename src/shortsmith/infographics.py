@@ -23,6 +23,15 @@ same division of labour as the set pieces of 026 / 027.
 - `counter_texts` is the `counter` overlay's digits, one string per frame (029): easing
   from the plan's start value to its target and holding the target through the landing,
   every value written in the style's digit grouping with the plan's decimals and unit.
+- `resolve_map(recipe, geocoder=...)` (ticket 020, 9.3) is the map composed in code:
+  the region (a name the geocoder answers with a bbox, or the plan's own bbox) widened
+  to hold every marker and route point, padded by the style's `padding` and fitted
+  into the band with the Mercator maths in `geo`; the bundled Natural Earth land, coast
+  and borders projected, clipped to the frame and written as SVG paths; every marker at
+  the coordinate the geocoder gave its name (the plan's own lat/lon are never read),
+  its label pill beside the dot inside the safe area; the route as pixels for 028. A
+  name the geocoder does not know is `InfographicError` naming it - a marker is never
+  placed by a guess.
 
 The base picture is always label-free: `assets.generate` appends "no text, no labels"
 to a diagram base's prompt (5.5) and the asset step marks the asset as a diagram base,
@@ -35,9 +44,10 @@ typography); the geometry below is this engine's look, as in `render`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from shortsmith import styles
+from shortsmith import geo, styles
 from shortsmith.captions import measure
 from shortsmith.contracts import (
     Beat,
@@ -48,12 +58,18 @@ from shortsmith.contracts import (
     Crop,
     DiagramLabel,
     DiagramLayout,
+    MapLayout,
+    MapMarkerLayout,
+    MapObject,
     Palette,
     PlanLabel,
     SeriesPoint,
     Treatment,
 )
+from shortsmith.geo import GeocodeError, Geocoder, Place
 from shortsmith.styles import StyleSpec
+
+__all__ = ["Geocoder", "GeocodeError", "Place"]  # the interface, re-exported from `geo`
 
 # The composition's frame and the two margins nothing lands under: the same numbers the
 # renderer uses (6.2 left margin, the platform's right rail) and the top of the
@@ -90,6 +106,17 @@ DIAGRAM_LABEL_FILL, DIAGRAM_LABEL_RADIUS_PX = "rgba(17,17,17,0.78)", 14
 LABELS_IN_FRACTION = 0.6
 LABEL_STAGGER_MAX_S = 0.3
 
+# The map's look (020): the marker dot with its pale ring, the label pill beside it in
+# the diagram's pill style, the frame the base is clipped to (a margin past the edges so
+# a stroke never ends visibly at the frame), and the spans a name without a bbox gets.
+MAP_LABEL_FONT_PX, MAP_LABEL_MIN_FONT_PX = 36, 24
+MAP_LABEL_PAD_X, MAP_LABEL_PAD_Y = 16.0, 8.0
+MAP_LABEL_GAP_PX = 12.0
+MAP_DOT_PX, MAP_RING_PX = 22, 4
+MAP_CLIP_MARGIN_PX = 60.0
+CITY_SPAN_DEG = 3.0  # a region that is a point (a city) shows this many degrees across
+MIN_SPAN_DEG = 1.0  # a crop is never narrower than this in either axis
+
 
 class InfographicError(ValueError):
     """The recipe cannot be drawn: a series that is empty or does not match its form, or
@@ -124,20 +151,39 @@ class DiagramNumbers:
 
 
 @dataclass(frozen=True)
+class MapNumbers:
+    """`broll.motion.map` (020): the marker cap, the base's fade-in, the crop padding
+    as a fraction of the region's span, and the base colours and stroke widths (the
+    marker takes the palette accent), plus the y the band may not pass."""
+
+    markers_max: int
+    draw_s: float
+    padding: float
+    land: str
+    coast: str
+    border: str
+    coast_px: float
+    border_px: float
+    max_bottom_y: int
+
+
+@dataclass(frozen=True)
 class InfographicNumbers:
-    """Everything the two resolvers read from a loaded style spec."""
+    """Everything the three resolvers read from a loaded style spec."""
 
     chart: ChartNumbers
     diagram: DiagramNumbers
+    map: MapNumbers
     palette: Palette
     captions: CaptionStyle
 
 
 def numbers_for(spec: StyleSpec) -> InfographicNumbers:
-    """The `chart` and `infographic` rows of `broll.motion` with the palette and the
-    caption typography; a missing key names the spec, as `render.broll_numbers` does."""
+    """The `chart`, `infographic` and `map` rows of `broll.motion` with the palette and
+    the caption typography; a missing key names the spec, as `render.broll_numbers` does."""
     try:
         chart, diagram = spec.broll.motion["chart"], spec.broll.motion["infographic"]
+        map_row = spec.broll.motion["map"]
         return InfographicNumbers(
             chart=ChartNumbers(
                 marks_max=int(chart["marks_max"]),
@@ -151,6 +197,17 @@ def numbers_for(spec: StyleSpec) -> InfographicNumbers:
                 scale_from=float(diagram["scale_from"]),
                 scale_to=float(diagram["scale_to"]),
                 dim=float(diagram["dim"]),
+                max_bottom_y=spec.broll.card_max_bottom_y,
+            ),
+            map=MapNumbers(
+                markers_max=int(map_row["markers_max"]),
+                draw_s=float(map_row["duration_s"]),
+                padding=float(map_row["padding"]),
+                land=str(map_row["land"]),
+                coast=str(map_row["coast"]),
+                border=str(map_row["border"]),
+                coast_px=float(map_row["coast_px"]),
+                border_px=float(map_row["border_px"]),
                 max_bottom_y=spec.broll.card_max_bottom_y,
             ),
             palette=spec.palette,
@@ -512,3 +569,169 @@ def _check_inside(
             f"({left:.0f}, {top:.0f}) to ({right:.0f}, {bottom:.0f}), outside the safe area "
             f"x {SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP:g}-{numbers.max_bottom_y}"
         )
+
+
+# --- maps (9.3, 12.1; ticket 020) ---------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MapMarkerRecipe:
+    """A marker by name. The plan's `lat` / `lon` ride along and are never read (9.3)."""
+
+    name: str
+    lat: float | None = None
+    lon: float | None = None
+
+
+@dataclass(frozen=True)
+class MapRecipe:
+    """What a `map` beat asks for: the region by name or a bbox (west, south, east,
+    north), the markers, the route as names in order, the object that travels it."""
+
+    region: str = ""
+    bbox: geo.BBox | None = None
+    markers: tuple[MapMarkerRecipe, ...] = ()
+    route: tuple[str, ...] = ()
+    object: MapObject | None = None
+
+
+def map_recipe(beat: Beat) -> MapRecipe:
+    """A `map` beat as a recipe; the grammar has already checked the shape."""
+    if beat.map is None:
+        raise InfographicError(f"{beat.id}: a map beat has no map recipe (9.3)")
+    plan = beat.map
+    return MapRecipe(
+        region=plan.region.strip(),
+        bbox=plan.bbox,
+        markers=tuple(MapMarkerRecipe(m.name.strip(), m.lat, m.lon) for m in plan.markers),
+        route=tuple(n.strip() for n in plan.route),
+        object=plan.object,
+    )
+
+
+def _locate(geocoder: Geocoder, name: str, what: str) -> Place:
+    """The place for `name`, or the 9.3 refusal naming it."""
+    try:
+        found = geocoder.lookup(name)
+    except GeocodeError as exc:
+        raise InfographicError(f"the map {what} {name!r} could not be geocoded: {exc}") from None
+    if found is None:
+        raise InfographicError(
+            f"the map {what} {name!r} is not in the gazetteer (and no fallback answered); "
+            "a marker is never placed by a guess (9.3)"
+        )
+    return found
+
+
+def _widened(bbox: geo.BBox, places: Sequence[Place]) -> geo.BBox:
+    west, south, east, north = bbox
+    for p in places:
+        west, east = min(west, p.lon), max(east, p.lon)
+        south, north = min(south, p.lat), max(north, p.lat)
+    if east - west < MIN_SPAN_DEG:
+        mid = (west + east) / 2
+        west, east = mid - MIN_SPAN_DEG / 2, mid + MIN_SPAN_DEG / 2
+    if north - south < MIN_SPAN_DEG:
+        mid = (south + north) / 2
+        south, north = mid - MIN_SPAN_DEG / 2, mid + MIN_SPAN_DEG / 2
+    return west, south, east, north
+
+
+def _padded(bbox: geo.BBox, padding: float) -> geo.BBox:
+    west, south, east, north = bbox
+    dx, dy = (east - west) * padding, (north - south) * padding
+    return (
+        max(-180.0, west - dx),
+        max(-geo.MAX_LAT, south - dy),
+        min(180.0, east + dx),
+        min(geo.MAX_LAT, north + dy),
+    )
+
+
+def _marker_layout(
+    place: Place, projection: geo.Mercator, *, style: CaptionStyle, numbers: MapNumbers,
+) -> MapMarkerLayout:  # fmt: skip
+    """The dot at the projected point and its label pill to the right of it, flipped to
+    the left when the right rail is near; a pill the safe area cannot hold is a build
+    failure, as a diagram label's is (9.3)."""
+    x, y = projection.project(place.lon, place.lat)
+    room = WIDTH - SAFE_RIGHT_PX - SAFE_LEFT
+    font_px = _fitted(place.name, font_px=MAP_LABEL_FONT_PX, style=style,
+                      min_font_px=MAP_LABEL_MIN_FONT_PX, room=room)  # fmt: skip
+    width = _measured(place.name, font_px=font_px, style=style) + 2 * MAP_LABEL_PAD_X
+    height = font_px * style.line_height + 2 * MAP_LABEL_PAD_Y
+    left = x + MAP_DOT_PX / 2 + MAP_LABEL_GAP_PX
+    if left + width > WIDTH - SAFE_RIGHT_PX:
+        left = x - MAP_DOT_PX / 2 - MAP_LABEL_GAP_PX - width
+    top = y - height / 2
+    right, bottom = left + width, top + height
+    inside = (
+        left >= SAFE_LEFT - 1e-6
+        and right <= WIDTH - SAFE_RIGHT_PX + 1e-6
+        and top >= SAFE_TOP - 1e-6
+        and bottom <= numbers.max_bottom_y + 1e-6
+    )
+    if not inside:
+        raise InfographicError(
+            f"the marker {place.name!r} at ({x:.0f}, {y:.0f}) puts its label at ({left:.0f}, "
+            f"{top:.0f}) to ({right:.0f}, {bottom:.0f}), outside the safe area x "
+            f"{SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP:g}-{numbers.max_bottom_y}"
+        )
+    return MapMarkerLayout(
+        name=place.name, lat=place.lat, lon=place.lon, x=x, y=y, label_left=left,
+        label_top=top, label_width=width, label_height=height, label_font_px=font_px,
+        source=place.source,
+    )  # fmt: skip
+
+
+def resolve_map(
+    recipe: MapRecipe, *, numbers: InfographicNumbers, geocoder: Geocoder,
+    layers: geo.Layers | None = None,
+) -> MapLayout:  # fmt: skip
+    """The map laid out in composition pixels (9.3): the crop fitted into the band
+    inside the safe box and above the style's `broll.card_max_bottom_y`, the base as
+    SVG paths, the markers at their geocoded points, the route as pixels."""
+    m, style = numbers.map, numbers.captions
+    if not recipe.markers:
+        raise InfographicError("a map has no markers (9.3)")
+    if len(recipe.markers) > m.markers_max:
+        raise InfographicError(
+            f"a map has {len(recipe.markers)} markers, over broll.motion.map.markers_max "
+            f"{m.markers_max}"
+        )
+    places = [_locate(geocoder, marker.name, "marker") for marker in recipe.markers]
+    route_places = [_locate(geocoder, name, "route point") for name in recipe.route]
+    if recipe.bbox is not None:
+        base = recipe.bbox
+    else:
+        if not recipe.region:
+            raise InfographicError("a map names no region and no bbox (9.3)")
+        region = _locate(geocoder, recipe.region, "region")
+        base = region.bbox or (
+            region.lon - CITY_SPAN_DEG / 2, region.lat - CITY_SPAN_DEG / 2,
+            region.lon + CITY_SPAN_DEG / 2, region.lat + CITY_SPAN_DEG / 2,
+        )  # fmt: skip
+    crop = _padded(_widened(base, [*places, *route_places]), m.padding)
+    band: geo.Rect = (
+        SAFE_LEFT, DIAGRAM_BAND_TOP, WIDTH - SAFE_RIGHT_PX - SAFE_LEFT,
+        m.max_bottom_y - DIAGRAM_BAND_TOP,
+    )  # fmt: skip
+    projection = geo.Mercator.fit(crop, band)
+    frame: geo.Rect = (
+        -MAP_CLIP_MARGIN_PX, -MAP_CLIP_MARGIN_PX,
+        WIDTH + 2 * MAP_CLIP_MARGIN_PX, HEIGHT + 2 * MAP_CLIP_MARGIN_PX,
+    )  # fmt: skip
+    paths = geo.base_paths(layers or geo.load_layers(), projection, frame)
+    markers = [_marker_layout(p, projection, style=style, numbers=m) for p in places]
+    return MapLayout(
+        region=recipe.region, bbox=crop, left=band[0], top=band[1], width=band[2],
+        height=band[3], scale=projection.scale, center_lon=projection.center_lon,
+        center_merc=projection.center_merc, center_x=projection.center_x,
+        center_y=projection.center_y, land=paths.land, coast=paths.coast,
+        borders=paths.borders, land_color=m.land, coast_color=m.coast, border_color=m.border,
+        coast_px=m.coast_px, border_px=m.border_px, markers=markers,
+        route=[projection.project(p.lon, p.lat) for p in route_places], object=recipe.object,
+        marker_color=numbers.palette.accent, dot_px=MAP_DOT_PX, ring_px=MAP_RING_PX,
+        label_fill=DIAGRAM_LABEL_FILL, label_radius_px=DIAGRAM_LABEL_RADIUS_PX,
+        text_color="#FFFFFF", draw_s=m.draw_s,
+    )  # fmt: skip

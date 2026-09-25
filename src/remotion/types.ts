@@ -320,6 +320,57 @@ export type DiagramLayout = {
   fly_s: number;
 };
 
+// The map (ticket 020): the base as SVG path strings already projected, clipped and
+// simplified by `shortsmith.infographics.resolve_map`, the markers at their geocoded
+// points with measured label pills, and the route polyline 028 animates.
+
+export type MapMarkerLayout = {
+  name: string;
+  lat: number;
+  lon: number;
+  x: number;
+  y: number;
+  label_left: number;
+  label_top: number;
+  label_width: number;
+  label_height: number;
+  label_font_px: number;
+  delay_s: number;
+  source: string;
+};
+
+export type MapLayout = {
+  region: string;
+  bbox: [number, number, number, number];
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  scale: number;
+  center_lon: number;
+  center_merc: number;
+  center_x: number;
+  center_y: number;
+  land: string[];
+  coast: string[];
+  borders: string[];
+  land_color: string;
+  coast_color: string;
+  border_color: string;
+  coast_px: number;
+  border_px: number;
+  markers: MapMarkerLayout[];
+  route: [number, number][];
+  object: "plane" | "ship" | "arrow" | null;
+  marker_color: string;
+  dot_px: number;
+  ring_px: number;
+  label_fill: string;
+  label_radius_px: number;
+  text_color: string;
+  draw_s: number;
+};
+
 export type PunchIn = {
   scale_from: number;
   settle_to: number;
@@ -347,6 +398,7 @@ export type BeatSpec = {
   list?: ListSpec | null;
   chart?: ChartLayout | null;
   infographic?: DiagramLayout | null;
+  map?: MapLayout | null;
   counter?: CounterSpec | null;
 };
 

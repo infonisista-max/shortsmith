@@ -7,7 +7,9 @@ T3's finale rule holds; ticket 006) with every boundary on a word end or in sile
 a `full` cold open, an `off` hook-cards beat, `pip` beats, and every
 tier-1 kind (4.1 as amended by 9.2) named at least once across beat kinds, overlays,
 events and presenter modes. Kinds the renderer cannot draw yet are still valid plan
-data. The plan passes the grammar under `fixture.smoke_specs` (the explainer copy
+data. The `map` beat (020) sources no picture, so the hook's third card is the split
+beat's searched asset (the chart beat's is a number beat's reuse alias). The plan
+passes the grammar under `fixture.smoke_specs` (the explainer copy
 with beat, asset-count and ramp numbers scaled to six seconds) with zero violations;
 it uses only the explainer's five transitions (9.4). The fake ignores `feedback`.
 """
@@ -26,6 +28,8 @@ from shortsmith.contracts import (
     Event,
     Finale,
     Hook,
+    MapMarker,
+    MapPlan,
     MoodPoint,
     PicturePlan,
     PlanFeedback,
@@ -83,11 +87,15 @@ class FakePlanner(Planner):
               subject_kind="entity", query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",
               enter="whip", event=Event(kind="lower_third", text="India Gate · Delhi")),
+            # 020: the map is drawn from the bundled geodata with the markers at the
+            # geocoder's points; it sources no picture. 028 animates its three overlays.
             B(id="b05", start=2.0, end=2.5, mode="off", kind="map",
               overlays=["pin_drop", "route_arrow", "object_path"], motion="travel",
               subject_kind="entity", query="Delhi to Mumbai route",
-              query_fallback="India map", source_intent="generate", asset_id="a4",
-              enter="fade"),  # 009: `wipe` is not an explainer transition (9.4)
+              query_fallback="India map", enter="fade",  # 009: `wipe` is not explainer (9.4)
+              map=MapPlan(region="India",
+                          markers=[MapMarker(name="Delhi"), MapMarker(name="Mumbai")],
+                          route=["Delhi", "Mumbai"], object="plane")),
             # 021: the chart is drawn from the series, the diagram's labels in code. 029:
             # the counter is the chart beat's landed event, counting to its top value.
             B(id="b06", start=2.5, end=3.0, mode="off", kind="chart", overlays=["counter"],
@@ -136,7 +144,7 @@ class FakePlanner(Planner):
                 title="A Short About Nothing",
                 cold_open_span=Span(start=0.0, end=0.5),
                 original_position="drop",  # lifted from the head: a no-op reorder (005)
-                card_asset_ids=["a1", "a2", "a4"],
+                card_asset_ids=["a1", "a2", "a8"],
             ),
             finale=Finale(beat_id="b11", text="Made from nothing"),
             keywords=[5, 10, 1, 7],

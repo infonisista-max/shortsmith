@@ -68,6 +68,11 @@ TITLED_KINDS = frozenset({"list", "split"})  # a header (nkb_04) and a title str
 # 021: a chart carries its title strip in the same field, but needs no items.
 TITLE_KINDS = TITLED_KINDS | {"chart"}
 CHART_KIND, DIAGRAM_KIND = "chart", "infographic"
+# 020: the map and the three overlays that animate on it (028).
+MAP_KIND = "map"
+MAP_OVERLAYS = frozenset({"pin_drop", "route_arrow", "object_path"})
+ROUTED_OVERLAYS = frozenset({"route_arrow", "object_path"})
+MAX_MAP_LAT = 85.0  # Mercator's edge; a bbox past it has nothing to draw
 TIER2_SUBSTITUTES: dict[str, str] = {"parallax": "photo", "vector_illustration": "card"}
 NUMBER_WORDS = {
     "1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six",
@@ -155,6 +160,7 @@ def validate_picture(
     found += _kinds(beats, spec)
     found += _items(beats, spec)
     found += _charts(beats, spec)
+    found += _maps(beats, spec)
     found += _overlays(beats)
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
@@ -663,12 +669,62 @@ def _chart_beat(b: Beat, marks_max: int) -> list[Violation]:
     return found
 
 
+def _maps(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
+    """9.3 (ticket 020): a `map` beat carries its recipe - a region name or a bbox of
+    west, south, east, north on the earth, 1 to `broll.motion.map.markers_max` named
+    markers, and a route of two or more named places when it has one. The names are
+    geocoded at render time from the bundled gazetteer; the plan's own coordinates are
+    never read. Only a map carries the recipe."""
+    found: list[Violation] = []
+    markers_max = _motion_count(spec, MAP_KIND, "markers_max")
+    for b in beats:
+        if b.kind != MAP_KIND:
+            if b.map is not None:
+                found.append(
+                    _v("9.3", b.id, f"kind {b.kind!r} carries a map recipe; only a map does")
+                )
+            continue
+        if b.map is None:
+            found.append(
+                _v("9.3", b.id, "a map beat needs `map` (a region name or a bbox, and markers)")
+            )
+            continue
+        recipe = b.map
+        if not recipe.region.strip() and recipe.bbox is None:
+            found.append(_v("9.3", b.id, "a map needs a region name or a bbox"))
+        if recipe.bbox is not None:
+            west, south, east, north = recipe.bbox
+            lon_ok = -180.0 <= west < east <= 180.0
+            lat_ok = -MAX_MAP_LAT <= south < north <= MAX_MAP_LAT
+            if not (lon_ok and lat_ok):
+                found.append(
+                    _v("9.3", b.id, f"bbox {list(recipe.bbox)} is not west < east within "
+                                    f"+-180 and south < north within +-{MAX_MAP_LAT:g}")
+                )
+        if not 1 <= len(recipe.markers) <= markers_max:
+            found.append(
+                _v("9.3", b.id, f"this map has {len(recipe.markers)} markers; broll.motion."
+                                f"map.markers_max allows 1-{markers_max}")  # fmt: skip
+            )
+        for i, marker in enumerate(recipe.markers):
+            if not marker.name.strip():
+                found.append(_v("9.3", b.id, f"marker {i} has no name"))
+        if recipe.route and len(recipe.route) < 2:
+            found.append(_v("9.3", b.id, "a route is two or more named places, in order"))
+        for i, name in enumerate(recipe.route):
+            if not name.strip():
+                found.append(_v("9.3", b.id, f"route point {i} has no name"))
+    return found
+
+
 def _overlays(beats: Sequence[Beat]) -> list[Violation]:
     """Ticket 029: the two overlays the renderer draws. `label_flyin` flies an
     infographic's labels in (9.3), so it rides on nothing else. A `counter` overlay and
     the `counter` numbers come together (9.2) and must count somewhere; the counter is
     the beat's one landed event (3.1), so the beat carries no stamp or lower-third; and
-    it counts as a `number` beat over the previous asset (4.2)."""
+    it counts as a `number` beat over the previous asset (4.2). Ticket 020: the three
+    map overlays ride on a `map`, and the two that follow the route need one; the
+    moving object needs its sprite named."""
     found: list[Violation] = []
     for b in beats:
         if "label_flyin" in b.overlays and b.kind != DIAGRAM_KIND:
@@ -676,6 +732,20 @@ def _overlays(beats: Sequence[Beat]) -> list[Violation]:
                 _v("9.3", b.id, f"label_flyin rides on an infographic's labels; this beat is "
                                 f"a {b.kind!r}")  # fmt: skip
             )
+        for overlay in sorted(MAP_OVERLAYS & set(b.overlays)):
+            if b.kind != MAP_KIND:
+                found.append(
+                    _v("9.3", b.id, f"{overlay} rides on a map; this beat is a {b.kind!r}")
+                )
+                continue
+            routed = b.map is not None and len(b.map.route) >= 2
+            if overlay in ROUTED_OVERLAYS and not routed:
+                found.append(_v("9.3", b.id, f"{overlay} follows the map's route; there is none"))
+            if overlay == "object_path" and (b.map is None or b.map.object is None):
+                found.append(
+                    _v("9.3", b.id, "object_path moves the map's `object` (plane | ship | arrow); "
+                                    "none is named")  # fmt: skip
+                )
         if ("counter" in b.overlays) != (b.counter is not None):
             found.append(
                 _v("9.2", b.id, "a counter overlay needs `counter` (start, target, unit, "

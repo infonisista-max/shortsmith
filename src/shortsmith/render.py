@@ -91,6 +91,11 @@ montage member, never a showing):
   `broll.card_max_bottom_y`, cells flying in from alternating sides, each with its own
   Ken Burns, over the dimmed base still (nkb_09).
 
+Ticket 020 adds the `map`: `infographics.resolve_map` projects the bundled Natural Earth
+layers into pixels and places the markers by the geocoder's coordinates; `build_spec`
+takes the geocoder (the bundled gazetteer by default) and binds it to the job's directory
+for the fallback's cache. A map beat sources no picture (`assets.NOT_SOURCED`).
+
 Ticket 029 adds the two overlays: `label_flyin` is the diagram's labels flying in (their
 stagger and edges are `infographics.resolve_diagram`'s), and `counter` on a beat whose plan
 carries `counter` numbers - the digits of every frame written in
@@ -118,6 +123,7 @@ from pathlib import Path
 from shortsmith import (
     assets,
     ffmpeg,
+    geo,
     infographics,
     jobs,
     presenter,
@@ -147,6 +153,7 @@ from shortsmith.contracts import (
     ListRow,
     ListSpec,
     LowerThirdSpec,
+    MapLayout,
     Mode,
     Palette,
     PicturePlan,
@@ -1230,6 +1237,22 @@ def infographic(
         raise RenderError(f"{beat.id}: {exc}") from None
 
 
+def map_layout(
+    beat: Beat, *, numbers: StyleNumbers, geocoder: geo.Geocoder
+) -> MapLayout | None:
+    """The `map` drawn from the bundled geodata with its markers at the geocoder's
+    points (020, 9.3). A name the geocoder does not know is a build failure naming it,
+    as a diagram label outside the safe area is (021): never a guessed point."""
+    if beat.kind != "map":
+        return None
+    try:
+        return infographics.resolve_map(
+            infographics.map_recipe(beat), numbers=numbers.info, geocoder=geocoder
+        )
+    except infographics.InfographicError as exc:
+        raise RenderError(f"{beat.id}: {exc}") from None
+
+
 def _stamp_text(beat: Beat, manifest: AssetManifest | None) -> str | None:
     """The beat's stamp word: its own landed event, else the rescue word a rung-3 or
     rung-4 beat carries (4.4, 016)."""
@@ -1275,12 +1298,17 @@ def build_spec(
     manifest: AssetManifest | None = None,
     job_dir: Path | None = None,
     pip: PipGeometry | None = None,
+    geocoder: geo.Geocoder | None = None,
 ) -> RenderSpec:
     """`pip` is the measured geometry from `job.json.presenter` (013); None falls back
-    to `fixed_pip`."""
+    to `fixed_pip`. `geocoder` places the map markers (020); None is the bundled
+    gazetteer, and whichever it is, it is bound to the job's directory for its cache."""
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     visuals = _visuals(plan, manifest, job_dir, numbers)
+    geocoder = geocoder or geo.GazetteerGeocoder()
+    if job_dir is not None:
+        geocoder = geocoder.for_job(job_dir)
     finale_beat = _check_finale(plan, captions, numbers)
     sources = card_sources(plan, manifest, job_dir)
     two_lines = set(captions.beats_with_two_lines)
@@ -1324,6 +1352,7 @@ def build_spec(
                 list=rows,
                 chart=chart,
                 infographic=diagram,
+                map=map_layout(b, numbers=numbers, geocoder=geocoder),
                 counter=(
                     counter_spec(b.counter, frames=end_frame - start_frame, fps=fps,
                                  numbers=numbers)  # fmt: skip
@@ -1475,11 +1504,13 @@ def measured_pip(job: Job) -> PipGeometry | None:
     return measured.pip if measured is not None else None
 
 
-def spec_for_job(job: Job, *, numbers: StyleNumbers | None = None) -> RenderSpec:
+def spec_for_job(
+    job: Job, *, numbers: StyleNumbers | None = None, geocoder: geo.Geocoder | None = None
+) -> RenderSpec:
     """The RenderSpec from the job's files: plan.json, captions.json, the presenter cut
     (`work/cut.mp4`, 005) and the measured PIP geometry (`job.json.presenter`, 013),
     with the numbers of the job's resolved style (`job.json.style`, 008). The short is
-    as long as the cut list."""
+    as long as the cut list. `geocoder` places the map markers (020)."""
     numbers = numbers or style_numbers(job.record.style)
     plan = _load_plan(job)
     captions = load_captions(job)
@@ -1496,12 +1527,18 @@ def spec_for_job(job: Job, *, numbers: StyleNumbers | None = None) -> RenderSpec
         manifest=assets.load_manifest(job.path),
         job_dir=job.path,
         pip=measured_pip(job),
+        geocoder=geocoder,
     )
 
 
-def render_picture(job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
+def render_picture(
+    job: Job,
+    *,
+    on_progress: Callable[[int], None] | None = None,
+    geocoder: geo.Geocoder | None = None,
+) -> Path:
     """The `rendering` step's picture half: `work/picture.mp4`, silent H.264."""
-    spec = spec_for_job(job)
+    spec = spec_for_job(job, geocoder=geocoder)
     out = job.work_dir / "picture.mp4"
     run_driver(
         spec,
@@ -1766,11 +1803,12 @@ def render_short(
     on_progress: Callable[[int], None] | None = None,
     library: sound.Library | None = None,
     search: sound.AudioSearch | None = None,
+    geocoder: geo.Geocoder | None = None,
 ) -> Path:
     """The whole `rendering` step (9.1): cut, voice stem, picture, sound and mux."""
     cut_presenter(job)
     voice_stem(job)
-    render_picture(job, on_progress=on_progress)
+    render_picture(job, on_progress=on_progress, geocoder=geocoder)
     return mux(job, library=library, search=search)
 
 
@@ -1801,10 +1839,15 @@ class RemotionRenderer(Renderer):
     """The real step. `search` is the 7.2 runtime audio search the sound director asks
     when no catalogue bed clears the style's threshold (`sound.freesound`, 024); the
     renderer owns it the way the asset step owns its sources, so the pipeline's `render`
-    call stays the same with or without one."""
+    call stays the same with or without one. `geocoder` places the map markers (020):
+    the bundled gazetteer alone by default, with Nominatim behind it when the operator
+    enables the fallback (`geo.from_settings`)."""
 
-    def __init__(self, *, search: sound.AudioSearch | None = None) -> None:
+    def __init__(
+        self, *, search: sound.AudioSearch | None = None, geocoder: geo.Geocoder | None = None
+    ) -> None:
         self._search = search
+        self.geocoder = geocoder or geo.GazetteerGeocoder()
 
     def render(
         self,
@@ -1813,7 +1856,10 @@ class RemotionRenderer(Renderer):
         on_progress: Callable[[int], None] | None = None,
         library: sound.Library | None = None,
     ) -> Path:
-        return render_short(job, on_progress=on_progress, library=library, search=self._search)
+        return render_short(
+            job, on_progress=on_progress, library=library, search=self._search,
+            geocoder=self.geocoder,
+        )  # fmt: skip
 
 
 class FakeRenderer(Renderer):

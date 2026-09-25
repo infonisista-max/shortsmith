@@ -11,10 +11,21 @@ generated image, so the labels are drawn in code).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from shortsmith import infographics, render
-from shortsmith.contracts import Crop, PlanLabel, SeriesPoint
+from shortsmith import fixture, geo, infographics, render
+from shortsmith.contracts import (
+    Constraints,
+    Crop,
+    PlanLabel,
+    PlanRequest,
+    PlanStyle,
+    SeriesPoint,
+)
+from shortsmith.planner import FakePlanner
+from shortsmith.transcriber import FakeTranscriber
 
 NUMBERS = infographics.numbers_for(render.loaded_styles()["explainer"])
 CARD_LIMIT = render.loaded_styles()["explainer"].broll.card_max_bottom_y
@@ -340,3 +351,163 @@ def test_every_chart_and_diagram_number_comes_from_the_front_matter() -> None:
     assert NUMBERS.chart.draw_s == float(chart["duration_s"])
     assert NUMBERS.diagram.labels_max == int(diagram["labels_max"])
     assert NUMBERS.diagram.fly_s == float(diagram["duration_s"])
+
+
+# --- maps (ticket 020; decisions 9.3, 12.1) ----------------------------------------------------
+
+
+def _request() -> PlanRequest:
+    return PlanRequest(
+        brief="Topic: a six-second synthetic clip.", style=PlanStyle(name="explainer"),
+        style_note="explainer", transcript=FakeTranscriber().transcribe(Path("unused.mp4")),
+        references=[], asset_policy="any",
+        constraints=Constraints(max_duration_s=60.0, target_duration_s=fixture.DURATION_S),
+    )  # fmt: skip
+
+
+def _map(
+    *markers: str, region: str = "India", bbox: tuple[float, float, float, float] | None = None,
+    route: tuple[str, ...] = (), geocoder: geo.Geocoder | None = None,
+    lat_lon: dict[str, tuple[float, float]] | None = None,
+) -> infographics.MapLayout:  # fmt: skip
+    given = lat_lon or {}
+    recipe = infographics.MapRecipe(
+        region=region, bbox=bbox,
+        markers=tuple(
+            infographics.MapMarkerRecipe(name=m, lat=given.get(m, (None, None))[0],
+                                         lon=given.get(m, (None, None))[1])
+            for m in markers
+        ),
+        route=route,
+    )  # fmt: skip
+    return infographics.resolve_map(
+        recipe, numbers=NUMBERS, geocoder=geocoder or geo.FakeGeocoder()
+    )
+
+
+BAND_TOP = infographics.DIAGRAM_BAND_TOP
+
+
+def test_markers_are_placed_by_the_geocoders_points_inside_the_map_band() -> None:
+    layout = _map("Delhi", "Mumbai")
+    assert [m.name for m in layout.markers] == ["Delhi", "Mumbai"]
+    delhi, mumbai = layout.markers
+    assert (delhi.lat, delhi.lon) == (28.672, 77.228) and delhi.source == "fake"
+    assert delhi.x > mumbai.x and delhi.y < mumbai.y  # east of, north of
+    for m in layout.markers:
+        assert infographics.SAFE_LEFT <= m.x <= infographics.WIDTH - infographics.SAFE_RIGHT_PX
+        assert BAND_TOP <= m.y <= CARD_LIMIT
+
+
+def test_planner_coordinates_are_ignored_the_gazetteer_places_the_marker() -> None:
+    honest = _map("Delhi", "Mumbai")
+    lying = _map("Delhi", "Mumbai", lat_lon={"Delhi": (0.0, 0.0), "Mumbai": (51.5, -0.1)})
+    assert [(m.x, m.y) for m in lying.markers] == [(m.x, m.y) for m in honest.markers]
+    assert [(m.lat, m.lon) for m in lying.markers] == [(m.lat, m.lon) for m in honest.markers]
+
+
+def test_a_geocoding_miss_is_an_error_naming_the_place_never_a_guessed_point() -> None:
+    with pytest.raises(infographics.InfographicError, match="Atlantis"):
+        _map("Delhi", "Atlantis")
+    with pytest.raises(infographics.InfographicError, match="Narnia"):
+        _map("Delhi", region="Narnia")
+    with pytest.raises(infographics.InfographicError, match="Shangri-La"):
+        _map("Delhi", "Mumbai", route=("Delhi", "Shangri-La"))
+
+
+def test_the_region_is_cropped_with_the_styles_padding_and_fitted_in_the_band() -> None:
+    layout = _map("Delhi", "Mumbai")
+    india = geo.FakeGeocoder().lookup("India")
+    assert india is not None and india.bbox is not None
+    west, south, east, north = layout.bbox
+    padding = NUMBERS.map.padding
+    assert west == pytest.approx(india.bbox[0] - (india.bbox[2] - india.bbox[0]) * padding)
+    assert east == pytest.approx(india.bbox[2] + (india.bbox[2] - india.bbox[0]) * padding)
+    assert south == pytest.approx(india.bbox[1] - (india.bbox[3] - india.bbox[1]) * padding)
+    assert north == pytest.approx(india.bbox[3] + (india.bbox[3] - india.bbox[1]) * padding)
+    assert (layout.left, layout.top) == (infographics.SAFE_LEFT, BAND_TOP)
+    assert layout.left + layout.width == infographics.WIDTH - infographics.SAFE_RIGHT_PX
+    assert layout.top + layout.height == CARD_LIMIT
+    assert layout.region == "India"
+
+
+def test_a_marker_outside_the_region_widens_the_crop_rather_than_falling_off_the_map() -> None:
+    layout = _map("Delhi", "London")
+    west, _south, _east, north = layout.bbox
+    assert west < -0.117 and north > 51.5
+    for m in layout.markers:
+        assert infographics.SAFE_LEFT <= m.x <= infographics.WIDTH - infographics.SAFE_RIGHT_PX
+        assert BAND_TOP <= m.y <= CARD_LIMIT
+
+
+def test_a_bbox_in_the_recipe_is_the_crop_and_a_city_region_gets_a_span() -> None:
+    boxed = _map("Delhi", region="", bbox=(70.0, 20.0, 90.0, 35.0))
+    padding = NUMBERS.map.padding
+    assert boxed.bbox[0] == pytest.approx(70.0 - 20.0 * padding)
+    assert boxed.region == ""
+    city = _map("Mumbai", region="Mumbai")
+    west, south, east, north = city.bbox
+    assert west < 72.876 < east and south < 19.068 < north
+    assert (east - west) >= infographics.CITY_SPAN_DEG
+
+
+def test_the_base_is_drawn_from_the_bundled_land_coast_and_borders() -> None:
+    layout = _map("Delhi", "Mumbai")
+    assert layout.land and layout.coast and layout.borders
+    assert all(p.startswith("M") and p.endswith("Z") for p in layout.land)
+    assert layout.land_color == NUMBERS.map.land
+    assert layout.marker_color == NUMBERS.palette.accent
+    # the projection is on the layout so 028 can place its animations on the same maths
+    projection = geo.Mercator(layout.scale, layout.center_lon, layout.center_merc,
+                              layout.center_x, layout.center_y)  # fmt: skip
+    delhi = layout.markers[0]
+    assert projection.project(delhi.lon, delhi.lat) == pytest.approx((delhi.x, delhi.y))
+
+
+def test_marker_labels_sit_beside_the_dot_inside_the_safe_area_and_flip_at_the_edge() -> None:
+    # a crop whose east edge is just past Kolkata puts that dot near the right rail
+    layout = _map("Delhi", "Mumbai", "Kolkata", bbox=(60.0, 10.0, 88.5, 30.0))
+    for m in layout.markers:
+        assert m.label_left >= infographics.SAFE_LEFT
+        assert m.label_left + m.label_width <= infographics.WIDTH - infographics.SAFE_RIGHT_PX
+        assert m.label_top >= infographics.SAFE_TOP
+        assert m.label_top + m.label_height <= CARD_LIMIT
+        assert m.label_top + m.label_height / 2 == pytest.approx(m.y)
+    kolkata = layout.markers[2]  # the easternmost: its label would leave the right rail
+    assert kolkata.label_left + kolkata.label_width < kolkata.x
+    delhi = layout.markers[0]
+    assert delhi.label_left > delhi.x
+
+
+def test_a_route_is_projected_in_order_and_the_object_rides_along() -> None:
+    recipe = infographics.MapRecipe(
+        region="India",
+        markers=(infographics.MapMarkerRecipe("Delhi"), infographics.MapMarkerRecipe("Mumbai")),
+        route=("Delhi", "Chennai", "Mumbai"), object="plane",
+    )  # fmt: skip
+    layout = infographics.resolve_map(recipe, numbers=NUMBERS, geocoder=geo.FakeGeocoder())
+    assert len(layout.route) == 3
+    assert layout.route[0] == pytest.approx((layout.markers[0].x, layout.markers[0].y))
+    assert layout.route[-1] == pytest.approx((layout.markers[1].x, layout.markers[1].y))
+    assert layout.object == "plane"
+    assert _map("Delhi").route == []
+
+
+def test_too_many_markers_or_none_are_refused_with_the_style_number() -> None:
+    top = NUMBERS.map.markers_max
+    names = ["Delhi", "Mumbai", "Chennai", "Kolkata", "Bengaluru", "London", "Tokyo", "Dubai"]
+    with pytest.raises(infographics.InfographicError, match="markers_max"):
+        _map(*names[: top + 1])
+    with pytest.raises(infographics.InfographicError, match="no markers"):
+        _map()
+
+
+def test_map_recipe_reads_the_beats_map_plan() -> None:
+    beat = next(b for b in FakePlanner().plan_picture(_request()).beats if b.kind == "map")
+    recipe = infographics.map_recipe(beat)
+    assert recipe.region == "India"
+    assert [m.name for m in recipe.markers] == ["Delhi", "Mumbai"]
+    assert recipe.route == ("Delhi", "Mumbai") and recipe.object == "plane"
+    bare = beat.model_copy(update={"map": None})
+    with pytest.raises(infographics.InfographicError, match="map"):
+        infographics.map_recipe(bare)

@@ -74,7 +74,7 @@ SMOKE_BEATS: dict[str, float] = {
 }
 SMOKE_BROLL: dict[str, int] = {
     "unique_assets_min_per_60s": 10,  # -> 1 in 6 s
-    "unique_assets_max_per_60s": 100,  # -> 10 in 6 s; the fake names 8
+    "unique_assets_max_per_60s": 100,  # -> 10 in 6 s; the fake names 7 (020: no map asset)
 }
 SMOKE_SOUND: dict[str, float] = {
     "ramp_min_s": 0.4,  # the fake's curve rises over 0.5 s

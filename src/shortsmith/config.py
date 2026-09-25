@@ -26,6 +26,7 @@ Transcriber = Literal["fake", "groq"]
 AssetPolicy = Literal["any", "rights_safe"]
 ImageGen = Literal["none", "fake", "gemini"]
 RelevanceJudge = Literal["none", "fake", "api"]
+GeocoderFallback = Literal["none", "nominatim"]
 
 # 5.1: the source order, written out in full. `owner` and `generate` are the fixed
 # bookends of the ladder (owner references always first, generation always last, 4.4),
@@ -77,6 +78,11 @@ class Settings(BaseSettings):
     # is not metered, so no ledger row; unset, the sound director has no search and a
     # bed under the style's `bed_score_threshold` simply leaves the short without one.
     freesound_api_key: SecretStr | None = None
+    # 9.3 / 020: markers come from the bundled gazetteer; `nominatim` adds the network
+    # fallback (one request a second, cached per job under `work/geo/`), off by default
+    # so a render never leaves the box unless the operator says so. Free, unmetered.
+    geocoder_fallback: GeocoderFallback = "none"
+    nominatim_url: str = "https://nominatim.openstreetmap.org"
     # 5.2: the cheap filter above the searched sources, on by default. `none` sources
     # every beat on its source's own order; `fake` is what tests and smoke run on.
     relevance_judge: RelevanceJudge = "api"

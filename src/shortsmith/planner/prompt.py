@@ -38,11 +38,13 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v4 (ticket 029): the picture file gained the `counter` overlay's numbers and the
-# `label_flyin` overlay on a diagram; the sound file names the counter's landing as an
-# `event` and a floor hit. (v3, ticket 021: the chart and diagram data; v2, ticket 027:
-# the set-piece content rules.)
-PROMPT_VERSION = "v4"
+# v5 (ticket 020): the picture file gained the `map` recipe (region or bbox, markers by
+# name, route, object) and the rule that a map is drawn from bundled geodata, never
+# sourced; the sound file is unchanged. (v4, ticket 029: the `counter` overlay's numbers
+# and the `label_flyin` overlay on a diagram, the counter's landing as a sound event;
+# v3, ticket 021: the chart and diagram data; v2, ticket 027: the set-piece content
+# rules.)
+PROMPT_VERSION = "v5"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

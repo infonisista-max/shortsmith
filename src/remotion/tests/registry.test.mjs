@@ -59,13 +59,17 @@ test("the composition lists label_flyin and counter after ticket 029", () => {
   }
 });
 
+test("the composition lists map after ticket 020", () => {
+  assert.ok(registry.components.includes("map"), "map is not registered");
+});
+
 test("Short.tsx draws every registered component", () => {
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
   const drawn = { hook_cards: "HookCards", finale: "Finale", stamp: "Stamp",
                   lower_third: "LowerThird", photo: "Photo", card: "Card",
                   captions: "Captions", pip: "Pip", list: "List", split: "Split",
                   wall: "Wall", chart: "Chart", infographic: "Infographic",
-                  label_flyin: "LabelFlyin", counter: "Counter" };
+                  label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase" };
   for (const name of registry.components) {
     assert.match(short, new RegExp(`<${drawn[name]}\\b`), `Short.tsx never draws ${name}`);
   }

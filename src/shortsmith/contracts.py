@@ -242,6 +242,32 @@ class PlanLabel(StrictModel):
     anchor: LabelAnchor = "center"
 
 
+MapObject = Literal["plane", "ship", "arrow"]
+
+
+class MapMarker(StrictModel):
+    """One marker of a `map` beat (9.3), by name. `lat` / `lon` are accepted so a planner
+    that writes them is not rejected, and ignored: the point comes from the gazetteer or
+    the geocoding fallback, never from the plan (ticket 020)."""
+
+    name: str
+    lat: float | None = None
+    lon: float | None = None
+
+
+class MapPlan(StrictModel):
+    """What a `map` beat asks for (9.3, ticket 020): the region by name ("India",
+    "South Asia", "Maharashtra") or a `bbox` of west, south, east, north degrees; the
+    markers; the route as place names in order (028 draws it on); and the object that
+    travels the route (028)."""
+
+    region: str = ""
+    bbox: tuple[float, float, float, float] | None = None
+    markers: list[MapMarker] = []
+    route: list[str] = []
+    object: MapObject | None = None
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -273,6 +299,8 @@ class Beat(StrictModel):
     series: list[SeriesPoint] = []
     value_unit: str = ""
     labels: list[PlanLabel] = []
+    # 020: a `map` beat's recipe; the map is drawn from bundled geodata (9.3).
+    map: MapPlan | None = None
     # 029: the `counter` overlay's from/to values, unit and decimals.
     counter: CounterPlan | None = None
     motion: Motion | None = None
@@ -1086,6 +1114,66 @@ class DiagramLayout(StrictModel):
     fly_s: float
 
 
+class MapMarkerLayout(StrictModel):
+    """One marker of a map (ticket 020), in composition pixels: the real coordinate the
+    geocoder gave it, the dot, and the label pill beside the dot (inside the safe area,
+    flipped to the left where the right rail is near). `delay_s` is 028's pin-drop
+    stagger, 0 while markers are static; `source` names the geocoder for the log."""
+
+    name: str
+    lat: float
+    lon: float
+    x: float
+    y: float
+    label_left: float
+    label_top: float
+    label_width: float
+    label_height: float
+    label_font_px: int
+    delay_s: float = 0.0
+    source: str = "gazetteer"
+
+
+class MapLayout(StrictModel):
+    """The `map` set piece (9.3, ticket 020): the base drawn from the bundled Natural
+    Earth layers as SVG paths in composition pixels (land fill, coast and border
+    strokes, already projected, clipped and simplified by `infographics.resolve_map`),
+    the markers placed by real coordinates, and the route polyline 028 animates. The
+    projection numbers (`scale`, the centre) are here so 028 can put anything else on
+    the same maths; `bbox` is the crop as drawn, `left/top/width/height` the band the
+    crop was fitted into."""
+
+    region: str
+    bbox: tuple[float, float, float, float]
+    left: float
+    top: float
+    width: float
+    height: float
+    scale: float
+    center_lon: float
+    center_merc: float
+    center_x: float
+    center_y: float
+    land: list[str]
+    coast: list[str]
+    borders: list[str]
+    land_color: str
+    coast_color: str
+    border_color: str
+    coast_px: float
+    border_px: float
+    markers: list[MapMarkerLayout]
+    route: list[tuple[float, float]]
+    object: MapObject | None
+    marker_color: str
+    dot_px: int
+    ring_px: int
+    label_fill: str
+    label_radius_px: int
+    text_color: str
+    draw_s: float
+
+
 class PunchIn(StrictModel):
     """The full-frame presenter punch-in (research S2): scale `scale_from` easing to
     `settle_to` by `settle_s`, then to 1 over the rest of the beat, with the grade."""
@@ -1101,8 +1189,8 @@ class PunchIn(StrictModel):
 class BeatSpec(StrictModel):
     """A plan beat as frame range; `end_frame` is exclusive. A rung-4 rescue arrives
     here as `pip` with no visual (4.4). The set pieces and the two overlay kinds (026,
-    027, 021) ride along resolved: at most one of `hook` / `finale` / `list` / `split` /
-    `wall` / `chart` / `infographic`, and at most one landed event (`stamp`,
+    027, 021, 020) ride along resolved: at most one of `hook` / `finale` / `list` / `split` /
+    `wall` / `chart` / `infographic` / `map`, and at most one landed event (`stamp`,
     `lower_third` or, 029, `counter`; 3.1).
 
     `list` shadows the builtin inside this class body only; no annotation below it
@@ -1126,6 +1214,8 @@ class BeatSpec(StrictModel):
     # 021: the two infographic kinds, laid out by `infographics`.
     chart: ChartLayout | None = None
     infographic: DiagramLayout | None = None
+    # 020: the map, drawn from the bundled geodata with markers at real coordinates.
+    map: MapLayout | None = None
     # 029: the counter overlay, the beat's landed event in place of a stamp.
     counter: CounterSpec | None = None
 

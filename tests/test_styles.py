@@ -110,7 +110,7 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.budget.gen_max_per_short == 8  # 5.5
     assert ex.requires_components == [
         "captions", "pip", "hook_cards", "finale", "stamp", "lower_third",
-        "list", "split", "wall", "chart", "infographic", "label_flyin", "counter",
+        "list", "split", "wall", "chart", "infographic", "label_flyin", "counter", "map",
     ]  # fmt: skip
     # 029: the counter writes its digits in the audience's grouping.
     assert ex.broll.motion["counter"] == {"kind": "count_up", "grouping": "indian"}

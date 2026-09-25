@@ -197,7 +197,10 @@ def test_sourcing_writes_the_manifest_rights_and_credits(
     manifest = assets.load_manifest(job.path)
     assert manifest is not None
     plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
-    sourced = [b.id for b in plan.beats if b.subject_kind is not None]
+    sourced = [
+        b.id for b in plan.beats
+        if b.subject_kind is not None and b.kind not in assets.NOT_SOURCED  # 020: no map picture
+    ]  # fmt: skip
     assert [b.beat_id for b in manifest.beats] == sourced
     rows = rights.load(job.path)
     assert rows is not None and [r.id for r in rows] == [a.id for a in manifest.assets]

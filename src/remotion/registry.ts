@@ -11,6 +11,7 @@ import { Infographic } from "./components/infographic";
 import { LabelFlyin } from "./components/label_flyin";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
+import { MapBase } from "./components/map";
 import { Photo } from "./components/photo";
 import { Pip } from "./components/pip";
 import { Split } from "./components/split";
@@ -29,6 +30,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   label_flyin: LabelFlyin,
   list: List,
   lower_third: LowerThird,
+  map: MapBase,
   photo: Photo,
   pip: Pip,
   split: Split,

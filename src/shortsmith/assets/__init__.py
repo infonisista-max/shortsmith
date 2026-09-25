@@ -166,7 +166,8 @@ MANIFEST_NAME = "assets.json"
 CACHE_DIR = "assets"
 DEFAULT_ORDER: tuple[SearchOrigin, ...] = get_args(SearchOrigin)
 CANDIDATES = 6  # 5.2: at most six candidates per beat reach the judge
-NOT_SOURCED = frozenset({"presenter_full", "presenter_pip", "hook_cards", "finale"})
+# 020: a `map` is drawn from the bundled geodata (9.3), so it sources no picture either.
+NOT_SOURCED = frozenset({"presenter_full", "presenter_pip", "hook_cards", "finale", "map"})
 # 018: the sources that want a free key, and the `.env` name that carries it.
 KEYED: Mapping[str, str] = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_KEY"}
 REUSING_KINDS = frozenset({"number", "quote"})
