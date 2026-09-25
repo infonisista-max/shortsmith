@@ -1,5 +1,6 @@
 """render (ticket 004): the pure RenderSpec builder (frames, beats, fixed-advance
-caption boxes anchored at y 1460, fixed PIP geometry, palette), the component
+caption boxes anchored at y 1460, the PIP geometry - measured by 013, the 004 fixed
+fallback otherwise - palette), the component
 registry the Node project exports, the driver's progress lines, and one real render
 of the fixture through the Remotion composition checked with ffprobe.
 
@@ -40,6 +41,7 @@ from shortsmith.contracts import (
     Crop,
     CutPlan,
     Event,
+    FaceBox,
     PicturePlan,
     PlanRequest,
     PlanStyle,
@@ -863,13 +865,30 @@ def test_fixed_pip_is_a_300_px_circle_touching_the_caption_block_from_above() ->
     line_h = numbers.captions.size_px * numbers.captions.line_height
     assert pip.top + pip.diameter <= numbers.captions.anchor_y - numbers.captions.max_lines * line_h
     assert pip.top + pip.diameter == 1260
-    # The crop window is the full source width, square, from the top (013 measures it).
+    # The fallback crop window is the full source width, square, from the top; a job's
+    # own window comes from `presenter.measure` (013).
     assert (pip.window_left, pip.window_top, pip.window_size) == (0, 0, 1080)
 
 
 def test_landscape_source_window_is_still_a_square_inside_the_source() -> None:
     pip = render.fixed_pip((1920, 1080), EXPLAINER)
     assert pip.window_size == 1080 and pip.window_left == 420 and pip.window_top == 0
+
+
+def test_the_spec_carries_the_measured_pip_geometry_over_the_fixed_one() -> None:
+    """013: `spec_for_job` passes `job.json.presenter.pip`; `build_spec` draws it as
+    given and only falls back to `fixed_pip` when a job was never measured."""
+    measured = presenter.pip_geometry(
+        FaceBox(left=300, top=700, width=400, height=500), (1080, 1920), EXPLAINER_SPEC
+    )
+    spec = render.build_spec(
+        _plan(), _captions(_plan()), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        pip=measured,
+    )  # fmt: skip
+    assert spec.pip == measured
+    assert (spec.pip.window_top, spec.pip.diameter) == (314, 340)
+    assert _spec().pip == render.fixed_pip((1080, 1920), EXPLAINER)
 
 
 def test_spec_carries_the_palette_gradient_and_caption_style() -> None:

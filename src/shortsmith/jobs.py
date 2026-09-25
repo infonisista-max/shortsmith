@@ -33,6 +33,8 @@ from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
+from shortsmith.contracts import PresenterMeasurement
+
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: no tzdata needed on Windows
 
 Status = Literal[
@@ -147,6 +149,9 @@ class JobRecord(BaseModel):
     over_soft_cap: bool = False  # 11.3: a flag for the page and the sheet, nothing more
     progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
     prompt_version: str | None = None  # 8.3: the planner prompt the job's plans came from
+    # 013 / 3.3: the face box, the PIP window and the circle diameter, measured once at
+    # `transcribing`; the render reads the geometry from here and a retry never re-measures.
+    presenter: PresenterMeasurement | None = None
     swept_at: datetime | None = None  # 2.2: when input/ and work/ were deleted (042)
     # 043: the step this run re-enters at, set by `requeue`. It is what makes the one
     # forward jump out of `uploaded` legal, and it stays on the record afterwards as

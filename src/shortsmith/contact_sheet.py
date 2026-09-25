@@ -1,7 +1,12 @@
 """The contact sheet `out/contact.jpg` (decision 10.4).
 
-Row 1 is the hook strip: the first 2 s at 4 fps. Then one frame per second at 270 px
-wide, six per row, a time label under each frame and the strip line beneath it (016):
+Row 1 is the hook strip: the first 2 s at 4 fps. Row 2 is the PIP strip (013, 3.3):
+the eight `work/frames/strip_<n>.jpg` stills cropped through the measured window, as
+the circle shows them, with the circle's edge and the face box the detector found
+drawn on each (a still with no face says so), labelled with the still's time on the
+recording; a job with no measurement or swept stills has no such row. Then one frame
+per second at 270 px wide, six per row, a time label under each frame and the strip
+line beneath it (016):
 the beat at that time, its mode letter as drawn (F/P/O; a rung-4 rescue is P), its
 kind (the treatment actually drawn for photo and card beats), and the asset-origin
 letter (U user, W web, C Commons, O Openverse, P Pexels, X Pixabay, G generated, L
@@ -21,14 +26,15 @@ passes (`ffmpeg.frames_rgb`).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from shortsmith import assets, ffmpeg, jobs, ledger
-from shortsmith.contracts import AssetManifest, PicturePlan
+from shortsmith import assets, ffmpeg, jobs, ledger, presenter
+from shortsmith.contracts import AssetManifest, FaceBox, PicturePlan, PresenterMeasurement
 from shortsmith.jobs import Job, JobRecord
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
@@ -45,6 +51,10 @@ HOOK_FPS = 4
 HOOK_SECONDS = 2.0
 HOOK_FRAMES = int(HOOK_SECONDS * HOOK_FPS)
 HOOK_W = (SHEET_W - (HOOK_FRAMES + 1) * GUTTER) // HOOK_FRAMES
+# 013: the PIP strip row, eight square window crops on the hook row's grid.
+PIP_FRAMES = presenter.STRIP_COUNT
+PIP_W = (SHEET_W - (PIP_FRAMES + 1) * GUTTER) // PIP_FRAMES
+PIP_H = PIP_W
 HEADER_H = 36
 LABEL_H = 20
 STRIP_H = 20
@@ -62,6 +72,9 @@ FAIL_COLOUR = (231, 76, 60)
 PENDING_COLOUR = (120, 120, 120)
 MARK_COLOUR = (231, 76, 60)
 MARK_PX = 22
+CIRCLE_COLOUR = (255, 255, 255)  # the PIP circle's edge on the strip row
+FACE_COLOUR = (255, 214, 10)  # the detector's box on the strip row
+FACE_PX = 2
 
 QUALITIES = (85, 75, 65, 55, 45)
 SCALES = (1.0, 0.75, 0.5)
@@ -107,6 +120,7 @@ class Layout:
     width: int
     height: int
     hook: list[Cell]
+    pip: list[Cell]
     frames: list[Cell]
     summary: Box
 
@@ -121,8 +135,10 @@ def _cell(x: int, y: int, w: int, h: int, time_s: float, first: bool) -> Cell:
     )
 
 
-def layout(n_hook: int, n_frames: int) -> Layout:
-    """Where everything goes for `n_hook` hook frames and `n_frames` per-second frames."""
+def layout(n_hook: int, n_frames: int, pip_times: Sequence[float] = ()) -> Layout:
+    """Where everything goes for `n_hook` hook frames, one PIP strip cell per time in
+    `pip_times` (013; none when the job was not measured) and `n_frames` per-second
+    frames."""
     y = HEADER_H
     hook = [
         _cell(GUTTER + i * (HOOK_W + GUTTER), y, HOOK_W, HOOK_H, i / HOOK_FPS, i == 0)
@@ -130,6 +146,13 @@ def layout(n_hook: int, n_frames: int) -> Layout:
     ]
     if n_hook:
         y += HOOK_H + LABEL_H + STRIP_H + GUTTER
+    # The safe-area outlines mean nothing on a window crop, so no PIP cell is `first`.
+    pip = [
+        _cell(GUTTER + i * (PIP_W + GUTTER), y, PIP_W, PIP_H, t, False)
+        for i, t in enumerate(pip_times)
+    ]
+    if pip:
+        y += PIP_H + LABEL_H + STRIP_H + GUTTER
     row_h = FRAME_H + LABEL_H + STRIP_H + GUTTER
     frames = [
         _cell(
@@ -145,8 +168,9 @@ def layout(n_hook: int, n_frames: int) -> Layout:
     y += ceil(n_frames / PER_ROW) * row_h
     summary = Box(GUTTER, y, SHEET_W - 2 * GUTTER, SUMMARY_H)
     return Layout(
-        width=SHEET_W, height=y + SUMMARY_H + GUTTER, hook=hook, frames=frames, summary=summary
-    )
+        width=SHEET_W, height=y + SUMMARY_H + GUTTER, hook=hook, pip=pip, frames=frames,
+        summary=summary,
+    )  # fmt: skip
 
 
 def safe_area_rects(frame: Box) -> tuple[Box, Box, Box]:
@@ -237,6 +261,55 @@ def _draw_cell(
     draw.text((cell.strip.x + 4, cell.strip.y + 2), strip.text, fill=colour, font=font)
 
 
+# --- the PIP strip row (013) ---------------------------------------------------------------
+
+
+def pip_cell(
+    still: Image.Image, measured: PresenterMeasurement, face: FaceBox | None
+) -> Image.Image:
+    """One strip still as the circle shows it (3.3): cropped through the measured
+    window and scaled to the cell, the circle's edge inscribed, and the box the detector
+    found on this still outlined where it lands inside the window."""
+    pip = measured.pip
+    window = (pip.window_left, pip.window_top,
+              pip.window_left + pip.window_size, pip.window_top + pip.window_size)  # fmt: skip
+    cell = still.convert("RGB").crop(window).resize((PIP_W, PIP_H))  # pyright: ignore[reportUnknownMemberType]
+    draw = ImageDraw.Draw(cell)
+    draw.ellipse((0, 0, PIP_W - 1, PIP_H - 1), outline=CIRCLE_COLOUR, width=FACE_PX)
+    if face is not None:
+        scale = PIP_W / pip.window_size
+        box = (
+            (face.left - pip.window_left) * scale,
+            (face.top - pip.window_top) * scale,
+            (face.left + face.width - pip.window_left) * scale,
+            (face.top + face.height - pip.window_top) * scale,
+        )
+        draw.rectangle(box, outline=FACE_COLOUR, width=FACE_PX)
+    return cell
+
+
+def pip_strip(face: FaceBox | None) -> Strip:
+    """The line under a strip cell: the box the detector found, or that it found none."""
+    if face is None:
+        return Strip("no face", True)
+    return Strip(f"face {face.width}x{face.height}", False)
+
+
+def pip_row(job: Job, measured: PresenterMeasurement) -> tuple[list[Image.Image], list[Strip]]:
+    """The row's cells and their lines from `work/frames/strip_<n>.jpg`; empty when a
+    still is gone (the sweeper took `work/`), never a partial row."""
+    cells: list[Image.Image] = []
+    strips: list[Strip] = []
+    for n, face in enumerate(measured.faces, start=1):
+        path = presenter.still_path(job, n)
+        if not path.is_file():
+            return [], []
+        with Image.open(path) as still:
+            cells.append(pip_cell(still, measured, face))
+        strips.append(pip_strip(face))
+    return cells, strips
+
+
 def ledger_line(record: JobRecord) -> str:
     """The 11.3 cost line: cash, subscription tokens beside it, the soft-cap flag."""
     line = f"ledger: INR {ledger.cash_total(record):.2f} cash"
@@ -295,15 +368,22 @@ def compose_image(
     *,
     hook_strips: list[Strip] | None = None,
     frame_strips: list[Strip] | None = None,
+    pip: list[Image.Image] | None = None,
+    pip_times: Sequence[float] = (),
+    pip_strips: list[Strip] | None = None,
 ) -> Image.Image:
-    """Draw the sheet from in-memory frames (hook strip first, then per-second)."""
-    lay = layout(len(hook), len(frames))
+    """Draw the sheet from in-memory frames (hook strip first, then the PIP strip row
+    when `pip` cells are given, one per time in `pip_times`, then per-second)."""
+    pip = pip or []
+    lay = layout(len(hook), len(frames), pip_times[: len(pip)])
     image = Image.new("RGB", (lay.width, lay.height), BG_COLOUR)
     draw = ImageDraw.Draw(image)
     font = _font(14)
     draw.text((GUTTER, 10), title, fill=TEXT_COLOUR, font=_font(16))
     for i, (cell, frame) in enumerate(zip(lay.hook, hook, strict=True)):
         _draw_cell(image, draw, cell, frame, font, hook_strips[i] if hook_strips else None)
+    for i, (cell, frame) in enumerate(zip(lay.pip, pip, strict=True)):
+        _draw_cell(image, draw, cell, frame, font, pip_strips[i] if pip_strips else None)
     for i, (cell, frame) in enumerate(zip(lay.frames, frames, strict=True)):
         _draw_cell(image, draw, cell, frame, font, frame_strips[i] if frame_strips else None)
     _draw_summary(draw, lay.summary, report, font, cost)
@@ -351,8 +431,15 @@ def compose(job: Job) -> Path:
     lay = layout(len(hook), len(frames))
     hook_strips = [strip_line(c.time_s, plan, manifest) for c in lay.hook]
     frame_strips = [strip_line(c.time_s, plan, manifest) for c in lay.frames]
-    # Re-read: the ledger appends rows to job.json behind the worker's Job value.
-    cost = f"{judge_line(manifest)} · {ledger_line(jobs.load(job.path).record)}"
+    # Re-read: the ledger appends rows to job.json behind the worker's Job value, and
+    # the measurement (013) landed there at `transcribing`.
+    record = jobs.load(job.path).record
+    cost = f"{judge_line(manifest)} · {ledger_line(record)}"
+    pip, pip_strips, pip_times = [], [], []
+    if record.presenter is not None:
+        pip, pip_strips = pip_row(job, record.presenter)
+        pip_times = record.presenter.times_s
     image = compose_image(hook, frames, report, title, cost, hook_strips=hook_strips,
-                          frame_strips=frame_strips)  # fmt: skip
+                          frame_strips=frame_strips, pip=pip, pip_times=pip_times,
+                          pip_strips=pip_strips)  # fmt: skip
     return encode(image, job.out_dir / "contact.jpg")

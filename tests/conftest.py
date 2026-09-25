@@ -25,6 +25,14 @@ def fixture_clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return make_fixture(path)
 
 
+@pytest.fixture(scope="session")
+def faceless_clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """The fixture with the face ellipse left out (013): the early "could not find
+    your face" failure has something to fail on."""
+    path = tmp_path_factory.mktemp("faceless") / "faceless.mp4"
+    return make_fixture(path, face=False)
+
+
 @dataclass
 class Media:
     root: Path

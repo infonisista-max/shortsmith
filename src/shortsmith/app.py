@@ -90,6 +90,7 @@ from shortsmith import (
     jobs,
     ledger,
     pipeline,
+    presenter,
     render,
     styles,
     sweeper,
@@ -196,6 +197,7 @@ def create_app(
     renderer: Renderer | None = None,
     gate: Gate | None = None,
     sourcing: assets.Sourcing | None = None,
+    detector: presenter.FaceDetector | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
     start_sweeper: bool = True,
@@ -242,6 +244,7 @@ def create_app(
         gate=gate,
         sourcing=sourcing or assets.from_settings(settings, ledger=_book),
         specs=specs,
+        detector=detector,  # 013: None is the Haar detector; tests pass the fake
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
         clock=clock,

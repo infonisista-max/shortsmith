@@ -343,9 +343,11 @@ def style_numbers(name: str) -> StyleNumbers:
 
 
 def fixed_pip(source_size: tuple[int, int], numbers: StyleNumbers) -> PipGeometry:
-    """The 004 geometry: the style diameter, left at the style edge, bottom touching the
-    caption block's top (6.3); the crop window is the largest square of full source
-    width anchored at the top, centred horizontally on a landscape source."""
+    """The 004 geometry, the fallback for a spec built without a measurement (the
+    renderer's own tests): the style diameter, left at the style edge, bottom touching
+    the caption block's top (6.3); the crop window is the largest square of full source
+    width anchored at the top, centred horizontally on a landscape source. A job's spec
+    carries `presenter.measure`'s geometry from `job.json` instead (013, 3.3)."""
     style = numbers.captions
     block_top = style.anchor_y - style.max_lines * style.size_px * style.line_height
     top = int(block_top) - numbers.pip.diameter
@@ -1272,7 +1274,10 @@ def build_spec(
     fps: int = FPS,
     manifest: AssetManifest | None = None,
     job_dir: Path | None = None,
+    pip: PipGeometry | None = None,
 ) -> RenderSpec:
+    """`pip` is the measured geometry from `job.json.presenter` (013); None falls back
+    to `fixed_pip`."""
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     visuals = _visuals(plan, manifest, job_dir, numbers)
@@ -1341,7 +1346,7 @@ def build_spec(
             for p in captions.pages
         ],
         beats_with_two_lines=captions.beats_with_two_lines,
-        pip=fixed_pip(source_size, numbers),
+        pip=pip or fixed_pip(source_size, numbers),
         palette=numbers.palette,
         caption_style=numbers.captions,
     )
@@ -1463,10 +1468,18 @@ def _cut_path(job: Job) -> Path:
     return job.work_dir / "cut.mp4"
 
 
+def measured_pip(job: Job) -> PipGeometry | None:
+    """The PIP geometry `presenter.measure` wrote to `job.json` at `transcribing` (013),
+    or None on a job that was never measured (the renderer's own tests)."""
+    measured = job.record.presenter
+    return measured.pip if measured is not None else None
+
+
 def spec_for_job(job: Job, *, numbers: StyleNumbers | None = None) -> RenderSpec:
-    """The RenderSpec from the job's files: plan.json, captions.json and the
-    presenter cut (`work/cut.mp4`, 005), with the numbers of the job's resolved style
-    (`job.json.style`, 008). The short is as long as the cut list."""
+    """The RenderSpec from the job's files: plan.json, captions.json, the presenter cut
+    (`work/cut.mp4`, 005) and the measured PIP geometry (`job.json.presenter`, 013),
+    with the numbers of the job's resolved style (`job.json.style`, 008). The short is
+    as long as the cut list."""
     numbers = numbers or style_numbers(job.record.style)
     plan = _load_plan(job)
     captions = load_captions(job)
@@ -1477,19 +1490,13 @@ def spec_for_job(job: Job, *, numbers: StyleNumbers | None = None) -> RenderSpec
         plan,
         captions,
         presenter=cut,
-        source_size=_probe_size(cut),
+        source_size=ffmpeg.video_size(cut),
         duration_s=presenter.total_duration(presenter.cut_list(plan)),
         numbers=numbers,
         manifest=assets.load_manifest(job.path),
         job_dir=job.path,
+        pip=measured_pip(job),
     )
-
-
-def _probe_size(path: Path) -> tuple[int, int]:
-    for stream in ffmpeg.probe(path)["streams"]:
-        if stream.get("codec_type") == "video":
-            return int(stream["width"]), int(stream["height"])
-    raise RenderError(f"{path.name} has no video stream")
 
 
 def render_picture(job: Job, *, on_progress: Callable[[int], None] | None = None) -> Path:
@@ -1533,12 +1540,9 @@ def span_filter(spans: Sequence[Span], *, video: bool, audio: bool) -> str:
 
 def crop_filter(source_size: tuple[int, int]) -> str:
     """Centre crop to the largest 9:16 window (1.5x rule enforced by `crop_window`),
-    scale to the composition size, constant 30 fps, 4:2:0."""
-    crop_w, crop_h, x, y = presenter.crop_window(source_size)
-    return (
-        f"crop={crop_w}:{crop_h}:{x}:{y},scale={WIDTH}:{HEIGHT}:flags=lanczos,"
-        f"fps={FPS},format=yuv420p"
-    )
+    scale to the composition size (`presenter.scale_filter`, shared with the 013
+    stills), constant 30 fps, 4:2:0."""
+    return f"{presenter.scale_filter(source_size)},fps={FPS},format=yuv420p"
 
 
 def cut_presenter(job: Job) -> Path:
@@ -1549,7 +1553,7 @@ def cut_presenter(job: Job) -> Path:
     if job.record.input is not None:
         source_size = (job.record.input.width, job.record.input.height)
     else:
-        source_size = _probe_size(raw)
+        source_size = ffmpeg.video_size(raw)
     picture = crop_filter(source_size)  # raises UpscaleExceeded before ffmpeg starts
     spans = presenter.cut_list(plan)
     graph = f"{span_filter(spans, video=True, audio=True)};[vc]{picture}[v]"
@@ -1817,6 +1821,7 @@ class FakeRenderer(Renderer):
             numbers=style_numbers(job.record.style),
             manifest=assets.load_manifest(job.path),
             job_dir=job.path,
+            pip=measured_pip(job),
         )
         (job.work_dir / "render_spec.json").write_text(
             spec.model_dump_json(indent=2), encoding="utf-8"

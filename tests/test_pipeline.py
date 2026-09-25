@@ -20,7 +20,18 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import assets, fixture, jobs, pipeline, render, rights, sound, styles, subproc
+from shortsmith import (
+    assets,
+    fixture,
+    jobs,
+    pipeline,
+    presenter,
+    render,
+    rights,
+    sound,
+    styles,
+    subproc,
+)
 from shortsmith.contracts import (
     Candidate,
     CaptionPage,
@@ -29,6 +40,7 @@ from shortsmith.contracts import (
     PicturePlan,
     PlanFeedback,
     PlanRequest,
+    RenderSpec,
     SoundStory,
     Transcript,
     ValidatedPlan,
@@ -77,7 +89,10 @@ def _sourcing() -> assets.Sourcing:
 def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
          planner: Planner | None = None, renderer: Renderer | None = None,
          gate: Gate | None = None,
-         sourcing: assets.Sourcing | None = None) -> jobs.Job:  # fmt: skip
+         sourcing: assets.Sourcing | None = None,
+         detector: presenter.FaceDetector | None = None) -> jobs.Job:  # fmt: skip
+    # 013: the fake detector, so the suite never waits on the cascade; the real one is
+    # exercised below on the fixture and its faceless twin, and by the smoke.
     return pipeline.run_job(
         job,
         transcriber=transcriber or FakeTranscriber(),
@@ -86,6 +101,7 @@ def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
         gate=gate or FakeGate(),
         sourcing=sourcing or _sourcing(),
         specs=SPECS,
+        detector=detector or presenter.FakeFaceDetector(),
     )
 
 
@@ -93,6 +109,7 @@ def _worker(transcriber: Transcriber | None = None, **kwargs: object) -> pipelin
     return pipeline.Worker(
         transcriber=transcriber or FakeTranscriber(), planner=FakePlanner(),
         renderer=FakeRenderer(), gate=FakeGate(), sourcing=_sourcing(), specs=SPECS,
+        detector=presenter.FakeFaceDetector(),
         **kwargs,  # pyright: ignore[reportArgumentType]
     )  # fmt: skip
 
@@ -364,7 +381,7 @@ def test_the_pager_reads_words_per_page_from_the_style(
     wide.captions.gap_break_s = 0.8
     pipeline.run_job(
         job, transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
-        gate=FakeGate(), specs={"explainer": wide},
+        gate=FakeGate(), specs={"explainer": wide}, detector=presenter.FakeFaceDetector(),
     )  # fmt: skip
     assert [len(p.word_indices) for p in _pages(job)] == [6, 4]  # the finale hides two
 
@@ -602,6 +619,57 @@ def test_unavailable_planner_fails_the_job_at_planning_naming_the_ticket(
     assert PlannerUnavailable.__name__ in done.record.error.detail
     assert (job.work_dir / "asr.json").is_file()
     assert not (job.work_dir / "plan.json").exists()
+
+
+# --- 013: the face is measured at `transcribing`, before the transcriber (3.3) ----------
+
+
+def test_transcribing_measures_the_face_onto_job_json_and_the_render_reads_it(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    detector = presenter.FakeFaceDetector()
+    done = _run(job, detector=detector)
+    assert done.status == "delivered"
+    assert len(detector.seen) == 8
+    measured = done.record.presenter
+    assert measured is not None
+    assert measured.face == detector.box and all(f == detector.box for f in measured.faces)
+    assert measured.pip == presenter.pip_geometry(detector.box, (1080, 1920), SPECS["explainer"])
+    stills = sorted(p.name for p in (job.work_dir / "frames").glob("strip_*.jpg"))
+    assert stills == [f"strip_{n}.jpg" for n in range(1, 9)]
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    assert spec.pip == measured.pip  # the composition crops through the measured window
+
+
+def test_a_recording_with_no_face_fails_at_transcribing_before_the_transcriber(
+    tmp_path: Path, faceless_clip: Path
+) -> None:
+    """The real cascade on the fixture with its ellipse left out: the job fails with the
+    3.3 sentence, at `transcribing`, and nothing was transcribed."""
+    job = _uploaded(tmp_path, faceless_clip)
+    transcriber = _Binding()
+    done = _run(job, transcriber=transcriber, detector=presenter.HaarDetector())
+    assert done.status == "failed"
+    assert done.record.error is not None
+    assert done.record.error.step == "transcribing"
+    assert done.record.error.message == presenter.NO_FACE_TEXT
+    assert done.record.error.message != pipeline.ERROR_TEXT["transcribing"]
+    assert "NoFace" in done.record.error.detail
+    assert transcriber.heard == [] and not (job.work_dir / "asr.json").exists()
+    assert done.record.presenter is None
+
+
+def test_five_of_eight_stills_with_a_face_is_the_same_early_failure(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    done = _run(job, detector=presenter.FakeFaceDetector(found=5))
+    assert done.status == "failed"
+    assert done.record.error is not None and done.record.error.step == "transcribing"
+    assert done.record.error.message == presenter.NO_FACE_TEXT
 
 
 class _Broken(Transcriber):
@@ -884,6 +952,7 @@ def test_a_step_that_returns_after_the_deadline_still_fails_the_job(
         transcriber=_SlowInProcess(clock),
         planner=FakePlanner(),
         renderer=FakeRenderer(),
+        detector=presenter.FakeFaceDetector(),
         max_job_minutes=30,
         clock=clock,
     )
@@ -899,7 +968,8 @@ def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path)
     job = _uploaded(tmp_path, fixture_clip)
     result = pipeline.run_job(
         job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), renderer=FakeRenderer(),
-        gate=FakeGate(), specs=SPECS, max_job_minutes=30, clock=clock,
+        gate=FakeGate(), specs=SPECS, detector=presenter.FakeFaceDetector(),
+        max_job_minutes=30, clock=clock,
     )  # fmt: skip
     assert result.status == "delivered"
 
@@ -1104,6 +1174,7 @@ def test_the_worker_runs_a_requeued_job_from_its_step(tmp_path: Path, fixture_cl
     stopped = pipeline.Worker(
         transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
         gate=FakeGate(fail="T3"), sourcing=_sourcing(), specs=SPECS,
+        detector=presenter.FakeFaceDetector(),
     )  # fmt: skip
     stopped.submit(job.path)
     assert stopped.run_next() is True

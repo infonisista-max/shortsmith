@@ -1106,7 +1106,9 @@ class BeatSpec(StrictModel):
 
 class PipGeometry(StrictModel):
     """The presenter circle (composition pixels) and the square crop window it shows
-    (source pixels). Fixed geometry until ticket 013 measures the face."""
+    (pixels of the presenter cut). Measured once per job from the face (3.3, ticket
+    013); `render.fixed_pip` is the 004 geometry a spec built without a measurement
+    falls back to."""
 
     left: int
     top: int
@@ -1116,6 +1118,34 @@ class PipGeometry(StrictModel):
     window_left: int
     window_top: int
     window_size: int
+
+
+class FaceBox(StrictModel):
+    """A detected face, in pixels of the presenter cut (the 9:16 window of the source
+    scaled to the composition, so the box lands where the render reads it)."""
+
+    left: int
+    top: int
+    width: int
+    height: int
+
+    @property
+    def chin_y(self) -> int:
+        return self.top + self.height
+
+
+class PresenterMeasurement(StrictModel):
+    """`job.json.presenter` (3.3, ticket 013): the eight research strip times on the
+    recording, the face the detector found on each still (None where it found none),
+    the median box, the cut's size and the PIP geometry derived from them. Measured once
+    per job, never tracked (14.1)."""
+
+    source_width: int
+    source_height: int
+    times_s: list[float]
+    faces: list[FaceBox | None]
+    face: FaceBox
+    pip: PipGeometry
 
 
 class Palette(StrictModel):

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageDraw
 
-from shortsmith import contact_sheet, ffmpeg, jobs
+from shortsmith import contact_sheet, ffmpeg, jobs, presenter
 from shortsmith.contact_sheet import (
     FRAME_H,
     FRAME_W,
@@ -21,6 +21,8 @@ from shortsmith.contact_sheet import (
     HOOK_H,
     HOOK_W,
     PER_ROW,
+    PIP_H,
+    PIP_W,
     SHEET_W,
     Box,
 )
@@ -30,9 +32,12 @@ from shortsmith.contracts import (
     Beat,
     BeatAsset,
     CutPlan,
+    FaceBox,
     Finale,
     Hook,
     PicturePlan,
+    PipGeometry,
+    PresenterMeasurement,
     Span,
 )
 from shortsmith.qa.technical import QaCheck, QaReport
@@ -310,3 +315,87 @@ def test_marked_cells_get_a_red_corner_and_the_others_do_not() -> None:
     corner = (marked.frame.x + marked.frame.w - 3, marked.frame.y + 2)
     assert image.getpixel(corner) == contact_sheet.MARK_COLOUR
     assert image.getpixel((plain.frame.x + plain.frame.w - 3, plain.frame.y + 2)) == (0, 0, 0)
+
+
+# --- the PIP strip row (013; decision 3.3) --------------------------------------------------
+
+
+def _measured(*, faces: list[FaceBox | None] | None = None) -> PresenterMeasurement:
+    face = FaceBox(left=286, top=114, width=520, height=520)
+    return PresenterMeasurement(
+        source_width=1080, source_height=1920, times_s=list(presenter.strip_times(6.0)),
+        faces=faces if faces is not None else [face] * 8, face=face,
+        pip=PipGeometry(left=60, top=920, diameter=340, ring_px=6, ring_color="#FFFFFF",
+                        window_left=0, window_top=100, window_size=1080),
+    )  # fmt: skip
+
+
+def test_layout_puts_the_pip_row_between_the_hook_and_the_frames() -> None:
+    times = presenter.strip_times(6.0)
+    lay = contact_sheet.layout(HOOK_FRAMES, 6, times)
+    assert len(lay.pip) == 8 and PIP_W == HOOK_W and PIP_H == PIP_W
+    assert [c.frame.x for c in lay.pip] == [GUTTER + i * (PIP_W + GUTTER) for i in range(8)]
+    assert len({c.frame.y for c in lay.pip}) == 1
+    assert lay.pip[0].frame.y > lay.hook[0].frame.y + HOOK_H
+    assert lay.frames[0].frame.y > lay.pip[0].frame.y + PIP_H
+    assert [c.time_s for c in lay.pip] == list(times)
+    assert not any(c.first_in_row for c in lay.pip)
+    without = contact_sheet.layout(HOOK_FRAMES, 6)
+    assert without.pip == [] and without.frames[0].frame.y == lay.hook[0].frame.y + (
+        HOOK_H + contact_sheet.LABEL_H + contact_sheet.STRIP_H + GUTTER
+    )
+    row = PIP_H + contact_sheet.LABEL_H + contact_sheet.STRIP_H + GUTTER
+    assert lay.height == without.height + row
+
+
+def test_pip_cell_crops_the_window_and_draws_the_circle_and_the_face_box() -> None:
+    still = Image.new("RGB", (1080, 1920), (0, 0, 0))
+    ImageDraw.Draw(still).rectangle((0, 100, 1079, 1179), fill=(30, 60, 90))  # the window
+    measured = _measured()
+    cell = contact_sheet.pip_cell(still, measured, measured.face)
+    assert cell.size == (PIP_W, PIP_H)
+    assert cell.getpixel((PIP_W // 2, PIP_H // 2)) == (30, 60, 90)  # window content, scaled
+    assert cell.getpixel((PIP_W // 2, 0)) == contact_sheet.CIRCLE_COLOUR  # the circle's top
+    scale = PIP_W / 1080
+    x, y = round((286 + 260) * scale), round((114 - 100) * scale)  # top edge of the face box
+    assert cell.getpixel((x, y)) == contact_sheet.FACE_COLOUR
+    plain = contact_sheet.pip_cell(still, measured, None)
+    assert plain.getpixel((x, y)) == (30, 60, 90)
+    assert contact_sheet.pip_strip(measured.face) == contact_sheet.Strip("face 520x520", False)
+    assert contact_sheet.pip_strip(None) == contact_sheet.Strip("no face", True)
+
+
+def test_compose_image_draws_the_pip_row_when_given() -> None:
+    hook = [_solid((HOOK_W, HOOK_H), (0, 0, 0))] * HOOK_FRAMES
+    frames = [_solid((FRAME_W, FRAME_H), (0, 0, 0))]
+    times = presenter.strip_times(6.0)
+    pip = [_solid((PIP_W, PIP_H), (70 + i, 80, 90)) for i in range(8)]
+    strips = [contact_sheet.Strip("face 1x1", False)] * 7 + [contact_sheet.Strip("no face", True)]
+    image = contact_sheet.compose_image(hook, frames, None, "pip", pip=pip, pip_times=times,
+                                        pip_strips=strips)  # fmt: skip
+    lay = contact_sheet.layout(HOOK_FRAMES, 1, times)
+    assert image.size == (lay.width, lay.height)
+    for i, cell in enumerate(lay.pip):
+        assert image.getpixel((cell.frame.x + 20, cell.frame.y + 20)) == (70 + i, 80, 90)
+    last = lay.pip[-1]
+    corner = (last.frame.x + last.frame.w - 3, last.frame.y + 2)
+    assert image.getpixel(corner) == contact_sheet.MARK_COLOUR
+
+
+def test_compose_draws_the_strip_stills_of_a_measured_job(media: Media, tmp_path: Path) -> None:
+    job = jobs.create(tmp_path)
+    (job.out_dir / "short.mp4").write_bytes(media.clip(duration_s=6.0, ext=".mp4").read_bytes())
+    measured = _measured(faces=[_measured().face] * 7 + [None])
+    presenter.still_path(job, 1).parent.mkdir(parents=True)
+    for n in range(1, 9):
+        Image.new("RGB", (1080, 1920), (n, 0, 0)).save(presenter.still_path(job, n))
+    jobs.amend(job, presenter=measured)
+    out = contact_sheet.compose(job)
+    lay = contact_sheet.layout(HOOK_FRAMES, 6, measured.times_s)
+    with Image.open(out) as saved:
+        assert saved.size == (lay.width, lay.height)
+    # A swept still leaves the row out rather than drawing it short.
+    presenter.still_path(job, 3).unlink()
+    out = contact_sheet.compose(job)
+    with Image.open(out) as saved:
+        assert saved.size == (lay.width, contact_sheet.layout(HOOK_FRAMES, 6).height)

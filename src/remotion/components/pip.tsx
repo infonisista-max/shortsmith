@@ -1,7 +1,9 @@
-// `pip` (decisions 3.3, 6.3): the presenter in a circle of the style's diameter at the
-// style's anchor, cropped through the square window the spec gives (fixed geometry
-// until ticket 013 measures the face), with the ring look. `Presenter` is the
-// full-frame form the `full` mode uses; both read the same source.
+// `pip` (decisions 3.3, 6.3): the presenter in a circle of the diameter the spec gives
+// at the style's anchor, cropped through the square window the spec gives, with the
+// ring look. Ticket 013 measures both once per job (the window around the chin, the
+// circle grown for a large face); this component only draws what it is handed and
+// never follows the face (14.1). `Presenter` is the full-frame form the `full` mode
+// uses; both read the same source.
 import { Video } from "@remotion/media";
 import React from "react";
 import { AbsoluteFill, Easing, interpolate } from "remotion";

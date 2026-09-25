@@ -3,13 +3,19 @@ in submission order (9.1).
 
 `run_job` is the synchronous path: it takes an `uploaded` job through every step
 (transcribing, planning, sourcing, rendering, qa) and ends it
-`delivered`. The transcriber is bound to the job first, so a real adapter writes
-under `work/asr/` and records its ledger rows (012); its fixed transcript is
-`work/asr.json`. Any exception inside a step marks the job `failed` at that step with the
-fixed user-facing sentence from `ERROR_TEXT` and the exception text as `detail`
-(11.1); a failed technical check adds its name to the sentence (10.1); a paid
-adapter's `ledger.BudgetExceeded`, raised before its call, becomes "Budget exceeded
-at step X." with the ledger rows so far left on job.json for the page (11.3).
+`delivered`. The `transcribing` step first measures the face (`presenter.measure`,
+ticket 013; 3.3): eight stills, the detector, the PIP geometry onto `job.json`, and
+a recording with a face on fewer than six stills fails here, before any paid call,
+with the 3.3 sentence rather than the step's own. The detector is injected like the
+adapters (`HaarDetector` by default, `FakeFaceDetector` in the pipeline and app
+tests, whose flat clips have no face). The transcriber is bound to the job next, so
+a real adapter writes under `work/asr/` and records its ledger rows (012); its
+fixed transcript is `work/asr.json`. Any exception inside a step marks the job
+`failed` at that step with the fixed user-facing sentence from `ERROR_TEXT` and the
+exception text as `detail` (11.1); a failed technical check adds its name to the
+sentence (10.1); a paid adapter's `ledger.BudgetExceeded`, raised before its call,
+becomes "Budget exceeded at step X." with the ledger rows so far left on job.json
+for the page (11.3).
 
 A failed job can be run again from the step it failed at (043): `jobs.requeue` sends
 it back to `uploaded` carrying `retry_from`, and `start_step` slices the step list
@@ -85,7 +91,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, TypeAdapter
 
-from shortsmith import assets, captions, grammar, jobs, render, sound, subproc
+from shortsmith import assets, captions, grammar, jobs, presenter, render, sound, subproc
 from shortsmith.contracts import (
     Constraints,
     PlanFeedback,
@@ -154,6 +160,7 @@ def run_job(
     sourcing: assets.Sourcing | None = None,
     specs: Specs | None = None,
     library: sound.Library | None = None,
+    detector: presenter.FaceDetector | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
@@ -165,8 +172,9 @@ def run_job(
     sourcing = sourcing or assets.Sourcing()
     specs = specs if specs is not None else render.loaded_styles()
     library = library if library is not None else sound.load_catalogue()
+    detector = detector or presenter.HaarDetector()
     steps: list[tuple[Status, Step]] = [
-        ("transcribing", lambda j: _transcribe(j, transcriber)),
+        ("transcribing", lambda j: _transcribe(j, transcriber, detector, specs)),
         ("planning", lambda j: _plan(j, planner, specs, library)),
         ("sourcing", lambda j: _source(j, sourcing, specs, clock)),
         ("rendering", lambda j: _render(j, renderer, clock, library)),
@@ -221,15 +229,24 @@ def failure_message(status: Status, exc: Exception) -> str:
     hard cap names the step it stopped before (11.3)."""
     if isinstance(exc, BudgetExceeded):
         return f"Budget exceeded at step {exc.step}."
+    if isinstance(exc, presenter.NoFace):
+        return str(exc)  # 3.3: the face sentence, not the transcriber's
     message = ERROR_TEXT[status]
     if isinstance(exc, QaFailed):
         return f"{message[:-1]} ({exc.check})."
     return message
 
 
-def _transcribe(job: Job, transcriber: Transcriber) -> None:
+def _transcribe(
+    job: Job, transcriber: Transcriber, detector: presenter.FaceDetector, specs: Specs
+) -> None:
     assert job.record.input is not None or (job.input_dir / "raw.mp4").is_file()
     raw = job.input_dir / (job.record.input.file if job.record.input else "raw.mp4")
+    # 013: measure first, so a recording with no face costs no transcription. A style
+    # that is not loaded is left for `planning` to name (`style_of`), as before.
+    spec = specs.get(job.record.style)
+    if spec is not None:
+        presenter.measure(job, spec, detector=detector)
     transcript = transcriber.bind(job).transcribe(raw)
     (job.work_dir / "asr.json").write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
 
@@ -421,6 +438,7 @@ class Worker:
         sourcing: assets.Sourcing | None = None,
         specs: Specs | None = None,
         library: sound.Library | None = None,
+        detector: presenter.FaceDetector | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
         clock: Clock = _utc_now,
@@ -433,6 +451,7 @@ class Worker:
         self._sourcing = sourcing or assets.Sourcing()
         self._specs = specs if specs is not None else render.loaded_styles()
         self._library = library if library is not None else sound.load_catalogue()
+        self._detector = detector or presenter.HaarDetector()
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
         self._clock = clock
@@ -526,6 +545,7 @@ class Worker:
                 sourcing=self._sourcing,
                 specs=self._specs,
                 library=self._library,
+                detector=self._detector,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,

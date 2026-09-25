@@ -8,12 +8,15 @@ image sources (016: web answers every query but the photo beat's, Commons has th
 one as a full-bleed portrait) and the real Remotion renderer, assert `work/asr.json`,
 `work/plan.json`, `work/sound.json`, `work/captions.json`, `work/assets.json` (every
 sourced beat found, none rescued, the photo beat a photo and the card beat a card),
-`out/rights.json` complete and `out/credits.md`, `work/picture.mp4` (H.264,
+`out/rights.json` complete and `out/credits.md`, the face measured by the real
+cascade on all eight strip stills with the 3.3 geometry on `job.json` and in the
+render spec (013), `work/picture.mp4` (H.264,
 1080x1920, round(6 x 30) frames, silent), the sound director's bed, cues, stems and
 balance report from a synthesised catalogue (022),
 `out/short.mp4`, `out/qa.json` with T1-T4,
 T8 and T9 passing, `out/contact.jpg` under
-2 MB at the sheet's width, and the job's `uploaded -> ... -> qa -> delivered` trail,
+2 MB at the sheet's width with the PIP strip row, and the job's
+`uploaded -> ... -> qa -> delivered` trail,
 print one summary line and exit 0. Any failed assertion exits non-zero with the
 failing check on stderr. Later tickets extend this walk until it asserts T1-T13
 (decision 12.1); over ninety seconds is a bug.
@@ -49,6 +52,7 @@ from shortsmith import (
     ingest,
     jobs,
     pipeline,
+    presenter,
     render,
     rights,
     sound,
@@ -245,6 +249,7 @@ def run_smoke(
         "a caption page is not laid out in one or two lines",
     )
     manifest = check_assets(reloaded, plan)
+    faces = check_presenter(reloaded)
     picture = job.work_dir / "picture.mp4"
     check(picture.is_file(), "rendering did not write work/picture.mp4")
     check((job.work_dir / "render_spec.json").is_file(), "rendering did not write render_spec.json")
@@ -275,7 +280,7 @@ def run_smoke(
         f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
-        f"{len(manifest.assets)} assets, "
+        f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
         f"{' '.join(TECHNICAL_CHECKS)} pass, "
         f"contact {sheet.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
@@ -349,6 +354,44 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
     )
     check_set_pieces(spec, plan)
     return manifest
+
+
+def check_presenter(job: jobs.Job) -> int:
+    """013: the real cascade found the fixture's drawn face on every strip still, the
+    eight stills are on disk, the measurement on job.json is the 3.3 geometry (a
+    full-width square window, the circle on the caption block's top edge), and the
+    render spec crops through exactly that window. Returns the stills with a face."""
+    measured = job.record.presenter
+    check(measured is not None, "transcribing did not measure the face onto job.json")
+    assert measured is not None
+    found = sum(1 for f in measured.faces if f is not None)
+    check(
+        found == presenter.STRIP_COUNT,
+        f"the cascade found the fixture face on {found} of {presenter.STRIP_COUNT} stills",
+    )
+    missing = [n for n in range(1, presenter.STRIP_COUNT + 1)
+               if not presenter.still_path(job, n).is_file()]  # fmt: skip
+    check(not missing, f"strip stills missing: {missing}")
+    check(measured.times_s == list(presenter.strip_times(fixture.DURATION_S)),
+          f"strip times are {measured.times_s}")  # fmt: skip
+    spec_style = styles.load_all(render.registry())[styles.DEFAULT]
+    expected = presenter.pip_geometry(measured.face, (fixture.WIDTH, fixture.HEIGHT), spec_style)
+    check(measured.pip == expected, f"job.json pip {measured.pip} is not the 3.3 geometry")
+    check(
+        (measured.pip.window_left, measured.pip.window_size) == (0, fixture.WIDTH),
+        "the PIP window is not the full source width, square",
+    )
+    cx, cy = fixture.FACE_CENTER
+    face = measured.face
+    check(
+        face.left < cx < face.left + face.width and face.top < cy < face.top + face.height,
+        f"the median face box {face} does not hold the drawn face's centre",
+    )
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    check(spec.pip == measured.pip, "the render spec does not crop through the measured window")
+    return found
 
 
 def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
@@ -642,7 +685,11 @@ def check_contact_sheet(sheet: Path) -> None:
     the fixture's eight hook frames and six per-second frames."""
     check(sheet.is_file(), "qa did not write out/contact.jpg")
     check(sheet.stat().st_size < contact_sheet.MAX_BYTES, "contact.jpg is 2 MB or more")
-    expected = contact_sheet.layout(contact_sheet.HOOK_FRAMES, round(fixture.DURATION_S))
+    # 013: the sheet carries the PIP strip row between the hook row and the frames.
+    expected = contact_sheet.layout(
+        contact_sheet.HOOK_FRAMES, round(fixture.DURATION_S),
+        presenter.strip_times(fixture.DURATION_S),
+    )  # fmt: skip
     with Image.open(sheet) as image:
         check(image.format == "JPEG", f"contact.jpg is {image.format}, not JPEG")
         check(

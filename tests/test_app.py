@@ -27,6 +27,7 @@ from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest
 from shortsmith.ingest import MIB, Limits
 from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
 from shortsmith.planner import ApiPlanner, ClaudeCodePlanner, FakePlanner
+from shortsmith.presenter import FakeFaceDetector
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber, GroqTranscriber
@@ -78,7 +79,7 @@ def app(tmp_path: Path) -> FastAPI:
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         start_worker=False,
     )
 
@@ -172,7 +173,7 @@ def test_a_broken_style_spec_stops_the_app_with_a_config_error(tmp_path: Path) -
             _settings(tmp_path),
             transcriber=FakeTranscriber(),
             planner=FakePlanner(),
-            renderer=FakeRenderer(), gate=FakeGate(),
+            renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
             start_worker=False,
             styles_dir=broken,
         )
@@ -357,7 +358,7 @@ def test_job_page_lists_the_violations_when_the_planner_was_rejected_twice(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=_StillPlanner(),
-        renderer=FakeRenderer(), gate=FakeGate(), specs=SPECS,
+        renderer=FakeRenderer(), gate=FakeGate(), specs=SPECS, detector=FakeFaceDetector(),
         start_worker=False,
     )  # fmt: skip
     with TestClient(app) as client:
@@ -426,7 +427,7 @@ def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), detector=FakeFaceDetector(),
         gate=FakeGate(fail="T3"),
         start_worker=False,
     )
@@ -458,7 +459,7 @@ def _retrying_app(tmp_path: Path, **kwargs: Any) -> FastAPI:
         _settings(tmp_path, **kwargs),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(),
+        renderer=FakeRenderer(), detector=FakeFaceDetector(),
         gate=_HealingGate(fail="T3"),
         start_worker=False,
     )
@@ -584,7 +585,7 @@ def test_second_submission_waits_uploaded_while_the_first_runs(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
     )
     with TestClient(app) as client:
         login(client)
@@ -608,7 +609,8 @@ def test_the_api_planner_from_settings_is_never_silently_the_fake(tmp_path: Path
     startup refuses it without a key rather than planning with the fake."""
     keyless = app_module.create_app(
         _settings(tmp_path, planner="api"), transcriber=FakeTranscriber(),
-        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
+        start_worker=False,
     )  # fmt: skip
     with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"), TestClient(keyless):
         pass
@@ -624,6 +626,7 @@ def test_the_api_planner_from_settings_is_never_silently_the_fake(tmp_path: Path
             anthropic_api_key=SecretStr("sk-ant-test-not-real"),
         ),
         transcriber=FakeTranscriber(), renderer=FakeRenderer(), gate=FakeGate(),
+        detector=FakeFaceDetector(),
         start_worker=False,
     )  # fmt: skip
     with TestClient(app):
@@ -639,7 +642,7 @@ def test_the_default_planner_builds_the_cli_adapter_on_the_loaded_ledger(
     lifespan loads."""
     app = app_module.create_app(
         _settings(tmp_path), transcriber=FakeTranscriber(), renderer=FakeRenderer(),
-        gate=FakeGate(), start_worker=False,
+        gate=FakeGate(), detector=FakeFaceDetector(), start_worker=False,
     )  # fmt: skip
     with TestClient(app):
         worker_planner = app.state.worker._planner  # pyright: ignore[reportPrivateUsage]
@@ -653,6 +656,7 @@ def test_transcriber_follows_the_settings_on_the_loaded_ledger(tmp_path: Path) -
     settings = _settings(tmp_path, transcriber="groq", groq_api_key=SecretStr("gsk-test"))
     app = app_module.create_app(
         settings, planner=FakePlanner(), renderer=FakeRenderer(), gate=FakeGate(),
+        detector=FakeFaceDetector(),
         start_worker=False,
     )  # fmt: skip
     with TestClient(app):
@@ -661,6 +665,7 @@ def test_transcriber_follows_the_settings_on_the_loaded_ledger(tmp_path: Path) -
         assert worker_transcriber._ledger() is app.state.ledger  # pyright: ignore[reportPrivateUsage]
     fake = app_module.create_app(
         _settings(tmp_path), planner=FakePlanner(), renderer=FakeRenderer(), gate=FakeGate(),
+        detector=FakeFaceDetector(),
         start_worker=False,
     )  # fmt: skip
     assert isinstance(fake.state.worker._transcriber, FakeTranscriber)  # pyright: ignore[reportPrivateUsage]
@@ -669,7 +674,8 @@ def test_transcriber_follows_the_settings_on_the_loaded_ledger(tmp_path: Path) -
 def test_startup_refuses_the_groq_transcriber_without_a_key(tmp_path: Path) -> None:
     app = app_module.create_app(
         _settings(tmp_path, transcriber="groq"), planner=FakePlanner(),
-        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
+        start_worker=False,
     )  # fmt: skip
     with pytest.raises(ConfigError, match="GROQ_API_KEY"), TestClient(app):
         pass
@@ -682,7 +688,8 @@ def test_startup_refuses_the_subscription_planner_without_a_single_operator(
     settings = _settings(tmp_path, shortsmith_single_operator=False)
     app = app_module.create_app(
         settings, transcriber=FakeTranscriber(), planner=FakePlanner(),
-        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
+        start_worker=False,
     )  # fmt: skip
     with pytest.raises(ConfigError, match="SHORTSMITH_SINGLE_OPERATOR"), TestClient(app):
         pass
@@ -734,7 +741,7 @@ def test_day_limit_closes_the_form_until_midnight_ist(tmp_path: Path, media: Med
         _settings(tmp_path, max_jobs_per_day=2),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         start_worker=False,
         clock=clock,
     )
@@ -764,7 +771,7 @@ def test_max_job_minutes_reaches_the_worker_from_settings(tmp_path: Path) -> Non
         _settings(tmp_path, max_job_minutes=7, max_queue=2),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         start_worker=False,
     )
     worker = app.state.worker
@@ -780,7 +787,7 @@ def _small_limits_app(tmp_path: Path) -> FastAPI:
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         limits=SMALL,
         start_worker=False,
     )
@@ -855,7 +862,7 @@ def _guarded_app(
         _settings(tmp_path, passcode),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         start_worker=False,
         clock=clock,
         delay=delay,
@@ -1072,7 +1079,7 @@ def test_daily_budget_closes_the_form_until_midnight_ist(tmp_path: Path, media: 
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         start_worker=False, clock=clock, book=book,
     )  # fmt: skip
     with TestClient(app) as client:
@@ -1108,7 +1115,8 @@ def test_startup_refuses_to_run_when_a_paid_provider_has_no_price(tmp_path: Path
     )
     app = app_module.create_app(
         settings, transcriber=FakeTranscriber(), planner=FakePlanner(),
-        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
+        start_worker=False,
     )  # fmt: skip
     with pytest.raises(LedgerError, match="prices.example.yaml"), TestClient(app):
         pass
@@ -1140,7 +1148,7 @@ def _sweeper_app(tmp_path: Path, free: list[int], **kwargs: Any) -> FastAPI:
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), gate=FakeGate(),
+        renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         start_worker=False,
         clock=Ticker(T0),
         free_disk=lambda _: free[0],

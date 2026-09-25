@@ -56,6 +56,26 @@ def duration_s(path: Path) -> float:
     return float(probe(path)["format"]["duration"])
 
 
+def video_size(path: Path) -> tuple[int, int]:
+    """(width, height) of the first video stream."""
+    for stream in probe(path)["streams"]:
+        if stream.get("codec_type") == "video":
+            return int(stream["width"]), int(stream["height"])
+    raise FFmpegError(f"{path.name} has no video stream")
+
+
+def still(src: Path, dst: Path, *, at_s: float, vf: str = "") -> Path:
+    """One frame of `src` at `at_s` through the filter `vf`, written as the image
+    `dst`'s suffix names (the 013 strip stills). The seek sits before the input, so a
+    still deep into an eight-minute recording costs a keyframe seek, not a decode."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    argv = [FFMPEG, "-v", "error", "-y", "-ss", f"{at_s:.3f}", "-i", str(src)]
+    if vf:
+        argv += ["-vf", vf]
+    run([*argv, "-frames:v", "1", "-q:v", "2", str(dst)], timeout_s=MEASURE_TIMEOUT_S)
+    return dst
+
+
 # Research §6: both approved jobs fed Groq Whisper 16 kHz mono MP3 at 64 kbps.
 SPEECH_RATE_HZ = 16000
 SPEECH_BITRATE = "64k"
