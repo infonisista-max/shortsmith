@@ -53,7 +53,9 @@ takes the Ken Burns ratio of the photo motion (5.3: the Ken Burns is on the card
 the cover). The card is centred horizontally with its bottom, at full push and tilt,
 `PIP_GAP_PX` above the PIP circle as in the reference frames (dyson_05, nkb_06: a
 card from y ~190 to ~925 over a PIP at 960), and never below
-`broll.card_max_bottom_y`. A rung-4 rescue is drawn as `pip` over the gradient;
+`broll.card_max_bottom_y`. The circle top it clears is the one the spec draws: the
+measured geometry on a job (a large face lifts it to 920, 3.3), `fixed_pip` on an
+unmeasured spec (051). A rung-4 rescue is drawn as `pip` over the gradient;
 other kinds keep their visuals for their own tickets. The engine constants below
 (strip, blur, ring) are not style numbers yet.
 
@@ -441,9 +443,20 @@ def card_bottom(visual: VisualSpec) -> float:
     return card.top + card.height / 2 + _half_extent(card, max(visual.scale_from, visual.scale_to))
 
 
+def _card_limit(b: BrollNumbers, pip_top: int | None) -> float:
+    """The lowest y a card or the split composite may reach: `PIP_GAP_PX` above the
+    circle the render draws (051: the measured top, `pip_top`; the style's fixed
+    `pip.top` when the spec was built without a measurement) and never below
+    `broll.card_max_bottom_y` (6.3)."""
+    top = b.pip_top if pip_top is None else pip_top
+    return min(top - PIP_GAP_PX, b.card_max_bottom_y)
+
+
 def card_visual(src: str, width: int, height: int, *, strip_text: str, ring: bool, index: int,
-                crop: Crop, numbers: StyleNumbers) -> VisualSpec:  # fmt: skip
-    """The framed archival card (4.1, 5.3), placed so it ends above the style limit."""
+                crop: Crop, numbers: StyleNumbers,
+                pip_top: int | None = None) -> VisualSpec:  # fmt: skip
+    """The framed archival card (4.1, 5.3), placed so it ends `PIP_GAP_PX` above the
+    circle top it is given (051) and above the style limit."""
     b = numbers.broll
     image_w, image_h = card_image_size(width, height, b.card_border_px)
     strip = STRIP_PX if strip_text else 0
@@ -462,7 +475,7 @@ def card_visual(src: str, width: int, height: int, *, strip_text: str, ring: boo
         ring_at_s=RING_AT_S,
     )  # fmt: skip
     half = _half_extent(card, max(scale_from, scale_to))
-    centre = min(b.pip_top - PIP_GAP_PX, b.card_max_bottom_y) - half
+    centre = _card_limit(b, pip_top) - half
     card = card.model_copy(update={"top": centre - outer_h / 2})
     return VisualSpec(
         treatment="card", src=src, width=width, height=height, zoom=crop.zoom,
@@ -501,9 +514,10 @@ def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSp
 
 def _visuals(
     plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None,
-    numbers: StyleNumbers,
+    numbers: StyleNumbers, *, pip_top: int,
 ) -> dict[str, tuple[Mode, VisualSpec | None]]:  # fmt: skip
-    """Per beat id: the mode to draw (a rung-4 rescue becomes `pip`) and its visual."""
+    """Per beat id: the mode to draw (a rung-4 rescue becomes `pip`) and its visual;
+    `pip_top` is the top of the circle the spec draws, the cards' placement line."""
     out: dict[str, tuple[Mode, VisualSpec | None]] = {}
     if manifest is None:
         return out
@@ -555,7 +569,7 @@ def _visuals(
             label = beat.event.text if beat.event.kind == "lower_third" else None
             visual = card_visual(src, record.width, record.height, strip_text=label or "",
                                  ring=beat.event.kind == "ring", index=index,
-                                 crop=decided.crop, numbers=numbers)  # fmt: skip
+                                 crop=decided.crop, numbers=numbers, pip_top=pip_top)  # fmt: skip
         out[beat.id] = (beat.mode, visual)
         if not carries_on:
             index += 1
@@ -1028,11 +1042,17 @@ def title_words(title: str, highlights: Sequence[str], *, font_px: int,
     return out
 
 
+def split_bottom(piece: SplitSpec) -> float:
+    """The lowest y the split composite reaches (tilt included), like `card_bottom`."""
+    return piece.top + piece.height / 2 + _tilt_extent(piece.width, piece.height, piece.rotate_deg)
+
+
 def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None, *,
-               numbers: StyleNumbers) -> SplitSpec:  # fmt: skip
+               numbers: StyleNumbers, pip_top: int | None = None) -> SplitSpec:  # fmt: skip
     """The `split` news-card composite (5.2): the style's `broll.motion.split.panes`
-    panes side by side in one framed card above the PIP, the badge overlapping its
-    top-left corner inside the safe box, and the title strip under them."""
+    panes side by side in one framed card `PIP_GAP_PX` above the circle top it is given
+    (051), the badge overlapping its top-left corner inside the safe box, and the title
+    strip under them."""
     b, style = numbers.broll, numbers.captions
     # A pane the asset step rescued has no picture; it is left out, never drawn blank.
     panes_wanted = [p for p in items[: b.split_panes] if p.card is not None]
@@ -1045,7 +1065,7 @@ def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None
     height = pane_h + label_px + 2 * border + SPLIT_TITLE_PX
     left = (WIDTH - SPLIT_CARD_W) / 2
     half = _tilt_extent(SPLIT_CARD_W, height, b.card_rotate_deg)
-    top = min(b.pip_top - PIP_GAP_PX, b.card_max_bottom_y) - half - height / 2
+    top = _card_limit(b, pip_top) - half - height / 2
     panes: list[SplitPane] = []
     for i, p in enumerate(panes_wanted):
         assert p.card is not None
@@ -1175,9 +1195,11 @@ def badge_source(
 
 
 def set_piece(
-    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *, numbers: StyleNumbers
-) -> tuple[ListSpec | None, SplitSpec | None, WallSpec | None]:
-    """The `list`, `split` or `wall` this beat draws, already measured and placed."""
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *,
+    numbers: StyleNumbers, pip_top: int | None = None,
+) -> tuple[ListSpec | None, SplitSpec | None, WallSpec | None]:  # fmt: skip
+    """The `list`, `split` or `wall` this beat draws, already measured and placed; the
+    split ends above `pip_top`, the top of the circle the spec draws (051)."""
     if beat.kind not in ("list", "split", "wall"):
         return None, None, None
     items = item_sources(beat, manifest, job_dir)
@@ -1185,7 +1207,8 @@ def set_piece(
         return list_spec(beat.set_piece_title, items, numbers=numbers), None, None
     if beat.kind == "split":
         badge = badge_source(beat, manifest, job_dir)
-        return None, split_spec(beat.set_piece_title, items, badge, numbers=numbers), None
+        split = split_spec(beat.set_piece_title, items, badge, numbers=numbers, pip_top=pip_top)
+        return None, split, None
     return None, None, wall_spec(items, numbers=numbers)
 
 
@@ -1301,11 +1324,14 @@ def build_spec(
     geocoder: geo.Geocoder | None = None,
 ) -> RenderSpec:
     """`pip` is the measured geometry from `job.json.presenter` (013); None falls back
-    to `fixed_pip`. `geocoder` places the map markers (020); None is the bundled
+    to `fixed_pip`. Whichever it is, it is derived first: the cards and the split
+    composite are placed against the top of the circle the spec draws, not the style's
+    fixed `pip.top` (051). `geocoder` places the map markers (020); None is the bundled
     gazetteer, and whichever it is, it is bound to the job's directory for its cache."""
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
-    visuals = _visuals(plan, manifest, job_dir, numbers)
+    geometry = pip or fixed_pip(source_size, numbers)
+    visuals = _visuals(plan, manifest, job_dir, numbers, pip_top=geometry.top)
     geocoder = geocoder or geo.GazetteerGeocoder()
     if job_dir is not None:
         geocoder = geocoder.for_job(job_dir)
@@ -1318,7 +1344,8 @@ def build_spec(
         stamp = _stamp_text(b, manifest)
         labelled = visual is not None and visual.card is not None and visual.card.strip_px > 0
         label = b.event.text if b.event.kind == "lower_third" and b.event.text else None
-        rows, split, wall = set_piece(b, manifest, job_dir, numbers=numbers)
+        rows, split, wall = set_piece(b, manifest, job_dir, numbers=numbers,
+                                      pip_top=geometry.top)  # fmt: skip
         chart, diagram = infographic(b, manifest, job_dir, numbers=numbers)
         start_frame, end_frame = round(b.start * fps), round(b.end * fps)
         beats.append(
@@ -1375,7 +1402,7 @@ def build_spec(
             for p in captions.pages
         ],
         beats_with_two_lines=captions.beats_with_two_lines,
-        pip=pip or fixed_pip(source_size, numbers),
+        pip=geometry,
         palette=numbers.palette,
         caption_style=numbers.captions,
     )

@@ -45,6 +45,7 @@ from shortsmith.contracts import (
     FaceBox,
     MapMarker,
     PicturePlan,
+    PipGeometry,
     PlanRequest,
     PlanStyle,
     RenderSpec,
@@ -259,6 +260,83 @@ def test_cards_sit_above_the_pip_like_the_reference_frames(size: tuple[int, int]
                                 crop=Crop(), numbers=EXPLAINER)  # fmt: skip
     pip_top = EXPLAINER.broll.pip_top
     assert render.card_bottom(visual) == pytest.approx(pip_top - render.PIP_GAP_PX)
+
+
+# --- 051: cards and the split clear the measured PIP circle (decisions 3.3, 6.3) --------
+
+# A face over 45 % of the 1080 px cut (3.3): the circle grows to 340 and its top to 920.
+LARGE_FACE = FaceBox(left=280, top=600, width=520, height=520)
+
+
+def _large_pip() -> PipGeometry:
+    pip = presenter.pip_geometry(LARGE_FACE, (1080, 1920), EXPLAINER_SPEC)
+    assert (pip.diameter, pip.top) == (340, 920)
+    return pip
+
+
+@pytest.mark.parametrize("size", [(1600, 900), (1000, 1000), (900, 1600)])
+@pytest.mark.parametrize("pip_top", [920, 960])
+def test_a_card_ends_the_gap_above_the_circle_top_it_is_given(
+    size: tuple[int, int], pip_top: int
+) -> None:
+    """The card reads the circle the render will draw, not the style's fixed `pip.top`:
+    on a large-face job (top 920) it ends 32 px above 920, on the normal circle above
+    960 as before."""
+    visual = render.card_visual("x.png", *size, strip_text="label", ring=False, index=0,
+                                crop=Crop(), numbers=EXPLAINER, pip_top=pip_top)  # fmt: skip
+    assert render.card_bottom(visual) == pytest.approx(pip_top - render.PIP_GAP_PX)
+
+
+def _two_panes() -> list[render.ItemSource]:
+    return [
+        render.ItemSource(text=t, card=render.CardSource(src=f"{t}.png", width=800, height=800))
+        for t in ("Alpha", "Beta")
+    ]
+
+
+@pytest.mark.parametrize("pip_top", [920, 960])
+def test_the_split_ends_the_gap_above_the_circle_top_it_is_given(pip_top: int) -> None:
+    piece = render.split_spec("Alpha versus Beta", _two_panes(), None, numbers=EXPLAINER,
+                              pip_top=pip_top)  # fmt: skip
+    assert render.split_bottom(piece) == pytest.approx(pip_top - render.PIP_GAP_PX)
+
+
+def test_split_bottom_is_the_tilted_card_edge() -> None:
+    piece = render.split_spec("Alpha versus Beta", _two_panes(), None, numbers=EXPLAINER,
+                              pip_top=960)  # fmt: skip
+    tilt = render._tilt_extent(piece.width, piece.height, piece.rotate_deg)  # pyright: ignore[reportPrivateUsage]
+    assert render.split_bottom(piece) == pytest.approx(piece.top + piece.height / 2 + tilt)
+    assert render.split_bottom(piece) > piece.top + piece.height  # the tilt adds to it
+
+
+def test_build_spec_places_cards_and_the_split_under_the_measured_circle(
+    tmp_path: Path,
+) -> None:
+    """`build_spec` derives the geometry it draws before placing the visuals and hands
+    its top down: with a large-face measurement every card and the split composite end
+    `PIP_GAP_PX` above 920; unmeasured (`pip=None`) they sit where 004/008 put them."""
+    plan = _plan()
+    manifest = _sourced(tmp_path, plan)
+    measured = render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        manifest=manifest, job_dir=tmp_path / "job", pip=_large_pip(),
+    )  # fmt: skip
+    cards = [b.visual for b in measured.beats if b.visual is not None and b.visual.card]
+    splits = [b.split for b in measured.beats if b.split is not None]
+    assert cards and splits
+    limit = measured.pip.top - render.PIP_GAP_PX
+    assert limit == 920 - render.PIP_GAP_PX
+    assert all(render.card_bottom(v) <= limit + 1e-6 for v in cards)
+    assert all(render.split_bottom(s) <= limit + 1e-6 for s in splits)
+    assert all(render.card_bottom(v) <= EXPLAINER.broll.card_max_bottom_y + 1e-6 for v in cards)
+    fixed = _visual_spec(tmp_path, plan, manifest)
+    fixed_limit = EXPLAINER.broll.pip_top - render.PIP_GAP_PX
+    for beat in fixed.beats:
+        if beat.visual is not None and beat.visual.card is not None:
+            assert render.card_bottom(beat.visual) == pytest.approx(fixed_limit)
+        if beat.split is not None:
+            assert render.split_bottom(beat.split) == pytest.approx(fixed_limit)
 
 
 def test_card_look_numbers_come_from_the_style() -> None:

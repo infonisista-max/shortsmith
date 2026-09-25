@@ -647,6 +647,27 @@ def test_transcribing_measures_the_face_onto_job_json_and_the_render_reads_it(
     assert spec.pip == measured.pip  # the composition crops through the measured window
 
 
+def test_cards_and_the_split_clear_the_large_face_circle_the_job_measured(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """051: the fake detector's box is 520 px tall, over 45 % of the cut (3.3), so the
+    job draws the 340 px circle with its top at 920; every card and split beat in the
+    RenderSpec ends `PIP_GAP_PX` above that top, never against the style's fixed 960."""
+    job = _uploaded(tmp_path, fixture_clip)
+    done = _run(job, detector=presenter.FakeFaceDetector())
+    assert done.status == "delivered"
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    assert (spec.pip.diameter, spec.pip.top) == (340, 920)
+    limit = spec.pip.top - render.PIP_GAP_PX
+    cards = [b.visual for b in spec.beats if b.visual is not None and b.visual.card is not None]
+    splits = [b.split for b in spec.beats if b.split is not None]
+    assert cards and splits
+    assert all(render.card_bottom(v) <= limit + 1e-6 for v in cards)
+    assert all(render.split_bottom(s) <= limit + 1e-6 for s in splits)
+
+
 def test_a_recording_with_no_face_fails_at_transcribing_before_the_transcriber(
     tmp_path: Path, faceless_clip: Path
 ) -> None:
