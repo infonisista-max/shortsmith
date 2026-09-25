@@ -31,7 +31,7 @@ from shortsmith.ffmpeg import Loudness
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
 from shortsmith.sound import sweep
-from tests.conftest import Media, Sounds
+from tests.conftest import Media, Sounds, ring, stem, swell, write_wav
 
 MP4 = "mov,mp4,m4a,3gp,3g2,mj2"
 
@@ -383,6 +383,78 @@ def test_run_fails_t6_naming_the_offending_cue(
     assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T6"]
     assert report.failed is not None and report.failed.name == "T6"
     assert report.failed.detail.startswith("R1 at 0.00 s in cue sfx_noise on b1 ('whoosh')")
+
+
+def test_t6_names_the_cue_a_sliced_hit_came_from() -> None:
+    # 050: an R3/R4 hit carries the index of its cue in the sheet it was sliced by, so
+    # it names that cue even where a neighbour's tail also sounds at its time.
+    hit = sweep.Hit(rule="R4", at_s=2.05, detail="attack of 0.20 s", slice=0)
+    check = technical.t6([hit], _sheet())
+    assert not check.passed
+    assert check.detail == "R4 at 2.05 s in cue sfx_bass on b1 ('bass'): attack of 0.20 s"
+
+
+def test_cue_slices_run_to_the_earlier_of_the_end_and_the_next_start() -> None:
+    sheet = CueSheet(
+        cues=[
+            CueRecord(beat_id="b1", intent="a", entry_id="x", start_s=0.0, end_s=2.0),
+            CueRecord(beat_id="b2", intent="b", entry_id="y", start_s=1.5, end_s=3.5),
+            CueRecord(beat_id="b3", intent="c", entry_id="z", start_s=6.0, end_s=8.0),
+        ]
+    )
+    assert technical.cue_slices(sheet) == [(0.0, 1.5), (1.5, 3.5), (6.0, 8.0)]
+
+
+def test_sorted_sheet_orders_cues_by_start() -> None:
+    late = CueRecord(beat_id="b2", intent="b", entry_id="y", start_s=3.0, end_s=5.0)
+    early = CueRecord(beat_id="b1", intent="a", entry_id="x", start_s=0.0, end_s=2.0)
+    assert technical.sorted_sheet(CueSheet(cues=[late, early])) == CueSheet(cues=[early, late])
+    assert technical.sorted_sheet(None) is None
+
+
+def _chained_stem_job(tmp_path: Path, media: Media, plan: PicturePlan) -> jobs.Job:
+    """Five ringing cues whose tails run together (the 023 misfire), the fourth a 200 ms
+    swell; the cue sheet is written in a scrambled order."""
+    job = _job_with(tmp_path, media.clip(duration_s=2.0, ext=".mp4"), plan)
+    starts = [0.0, 1.5, 3.0, 4.5, 6.0]
+    parts = [ring() for _ in starts]
+    parts[3] = swell(over_s=0.2)
+    x = stem(list(zip(starts, parts, strict=True)), runtime_s=9.0)
+    stems = job.work_dir / "stems"
+    stems.mkdir(parents=True, exist_ok=True)
+    write_wav(stems / "sfx.wav", x)
+    cues = [
+        CueRecord(beat_id=f"b{i + 1}", intent=f"hit{i + 1}", entry_id=f"sfx_{i + 1}",
+                  start_s=s, end_s=s + (0.4 if i == 3 else 2.0))
+        for i, s in enumerate(starts)
+    ]  # fmt: skip
+    scrambled = [cues[3], cues[0], cues[4], cues[1], cues[2]]
+    sheet = CueSheet(cues=scrambled)
+    (stems / sound.CUES_NAME).write_text(sheet.model_dump_json(indent=2), encoding="utf-8")
+    return job
+
+
+def test_run_fails_t6_naming_the_one_offending_cue_in_a_chained_stem(
+    media: Media, tmp_path: Path
+) -> None:
+    job = _chained_stem_job(tmp_path, media, _good_plan())
+    report = technical.run(job)
+    assert report.failed is not None and report.failed.name == "T6"
+    assert report.failed.detail.startswith("R4 at 4.5")
+    assert "in cue sfx_4 on b4 ('hit4'): attack of 0." in report.failed.detail
+    attack = float(report.failed.detail.split("attack of ")[1].split(" s")[0])
+    assert attack == pytest.approx(0.2, abs=0.03), "the swell's own attack, not a tail's"
+    assert report.failed.detail.count(" in cue ") == 1, "one hit, from one cue"
+
+
+def test_run_passes_t6_when_every_chained_cue_is_clean(media: Media, tmp_path: Path) -> None:
+    job = _chained_stem_job(tmp_path, media, _good_plan())
+    starts = [0.0, 1.5, 3.0, 4.5, 6.0]
+    x = stem([(s, ring()) for s in starts], runtime_s=9.0)
+    write_wav(job.work_dir / "stems" / "sfx.wav", x)
+    report = technical.run(job)
+    t6 = next(c for c in report.checks if c.name == "T6")
+    assert t6.passed and t6.detail == "R1-R4 clean on the SFX stem (5 cues)"
 
 
 def test_run_passes_t6_on_a_clean_stem(media: Media, sounds: Sounds, tmp_path: Path) -> None:

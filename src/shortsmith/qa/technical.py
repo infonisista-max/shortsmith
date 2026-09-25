@@ -11,8 +11,9 @@ failed report ends at the failing check.
     T2  frame count = round(duration x 30) on the video stream
     T3  duration <= 60.000 s, beats contiguous within 0.011 s, finale beat 0.8-1.2 s
     T4  master -14.0 +/- 0.5 LUFS integrated, true peak <= -1.5 dBTP (EBU R128 via loudnorm)
-    T6  no sweep: `sound.sweep` R1-R4 on work/stems/sfx.wav, a hit named by the cue at its
-        time (work/stems/cues.json); no stem is a pass that says so, never a bare pass
+    T6  no sweep: `sound.sweep` R1-R4 on work/stems/sfx.wav - R1/R2 on the whole stem,
+        R3/R4 per cue slice of work/stems/cues.json (050), so a hit names the cue that
+        offends; no stem is a pass that says so, never a bare pass
     T8  (016 part) rescued beats (ladder rung 3-4) <= the style limit scaled to the runtime
     T9  rights log complete: every beat's asset has a row, every row a source URL or an
         owner/generated origin, every generated row a prompt, no photoreal named entity
@@ -159,6 +160,26 @@ def t4(loudness: Loudness) -> QaCheck:
 CUE_TOL_S = 0.05  # a hit this close to a cue's span is that cue's
 
 
+def sorted_sheet(sheet: CueSheet | None) -> CueSheet | None:
+    """The sheet in start order: the one order `cue_slices` and `t6` must share, since a
+    hit's `slice` is an index into it (050)."""
+    if sheet is None:
+        return None
+    return CueSheet(cues=sorted(sheet.cues, key=lambda c: (c.start_s, c.end_s, c.entry_id)))
+
+
+def cue_slices(sheet: CueSheet) -> list[sweep.Slice]:
+    """Each cue's stretch of the stem, in the sheet's order: from its start to the
+    earlier of its end and the next cue's start (050). The sheet must be in start order
+    (`sorted_sheet`)."""
+    cues = sheet.cues
+    out: list[sweep.Slice] = []
+    for i, cue in enumerate(cues):
+        end = cue.end_s if i + 1 == len(cues) else min(cue.end_s, cues[i + 1].start_s)
+        out.append((cue.start_s, max(cue.start_s, end)))
+    return out
+
+
 def cue_at(at_s: float, sheet: CueSheet | None) -> CueRecord | None:
     """The cue sounding at `at_s` (the latest to start, if two overlap), else the last
     one to start before it; None when no cue has started by then."""
@@ -168,9 +189,18 @@ def cue_at(at_s: float, sheet: CueSheet | None) -> CueRecord | None:
     return max(earlier, key=lambda c: c.start_s) if earlier else None
 
 
+def _cue_of(hit: sweep.Hit, sheet: CueSheet | None) -> CueRecord | None:
+    """The cue a hit belongs to: the slice it was measured in (R3/R4 on a stem, 050),
+    else the cue sounding at its time (R1/R2)."""
+    if hit.slice is not None and sheet is not None and hit.slice < len(sheet.cues):
+        return sheet.cues[hit.slice]
+    return cue_at(hit.at_s, sheet)
+
+
 def t6(hits: Sequence[sweep.Hit] | None, sheet: CueSheet | None) -> QaCheck:
     """No sweep (7.3): R1-R4 on `work/stems/sfx.wav`, each hit named by its cue. `hits`
-    is None when there is no SFX stem - a pass, with the reason written down."""
+    is None when there is no SFX stem - a pass, with the reason written down. `sheet`
+    is the one the hits were sliced by (`_sfx_scan`), in that order."""
     if hits is None:
         return QaCheck(
             name="T6",
@@ -185,7 +215,7 @@ def t6(hits: Sequence[sweep.Hit] | None, sheet: CueSheet | None) -> QaCheck:
         )
     problems: list[str] = []
     for hit in hits:
-        cue = cue_at(hit.at_s, sheet)
+        cue = _cue_of(hit, sheet)
         where = (
             f"cue {cue.entry_id} on {cue.beat_id} ({cue.intent!r})"
             if cue is not None
@@ -249,11 +279,16 @@ def load_report(job: Job) -> QaReport | None:
 
 def _sfx_scan(job: Job) -> tuple[list[sweep.Hit] | None, CueSheet | None]:
     """The detector's hits on the job's SFX stem, None when there is no stem, and the
-    cue sheet that names them."""
+    cue sheet that names them - sorted once here, and the same object handed to `t6`,
+    since R3/R4 hits index it (050). Without a sheet the stem is read whole."""
     stems = job.work_dir / "stems"
     stem = stems / "sfx.wav"
-    hits = sweep.detect(stem) if stem.is_file() else None
-    return hits, sound.cue_sheet(stems)
+    sheet = sorted_sheet(sound.cue_sheet(stems))
+    if not stem.is_file():
+        return None, sheet
+    if sheet is None or not sheet.cues:
+        return sweep.detect(stem), sheet
+    return sweep.detect(stem, slices=cue_slices(sheet)), sheet
 
 
 def run(job: Job) -> QaReport:

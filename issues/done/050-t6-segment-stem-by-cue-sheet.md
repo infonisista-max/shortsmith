@@ -26,11 +26,27 @@ Covers PRD `sound` (detector), `qa.technical` T6. Decisions 7.3, 10.1.
 
 ## Acceptance criteria
 
-- [ ] T6 runs R3 and R4 on per-cue slices of `work/stems/sfx.wav` cut by `work/stems/cues.json`; R1 and R2 still run on the whole stem; `seed check` behaviour is unchanged.
-- [ ] Boundary tests on synthetic stems: the three cases above (chained ringing tails, two overlapping cues, a quiet cue then a loud hit) pass T6 when each cue alone is clean.
-- [ ] A stem where exactly one cue offends fails T6 naming that cue's `entry_id`, `beat_id` and intent, with that cue's own measured value (e.g. its own attack, not one spanning a neighbour) and a time inside that cue's slice.
-- [ ] A real offender cue (a 5.1 s tone; a 200 ms swell) inside a stem of clean cues still fails R3 / R4 respectively.
-- [ ] The no-stem pass keeps its written reason; smoke still passes T6 with "R1-R4 clean on the SFX stem".
+- [x] T6 runs R3 and R4 on per-cue slices of `work/stems/sfx.wav` cut by `work/stems/cues.json`; R1 and R2 still run on the whole stem; `seed check` behaviour is unchanged.
+- [x] Boundary tests on synthetic stems: the three cases above (chained ringing tails, two overlapping cues, a quiet cue then a loud hit) pass T6 when each cue alone is clean.
+- [x] A stem where exactly one cue offends fails T6 naming that cue's `entry_id`, `beat_id` and intent, with that cue's own measured value (e.g. its own attack, not one spanning a neighbour) and a time inside that cue's slice.
+- [x] A real offender cue (a 5.1 s tone; a 200 ms swell) inside a stem of clean cues still fails R3 / R4 respectively.
+- [x] The no-stem pass keeps its written reason; smoke still passes T6 with "R1-R4 clean on the SFX stem".
+
+## Status (2026-09-25): done
+
+`sweep.detect_stem(samples, rate, slices)` runs R1/R2 whole and R3/R4 per slice; a hit
+carries `slice`, the index of its cue in the sheet. `qa.technical` sorts the sheet once
+(`sorted_sheet`), cuts `cue_slices` from it and hands the same object to `t6`, which names
+an R3/R4 hit's cue by that index and an R1/R2 hit's by `cue_at` as before. Without a
+sheet the stem is read whole. `detect`/`detect_samples` and `seed check` are untouched.
+Each of the three ticket cases is pinned both ways in `tests/test_sweep.py`: the whole-stem
+scan misfires, the sliced one does not. The swell's own attack measures 0.18-0.19 s on a
+mixed stem (the 023 window bias plus the neighbour's tail under its first windows), so the
+tests read the number and allow +/- 30 ms. `run(job)` is tested with a scrambled
+`cues.json`, so the sort is what the index means.
+
+ruff clean, pyright 0 errors, pytest 1031 passed; smoke ok, `out/qa.json` T1 T2 T3 T4 T6
+T8 T9 pass, T6 "R1-R4 clean on the SFX stem (2 cues)". 025's "Blocked by 050" line cleared.
 
 ## Blocked by
 

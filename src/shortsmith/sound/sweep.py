@@ -18,6 +18,14 @@ is what lets the same rules read a stem that is mostly silence between its cues.
 7.3 numbers are the named constants below; the frame sizes are this detector's
 measuring resolution, like the geometry constants in `render`.
 
+**Per cue on the stem (050).** R3 and R4 are per sound, and on a mixed stem two cues
+whose tails run together are one sound by silence, so `detect_stem` takes the cue
+sheet's slices and runs R3 and R4 on each slice alone; the hit carries the slice's index
+so T6 names the cue that offends, with that cue's own number, never the merged span.
+R1 and R2 keep reading the whole stem frame by frame. Within a slice a sound is still
+split by silence - a sustained tone must be continuous to be an R3. A single file
+(`detect`, `detect_samples`) has no slices and is read as before.
+
 **R2, read (operator-approved 2026-09-25).** The level is measured in 50 ms windows at a
 25 ms hop. A crescendo is a run of windows where each step is at most
 `RISE_STEP_MAX_DB` louder than the last and never more than `RISE_JITTER_DB` quieter -
@@ -29,6 +37,7 @@ so the flat hold after a crescendo does not lengthen it.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -41,6 +50,7 @@ from shortsmith import ffmpeg
 
 Rule = Literal["R1", "R2", "R3", "R4"]
 Floats = npt.NDArray[np.float64]
+Slice = tuple[float, float]  # (start_s, end_s) of one cue's stretch of the stem
 
 SAMPLE_RATE = ffmpeg.SAMPLE_RATE
 SILENCE_DB = -60.0  # dBFS: a quieter frame is silence and belongs to no run or sound
@@ -81,11 +91,14 @@ BLOCK_FRAMES = 2048  # spectra are taken this many frames at a time, to bound me
 
 @dataclass(frozen=True)
 class Hit:
-    """One broken rule: which, when the offending sound starts, and what was measured."""
+    """One broken rule: which, when the offending sound starts, and what was measured.
+    `slice` is the index of the cue slice an R3/R4 hit was measured in (`detect_stem`,
+    050); None for R1/R2 and for a whole-file scan."""
 
     rule: Rule
     at_s: float
     detail: str
+    slice: int | None = None
 
 
 def decode(path: Path) -> Floats:
@@ -94,9 +107,13 @@ def decode(path: Path) -> Floats:
     return data.astype(np.float64)
 
 
-def detect(path: Path) -> list[Hit]:
-    """R1-R4 on the file at `path`; empty when it is clean."""
-    return detect_samples(decode(path), SAMPLE_RATE)
+def detect(path: Path, *, slices: Sequence[Slice] | None = None) -> list[Hit]:
+    """R1-R4 on the file at `path`; empty when it is clean. With `slices`, R3 and R4
+    run per slice (`detect_stem`)."""
+    x = decode(path)
+    if slices is None:
+        return detect_samples(x, SAMPLE_RATE)
+    return detect_stem(x, SAMPLE_RATE, slices)
 
 
 def detect_samples(samples: npt.ArrayLike, rate: int) -> list[Hit]:
@@ -106,6 +123,26 @@ def detect_samples(samples: npt.ArrayLike, rate: int) -> list[Hit]:
         return []
     events = sounds(x, rate)
     hits = [*_r1(x, rate), *_r2(x, rate), *_r3(events), *_r4(x, rate, events)]
+    return sorted(hits, key=lambda h: (h.at_s, h.rule))
+
+
+def detect_stem(samples: npt.ArrayLike, rate: int, slices: Sequence[Slice]) -> list[Hit]:
+    """R1 and R2 on the whole stem, R3 and R4 on each of `slices` alone (050): a hit
+    from a slice is timed on the stem and carries the slice's index. Audio outside
+    every slice is read by R1 and R2 only."""
+    x = np.asarray(samples, dtype=np.float64)
+    if x.size == 0:
+        return []
+    hits = [*_r1(x, rate), *_r2(x, rate)]
+    for index, (start_s, end_s) in enumerate(slices):
+        part = x[max(0, round(start_s * rate)) : max(0, round(end_s * rate))]
+        if part.size == 0:
+            continue
+        events = sounds(part, rate)
+        for hit in (*_r3(events), *_r4(part, rate, events)):
+            hits.append(
+                Hit(rule=hit.rule, at_s=start_s + hit.at_s, detail=hit.detail, slice=index)
+            )
     return sorted(hits, key=lambda h: (h.at_s, h.rule))
 
 

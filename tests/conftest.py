@@ -4,13 +4,19 @@ clips and stills for boundary tests, each generated once per session on first us
 
 from __future__ import annotations
 
+import wave
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
+import numpy.typing as npt
 import pytest
 
 from shortsmith import sound
 from shortsmith.fixture import make_catalogue, make_clip, make_fixture, make_image, make_wav
+
+Floats = npt.NDArray[np.float64]
 
 
 @pytest.fixture(scope="session")
@@ -110,6 +116,54 @@ class Sounds:
 def sounds(tmp_path_factory: pytest.TempPathFactory) -> Sounds:
     """The 023 sweep offenders and clean files, each synthesised on first use."""
     return Sounds(tmp_path_factory.mktemp("sweep"))
+
+
+# 050: SFX stems built in numpy, cue by cue, so a test can place cues whose tails run
+# together and know exactly which cue is which. Every stem is 48 kHz mono float.
+STEM_RATE = 48000
+
+
+def ring(*, length_s: float = 2.0, amplitude: float = 0.5, decay: float = 0.5) -> Floats:
+    """A 600 Hz hit that rings down for `length_s`: it enters at once (no attack), only
+    falls (no crescendo), and stays over -60 dBFS until it stops. The default decay
+    leaves the tail within 20 dB of a full hit 2 s on, as a reverb tail does."""
+    t = np.arange(round(length_s * STEM_RATE)) / STEM_RATE
+    return amplitude * np.sin(2 * np.pi * 600 * t) * np.exp(-decay * t)
+
+
+def tone(*, length_s: float, amplitude: float = 0.3) -> Floats:
+    """A steady 440 Hz tone: the R3 offender when it is longer than 5 s."""
+    t = np.arange(round(length_s * STEM_RATE)) / STEM_RATE
+    return amplitude * np.sin(2 * np.pi * 440 * t)
+
+
+def swell(*, from_db: float = -20.0, over_s: float = 0.2, hold_s: float = 0.2) -> Floats:
+    """A 440 Hz tone rising from `from_db` under its peak to it over `over_s`, then held:
+    the R4 offender when `over_s` is over 150 ms."""
+    t = np.arange(round((over_s + hold_s) * STEM_RATE)) / STEM_RATE
+    db = np.minimum(from_db + (-from_db / over_s) * t, 0.0)
+    return 0.5 * 10 ** (db / 20) * np.sin(2 * np.pi * 440 * t)
+
+
+def stem(cues: Sequence[tuple[float, Floats]], *, runtime_s: float) -> Floats:
+    """The cues summed at their start times into `runtime_s` of silence, as the SFX
+    stem is mixed; a cue is cut where the runtime ends."""
+    out = np.zeros(round(runtime_s * STEM_RATE))
+    for start_s, samples in cues:
+        a = round(start_s * STEM_RATE)
+        part = samples[: max(0, out.size - a)]
+        out[a : a + part.size] += part
+    return out
+
+
+def write_wav(path: Path, samples: Floats) -> Path:
+    """`samples` as a 16-bit mono wav at `STEM_RATE`."""
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(STEM_RATE)
+        handle.writeframes((np.clip(samples, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+    return path
 
 
 @pytest.fixture(scope="session")
