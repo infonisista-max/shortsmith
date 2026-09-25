@@ -40,6 +40,7 @@ from shortsmith.contracts import (
     PresenterMeasurement,
     Span,
 )
+from shortsmith.qa import technical
 from shortsmith.qa.technical import QaCheck, QaReport
 from tests.conftest import Media
 
@@ -189,6 +190,24 @@ def test_compose_image_marks_a_failed_check_red_and_pending_checks_grey() -> Non
     assert expected <= colours
     without = contact_sheet.compose_image(hook, frames, None, "job z")
     assert without.size == image.size
+
+
+def test_summary_panel_lists_t1_to_t13_and_draws_not_implemented_grey() -> None:
+    """031: thirteen dots in gate order; a `not_implemented` placeholder is grey, not
+    red and not green."""
+    assert contact_sheet.TECHNICAL_CHECKS == technical.CHECK_ORDER
+    hook = [_solid((HOOK_W, HOOK_H), (0, 0, 0))] * HOOK_FRAMES
+    frames = [_solid((FRAME_W, FRAME_H), (0, 0, 0))]
+    lay = contact_sheet.layout(HOOK_FRAMES, 1)
+    checks = [QaCheck(name=n, passed=True, detail="x") for n in technical.IMPLEMENTED]
+    checks += [technical.placeholder(n) for n in technical.PLACEHOLDERS]
+    image = contact_sheet.compose_image(hook, frames, technical.report(checks), "job p")
+    summary = image.crop(
+        (lay.summary.x, lay.summary.y, lay.summary.x + lay.summary.w, lay.summary.y + lay.summary.h)
+    )
+    colours = {c for _, c in (summary.getcolors(maxcolors=1 << 16) or [])}
+    assert contact_sheet.PASS_COLOUR in colours and contact_sheet.PENDING_COLOUR in colours
+    assert contact_sheet.FAIL_COLOUR not in colours
 
 
 # --- encode: under 2 MB --------------------------------------------------------------------

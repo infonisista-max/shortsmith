@@ -86,7 +86,7 @@ TRAIL = [
     "rendering -> qa",
     "qa -> delivered",
 ]
-TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T6", "T8", "T9")  # grows with the gate tickets
+TECHNICAL_CHECKS = technical.CHECK_ORDER  # T1-T13; T11-T13 are 032's placeholders
 SMOKE_BRIEF = (
     "Topic: a six-second synthetic clip. Angle: prove the pipeline end to end. "
     "Must-say: twelve words on six tone bursts. Hook wish: none."
@@ -290,7 +290,8 @@ def run_smoke(
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
-        f"{' '.join(TECHNICAL_CHECKS)} pass, "
+        f"{' '.join(technical.IMPLEMENTED)} pass, "
+        f"{' '.join(technical.PLACEHOLDERS)} not implemented, "
         f"contact {sheet.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
@@ -674,20 +675,35 @@ def check_sound(
 
 
 def check_qa(job: jobs.Job) -> None:
-    """`out/qa.json`: T1-T4 (006), T6 (023), T8's rescue limit and T9 (016) ran in order
-    and every one passed (10.1). The smoke mixes cues, so T6 must have scanned a real SFX
-    stem - its no-stem pass would mean the detector never ran."""
+    """`out/qa.json`: T1-T4 (006), T5, T7 and T10 (031), T6 (023), T8's rescue limit and
+    T9 (016) ran in order and every one passed (10.1), and T11-T13 are recorded as
+    `not_implemented`, never as a pass. The smoke mixes cues, so T6 must have scanned a
+    real SFX stem - its no-stem pass would mean the detector never ran; likewise T5 must
+    have measured a lag and T7 must have read every frame."""
     report = technical.load_report(job)
     check(report is not None, "qa did not write out/qa.json")
     assert report is not None
     names = [c.name for c in report.checks]
     check(names == list(TECHNICAL_CHECKS), f"qa.json lists {names}, expected {TECHNICAL_CHECKS}")
     for c in report.checks:
+        if c.name in technical.PLACEHOLDERS:
+            check(c.status == "not_implemented" and not c.passed, f"{c.name} is not a placeholder")
+            continue
         check(c.passed, f"{c.name} failed: {c.detail}")
+    t5 = next((c for c in report.checks if c.name == "T5"), None)
+    check(
+        t5 is not None and "lip-sync lag" in t5.detail and f"seed {technical.T5_SEED}" in t5.detail,
+        f"T5 did not measure the lag or draw its samples: {t5.detail if t5 else 'missing'}",
+    )
     t6 = next((c for c in report.checks if c.name == "T6"), None)
     check(
         t6 is not None and t6.detail.startswith("R1-R4 clean on the SFX stem"),
         f"T6 did not scan the SFX stem: {t6.detail if t6 else 'missing'}",
+    )
+    t7 = next((c for c in report.checks if c.name == "T7"), None)
+    check(
+        t7 is not None and t7.detail.startswith(f"{EXPECTED_FRAMES} frames"),
+        f"T7 did not read every frame: {t7.detail if t7 else 'missing'}",
     )
     check(report.passed, "qa.json says the report failed although every check passed")
 

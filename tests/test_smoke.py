@@ -69,7 +69,12 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     # 006: the technical gate and the contact sheet, then `delivered`.
     report = technical.load_report(job)
     assert report is not None and report.passed
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T6", "T8", "T9"]
+    assert [c.name for c in report.checks] == list(technical.CHECK_ORDER)
+    # 031: T5, T7 and T10 ran on the real short; T11-T13 are recorded, not passed.
+    assert all(c.status == "pass" for c in report.checks if c.name in technical.IMPLEMENTED)
+    assert [c.status for c in report.checks if c.name in technical.PLACEHOLDERS] == [
+        "not_implemented"
+    ] * 3
     # 016: every sourced beat found its picture through the fakes, none rescued; the
     # photo beat is a full-bleed photo, the card beat a card; the rights log is complete.
     manifest = assets.load_manifest(job.path)
@@ -105,7 +110,8 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     )
     assert "ok" in result.summary and job.id in result.summary
     assert "180 frames" in result.summary and "short" in result.summary
-    assert "T1 T2 T3 T4 T6 T8 T9 pass" in result.summary and "contact" in result.summary
+    assert "T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 pass" in result.summary
+    assert "T11 T12 T13 not implemented" in result.summary and "contact" in result.summary
     assert f"{len(manifest.assets)} assets" in result.summary
 
 

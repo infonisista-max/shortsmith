@@ -13,7 +13,8 @@ letter (U user, W web, C Commons, O Openverse, P Pexels, X Pixabay, G generated,
 library, - none), with a red corner mark on a rescued (4.4) or downgraded (5.3) beat.
 The 6.3 platform safe-area zones are drawn as thin outlines on the
 first frame of every row. The last row is the summary panel: one dot per technical
-check (green pass, red fail, grey not run), the critic scores as a placeholder until
+check T1-T13 (green pass, red fail, grey not run or `not_implemented`: the 032
+placeholders, 031), the critic scores as a placeholder until
 033, the relevance judge's spent calls against the style's ceiling (5.2), and the
 ledger line (cash total, subscription tokens with their api-equivalent value, the
 soft-cap flag; 11.3). The file stays under 2 MB: `encode` steps the JPEG
@@ -60,7 +61,7 @@ LABEL_H = 20
 STRIP_H = 20
 SUMMARY_H = 72
 MAX_BYTES = 2_000_000
-TECHNICAL_CHECKS = ("T1", "T2", "T3", "T4", "T6", "T8", "T9")  # T8 partial until 032; grows to T13
+TECHNICAL_CHECKS = technical.CHECK_ORDER  # T1-T13; T8 partial and T11-T13 grey until 032
 
 BG_COLOUR = (24, 24, 24)
 PANEL_COLOUR = (40, 40, 40)
@@ -340,13 +341,14 @@ def _draw_summary(
     cost: str = "ledger: -",
 ) -> None:
     draw.rectangle(box.rect, fill=PANEL_COLOUR)
-    results = {c.name: c.passed for c in report.checks} if report is not None else {}
+    results = {c.name: c.status for c in report.checks} if report is not None else {}
     x = box.x + 12
     cy = box.y + 22
     for name in TECHNICAL_CHECKS:
-        passed = results.get(name)
+        # A check that did not run, or a 032 placeholder, is grey: never green (031).
+        status = results.get(name)
         colour = (
-            PENDING_COLOUR if passed is None else PASS_COLOUR if passed else FAIL_COLOUR
+            PASS_COLOUR if status == "pass" else FAIL_COLOUR if status == "fail" else PENDING_COLOUR
         )
         draw.ellipse((x, cy - 8, x + 16, cy + 8), fill=colour)
         draw.text((x + 22, cy - 9), name, fill=TEXT_COLOUR, font=font)

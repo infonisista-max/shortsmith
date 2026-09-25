@@ -822,6 +822,12 @@ def render_job_page(
     )
 
 
+# 031: a 032 placeholder is neither a pass nor a FAIL on the page.
+CHECK_LABELS: dict[str, str] = {
+    "pass": "pass", "fail": "FAIL", "not_implemented": "not implemented",
+}  # fmt: skip
+
+
 def _result_block(job: Job) -> str:
     """The short, the contact sheet and the download links once the job is `delivered`
     (11.1, 10.4), and the technical check list whenever `out/qa.json` exists, so a job
@@ -831,8 +837,8 @@ def _result_block(job: Job) -> str:
         return ""
     base = f"/jobs/{html.escape(job.id)}"
     items = "\n".join(
-        f'  <li class="check {"pass" if c.passed else "fail"}">{html.escape(c.name)} '
-        f'{"pass" if c.passed else "FAIL"} · {html.escape(c.detail)}</li>'
+        f'  <li class="check {c.status}">{html.escape(c.name)} '
+        f"{CHECK_LABELS[c.status]} · {html.escape(c.detail)}</li>"
         for c in report.checks
     )
     media = ""

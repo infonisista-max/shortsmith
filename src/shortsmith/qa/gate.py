@@ -36,7 +36,8 @@ class TechnicalGate(Gate):
 
 
 class FakeGate(Gate):
-    """Every check passes, or the checks up to `fail` with that one failing."""
+    """Every implemented check passes (the 032 placeholders stay `not_implemented`, as
+    in the real gate), or the checks up to `fail` with that one failing."""
 
     def __init__(self, *, fail: str | None = None) -> None:
         self.fail = fail
@@ -45,12 +46,15 @@ class FakeGate(Gate):
     def check(self, job: Job) -> QaReport:
         self.jobs.append(job.path)
         checks: list[QaCheck] = []
-        for name in contact_sheet.TECHNICAL_CHECKS:
+        for name in technical.CHECK_ORDER:
             failed = name == self.fail
+            if name in technical.PLACEHOLDERS and not failed:
+                checks.append(technical.placeholder(name))
+                continue
             checks.append(QaCheck(name=name, passed=not failed, detail=f"fake {name}"))
             if failed:
                 break
-        report = QaReport(checks=checks, passed=all(c.passed for c in checks))
+        report = technical.report(checks)
         technical.write_report(job, report)
         return report
 

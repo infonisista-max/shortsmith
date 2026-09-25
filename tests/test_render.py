@@ -981,6 +981,14 @@ def test_cut_presenter_applies_the_cut_list(tmp_path: Path, fixture_clip: Path) 
     streams = _streams(out)
     assert int(streams["video"]["nb_frames"]) == 150  # type: ignore[call-overload]
     assert float(streams["audio"]["duration"]) == pytest.approx(5.0, abs=0.05)  # type: ignore[arg-type]
+    # 031: the spans that were cut are on disk for gate T10.
+    assert presenter.load_cut_list(job) == presenter.cut_list(plan)
+
+
+def test_fake_renderer_writes_the_cut_list_too(tmp_path: Path, fixture_clip: Path) -> None:
+    job = _job_with(tmp_path, fixture_clip)
+    render.FakeRenderer().render(job)
+    assert presenter.load_cut_list(job) == presenter.cut_list(_plan())
 
 
 def test_cut_presenter_centre_crops_a_landscape_source_to_1080x1920(

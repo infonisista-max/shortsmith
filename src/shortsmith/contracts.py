@@ -300,6 +300,13 @@ class CutPlan(StrictModel):
     drop: list[Span] = []
 
 
+class CutList(StrictModel):
+    """`work/cut.json` (031): the source spans the renderer cut, in output order, as
+    `presenter.cut_list` derived them, so gate T10 reads the boundaries that were cut."""
+
+    spans: list[Span]
+
+
 class Hook(StrictModel):
     """The two-beat hook (3.4): cold open lifted from anywhere, then title + cards."""
 

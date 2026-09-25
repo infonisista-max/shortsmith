@@ -62,10 +62,11 @@ the specs, and used twice: the sound call is told its tag words (8.1), and the r
 mixes from it. An empty catalogue - the shipped one, until the operator seeds it - leaves
 the short as the voice alone.
 
-`qa` runs the technical gate (`qa.gate.Gate`: T1-T4 today, T13 eventually) which
-writes `out/qa.json`; a failing check fails the job at `qa` naming the check. When
-every check passes the gate composes `out/contact.jpg`, and the job is `delivered`
-once `short.mp4`, `contact.jpg`, `rights.json` and `credits.md` exist (10.4).
+`qa` runs the technical gate (`qa.gate.Gate`: T1-T10 today, T11-T13 recorded as
+`not_implemented` until 032) which writes `out/qa.json`; a failing check fails the job
+at `qa` naming the check. When no check fails the gate composes `out/contact.jpg`, and
+the job is `delivered` once `short.mp4`, `contact.jpg`, `rights.json` and `credits.md`
+exist (10.4); once 032 lands, `delivered` requires every listed check to be `pass`.
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path

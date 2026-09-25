@@ -218,6 +218,58 @@ def pcm_f32(path: Path, *, rate: int = SAMPLE_RATE) -> bytes:
     return proc.stdout
 
 
+@dataclass(frozen=True)
+class FrameStat:
+    """One decoded frame of the first video stream (gate T7, 031): its index, its mean
+    luma on the full 0-255 range and the MD5 of its pixels."""
+
+    index: int
+    luma: float
+    hash: str
+
+
+LIMITED_BLACK, LIMITED_WHITE = 16.0, 235.0
+
+
+def luma_full(yavg: float, *, full_range: bool = False) -> float:
+    """A `signalstats` YAVG on the full 0-255 range: limited-range video (the default
+    for H.264 4:2:0, and what `color_range=unknown` decodes as) puts black at Y=16 and
+    white at Y=235, so 12/255 in 10.1 is read after that mapping, never on raw Y."""
+    if full_range:
+        return yavg
+    scaled = (yavg - LIMITED_BLACK) * 255.0 / (LIMITED_WHITE - LIMITED_BLACK)
+    return min(255.0, max(0.0, scaled))
+
+
+_YAVG = re.compile(r"lavfi\.signalstats\.YAVG=(-?[\d.]+)")
+
+
+def frame_stats(path: Path, *, full_range: bool = False) -> list[FrameStat]:
+    """Every frame's mean luma and pixel hash in one decode: `signalstats` prints YAVG
+    per frame to the log, the `framehash` muxer writes one MD5 line per frame to
+    stdout. The video stream alone is mapped, so no audio frame is hashed."""
+    proc = run(
+        [
+            FFMPEG, "-v", "info", "-nostats", "-i", str(path), "-map", "0:v:0", "-an",
+            "-vf", "signalstats,metadata=print:key=lavfi.signalstats.YAVG",
+            "-f", "framehash", "-hash", "md5", "-",
+        ],  # fmt: skip
+        timeout_s=MEASURE_TIMEOUT_S,
+    )
+    lumas = [float(m.group(1)) for m in _YAVG.finditer(proc.stderr.decode("utf-8", "replace"))]
+    hashes = [
+        line.rsplit(",", 1)[1].strip()
+        for line in proc.stdout.decode("utf-8", errors="replace").splitlines()
+        if line and not line.startswith("#")
+    ]
+    if len(lumas) != len(hashes):
+        raise FFmpegError(f"{len(lumas)} luma readings for {len(hashes)} frame hashes")
+    return [
+        FrameStat(index=i, luma=luma_full(y, full_range=full_range), hash=h)
+        for i, (y, h) in enumerate(zip(lumas, hashes, strict=True))
+    ]
+
+
 def video_md5(path: Path) -> str:
     """MD5 of the first video stream's packets, bit-exact (`-c copy`): equal for two
     files whose video was muxed without re-encoding (revision proof (a), 10.1)."""

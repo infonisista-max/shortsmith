@@ -83,6 +83,18 @@ def test_fake_plan_cut_list_is_the_whole_fixture_in_order() -> None:
     assert presenter.total_duration(spans) == 6.0
 
 
+def test_cut_list_round_trips_through_work_cut_json(tmp_path: Path) -> None:
+    """031: the renderer writes the cut list it applied to `work/cut.json`, so gate T10
+    reads the boundaries that were cut, not a re-derivation."""
+    job = jobs.create(tmp_path)
+    assert presenter.load_cut_list(job) is None
+    spans = presenter.cut_list(_fake_plan())
+    path = presenter.write_cut_list(job, spans)
+    assert path == job.work_dir / "cut.json"
+    assert presenter.load_cut_list(job) == spans
+    assert '"spans"' in path.read_text(encoding="utf-8")
+
+
 def test_cold_open_lifted_from_the_middle_with_drop_is_absent_at_its_place() -> None:
     plan = _plan(keep=[(0.0, 6.0)], cold_open=(3.0, 3.5), original_position="drop")
     assert _pairs(presenter.cut_list(plan)) == [(3.0, 3.5), (0.0, 3.0), (3.5, 6.0)]

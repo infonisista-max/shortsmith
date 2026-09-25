@@ -28,6 +28,7 @@ from shortsmith.ingest import MIB, Limits
 from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
 from shortsmith.planner import ApiPlanner, ClaudeCodePlanner, FakePlanner
 from shortsmith.presenter import FakeFaceDetector
+from shortsmith.qa import technical
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber, GroqTranscriber
@@ -333,8 +334,11 @@ def test_job_page_after_the_worker_ran_shows_the_delivered_short(
     assert f'<img class="sheet" src="{location}/contact.jpg"' in body
     assert f'href="{location}/short.mp4?download=1"' in body
     assert f'href="{location}/contact.jpg?download=1"' in body
-    for name in ("T1", "T2", "T3", "T4", "T6", "T8", "T9"):
+    for name in technical.IMPLEMENTED:
         assert f'<li class="check pass">{name} pass' in body
+    # 031: the 032 placeholders show grey as "not implemented", never as a pass or a FAIL.
+    for name in technical.PLACEHOLDERS:
+        assert f'<li class="check not_implemented">{name} not implemented' in body
     assert "FAIL" not in body
 
 
@@ -392,7 +396,7 @@ def test_delivered_files_are_served_from_out_only(
     assert sheet.status_code == 200 and sheet.headers["content-type"].startswith("image/jpeg")
     qa = client.get(f"{location}/qa.json")
     assert qa.status_code == 200
-    assert [c["name"] for c in qa.json()["checks"]] == ["T1", "T2", "T3", "T4", "T6", "T8", "T9"]
+    assert [c["name"] for c in qa.json()["checks"]] == list(technical.CHECK_ORDER)
     # 016: the rights evidence is downloadable beside the short.
     assert client.get(f"{location}/rights.json").headers["content-type"].startswith(
         "application/json"

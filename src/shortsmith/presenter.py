@@ -46,6 +46,7 @@ from cv2 import data as cv2_data  # the bundled cascades' directory (`haarcascad
 
 from shortsmith import ffmpeg, jobs
 from shortsmith.contracts import (
+    CutList,
     FaceBox,
     PicturePlan,
     PipGeometry,
@@ -295,6 +296,25 @@ def cut_list(plan: PicturePlan) -> list[Span]:
 
 def total_duration(spans: Sequence[Span]) -> float:
     return sum(s.end - s.start for s in spans)
+
+
+CUT_LIST_NAME = "cut.json"
+
+
+def write_cut_list(job: Job, spans: Sequence[Span]) -> Path:
+    """`work/cut.json` (031): the spans the renderer cut, for gate T10."""
+    path = job.work_dir / CUT_LIST_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(CutList(spans=list(spans)).model_dump_json(indent=2), encoding="utf-8")
+    return path
+
+
+def load_cut_list(job: Job) -> list[Span] | None:
+    """The spans `write_cut_list` recorded; None before the renderer ran."""
+    path = job.work_dir / CUT_LIST_NAME
+    if not path.is_file():
+        return None
+    return CutList.model_validate_json(path.read_text(encoding="utf-8")).spans
 
 
 def source_time(spans: Sequence[Span], output_t: float) -> float:

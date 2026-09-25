@@ -19,7 +19,11 @@ def test_fake_gate_passes_every_check_and_writes_qa_json(tmp_path: Path) -> None
     gate: Gate = FakeGate()
     report = gate.check(job)
     assert report.passed
-    assert [c.name for c in report.checks] == ["T1", "T2", "T3", "T4", "T6", "T8", "T9"]
+    assert [c.name for c in report.checks] == list(technical.CHECK_ORDER)
+    assert [c.name for c in report.checks][-3:] == ["T11", "T12", "T13"]
+    # 031: the 032 placeholders are recorded, never passed silently, even by the fake.
+    assert [c.status for c in report.checks[-3:]] == ["not_implemented"] * 3
+    assert all(c.status == "pass" for c in report.checks[:-3])
     assert technical.load_report(job) == report
 
 

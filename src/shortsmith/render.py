@@ -1569,6 +1569,7 @@ def cut_presenter(job: Job) -> Path:
         ],  # fmt: skip
         timeout_s=FFMPEG_TIMEOUT_S,
     )
+    presenter.write_cut_list(job, spans)  # 031: the boundaries T10 checks
     return out
 
 
@@ -1833,6 +1834,7 @@ class FakeRenderer(Renderer):
         cut = _cut_path(job)
         cut.write_bytes(b"")
         plan = _load_plan(job)
+        presenter.write_cut_list(job, presenter.cut_list(plan))
         captions = load_captions(job)
         spec = build_spec(
             plan,
