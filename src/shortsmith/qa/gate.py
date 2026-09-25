@@ -1,12 +1,15 @@
 """The gate as the pipeline's `qa` step sees it (10.1, 10.4): `check` runs the
 technical checks and writes `out/qa.json`; `contact_sheet` composes `out/contact.jpg`
-once the checks pass. `TechnicalGate` is the real one; `FakeGate` passes T1-T4 and
-writes a one-pixel JPEG so the pipeline and app tests stay off the media (12.1).
+once the checks pass. `TechnicalGate` is the real one, built with the loaded styles
+the grammar judged the plan by (T8 re-validates against them); `FakeGate` passes
+T1-T13 and writes a one-pixel JPEG so the pipeline and app tests stay off the media
+(12.1).
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from pathlib import Path
 
 from PIL import Image
@@ -15,6 +18,7 @@ from shortsmith import contact_sheet
 from shortsmith.jobs import Job
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaCheck, QaReport
+from shortsmith.styles import StyleSpec
 
 
 class Gate(ABC):
@@ -28,16 +32,18 @@ class Gate(ABC):
 
 
 class TechnicalGate(Gate):
+    def __init__(self, *, specs: Mapping[str, StyleSpec] | None = None) -> None:
+        self._specs = specs
+
     def check(self, job: Job) -> QaReport:
-        return technical.run(job)
+        return technical.run(job, specs=self._specs)
 
     def contact_sheet(self, job: Job) -> Path:
         return contact_sheet.compose(job)
 
 
 class FakeGate(Gate):
-    """Every implemented check passes (the 032 placeholders stay `not_implemented`, as
-    in the real gate), or the checks up to `fail` with that one failing."""
+    """Every check passes, or the checks up to `fail` with that one failing."""
 
     def __init__(self, *, fail: str | None = None) -> None:
         self.fail = fail
@@ -48,9 +54,6 @@ class FakeGate(Gate):
         checks: list[QaCheck] = []
         for name in technical.CHECK_ORDER:
             failed = name == self.fail
-            if name in technical.PLACEHOLDERS and not failed:
-                checks.append(technical.placeholder(name))
-                continue
             checks.append(QaCheck(name=name, passed=not failed, detail=f"fake {name}"))
             if failed:
                 break

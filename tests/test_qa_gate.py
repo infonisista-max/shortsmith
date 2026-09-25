@@ -21,9 +21,7 @@ def test_fake_gate_passes_every_check_and_writes_qa_json(tmp_path: Path) -> None
     assert report.passed
     assert [c.name for c in report.checks] == list(technical.CHECK_ORDER)
     assert [c.name for c in report.checks][-3:] == ["T11", "T12", "T13"]
-    # 031: the 032 placeholders are recorded, never passed silently, even by the fake.
-    assert [c.status for c in report.checks[-3:]] == ["not_implemented"] * 3
-    assert all(c.status == "pass" for c in report.checks[:-3])
+    assert all(c.status == "pass" for c in report.checks)
     assert technical.load_report(job) == report
 
 
@@ -49,6 +47,6 @@ def test_fake_gate_can_be_told_to_fail_a_named_check(tmp_path: Path) -> None:
 def test_technical_gate_probes_the_real_short(tmp_path: Path) -> None:
     job = jobs.create(tmp_path)
     (job.out_dir / "short.mp4").write_bytes(b"")  # what FakeRenderer leaves: not a video
-    gate: Gate = TechnicalGate()
+    gate: Gate = TechnicalGate(specs={})
     with pytest.raises(ffmpeg.FFmpegError):
         gate.check(job)

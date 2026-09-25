@@ -370,5 +370,6 @@ def test_over_soft_cap_is_read_only_by_the_page_and_the_contact_sheet() -> None:
         and path.suffix in {".py", ".html"}
         and re.search(r"over_soft_cap", path.read_text(encoding="utf-8"))
     }
-    # jobs.py declares the field and ledger.py writes it; only these two read it.
-    assert readers - {"jobs.py", "ledger.py"} == {"app.py", "contact_sheet.py"}
+    # jobs.py declares the field and ledger.py writes it; the page and the sheet show
+    # it, and gate T13 (032) records it in qa.json without ever failing on it.
+    assert readers - {"jobs.py", "ledger.py"} == {"app.py", "contact_sheet.py", "qa/technical.py"}

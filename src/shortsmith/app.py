@@ -822,7 +822,7 @@ def render_job_page(
     )
 
 
-# 031: a 032 placeholder is neither a pass nor a FAIL on the page.
+# `not_implemented` only appears in a qa.json written before 032: neither a pass nor a FAIL.
 CHECK_LABELS: dict[str, str] = {
     "pass": "pass", "fail": "FAIL", "not_implemented": "not implemented",
 }  # fmt: skip

@@ -6,8 +6,16 @@ real-file cases encode small synthetic clips (12.1: never a committed video).
 
 Ticket 031: T5 (caption coverage at three seeded timestamps, lip-sync lag by envelope
 cross-correlation), T7 (mean luma per frame, frozen runs before the finale) and T10
-(no cut boundary mid-word), each pure over what ffmpeg measured, with the T11-T13
-placeholders recorded `not_implemented` and never passing silently."""
+(no cut boundary mid-word), each pure over what ffmpeg measured.
+
+Ticket 032: T8 complete (the plan re-validated by the grammar, the render log scanned
+for NetworkError, the rescue limit), T11 (every strip face inside the PIP circle, chin
+above 90 % of the window), T12 (no caption, stamp or lower-third box inside the 6.3
+reserved zones, from the render spec), T13 (the ledger and the style allowances
+recorded, never a failure), and `report` demanding all thirteen `pass` for
+`delivered`. The run-level tests use a job the fake pipeline delivered on the fixture
+plan, so T8 has a validated plan to re-check and T11/T12 the measurement and the spec
+the real steps leave."""
 
 from __future__ import annotations
 
@@ -19,34 +27,62 @@ from typing import Any
 import numpy as np
 import pytest
 
-from shortsmith import assets, ffmpeg, jobs, presenter, rights, sound
+from shortsmith import (
+    assets,
+    ffmpeg,
+    fixture,
+    jobs,
+    pipeline,
+    presenter,
+    render,
+    rights,
+    smoke,
+    sound,
+    styles,
+)
 from shortsmith.contracts import (
     AssetManifest,
     AssetRecord,
     Beat,
     BeatAsset,
+    BeatSpec,
     CaptionPage,
+    CaptionPageSpec,
     Captions,
+    CounterPlan,
     CueRecord,
     CueSheet,
     CutPlan,
+    FaceBox,
     Finale,
     Hook,
     PicturePlan,
+    PipGeometry,
+    PresenterMeasurement,
+    RenderSpec,
     Span,
+    Transcript,
+    ValidatedPlan,
     Word,
+    WordBox,
 )
 from shortsmith.ffmpeg import FrameStat, Loudness
+from shortsmith.jobs import CostRow
+from shortsmith.planner import FakePlanner
 from shortsmith.qa import technical
+from shortsmith.qa.gate import FakeGate
 from shortsmith.qa.technical import LipSync, QaCheck, QaReport
+from shortsmith.render import FakeRenderer
 from shortsmith.sound import sweep
 from shortsmith.transcriber import FakeTranscriber
 from tests.conftest import Media, Sounds, ring, stem, swell, write_wav
 
 MP4 = "mov,mp4,m4a,3gp,3g2,mj2"
 FPS = 30
-IMPLEMENTED = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]
-ALL_CHECKS = [*IMPLEMENTED, "T11", "T12", "T13"]
+ALL_CHECKS = [f"T{n}" for n in range(1, 14)]
+UP_TO_T10 = ALL_CHECKS[:10]
+SPECS = fixture.smoke_specs(styles.load_all(render.registry()))
+NUMBERS = render.numbers_for(SPECS[styles.DEFAULT])
 
 
 def _info(
@@ -257,7 +293,7 @@ def test_t4_on_a_quiet_real_master(media: Media) -> None:
     assert not check.passed
 
 
-# --- T8 rescue limit (4.4; the rest of T8 is ticket 032) ------------------------------------
+# --- T8 plan clean: re-validation, render log, rescue limit (10.1, 4.4) ---------------------
 
 
 def _owner(asset_id: str) -> AssetRecord:
@@ -280,14 +316,18 @@ def _rescues(n: int, total: int = 12) -> list[BeatAsset]:
     ]  # fmt: skip
 
 
-def test_t8_four_rescues_in_sixty_seconds_pass() -> None:
-    check = technical.t8(_manifest([_owner("a1")], _rescues(4)))
+CLEAN_LOG = "bundling...\nrendered 180 frames\n"
+
+
+def test_t8_passes_a_clean_plan_log_and_four_rescues() -> None:
+    check = technical.t8(_manifest([_owner("a1")], _rescues(4)), [], CLEAN_LOG)
     assert (check.name, check.passed) == ("T8", True)
     assert "4 rescued beats (max 4" in check.detail
+    assert "zero violations" in check.detail and "no NetworkError" in check.detail
 
 
 def test_t8_the_fifth_rescue_fails_with_not_enough_relevant_broll() -> None:
-    check = technical.t8(_manifest([_owner("a1")], _rescues(5)))
+    check = technical.t8(_manifest([_owner("a1")], _rescues(5)), [], CLEAN_LOG)
     assert not check.passed
     assert check.detail.startswith("not enough relevant B-roll")
     assert "5 rescued beats (max 4" in check.detail
@@ -296,13 +336,46 @@ def test_t8_the_fifth_rescue_fails_with_not_enough_relevant_broll() -> None:
 def test_t8_counts_rung_3_as_a_rescue() -> None:
     beats = [BeatAsset(beat_id="b1", asset_id="a1", treatment="card", fallback_rung=3),
              BeatAsset(beat_id="b2", asset_id="a1", treatment="card", fallback_rung=2)]  # fmt: skip
-    assert not technical.t8(_manifest([_owner("a1")], beats, rescued_max=0)).passed
-    assert technical.t8(_manifest([_owner("a1")], beats, rescued_max=1)).passed
+    assert not technical.t8(_manifest([_owner("a1")], beats, rescued_max=0), [], CLEAN_LOG).passed
+    assert technical.t8(_manifest([_owner("a1")], beats, rescued_max=1), [], CLEAN_LOG).passed
 
 
 def test_t8_without_a_manifest_fails() -> None:
-    check = technical.t8(None)
+    check = technical.t8(None, [], CLEAN_LOG)
     assert not check.passed and "work/assets.json" in check.detail
+
+
+def test_t8_fails_listing_every_unresolved_violation() -> None:
+    lines = ["b03 (3.1): beat is 0.3 s, under min 0.7 s", "plan (4.3): 2 unique assets"]
+    check = technical.t8(_manifest([_owner("a1")], _rescues(0)), lines, CLEAN_LOG)
+    assert not check.passed
+    assert "plan re-validation: 2 violations" in check.detail
+    assert all(line in check.detail for line in lines)
+
+
+def test_t8_fails_without_a_validated_plan_to_re_check() -> None:
+    check = technical.t8(_manifest([_owner("a1")], _rescues(0)), None, CLEAN_LOG)
+    assert not check.passed and "work/plan.validated.json is missing" in check.detail
+
+
+@pytest.mark.parametrize(
+    ("log", "needle"),
+    [
+        ("frame 12\nNetworkError: fetch failed for asset a3\n", "1 NetworkError line"),
+        ("NetworkError x\nNetworkError y\n", "2 NetworkError lines"),
+        (None, "work/render.log is missing"),
+    ],
+)
+def test_t8_fails_on_a_network_error_in_the_render_log(log: str | None, needle: str) -> None:
+    check = technical.t8(_manifest([_owner("a1")], _rescues(0)), [], log)
+    assert not check.passed and needle in check.detail
+
+
+def test_t8_names_every_problem_with_the_rescues_first() -> None:
+    check = technical.t8(_manifest([_owner("a1")], _rescues(5)), None, None)
+    assert not check.passed
+    assert check.detail.startswith("not enough relevant B-roll")
+    assert "plan.validated.json" in check.detail and "render.log" in check.detail
 
 
 # --- T9 rights completeness (5.4) ----------------------------------------------------------
@@ -482,32 +555,41 @@ def test_run_passes_t6_on_a_clean_stem(
     assert t6.passed and t6.detail == "R1-R4 clean on the SFX stem (2 cues)"
 
 
-# --- check status and the T11-T13 placeholders (031) ------------------------------------------
+# --- check status and the `delivered` rule (031, 032) ------------------------------------------
 
 
-def test_check_status_follows_passed_unless_not_implemented() -> None:
+def test_check_status_follows_passed() -> None:
     assert QaCheck(name="T1", passed=True, detail="x").status == "pass"
     assert QaCheck(name="T1", passed=False, detail="x").status == "fail"
-    held = technical.placeholder("T11")
-    assert (held.name, held.passed, held.status) == ("T11", False, "not_implemented")
-    assert "032" in held.detail
+
+
+def test_a_report_written_before_032_still_loads_and_never_passes() -> None:
+    """A qa.json from before 032 holds `not_implemented` rows for T11-T13: the job page
+    must still render such a job, and the row is never read as a pass."""
+    legacy = '{"name": "T11", "passed": false, "status": "not_implemented", "detail": "held"}'
+    check = QaCheck.model_validate_json(legacy)
+    assert (check.status, check.passed) == ("not_implemented", False)
     with pytest.raises(ValueError):
         QaCheck(name="T11", passed=True, status="not_implemented", detail="x")
+    report = technical.report([QaCheck(name=n, passed=True, detail="x") for n in UP_TO_T10] + [
+        check
+    ])
+    assert not report.passed and report.failed is None
 
 
-def test_report_passes_with_placeholders_but_never_counts_them_as_pass() -> None:
-    checks = [QaCheck(name="T1", passed=True, detail="x"), technical.placeholder("T11")]
-    report = technical.report(checks)
-    assert report.passed and report.failed is None
-    assert [c.status for c in report.checks] == ["pass", "not_implemented"]
-    failing = technical.report([*checks, QaCheck(name="T12", passed=False, detail="bad")])
+def test_report_passes_only_when_all_thirteen_checks_pass() -> None:
+    every = [QaCheck(name=n, passed=True, detail="x") for n in ALL_CHECKS]
+    assert technical.report(every).passed
+    short = technical.report(every[:10])
+    assert not short.passed and short.failed is None, "T11-T13 absent: not delivered"
+    failing = technical.report([*every[:11], QaCheck(name="T12", passed=False, detail="bad")])
     assert not failing.passed and failing.failed is not None and failing.failed.name == "T12"
+    assert not technical.report([]).passed
 
 
-def test_check_order_is_t1_to_t13_with_the_032_placeholders_last() -> None:
+def test_check_order_is_t1_to_t13_and_nothing_is_held_back() -> None:
     assert list(technical.CHECK_ORDER) == ALL_CHECKS
-    assert list(technical.PLACEHOLDERS) == ["T11", "T12", "T13"]
-    assert list(technical.IMPLEMENTED) == IMPLEMENTED
+    assert not hasattr(technical, "PLACEHOLDERS") and not hasattr(technical, "placeholder")
 
 
 # --- T5 caption coverage and lip-sync (6.1, 3.1) -------------------------------------------------
@@ -741,6 +823,222 @@ def test_t10_without_a_cut_list_fails() -> None:
     assert not check.passed and "work/cut.json" in check.detail
 
 
+# --- T11 PIP geometry (3.3) --------------------------------------------------------------------
+
+
+def _pip(*, diameter: int = 300, window_top: int = 0) -> PipGeometry:
+    return PipGeometry(left=60, top=960 + 300 - diameter, diameter=diameter, ring_px=6,
+                       ring_color="#FFFFFF", window_left=0, window_top=window_top,
+                       window_size=1080)  # fmt: skip
+
+
+FIXTURE_FACE = FaceBox(left=321, top=163, width=440, height=440)  # the cascade on the fixture
+
+
+def _measured(
+    faces: list[FaceBox | None] | None = None, *, pip: PipGeometry | None = None
+) -> PresenterMeasurement:
+    found: list[FaceBox | None] = list(faces) if faces is not None else [FIXTURE_FACE] * 8
+    return PresenterMeasurement(
+        source_width=1080, source_height=1920, times_s=list(presenter.strip_times(6.0)),
+        faces=found, face=presenter.median_box(found), pip=pip or _pip(),
+    )  # fmt: skip
+
+
+def test_t11_passes_when_every_strip_face_sits_inside_the_circle() -> None:
+    check = technical.t11(_measured())
+    assert (check.name, check.passed) == ("T11", True)
+    assert "8 strip frames" in check.detail and "300 px circle" in check.detail
+    assert "chin at 56% of the window (max 90%)" in check.detail
+
+
+def test_t11_fails_naming_the_frame_whose_box_leaves_the_circle() -> None:
+    faces: list[FaceBox | None] = [FIXTURE_FACE] * 8
+    faces[2] = FaceBox(left=0, top=163, width=440, height=440)  # hard against the left edge
+    check = technical.t11(_measured(faces))
+    assert not check.passed
+    assert check.detail.startswith("frame 3: face box leaves the circle by ")
+    assert "px" in check.detail
+
+
+@pytest.mark.parametrize(("chin_y", "ok"), [(972, True), (973, False)])
+def test_t11_chin_boundary_is_90_percent_of_the_window(chin_y: int, ok: bool) -> None:
+    faces: list[FaceBox | None] = [FIXTURE_FACE] * 8
+    faces[5] = FaceBox(left=321, top=chin_y - 440, width=440, height=440)
+    check = technical.t11(_measured(faces))
+    assert check.passed is ok
+    if not ok:
+        assert "frame 6: chin at 90.1% of the window, below 90%" in check.detail
+
+
+def test_t11_reads_the_window_offset_and_the_large_circle() -> None:
+    # The window starts 100 px down: the same face sits higher in it, and a 340 px
+    # circle scales the window by 340/1080.
+    check = technical.t11(_measured(pip=_pip(diameter=340, window_top=100)))
+    assert check.passed and "340 px circle" in check.detail
+    assert "chin at 47%" in check.detail
+
+
+def test_t11_skips_the_stills_without_a_face_and_says_so() -> None:
+    faces: list[FaceBox | None] = [FIXTURE_FACE] * 8
+    faces[1] = faces[6] = None
+    check = technical.t11(_measured(faces))
+    assert check.passed and "face on 6 of 8 strip frames" in check.detail
+
+
+def test_t11_without_a_measurement_fails() -> None:
+    check = technical.t11(None)
+    assert not check.passed and "job.json has no presenter measurement" in check.detail
+
+
+# --- T12 safe area (6.3) --------------------------------------------------------------------------
+
+
+def _word(text: str, *, x: float, y: float, width: float = 200.0, height: float = 100.0) -> WordBox:
+    return WordBox(text=text, start=0.0, end=1.0, x=x, y=y, width=width, height=height)
+
+
+def _page(words: list[WordBox], index: int = 0) -> CaptionPageSpec:
+    return CaptionPageSpec(index=index, start=float(index), end=index + 1.0, lines=1, words=words)
+
+
+def _beat_spec(id: str, **overlays: Any) -> BeatSpec:
+    return BeatSpec(id=id, start_frame=0, end_frame=30, mode="off", kind="photo", **overlays)
+
+
+def _spec(
+    beats: list[BeatSpec] | None = None, captions: list[CaptionPageSpec] | None = None
+) -> RenderSpec:
+    return RenderSpec(
+        fps=30, frames=180, presenter="cut.mp4", source_width=1080, source_height=1920,
+        beats=beats or [], captions=captions or [], pip=_pip(), palette=NUMBERS.palette,
+        caption_style=NUMBERS.captions,
+    )  # fmt: skip
+
+
+def test_t12_passes_a_spec_whose_text_stays_out_of_the_reserved_zones() -> None:
+    stamp = render.stamp_spec("PRICE", numbers=NUMBERS)
+    lower = render.lower_third_spec("India Gate · Delhi", numbers=NUMBERS)
+    spec = _spec(
+        [_beat_spec("b03", stamp=stamp), _beat_spec("b04", lower_third=lower)],
+        [_page([_word("hello", x=300, y=1360), _word("world", x=522, y=1360)])],
+    )
+    check = technical.t12(spec)
+    assert (check.name, check.passed) == ("T12", True)
+    assert check.detail == (
+        "2 caption words, 1 stamp, 1 lower-third: none inside the reserved zones "
+        "(top 250, bottom 320, right 140 px)"
+    )
+
+
+@pytest.mark.parametrize(("right", "ok"), [(940.0, True), (940.5, False)])
+def test_t12_caption_boundary_is_the_right_rail_at_940(right: float, ok: bool) -> None:
+    spec = _spec(captions=[_page([_word("hello", x=right - 200, y=1360)], index=2)])
+    check = technical.t12(spec)
+    assert check.passed is ok
+    if not ok:
+        assert "caption page 2 'hello' at 2.00 s reaches x 940.5, inside the right rail" in (
+            check.detail
+        )
+
+
+@pytest.mark.parametrize(("bottom", "ok"), [(1600.0, True), (1600.5, False)])
+def test_t12_caption_boundary_is_the_bottom_zone_at_1600(bottom: float, ok: bool) -> None:
+    spec = _spec(captions=[_page([_word("hello", x=300, y=bottom - 100)])])
+    check = technical.t12(spec)
+    assert check.passed is ok
+    if not ok:
+        assert "caption page 0 'hello' at 0.00 s reaches y 1600.5, inside the bottom zone" in (
+            check.detail
+        )
+
+
+@pytest.mark.parametrize(("top", "ok"), [(250.0, True), (249.5, False)])
+def test_t12_stamp_boundary_is_the_top_zone_at_250(top: float, ok: bool) -> None:
+    stamp = render.stamp_spec("PRICE", numbers=NUMBERS).model_copy(update={"top": top})
+    check = technical.t12(_spec([_beat_spec("b03", stamp=stamp)]))
+    assert check.passed is ok
+    if not ok:
+        assert "b03 stamp 'PRICE' reaches y 249.5, inside the top zone" in check.detail
+
+
+def test_t12_names_a_lower_third_and_a_counter_too() -> None:
+    lower = render.lower_third_spec("India Gate", numbers=NUMBERS).model_copy(
+        update={"top": 1560.0}
+    )
+    counter = render.counter_spec(
+        CounterPlan(target=100000), frames=30, fps=30, numbers=NUMBERS
+    ).model_copy(update={"left": 800.0})
+    check = technical.t12(
+        _spec([_beat_spec("b04", lower_third=lower), _beat_spec("b06", counter=counter)])
+    )
+    assert not check.passed
+    assert "b04 lower-third 'India Gate' reaches y 1650, inside the bottom zone" in check.detail
+    assert "b06 counter '1,00,000' reaches x " in check.detail
+    assert "inside the right rail" in check.detail
+
+
+def test_t12_without_a_render_spec_fails() -> None:
+    check = technical.t12(None)
+    assert not check.passed and "work/render_spec.json is missing" in check.detail
+
+
+# --- T13 budget (11.3) ----------------------------------------------------------------------------
+
+
+BUDGET = SPECS[styles.DEFAULT].budget
+
+
+def _record(cost: list[CostRow] | None = None, *, over: bool = False) -> jobs.JobRecord:
+    at = jobs._utc_now()  # pyright: ignore[reportPrivateUsage]
+    return jobs.JobRecord(id="20260925-120000-abcdef", status="qa", created_at=at,
+                          updated_at=at, cost=cost or [], over_soft_cap=over)  # fmt: skip
+
+
+def _row(step: str, inr: float, *, tokens: int = 0) -> CostRow:
+    return CostRow(step=step, provider="p", model="m", units={"queries": 1.0}, inr=inr,
+                   tokens_estimated=tokens, inr_equivalent=0.5 if tokens else 0.0,
+                   at=jobs._utc_now())  # pyright: ignore[reportPrivateUsage]  # fmt: skip
+
+
+def _spent(judge: int = 3, search: int = 5, generated: int = 2) -> AssetManifest:
+    return AssetManifest(assets=[], beats=[], runtime_s=6.0, rescued_max=1,
+                         judge_calls=judge, judge_max=40, search_queries=search, search_max=60,
+                         generated_images=generated, gen_max=8)  # fmt: skip
+
+
+def test_t13_records_an_empty_ledger_and_the_allowances() -> None:
+    check = technical.t13(_record(), _spent(), BUDGET)
+    assert (check.name, check.passed) == ("T13", True)
+    assert check.detail == (
+        "ledger INR 0.00 cash over 0 rows; judge 3/40 calls, search 5/60 queries, "
+        "generated 2/8 images; soft cap not passed"
+    )
+
+
+def test_t13_records_the_total_and_the_per_step_totals() -> None:
+    rows = [_row("planning", 8.0), _row("sourcing", 2.5), _row("sourcing", 1.0),
+            _row("planning", 0.0, tokens=1200)]  # fmt: skip
+    check = technical.t13(_record(rows), _spent(), BUDGET)
+    assert check.passed
+    assert check.detail.startswith(
+        "ledger INR 11.50 cash over 4 rows (planning INR 8.00, sourcing INR 3.50) "
+        "+ 1200 subscription tokens (INR 0.50 equiv.); "
+    )
+
+
+def test_t13_flags_the_soft_cap_and_a_spent_allowance_but_never_fails() -> None:
+    check = technical.t13(_record([_row("sourcing", 90.0)], over=True), _spent(judge=40), BUDGET)
+    assert check.passed, "cost alone never fails the gate (11.3)"
+    assert "OVER SOFT CAP (flag only)" in check.detail
+    assert "judge 40/40 calls (allowance spent)" in check.detail
+
+
+def test_t13_without_a_manifest_still_passes_and_says_so() -> None:
+    check = technical.t13(_record(), None, BUDGET)
+    assert check.passed and "no work/assets.json" in check.detail
+
+
 # --- run(job) ------------------------------------------------------------------------------
 
 
@@ -782,6 +1080,11 @@ def _with_speech(job: jobs.Job, clip: Path, *, voice_delay_ms: int = 0) -> None:
     pages = Captions(pages=_pages(words, hide_from=finale.start))
     (job.work_dir / "captions.json").write_text(pages.model_dump_json(), encoding="utf-8")
     shutil.copy(clip, job.work_dir / "cut.mp4")
+    _voice_stem(job, clip, voice_delay_ms=voice_delay_ms)
+
+
+def _voice_stem(job: jobs.Job, clip: Path, *, voice_delay_ms: int = 0) -> None:
+    """`work/stems/voice.wav` lifted from the clip's audio, `voice_delay_ms` late."""
     stems = job.work_dir / "stems"
     stems.mkdir(parents=True, exist_ok=True)
     ffmpeg.run(
@@ -796,26 +1099,137 @@ def _speaking_job(
     manifest: AssetManifest | None = None, **speech: Any,
 ) -> jobs.Job:  # fmt: skip
     """A job whose short is `speaking_short` and whose work dir has what T5 and T10
-    read; `_good_plan` keeps 0-5 s of it with the cold open lifted from the head."""
+    read; `_good_plan` keeps 0-5 s of it with the cold open lifted from the head. Its
+    plan is synthetic, so T8's re-validation fails it: the tests that read past T8 use
+    `gated_job`."""
     job = _job_with(tmp_path, short, plan or _good_plan(), manifest)
     _with_speech(job, short, **speech)
     return job
 
 
-def test_run_writes_qa_json_with_every_check_passing(tmp_path: Path, speaking_short: Path) -> None:
-    job = _speaking_job(tmp_path, speaking_short)
-    report = technical.run(job)
+@pytest.fixture(scope="session")
+def gated_job(tmp_path_factory: pytest.TempPathFactory, speaking_short: Path) -> Path:
+    """A job the fake pipeline delivered on the fixture plan (the fake transcriber,
+    planner, sources, renderer and detector under the fixture-shaped spec), then given
+    the mastered fixture as its short and cut and a voice stem lifted from it: every
+    check has what the real steps leave (the validated plan, the manifest, the rights
+    log, the measurement, the render spec, the cut list, the pages) plus real media."""
+    data = tmp_path_factory.mktemp("gated")
+    job = jobs.create(data, style="explainer", style_note="explainer, energetic")
+    shutil.copy(speaking_short, job.input_dir / "raw.mp4")
+    (job.input_dir / "brief.md").write_text(smoke.SMOKE_BRIEF, encoding="utf-8")
+    (job.input_dir / "refs.json").write_text("[]", encoding="utf-8")
+    done = pipeline.run_job(
+        job, transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
+        gate=FakeGate(), sourcing=smoke.smoke_sourcing(), specs=SPECS,
+        detector=presenter.FakeFaceDetector(),
+    )  # fmt: skip
+    assert done.status == "delivered", done.record.error
+    shutil.copy(speaking_short, job.out_dir / "short.mp4")
+    shutil.copy(speaking_short, job.work_dir / "cut.mp4")
+    _voice_stem(job, speaking_short)
+    return job.path
+
+
+def _gated(tmp_path: Path, gated_job: Path) -> jobs.Job:
+    """A private copy of `gated_job`, so a test may break one file."""
+    shutil.copytree(gated_job, tmp_path / "job")
+    return jobs.load(tmp_path / "job")
+
+
+def _named(report: QaReport, name: str) -> QaCheck:
+    return next(c for c in report.checks if c.name == name)
+
+
+def test_run_writes_qa_json_with_every_check_passing(tmp_path: Path, gated_job: Path) -> None:
+    job = _gated(tmp_path, gated_job)
+    report = technical.run(job, specs=SPECS)
     assert [c.name for c in report.checks] == ALL_CHECKS
-    assert report.passed
+    assert report.passed and all(c.status == "pass" for c in report.checks)
     on_disk = QaReport.model_validate_json((job.out_dir / "qa.json").read_text(encoding="utf-8"))
     assert on_disk == report
     assert all(c.detail for c in on_disk.checks)
-    t6 = next(c for c in on_disk.checks if c.name == "T6")
-    assert t6.passed and "work/stems/sfx.wav is absent" in t6.detail, "never a bare pass"
-    assert [c.status for c in on_disk.checks[-3:]] == ["not_implemented"] * 3
-    assert [c.passed for c in on_disk.checks[-3:]] == [False] * 3, "never a silent pass"
-    t5 = next(c for c in on_disk.checks if c.name == "T5")
-    assert "lip-sync lag +0.0 frames" in t5.detail
+    assert "work/stems/sfx.wav is absent" in _named(on_disk, "T6").detail, "never a bare pass"
+    assert "lip-sync lag +0.0 frames" in _named(on_disk, "T5").detail
+    t8 = _named(on_disk, "T8").detail
+    assert "0 rescued beats" in t8 and "zero violations" in t8 and "no NetworkError" in t8
+    assert "face on 8 of 8 strip frames" in _named(on_disk, "T11").detail
+    assert "none inside the reserved zones" in _named(on_disk, "T12").detail
+    assert _named(on_disk, "T13").detail.startswith("ledger INR 0.00 cash over 0 rows")
+
+
+def test_run_re_validates_against_the_specs_it_is_given(tmp_path: Path, gated_job: Path) -> None:
+    """The fixture plan passes the fixture-shaped spec, not the shipped one: with no
+    specs the gate loads the shipped styles, and T8 fails on the real counts."""
+    job = _gated(tmp_path, gated_job)
+    report = technical.run(job)
+    assert report.failed is not None and report.failed.name == "T8"
+    assert "plan re-validation:" in report.failed.detail
+
+
+def test_run_fails_t8_on_a_plan_that_no_longer_validates(tmp_path: Path, gated_job: Path) -> None:
+    job = _gated(tmp_path, gated_job)
+    path = job.work_dir / "plan.validated.json"
+    validated = ValidatedPlan.model_validate_json(path.read_text(encoding="utf-8"))
+    hook = validated.picture.hook.model_copy(update={"title": " ".join(["word"] * 12)})
+    broken = validated.model_copy(
+        update={"picture": validated.picture.model_copy(update={"hook": hook})}
+    )
+    path.write_text(broken.model_dump_json(indent=2), encoding="utf-8")
+    report = technical.run(job, specs=SPECS)
+    assert [c.name for c in report.checks] == ALL_CHECKS[:8]
+    assert report.failed is not None and "(3.4)" in report.failed.detail
+
+
+def test_run_fails_t8_on_a_network_error_in_the_render_log(tmp_path: Path, gated_job: Path) -> None:
+    job = _gated(tmp_path, gated_job)
+    with (job.work_dir / "render.log").open("a", encoding="utf-8") as fh:
+        fh.write("NetworkError: fetch failed for http://example.test/a3.png\n")
+    report = technical.run(job, specs=SPECS)
+    assert report.failed is not None and report.failed.name == "T8"
+    assert "1 NetworkError line" in report.failed.detail
+
+
+def test_run_fails_t11_naming_the_frame_whose_face_leaves_the_circle(
+    tmp_path: Path, gated_job: Path
+) -> None:
+    job = _gated(tmp_path, gated_job)
+    measured = job.record.presenter
+    assert measured is not None
+    faces = list(measured.faces)
+    faces[2] = FaceBox(left=0, top=0, width=520, height=520)
+    jobs.amend(job, presenter=measured.model_copy(update={"faces": faces}))
+    report = technical.run(jobs.load(job.path), specs=SPECS)
+    assert [c.name for c in report.checks] == ALL_CHECKS[:11]
+    assert report.failed is not None and report.failed.detail.startswith("frame 3:")
+
+
+def test_run_fails_t12_naming_the_stamp_in_the_top_zone(tmp_path: Path, gated_job: Path) -> None:
+    job = _gated(tmp_path, gated_job)
+    path = job.work_dir / "render_spec.json"
+    spec = RenderSpec.model_validate_json(path.read_text(encoding="utf-8"))
+    stamped = next(b for b in spec.beats if b.stamp is not None)
+    assert stamped.stamp is not None
+    lifted = stamped.model_copy(update={"stamp": stamped.stamp.model_copy(update={"top": 100.0})})
+    beats = [lifted if b.id == stamped.id else b for b in spec.beats]
+    path.write_text(spec.model_copy(update={"beats": beats}).model_dump_json(), encoding="utf-8")
+    report = technical.run(job, specs=SPECS)
+    assert [c.name for c in report.checks] == ALL_CHECKS[:12]
+    assert report.failed is not None
+    expected = f"{stamped.id} stamp {stamped.stamp.text!r} reaches y 100"
+    assert report.failed.detail.startswith(expected)
+
+
+def test_run_records_t13_over_the_soft_cap_and_still_delivers(
+    tmp_path: Path, gated_job: Path
+) -> None:
+    job = _gated(tmp_path, gated_job)
+    jobs.amend(job, cost=[_row("sourcing", 90.0)], over_soft_cap=True)
+    report = technical.run(jobs.load(job.path), specs=SPECS)
+    assert report.passed
+    t13 = _named(report, "T13").detail
+    assert t13.startswith("ledger INR 90.00 cash over 1 row (sourcing INR 90.00)")
+    assert "OVER SOFT CAP (flag only)" in t13
 
 
 def test_run_fails_t5_on_a_voice_stem_three_frames_late(
@@ -849,13 +1263,24 @@ def test_run_fails_t7_on_a_frozen_second(tmp_path: Path, speaking_short: Path) -
     assert report.failed is not None and FROZEN_SECOND in report.failed.detail
 
 
-def test_run_fails_t10_on_a_cut_inside_a_word(tmp_path: Path, speaking_short: Path) -> None:
-    job = _speaking_job(tmp_path, speaking_short)
-    presenter.write_cut_list(job, [Span(start=0.0, end=1.25), Span(start=1.25, end=6.0)])
-    report = technical.run(job)
-    assert [c.name for c in report.checks] == IMPLEMENTED
+def test_run_fails_t10_on_a_cut_inside_a_word(tmp_path: Path, gated_job: Path) -> None:
+    # One of the plan's spans split at a word's midpoint: the output timeline is the
+    # same (T5's pages still cover), the new boundary is mid-word.
+    job = _gated(tmp_path, gated_job)
+    spans = presenter.load_cut_list(job) or []
+    transcript = Transcript.model_validate_json(
+        (job.work_dir / "asr.json").read_text(encoding="utf-8")
+    )
+    longest = max(spans, key=lambda s: s.end - s.start)
+    word = next(w for w in transcript.words if longest.start <= w.start and w.end <= longest.end)
+    t = round((word.start + word.end) / 2, 3)
+    split = [Span(start=longest.start, end=t), Span(start=t, end=longest.end)]
+    rewritten = [s for old in spans for s in (split if old == longest else [old])]
+    presenter.write_cut_list(job, rewritten)
+    report = technical.run(job, specs=SPECS)
+    assert [c.name for c in report.checks] == UP_TO_T10
     assert report.failed is not None and report.failed.name == "T10"
-    assert "cut at 1.250 s is inside 'this'" in report.failed.detail
+    assert f"cut at {t:.3f} s is inside {word.text!r}" in report.failed.detail
 
 
 def test_run_stops_at_the_first_failure_and_names_it(media: Media, tmp_path: Path) -> None:
@@ -893,8 +1318,9 @@ def test_run_fails_t8_on_too_many_rescues(tmp_path: Path, speaking_short: Path) 
     assert report.failed is not None and report.failed.name == "T8"
 
 
-def test_run_fails_t9_on_an_incomplete_log(tmp_path: Path, speaking_short: Path) -> None:
-    job = _speaking_job(tmp_path, speaking_short)
+def test_run_fails_t9_on_an_incomplete_log(tmp_path: Path, gated_job: Path) -> None:
+    job = _gated(tmp_path, gated_job)
     (job.out_dir / "rights.json").write_text("[]", encoding="utf-8")
-    report = technical.run(job)
+    report = technical.run(job, specs=SPECS)
+    assert [c.name for c in report.checks] == ALL_CHECKS[:9]
     assert report.failed is not None and report.failed.name == "T9"

@@ -1850,6 +1850,7 @@ class FakeRenderer(Renderer):
         (job.work_dir / "render_spec.json").write_text(
             spec.model_dump_json(indent=2), encoding="utf-8"
         )
+        (job.work_dir / "render.log").write_text("fake render\n", encoding="utf-8")
         stems = _stems_dir(job)
         (stems / "voice.wav").write_bytes(b"")
         for pct in (0, 50, 100):

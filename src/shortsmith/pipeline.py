@@ -62,11 +62,11 @@ the specs, and used twice: the sound call is told its tag words (8.1), and the r
 mixes from it. An empty catalogue - the shipped one, until the operator seeds it - leaves
 the short as the voice alone.
 
-`qa` runs the technical gate (`qa.gate.Gate`: T1-T10 today, T11-T13 recorded as
-`not_implemented` until 032) which writes `out/qa.json`; a failing check fails the job
-at `qa` naming the check. When no check fails the gate composes `out/contact.jpg`, and
-the job is `delivered` once `short.mp4`, `contact.jpg`, `rights.json` and `credits.md`
-exist (10.4); once 032 lands, `delivered` requires every listed check to be `pass`.
+`qa` runs the technical gate (`qa.gate.Gate`: T1-T13, 032) which writes `out/qa.json`;
+a failing check fails the job at `qa` naming the check. The gate is built with the
+same specs the grammar judged the plan by, since T8 re-validates the plan. When every
+check passes the gate composes `out/contact.jpg`, and the job is `delivered` once
+`short.mp4`, `contact.jpg`, `rights.json` and `credits.md` exist (10.4).
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
@@ -169,9 +169,9 @@ def run_job(
     if job.status != "uploaded":
         raise NotRunnable(f"job {job.id} is {job.status!r}, not 'uploaded'")
     renderer = renderer or RemotionRenderer()
-    gate = gate or TechnicalGate()
-    sourcing = sourcing or assets.Sourcing()
     specs = specs if specs is not None else render.loaded_styles()
+    gate = gate or TechnicalGate(specs=specs)
+    sourcing = sourcing or assets.Sourcing()
     library = library if library is not None else sound.load_catalogue()
     detector = detector or presenter.HaarDetector()
     steps: list[tuple[Status, Step]] = [
@@ -448,9 +448,9 @@ class Worker:
         self._transcriber = transcriber
         self._planner = planner
         self._renderer = renderer or RemotionRenderer()
-        self._gate = gate or TechnicalGate()
-        self._sourcing = sourcing or assets.Sourcing()
         self._specs = specs if specs is not None else render.loaded_styles()
+        self._gate = gate or TechnicalGate(specs=self._specs)
+        self._sourcing = sourcing or assets.Sourcing()
         self._library = library if library is not None else sound.load_catalogue()
         self._detector = detector or presenter.HaarDetector()
         self._max_queue = max_queue

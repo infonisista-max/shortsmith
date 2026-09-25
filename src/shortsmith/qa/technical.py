@@ -1,15 +1,14 @@
 """The technical gate (decision 10.1): T1-T13 in order, stop at the first FAIL, write
-`out/qa.json`. Ticket 006 shipped T1-T4; 016 adds the rescue limit as T8 (the rest of
-T8 arrives with 032) and T9; 023 adds T6; 031 adds T5, T7 and T10 and records T11-T13
-as `not_implemented` placeholders until 032 lands.
+`out/qa.json`. Ticket 006 shipped T1-T4; 016 the rescue limit and T9; 023 T6; 031 T5,
+T7 and T10; 032 completes T8 and adds T11-T13, so `delivered` now requires all
+thirteen to `pass` (10.4).
 
-Each check is a pure function over what ffprobe, the loudness pass, `frame_stats` or
-the envelope cross-correlation measured plus the plan, so the boundaries in 10.1 are
-unit-tested on both sides without encoding anything; `run` does the measuring.
-`qa.json` lists the checks that ran, in order, so a failed report ends at the failing
-check. A placeholder has `status: not_implemented` and `passed: false`: it never passes
-silently, the summary panel and the job page show it grey, and `delivered` will require
-every listed check to be `pass` once 032 completes the list.
+Each check is a pure function over what ffprobe, the loudness pass, `frame_stats`, the
+envelope cross-correlation or the grammar measured plus the plan, the measurement and
+the render spec, so the boundaries in 10.1 are unit-tested on both sides without
+encoding anything; `run` does the measuring. `qa.json` lists the checks that ran, in
+order, so a failed report ends at the failing check, and `report` passes only when
+every listed check is present and `pass`: a report that stopped short never delivers.
 
     T1  H.264 in an mp4 container, 1080x1920, 30 fps, one video and one audio stream
     T2  frame count = round(duration x 30) on the video stream
@@ -23,27 +22,43 @@ every listed check to be `pass` once 032 completes the list.
         offends; no stem is a pass that says so, never a bare pass
     T7  mean luma >= 12/255 on every frame (full range), no run of identical frames
         longer than 0.5 s before the finale (`ffmpeg.frame_stats`: signalstats + framehash)
-    T8  (016 part) rescued beats (ladder rung 3-4) <= the style limit scaled to the runtime
+    T8  plan clean: rescued beats (ladder rung 3-4) <= the style limit scaled to the
+        runtime (4.4), work/plan.validated.json re-validates under the job's style with
+        zero violations (the grammar, 8.2), and work/render.log has no NetworkError
     T9  rights log complete: every beat's asset has a row, every row a source URL or an
         owner/generated origin, every generated row a prompt, no photoreal named entity
     T10 no cut boundary (work/cut.json, source timeline) lands mid-word: none sits more
         than 0.03 s inside a word of work/asr.json; a boundary in a pause is not mid-word
-    T11-T13  placeholders until 032 (PIP geometry, safe area, budget)
+    T11 PIP geometry (3.3): on every strip frame with a face, the box the detector found
+        sits fully inside the PIP circle once the window is scaled into it, and the chin
+        is above 90 % of the window; from job.json.presenter, never pixels
+    T12 safe area (6.3): no caption word box, stamp, counter or lower-third of the render
+        spec reaches the top 250, bottom 320 or right 140 px; from geometry, not pixels.
+        The hook title and the finale word are set pieces read off the reference frames
+        (the title sits at y 170 by design) and are not in 10.1's list, so not here.
+    T13 budget (11.3): the ledger total, the per-step totals, the style's allowances
+        against what the asset step spent, and the soft-cap flag, recorded; never a
+        failure for cost alone (the hard cap already failed the job before a paid call)
+
+`status: not_implemented` is kept only so a `qa.json` written before 032 (T11-T13 held
+as placeholders) still loads on the job page; such a row is never `passed` and such a
+report never delivers.
 """
 
 from __future__ import annotations
 
+import math
 import random
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
-from pydantic import model_validator
+from pydantic import TypeAdapter, model_validator
 
-from shortsmith import assets, ffmpeg, presenter, rights, sound
+from shortsmith import assets, ffmpeg, grammar, jobs, ledger, presenter, render, rights, sound
 from shortsmith.contracts import (
     AssetManifest,
     CaptionPage,
@@ -51,15 +66,21 @@ from shortsmith.contracts import (
     CueRecord,
     CueSheet,
     PicturePlan,
+    PlanReference,
+    PresenterMeasurement,
+    ReferenceRecord,
+    RenderSpec,
     RightsRow,
     Span,
     StrictModel,
     Transcript,
+    ValidatedPlan,
     Word,
 )
 from shortsmith.ffmpeg import FrameStat, Loudness
-from shortsmith.jobs import Job
+from shortsmith.jobs import Job, JobRecord
 from shortsmith.sound import sweep
+from shortsmith.styles import Budget, StyleSpec
 
 REPORT_NAME = "qa.json"
 
@@ -70,22 +91,19 @@ FINALE_MIN_S, FINALE_MAX_S = 0.8, 1.2
 TARGET_LUFS, LUFS_TOLERANCE = -14.0, 0.5
 MAX_TRUE_PEAK_DBTP = -1.5
 
+# `not_implemented` is legacy: reports written before 032 (see the module note).
 CheckStatus = Literal["pass", "fail", "not_implemented"]
 
 CHECK_ORDER: tuple[str, ...] = (
     "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12", "T13",
 )  # fmt: skip
-PLACEHOLDERS: dict[str, str] = {
-    "T11": "PIP geometry: the face box inside the PIP circle on the strip frames",
-    "T12": "safe area: no text element inside the 6.3 reserved zones",
-    "T13": "budget: the ledger total, per-step caps and the soft-cap flag",
-}
-IMPLEMENTED: tuple[str, ...] = tuple(n for n in CHECK_ORDER if n not in PLACEHOLDERS)
+
+_REFS = TypeAdapter(list[ReferenceRecord])
 
 
 class QaCheck(StrictModel):
-    """One check's result. `status` is `pass` or `fail` from `passed`, or
-    `not_implemented` for a 032 placeholder, which is never `passed`."""
+    """One check's result. `status` is `pass` or `fail` from `passed`; a legacy
+    `not_implemented` row (pre-032 qa.json) is never `passed`."""
 
     name: str
     passed: bool
@@ -111,20 +129,13 @@ class QaReport(StrictModel):
         return next((c for c in self.checks if c.status == "fail"), None)
 
 
-def placeholder(name: str) -> QaCheck:
-    """A check 032 will implement, recorded so the list is complete and never read as a
-    pass."""
-    return QaCheck(
-        name=name,
-        passed=False,
-        status="not_implemented",
-        detail=f"not implemented: {PLACEHOLDERS[name]} (ticket 032)",
-    )
-
-
 def report(checks: Sequence[QaCheck]) -> QaReport:
-    """The report over `checks`: passed when none failed (a placeholder is neither)."""
-    return QaReport(checks=list(checks), passed=all(c.status != "fail" for c in checks))
+    """The report over `checks`: passed only when every check in `CHECK_ORDER` is
+    present and `pass` - the `delivered` rule (10.4). A report that stopped at a FAIL,
+    or one from before 032 with rows held back, never delivers."""
+    statuses = {c.name: c.status for c in checks}
+    passed = all(statuses.get(name) == "pass" for name in CHECK_ORDER)
+    return QaReport(checks=list(checks), passed=passed)
 
 
 # --- the checks ------------------------------------------------------------------------------
@@ -456,18 +467,44 @@ def t7(frames: Sequence[FrameStat], *, fps: int = FPS, finale_start_s: float | N
     return QaCheck(name="T7", passed=True, detail=detail)
 
 
-def t8(manifest: AssetManifest | None) -> QaCheck:
-    """The 4.4 rescue limit: more rescued beats than `rescued_max` fails (032 folds the
-    plan re-validation and the NetworkError scan into the same check)."""
+# --- T8 plan clean (10.1, 4.4, 8.2) -------------------------------------------------------------
+
+NETWORK_ERROR = "NetworkError"
+
+
+def t8(
+    manifest: AssetManifest | None, violations: Sequence[str] | None, log: str | None
+) -> QaCheck:
+    """Plan clean: the 4.4 rescue limit, the validated plan re-checked by the grammar
+    (`violations`: its lines, None when there is no `work/plan.validated.json`), and
+    the render log (`log`: its text, None when missing) free of NetworkError. Every
+    problem is named, the rescues first."""
     if manifest is None:
         return QaCheck(name="T8", passed=False, detail="work/assets.json is missing")
-    count = manifest.rescued
-    detail = (
-        f"{count} rescued beats (max {manifest.rescued_max} over {manifest.runtime_s:g} s); "
-        "plan re-validation and the NetworkError scan arrive with 032"
+    problems: list[str] = []
+    rescue = (
+        f"{manifest.rescued} rescued beats (max {manifest.rescued_max} over "
+        f"{manifest.runtime_s:g} s)"
     )
-    if count > manifest.rescued_max:
-        return QaCheck(name="T8", passed=False, detail=f"not enough relevant B-roll: {detail}")
+    if manifest.rescued > manifest.rescued_max:
+        problems.append(f"not enough relevant B-roll: {rescue}")
+    if violations is None:
+        problems.append("work/plan.validated.json is missing, nothing to re-validate")
+    elif violations:
+        noun = "violation" if len(violations) == 1 else "violations"
+        problems.append(f"plan re-validation: {len(violations)} {noun}: {'; '.join(violations)}")
+    if log is None:
+        problems.append("work/render.log is missing")
+    else:
+        errors = sum(1 for line in log.splitlines() if NETWORK_ERROR in line)
+        if errors:
+            noun = "line" if errors == 1 else "lines"
+            problems.append(f"render log has {errors} {NETWORK_ERROR} {noun}")
+    if problems:
+        return QaCheck(name="T8", passed=False, detail="; ".join(problems))
+    detail = (
+        f"{rescue}; plan re-validates with zero violations; render log has no {NETWORK_ERROR}"
+    )
     return QaCheck(name="T8", passed=True, detail=detail)
 
 
@@ -516,6 +553,160 @@ def t10(spans: Sequence[Span] | None, words: Sequence[Word]) -> QaCheck:
     noun = "boundary" if len(boundaries) == 1 else "boundaries"
     detail = f"{len(boundaries)} cut {noun}, none more than {CUT_TOL_S:g} s inside a word"
     return QaCheck(name="T10", passed=True, detail=detail)
+
+
+# --- T11 PIP geometry (3.3) ---------------------------------------------------------------------
+
+CHIN_MAX_FRACTION = 0.90
+
+
+def _circle_overshoot(face: presenter.FaceBox, pip: presenter.PipGeometry) -> float:
+    """How far, in circle pixels, the box's farthest corner sits past the circle's edge
+    once the window is scaled into the circle (negative: inside by that much)."""
+    scale = pip.diameter / pip.window_size
+    radius = pip.diameter / 2
+    farthest = max(
+        math.hypot((x - pip.window_left) * scale - radius, (y - pip.window_top) * scale - radius)
+        for x in (face.left, face.left + face.width)
+        for y in (face.top, face.top + face.height)
+    )
+    return farthest - radius
+
+
+def t11(measured: PresenterMeasurement | None) -> QaCheck:
+    """Every strip frame's face box inside the PIP circle and its chin above 90 % of
+    the window (3.3), from the measurement on job.json. A still the detector found no
+    face on is counted, not judged: the 3.3 floor already passed at `transcribing`."""
+    if measured is None:
+        return QaCheck(
+            name="T11", passed=False, detail="job.json has no presenter measurement (3.3)"
+        )
+    pip = measured.pip
+    problems: list[str] = []
+    found = 0
+    lowest_chin = 0.0
+    for n, face in enumerate(measured.faces, start=1):
+        if face is None:
+            continue
+        found += 1
+        overshoot = _circle_overshoot(face, pip)
+        if overshoot > 1e-6:
+            problems.append(f"frame {n}: face box leaves the circle by {overshoot:.0f} px")
+        chin = (face.chin_y - pip.window_top) / pip.window_size
+        lowest_chin = max(lowest_chin, chin)
+        if chin > CHIN_MAX_FRACTION + 1e-9:
+            problems.append(
+                f"frame {n}: chin at {chin:.1%} of the window, below {CHIN_MAX_FRACTION:.0%}"
+            )
+    if found == 0:
+        problems.append("no strip frame has a face")
+    if problems:
+        return QaCheck(name="T11", passed=False, detail="; ".join(problems))
+    detail = (
+        f"face on {found} of {len(measured.faces)} strip frames, every box inside the "
+        f"{pip.diameter} px circle, chin at {lowest_chin:.0%} of the window "
+        f"(max {CHIN_MAX_FRACTION:.0%})"
+    )
+    return QaCheck(name="T11", passed=True, detail=detail)
+
+
+# --- T12 safe area (6.3) ------------------------------------------------------------------------
+
+# The platform's reserved zones (6.3): top, bottom and right, in composition pixels.
+SAFE_TOP_PX, SAFE_BOTTOM_PX, SAFE_RIGHT_PX = 250, 320, 140
+
+
+def zone_hits(left: float, top: float, width: float, height: float) -> list[str]:
+    """Which 6.3 zones the box reaches into, one line each; empty when it stays clear.
+    An edge exactly on a zone's line is clear."""
+    hits: list[str] = []
+    if top < SAFE_TOP_PX - 1e-6:
+        hits.append(f"reaches y {top:g}, inside the top zone")
+    if top + height > HEIGHT - SAFE_BOTTOM_PX + 1e-6:
+        hits.append(f"reaches y {top + height:g}, inside the bottom zone")
+    if left + width > WIDTH - SAFE_RIGHT_PX + 1e-6:
+        hits.append(f"reaches x {left + width:g}, inside the right rail")
+    return hits
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def t12(spec: RenderSpec | None) -> QaCheck:
+    """No caption word, stamp, counter or lower-third box of the render spec inside the
+    6.3 reserved zones, each offender named with its page or beat."""
+    if spec is None:
+        return QaCheck(name="T12", passed=False, detail="work/render_spec.json is missing")
+    problems: list[str] = []
+    words = stamps = lowers = 0
+
+    def judge(label: str, left: float, top: float, width: float, height: float) -> None:
+        problems.extend(f"{label} {hit}" for hit in zone_hits(left, top, width, height))
+
+    for page in spec.captions:
+        for word in page.words:
+            words += 1
+            label = f"caption page {page.index} {word.text!r} at {page.start:.2f} s"
+            judge(label, word.x, word.y, word.width, word.height)
+    for beat in spec.beats:
+        for kind, box in (("stamp", beat.stamp), ("counter", beat.counter)):
+            if box is None:
+                continue
+            stamps += 1
+            judge(f"{beat.id} {kind} {box.text!r}", box.left, box.top, box.width, box.height)
+        lower = beat.lower_third
+        if lower is not None:
+            lowers += 1
+            label = f"{beat.id} lower-third {lower.name!r}"
+            judge(label, lower.left, lower.top, lower.width, lower.height)
+    if problems:
+        return QaCheck(name="T12", passed=False, detail="; ".join(problems))
+    detail = (
+        f"{_plural(words, 'caption word')}, {_plural(stamps, 'stamp')}, "
+        f"{_plural(lowers, 'lower-third')}: none inside the reserved zones "
+        f"(top {SAFE_TOP_PX}, bottom {SAFE_BOTTOM_PX}, right {SAFE_RIGHT_PX} px)"
+    )
+    return QaCheck(name="T12", passed=True, detail=detail)
+
+
+# --- T13 budget (11.3) --------------------------------------------------------------------------
+
+
+def _allowance(name: str, used: int, cap: int, unit: str) -> str:
+    line = f"{name} {used}/{cap} {unit}"
+    return f"{line} (allowance spent)" if cap and used >= cap else line
+
+
+def t13(record: JobRecord, manifest: AssetManifest | None, budget: Budget | None) -> QaCheck:
+    """The ledger total and per-step totals, the style's allowances against what the
+    asset step spent, and the soft-cap flag, written down (11.3). Cost never fails the
+    gate: the hard cap already failed the job before its next paid call."""
+    cash = ledger.cash_total(record)
+    line = f"ledger INR {cash:.2f} cash over {_plural(len(record.cost), 'row')}"
+    steps = [f"{s.step} INR {s.cash_inr:.2f}" for s in ledger.by_step(record)]
+    if steps:
+        line += f" ({', '.join(steps)})"
+    tokens = ledger.tokens_total(record)
+    if tokens:
+        line += (
+            f" + {tokens} subscription tokens (INR {ledger.equivalent_total(record):.2f} equiv.)"
+        )
+    if manifest is None:
+        allowances = "no work/assets.json to read the allowances against"
+    elif budget is None:
+        allowances = "no loaded style to read the allowances from"
+    else:
+        m, b = manifest, budget
+        allowances = ", ".join(
+            (
+                _allowance("judge", m.judge_calls, b.judge_max_calls, "calls"),
+                _allowance("search", m.search_queries, b.search_max_queries, "queries"),
+                _allowance("generated", m.generated_images, b.gen_max_per_short, "images"),
+            )
+        )
+    soft = "OVER SOFT CAP (flag only)" if record.over_soft_cap else "soft cap not passed"
+    return QaCheck(name="T13", passed=True, detail=f"{line}; {allowances}; {soft}")
 
 
 # --- running the gate on a job ---------------------------------------------------------
@@ -595,16 +786,70 @@ def _t10(job: Job) -> QaCheck:
     return t10(presenter.load_cut_list(job), transcript.words)
 
 
-def run(job: Job) -> QaReport:
-    """T1-T10 in order on `out/short.mp4`, `work/plan.json`, `work/asr.json`,
+def revalidate(job: Job, specs: Mapping[str, StyleSpec]) -> list[str] | None:
+    """The grammar's violation lines for `work/plan.validated.json` under the job's
+    style, with the brief and the must-use references the planning step used (2.3);
+    None when there is no validated plan to re-check. Input files the sweeper may have
+    taken read as empty: the plan is re-checked, the must-use list is not."""
+    path = job.work_dir / "plan.validated.json"
+    if not path.is_file():
+        return None
+    validated = ValidatedPlan.model_validate_json(path.read_text(encoding="utf-8"))
+    spec = specs.get(job.record.style)
+    if spec is None:
+        return [f"style {job.record.style!r} is not a loaded spec (loaded: {sorted(specs)})"]
+    asr = job.work_dir / "asr.json"
+    if not asr.is_file():
+        return ["work/asr.json is missing, the plan cannot be re-validated"]
+    transcript = Transcript.model_validate_json(asr.read_text(encoding="utf-8"))
+    brief_path = job.input_dir / "brief.md"
+    brief = brief_path.read_text(encoding="utf-8") if brief_path.is_file() else ""
+    refs_path = job.input_dir / "refs.json"
+    refs = _REFS.validate_json(refs_path.read_text(encoding="utf-8")) if refs_path.is_file() else []
+    references = [
+        PlanReference(
+            id=r.id, kind="image" if r.kind == "image" else "clip_frame", caption=r.caption,
+            width=r.width, height=r.height,
+        )  # fmt: skip
+        for r in refs
+    ]
+    out = grammar.validate(
+        validated.picture, validated.sound, transcript, spec,
+        brief=brief, must_use=grammar.must_use_ids(brief, references),
+    )  # fmt: skip
+    return out.lines() if isinstance(out, grammar.Violations) else []
+
+
+def _t8(job: Job, specs: Mapping[str, StyleSpec]) -> QaCheck:
+    log = job.work_dir / "render.log"
+    log_text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else None
+    return t8(assets.load_manifest(job.path), revalidate(job, specs), log_text)
+
+
+def _t12(job: Job) -> QaCheck:
+    path = job.work_dir / "render_spec.json"
+    if not path.is_file():
+        return t12(None)
+    return t12(RenderSpec.model_validate_json(path.read_text(encoding="utf-8")))
+
+
+def run(job: Job, *, specs: Mapping[str, StyleSpec] | None = None) -> QaReport:
+    """T1-T13 in order on `out/short.mp4`, `work/plan.json`, `work/asr.json`,
     `work/captions.json`, `work/cut.json`, `work/cut.mp4`, `work/stems/`,
-    `work/assets.json` and `out/rights.json`, then the T11-T13 placeholders; stops at
-    the first FAIL and writes `out/qa.json` either way."""
+    `work/assets.json`, `out/rights.json`, `work/plan.validated.json`, `work/render.log`,
+    `job.json` (the measurement, the ledger) and `work/render_spec.json`; stops at the
+    first FAIL and writes `out/qa.json` either way. `specs` are the loaded styles the
+    grammar judged the plan by (the worker's set: the smoke's is fixture-shaped); None
+    loads the shipped ones."""
+    specs = specs if specs is not None else render.loaded_styles()
     short = job.out_dir / "short.mp4"
     info = ffmpeg.probe(short)
     plan = PicturePlan.model_validate_json(
         (job.work_dir / "plan.json").read_text(encoding="utf-8")
     )
+    # job.json has other writers inside a step (the ledger, the measurement): read it fresh.
+    record = jobs.load(job.path).record
+    spec = specs.get(record.style)
     checks: list[QaCheck] = []
     for check in (
         lambda: t1(info),
@@ -614,10 +859,12 @@ def run(job: Job) -> QaReport:
         lambda: _t5(job, plan),
         lambda: t6(*_sfx_scan(job)),
         lambda: _t7(job, plan, info),
-        lambda: t8(assets.load_manifest(job.path)),
+        lambda: _t8(job, specs),
         lambda: t9(rights.load(job.path), assets.load_manifest(job.path), plan),
         lambda: _t10(job),
-        *(lambda name=name: placeholder(name) for name in PLACEHOLDERS),
+        lambda: t11(record.presenter),
+        lambda: _t12(job),
+        lambda: t13(record, assets.load_manifest(job.path), spec.budget if spec else None),
     ):
         result = check()
         checks.append(result)

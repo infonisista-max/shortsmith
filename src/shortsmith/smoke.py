@@ -13,13 +13,11 @@ cascade on all eight strip stills with the 3.3 geometry on `job.json` and in the
 render spec (013), `work/picture.mp4` (H.264,
 1080x1920, round(6 x 30) frames, silent), the sound director's bed, cues, stems and
 balance report from a synthesised catalogue (022),
-`out/short.mp4`, `out/qa.json` with T1-T4,
-T8 and T9 passing, `out/contact.jpg` under
-2 MB at the sheet's width with the PIP strip row, and the job's
-`uploaded -> ... -> qa -> delivered` trail,
-print one summary line and exit 0. Any failed assertion exits non-zero with the
-failing check on stderr. Later tickets extend this walk until it asserts T1-T13
-(decision 12.1); over ninety seconds is a bug.
+`out/short.mp4`, `out/qa.json` with T1-T13 all passing (032; decision 12.1),
+`out/contact.jpg` under 2 MB at the sheet's width with the PIP strip row, and the
+job's `uploaded -> ... -> qa -> delivered` trail, print one summary line and exit 0.
+Any failed assertion exits non-zero with the failing check on stderr. Over ninety
+seconds is a bug.
 
 The fixture is six seconds long, so smoke lowers only `Limits.min_duration_s`; every
 other 2.1 limit stays at its default.
@@ -86,7 +84,7 @@ TRAIL = [
     "rendering -> qa",
     "qa -> delivered",
 ]
-TECHNICAL_CHECKS = technical.CHECK_ORDER  # T1-T13; T11-T13 are 032's placeholders
+TECHNICAL_CHECKS = technical.CHECK_ORDER  # T1-T13
 SMOKE_BRIEF = (
     "Topic: a six-second synthetic clip. Angle: prove the pipeline end to end. "
     "Must-say: twelve words on six tone bursts. Hook wish: none."
@@ -290,8 +288,7 @@ def run_smoke(
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
-        f"{' '.join(technical.IMPLEMENTED)} pass, "
-        f"{' '.join(technical.PLACEHOLDERS)} not implemented, "
+        f"{' '.join(TECHNICAL_CHECKS)} pass, "
         f"contact {sheet.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
@@ -675,35 +672,45 @@ def check_sound(
 
 
 def check_qa(job: jobs.Job) -> None:
-    """`out/qa.json`: T1-T4 (006), T5, T7 and T10 (031), T6 (023), T8's rescue limit and
-    T9 (016) ran in order and every one passed (10.1), and T11-T13 are recorded as
-    `not_implemented`, never as a pass. The smoke mixes cues, so T6 must have scanned a
-    real SFX stem - its no-stem pass would mean the detector never ran; likewise T5 must
-    have measured a lag and T7 must have read every frame."""
+    """`out/qa.json`: T1-T13 ran in order and every one passed (10.1; 006, 016, 023,
+    031, 032). The smoke mixes cues, so T6 must have scanned a real SFX stem - its
+    no-stem pass would mean the detector never ran; likewise T5 must have measured a
+    lag, T7 read every frame, T8 re-validated the plan and read the render log, T11
+    judged all eight strip stills, T12 counted the fixture's captions and its two
+    stamps, and T13 recorded the empty ledger."""
     report = technical.load_report(job)
     check(report is not None, "qa did not write out/qa.json")
     assert report is not None
     names = [c.name for c in report.checks]
     check(names == list(TECHNICAL_CHECKS), f"qa.json lists {names}, expected {TECHNICAL_CHECKS}")
     for c in report.checks:
-        if c.name in technical.PLACEHOLDERS:
-            check(c.status == "not_implemented" and not c.passed, f"{c.name} is not a placeholder")
-            continue
-        check(c.passed, f"{c.name} failed: {c.detail}")
-    t5 = next((c for c in report.checks if c.name == "T5"), None)
+        check(c.status == "pass", f"{c.name} failed: {c.detail}")
+    details = {c.name: c.detail for c in report.checks}
     check(
-        t5 is not None and "lip-sync lag" in t5.detail and f"seed {technical.T5_SEED}" in t5.detail,
-        f"T5 did not measure the lag or draw its samples: {t5.detail if t5 else 'missing'}",
+        "lip-sync lag" in details["T5"] and f"seed {technical.T5_SEED}" in details["T5"],
+        f"T5 did not measure the lag or draw its samples: {details['T5']}",
     )
-    t6 = next((c for c in report.checks if c.name == "T6"), None)
     check(
-        t6 is not None and t6.detail.startswith("R1-R4 clean on the SFX stem"),
-        f"T6 did not scan the SFX stem: {t6.detail if t6 else 'missing'}",
+        details["T6"].startswith("R1-R4 clean on the SFX stem"),
+        f"T6 did not scan the SFX stem: {details['T6']}",
     )
-    t7 = next((c for c in report.checks if c.name == "T7"), None)
     check(
-        t7 is not None and t7.detail.startswith(f"{EXPECTED_FRAMES} frames"),
-        f"T7 did not read every frame: {t7.detail if t7 else 'missing'}",
+        details["T7"].startswith(f"{EXPECTED_FRAMES} frames"),
+        f"T7 did not read every frame: {details['T7']}",
+    )
+    check(
+        "zero violations" in details["T8"] and "no NetworkError" in details["T8"],
+        f"T8 did not re-validate the plan and read the render log: {details['T8']}",
+    )
+    every_still = f"face on {presenter.STRIP_COUNT} of {presenter.STRIP_COUNT} strip frames"
+    check(every_still in details["T11"], f"T11 did not judge every strip still: {details['T11']}")
+    check(
+        "2 stamps" in details["T12"] and not details["T12"].startswith("0 caption"),
+        f"T12 did not count the fixture's captions and stamps: {details['T12']}",
+    )
+    check(
+        details["T13"].startswith("ledger INR 0.00 cash over 0 rows"),
+        f"T13 did not record the empty ledger: {details['T13']}",
     )
     check(report.passed, "qa.json says the report failed although every check passed")
 

@@ -1,7 +1,7 @@
 """`python -m shortsmith.smoke`: fixture -> job -> fake transcriber -> fake planner ->
 work/{asr,plan,sound,captions}.json -> Remotion -> work/picture.mp4 -> out/short.mp4
 -> assets through the fake sources, out/rights.json and out/credits.md (016) ->
-T1-T4, T8, T9 in out/qa.json -> out/contact.jpg, uploaded -> transcribing -> planning ->
+T1-T13 in out/qa.json -> out/contact.jpg, uploaded -> transcribing -> planning ->
 sourcing -> rendering -> qa -> delivered, exit 0 with one summary line, non-zero on a
 failed assertion. The render is the real engine (12.1), so the walk is the slow test
 in the suite."""
@@ -70,11 +70,8 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     report = technical.load_report(job)
     assert report is not None and report.passed
     assert [c.name for c in report.checks] == list(technical.CHECK_ORDER)
-    # 031: T5, T7 and T10 ran on the real short; T11-T13 are recorded, not passed.
-    assert all(c.status == "pass" for c in report.checks if c.name in technical.IMPLEMENTED)
-    assert [c.status for c in report.checks if c.name in technical.PLACEHOLDERS] == [
-        "not_implemented"
-    ] * 3
+    # 031 / 032: every check ran on the real short and the real files, and passed.
+    assert all(c.status == "pass" for c in report.checks)
     # 016: every sourced beat found its picture through the fakes, none rescued; the
     # photo beat is a full-bleed photo, the card beat a card; the rights log is complete.
     manifest = assets.load_manifest(job.path)
@@ -110,8 +107,8 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     )
     assert "ok" in result.summary and job.id in result.summary
     assert "180 frames" in result.summary and "short" in result.summary
-    assert "T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 pass" in result.summary
-    assert "T11 T12 T13 not implemented" in result.summary and "contact" in result.summary
+    assert "T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 pass" in result.summary
+    assert "not implemented" not in result.summary and "contact" in result.summary
     assert f"{len(manifest.assets)} assets" in result.summary
 
 

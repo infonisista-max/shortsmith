@@ -192,15 +192,15 @@ def test_compose_image_marks_a_failed_check_red_and_pending_checks_grey() -> Non
     assert without.size == image.size
 
 
-def test_summary_panel_lists_t1_to_t13_and_draws_not_implemented_grey() -> None:
-    """031: thirteen dots in gate order; a `not_implemented` placeholder is grey, not
-    red and not green."""
+def test_summary_panel_lists_t1_to_t13_and_draws_a_check_that_did_not_run_grey() -> None:
+    """031 / 032: thirteen dots in gate order; a check the report does not carry (or a
+    pre-032 `not_implemented` row) is grey, not red and not green."""
     assert contact_sheet.TECHNICAL_CHECKS == technical.CHECK_ORDER
     hook = [_solid((HOOK_W, HOOK_H), (0, 0, 0))] * HOOK_FRAMES
     frames = [_solid((FRAME_W, FRAME_H), (0, 0, 0))]
     lay = contact_sheet.layout(HOOK_FRAMES, 1)
-    checks = [QaCheck(name=n, passed=True, detail="x") for n in technical.IMPLEMENTED]
-    checks += [technical.placeholder(n) for n in technical.PLACEHOLDERS]
+    checks = [QaCheck(name=n, passed=True, detail="x") for n in technical.CHECK_ORDER[:10]]
+    checks += [QaCheck(name="T11", passed=False, status="not_implemented", detail="held")]
     image = contact_sheet.compose_image(hook, frames, technical.report(checks), "job p")
     summary = image.crop(
         (lay.summary.x, lay.summary.y, lay.summary.x + lay.summary.w, lay.summary.y + lay.summary.h)

@@ -13,8 +13,8 @@ letter (U user, W web, C Commons, O Openverse, P Pexels, X Pixabay, G generated,
 library, - none), with a red corner mark on a rescued (4.4) or downgraded (5.3) beat.
 The 6.3 platform safe-area zones are drawn as thin outlines on the
 first frame of every row. The last row is the summary panel: one dot per technical
-check T1-T13 (green pass, red fail, grey not run or `not_implemented`: the 032
-placeholders, 031), the critic scores as a placeholder until
+check T1-T13 (green pass, red fail, grey not run: the gate stopped before it, or a
+pre-032 report holding it), the critic scores as a placeholder until
 033, the relevance judge's spent calls against the style's ceiling (5.2), and the
 ledger line (cash total, subscription tokens with their api-equivalent value, the
 soft-cap flag; 11.3). The file stays under 2 MB: `encode` steps the JPEG
@@ -42,7 +42,10 @@ from shortsmith.qa.technical import QaReport
 
 SOURCE_W, SOURCE_H = 1080, 1920
 # Decision 6.3: the platform safe area, global for every style.
-SAFE_TOP, SAFE_BOTTOM, SAFE_RIGHT = 250, 320, 140
+# The 6.3 zones the gate's T12 checks text against; drawn here as outlines.
+SAFE_TOP, SAFE_BOTTOM, SAFE_RIGHT = (
+    technical.SAFE_TOP_PX, technical.SAFE_BOTTOM_PX, technical.SAFE_RIGHT_PX,
+)  # fmt: skip
 
 FRAME_W = 270
 PER_ROW = 6
@@ -61,7 +64,7 @@ LABEL_H = 20
 STRIP_H = 20
 SUMMARY_H = 72
 MAX_BYTES = 2_000_000
-TECHNICAL_CHECKS = technical.CHECK_ORDER  # T1-T13; T8 partial and T11-T13 grey until 032
+TECHNICAL_CHECKS = technical.CHECK_ORDER  # T1-T13
 
 BG_COLOUR = (24, 24, 24)
 PANEL_COLOUR = (40, 40, 40)
@@ -345,7 +348,7 @@ def _draw_summary(
     x = box.x + 12
     cy = box.y + 22
     for name in TECHNICAL_CHECKS:
-        # A check that did not run, or a 032 placeholder, is grey: never green (031).
+        # A check that did not run (the gate stopped before it) is grey: never green.
         status = results.get(name)
         colour = (
             PASS_COLOUR if status == "pass" else FAIL_COLOUR if status == "fail" else PENDING_COLOUR
