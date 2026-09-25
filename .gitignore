@@ -23,6 +23,9 @@ work/
 *.wav
 *.mp3
 *.m4a
+*.ogg
+# Audio the runtime search fetches into the catalogue (ticket 024)
+assets/audio/fetched/
 
 # Node (the Remotion picture engine, ticket 004); its bundle lands under build/
 node_modules/
