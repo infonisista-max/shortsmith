@@ -27,6 +27,10 @@ Covers PRD `qa.critic` (calibration), `jobs` rating and performance fields, `app
 
 - The job list (`GET /jobs`, `app.render_job_list` / `_job_row`) already has a rating column, which shows `-` for now because `job.json` has no rating yet. When `rating` lands on `JobRecord`, put its score in that cell (`<td>-</td>` in `_job_row`).
 
+## Notes
+
+- Per `docs/reference-tooling.md` ("What these tools change"): a critic pass means the floor is cleared and never substitutes for the phone rating; an unrated job stays unrated. An unrated job may still be `passed` on the floor; once given, the rating is final and a rating < 6 un-passes it.
+
 ## Blocked by
 
 - Blocked by `issues/033-vision-critic.md`
