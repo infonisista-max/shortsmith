@@ -50,6 +50,15 @@ Before committing, run the feedback loops, in this order, and fix everything the
 - `uv run pytest -q` to run the tests
 - `uv run python -m shortsmith.smoke` to render the fixture clip end-to-end with the fake transcriber and fake planner
 
+If anything under `src/remotion/**` changed in this session — any file, any
+edit, including a comment-only edit — two more loops are mandatory, run
+after the four above and before the commit:
+
+- `npm run typecheck`
+- `npm test`
+
+"Only a comment changed" is not a reason to skip them.
+
 # COMMIT
 
 Make a git commit. The commit message must:
@@ -87,6 +96,14 @@ Dependencies only via `uv add`. If a task needs a new dependency that is not alr
   Dirty-and-silent is the one forbidden ending.
 - Never commit merely to satisfy that rule. Red loops plus a dirty tree
   is a correct ending — it is the signal the next session needs.
+- In afk / `-p` mode every loop (the four above, and the two npm loops
+  when they apply) runs in the FOREGROUND: never as a background task,
+  never with run_in_background, never detached to a log you read later.
+  A loop whose result you did not see did not run. If a loop's result is
+  not in front of you — it ran in the background, the output was cut
+  off, the task was lost — the session does not end: re-run that loop in
+  the foreground and read its result. Only a seen result counts toward
+  "every loop green".
 
 # SELF-CHECK BEFORE DONE
 
