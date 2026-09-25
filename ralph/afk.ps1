@@ -1,9 +1,12 @@
 # ralph/afk.ps1 -- middle-rung afk loop (allowlist via .claude/settings.json)
-# Launch: powershell -ExecutionPolicy Bypass -File .\ralph\afk.ps1
+# Launch: powershell -ExecutionPolicy Bypass -File .\ralph\afk.ps1 [-MaxIterations 2] [-Model opus]
+# Each iteration is a fresh `claude -p` process. UV_NO_SYNC=1 inside every iteration: `uv run`
+# never installs or syncs, so an unattended run can never pull a package (25 Sep 2026).
 param(
     [int]$MaxIterations  = 2,
     [int]$TimeoutMinutes = 40,
     [int]$MaxTurns       = 150,
+    [string]$Model       = "",
     [string]$LogDir      = ""
 )
 $ErrorActionPreference = "Stop"
@@ -22,14 +25,17 @@ if (-not $LogDir) {
     }
 }
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+$modelArg = ""
+if ($Model) { $modelArg = " --model $Model" }
 Write-Host "Logs -> $LogDir"
+Write-Host "Model -> $(if ($Model) { $Model } else { 'default' }); UV_NO_SYNC=1 in every iteration"
 $fails = 0
 for ($i = 1; $i -le $MaxIterations; $i++) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $log   = Join-Path $LogDir "afk-$stamp-iter$i.log"
     Write-Host "=== iteration $i/$MaxIterations -> $log ==="
-    $inner = "Set-Location '$RepoRoot'; Get-Content -Raw '$PromptFile' | " +
-             "claude -p --permission-mode acceptEdits --max-turns $MaxTurns --verbose *>> '$log'"
+    $inner = "`$env:UV_NO_SYNC='1'; Set-Location '$RepoRoot'; Get-Content -Raw '$PromptFile' | " +
+             "claude -p --permission-mode acceptEdits$modelArg --max-turns $MaxTurns --verbose *>> '$log'"
     $proc = Start-Process powershell -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-Command",$inner `
             -WorkingDirectory $RepoRoot -PassThru -WindowStyle Hidden
     if (-not $proc.WaitForExit($TimeoutMinutes * 60 * 1000)) {

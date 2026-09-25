@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "disableBypassPermissionsMode": "disable",
     "allow": [
       "Bash(uv run *)",
       "Bash(python *)",
@@ -21,20 +22,46 @@
       "PowerShell(mkdir *)", "PowerShell(dir*)", "PowerShell(ls*)", "PowerShell(cat *)", "PowerShell(type *)",
       "PowerShell(Get-Content *)", "PowerShell(Get-ChildItem*)", "PowerShell(Select-String *)", "PowerShell(Test-Path *)"
     ],
+    "ask": [
+      "Edit(pyproject.toml)", "Edit(uv.lock)",
+      "Edit(package.json)", "Edit(package-lock.json)",
+      "Edit(.gitignore)", "Edit(.gitattributes)",
+      "Edit(CLAUDE.md)",
+      "Edit(ralph/prompt.md)",
+      "Edit(docs/reference-tooling.md)"
+    ],
     "deny": [
       "Bash(git push*)",
-      "Bash(uv add *)", "Bash(uv pip *)", "Bash(pip *)",
+      "Bash(git commit --amend*)", "Bash(git reset --hard*)", "Bash(git clean*)",
+      "Bash(git rebase*)", "Bash(git branch -D*)", "Bash(git checkout -- *)", "Bash(git checkout .)",
+      "Bash(uv add *)", "Bash(uv pip *)", "Bash(pip *)", "Bash(pip3 *)", "Bash(pipx *)",
+      "Bash(python -m pip*)", "Bash(python3 -m pip*)", "Bash(py -m pip*)", "Bash(python -m ensurepip*)",
+      "Bash(uv run pip*)", "Bash(uv run python -m pip*)", "Bash(uv run --with*)", "Bash(uv run -w *)",
+      "Bash(uv sync*)", "Bash(uv lock*)", "Bash(uv tool *)", "Bash(uvx *)",
       "Bash(npm install*)", "Bash(npm i *)", "Bash(npx *)",
       "Bash(curl *)", "Bash(wget *)", "Bash(Invoke-WebRequest*)",
+      "Bash(rm -r*)", "Bash(rm -f*)", "Bash(rmdir *)", "Bash(del *)",
+      "Bash(cat .env*)", "Bash(cat ./.env*)", "Bash(type .env*)",
       "WebFetch", "WebSearch",
       "Read(~/.claude/**)", "Edit(~/.claude/**)",
-      "Read(./.env*)", "Edit(./.env*)",
+      "Read(./.env*)", "Edit(./.env*)", "Read(.env*)", "Edit(.env*)",
+      "Edit(.claude/**)",
+      "Edit(ralph/*.ps1)", "Edit(ralph/*.sh)",
+      "Edit(docs/grill-decisions.md)", "Edit(issues/prd.md)", "Edit(docs/references.md)",
       "PowerShell(git push*)",
-      "PowerShell(uv add *)", "PowerShell(uv pip *)", "PowerShell(pip *)",
+      "PowerShell(git commit --amend*)", "PowerShell(git reset --hard*)", "PowerShell(git clean*)",
+      "PowerShell(git rebase*)", "PowerShell(git branch -D*)", "PowerShell(git checkout -- *)", "PowerShell(git checkout .)",
+      "PowerShell(uv add *)", "PowerShell(uv pip *)", "PowerShell(pip *)", "PowerShell(pip3 *)", "PowerShell(pipx *)",
+      "PowerShell(python -m pip*)", "PowerShell(python3 -m pip*)", "PowerShell(py -m pip*)", "PowerShell(python -m ensurepip*)",
+      "PowerShell(uv run pip*)", "PowerShell(uv run python -m pip*)", "PowerShell(uv run --with*)", "PowerShell(uv run -w *)",
+      "PowerShell(uv sync*)", "PowerShell(uv lock*)", "PowerShell(uv tool *)", "PowerShell(uvx *)",
       "PowerShell(npm install*)", "PowerShell(npm i *)", "PowerShell(npx *)",
       "PowerShell(curl *)", "PowerShell(wget *)", "PowerShell(Invoke-WebRequest*)",
       "PowerShell(Invoke-RestMethod*)", "PowerShell(iwr *)", "PowerShell(irm *)",
-      "PowerShell(Invoke-Expression*)", "PowerShell(iex *)"
+      "PowerShell(Invoke-Expression*)", "PowerShell(iex *)",
+      "PowerShell(Remove-Item *-Recurse*)", "PowerShell(Remove-Item *-Force*)", "PowerShell(rm -r*)", "PowerShell(rmdir *)",
+      "PowerShell(Get-Content .env*)", "PowerShell(Get-Content ./.env*)", "PowerShell(Get-Content .\\.env*)",
+      "PowerShell(cat .env*)", "PowerShell(type .env*)"
     ]
   }
 }
