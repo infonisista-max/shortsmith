@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     # row. A source in `ASSET_SOURCES` whose key is unset is skipped, not an error.
     pexels_api_key: SecretStr | None = None
     pixabay_api_key: SecretStr | None = None
+    # 7.2 / 024: the runtime audio search. Freesound's API key is free and the search
+    # is not metered, so no ledger row; unset, the sound director has no search and a
+    # bed under the style's `bed_score_threshold` simply leaves the short without one.
+    freesound_api_key: SecretStr | None = None
     # 5.2: the cheap filter above the searched sources, on by default. `none` sources
     # every beat on its source's own order; `fake` is what tests and smoke run on.
     relevance_judge: RelevanceJudge = "api"

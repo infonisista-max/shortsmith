@@ -1,0 +1,51 @@
+{
+  "count": 3,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 512345,
+      "name": "Curious Tech Loop",
+      "tags": ["tech", "curious", "loop", "electronic", "synth"],
+      "license": "http://creativecommons.org/licenses/by/4.0/",
+      "username": "synthsmith",
+      "url": "https://freesound.org/people/synthsmith/sounds/512345/",
+      "previews": {
+        "preview-hq-mp3": "https://cdn.freesound.org/previews/512/512345_7654321-hq.mp3",
+        "preview-lq-mp3": "https://cdn.freesound.org/previews/512/512345_7654321-lq.mp3",
+        "preview-hq-ogg": "https://cdn.freesound.org/previews/512/512345_7654321-hq.ogg",
+        "preview-lq-ogg": "https://cdn.freesound.org/previews/512/512345_7654321-lq.ogg"
+      },
+      "download": "https://freesound.org/apiv2/sounds/512345/download/",
+      "duration": 64.2,
+      "type": "wav"
+    },
+    {
+      "id": 498210,
+      "name": "Data Stream Bed",
+      "tags": ["tech", "ambient", "bed"],
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "username": "quietfields",
+      "url": "https://freesound.org/people/quietfields/sounds/498210/",
+      "previews": {},
+      "download": "https://freesound.org/apiv2/sounds/498210/download/",
+      "duration": 120.0,
+      "type": "flac"
+    },
+    {
+      "id": 377001,
+      "name": "Lab Pulse",
+      "tags": ["science", "curious", "pulse"],
+      "license": "http://creativecommons.org/licenses/by-nc/3.0/",
+      "username": "",
+      "url": "https://freesound.org/people/anon/sounds/377001/",
+      "previews": {
+        "preview-lq-ogg": "https://cdn.freesound.org/previews/377/377001_1111111-lq.ogg",
+        "preview-hq-ogg": "https://cdn.freesound.org/previews/377/377001_1111111-hq.ogg"
+      },
+      "download": "https://freesound.org/apiv2/sounds/377001/download/",
+      "duration": 33.5,
+      "type": "mp3"
+    }
+  ]
+}

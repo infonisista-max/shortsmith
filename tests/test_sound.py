@@ -103,47 +103,88 @@ def test_a_broken_catalogue_names_the_problem(tmp_path: Path) -> None:
 # --- bed selection (7.2) ----------------------------------------------------------------
 
 
-def test_bed_selected_by_tag_overlap_then_energy(library: sound.Library) -> None:
+def test_bed_selected_by_tag_overlap_then_energy(
+    library: sound.Library, nums: styles.Sound
+) -> None:
+    threshold = nums.bed_score_threshold
     query = BedQuery(theme="tech", mood="curious", energy=3)
-    chosen = sound.select_bed(library, query, first_stamp_s=1.0)
+    chosen = sound.select_bed(library, query, first_stamp_s=1.0, threshold=threshold)
     assert chosen is not None and chosen.id == "bed_tech_curious"
     # One tag less, and the energy pulls the choice to the other tech bed.
     other = sound.select_bed(library, BedQuery(theme="tech", mood="tense", energy=4),
-                             first_stamp_s=1.0)  # fmt: skip
+                             first_stamp_s=1.0, threshold=threshold)  # fmt: skip
     assert other is not None and other.id == "bed_tech_tense"
 
 
-def test_bed_tie_is_broken_by_drop_point_fit(library: sound.Library) -> None:
+def test_bed_tie_is_broken_by_drop_point_fit(library: sound.Library, nums: styles.Sound) -> None:
     """Same tags and the same energy: the bed whose drop lands nearest the first stamp."""
     near = library.entry("bed_tech_curious")
     assert near is not None
     far = near.model_copy(update={"id": "bed_tech_far", "drop_points_s": [7.5]})
     tied = sound.Library(root=library.root, entries=(near, far))
     query = BedQuery(theme="tech", mood="curious", energy=3)
-    assert sound.select_bed(tied, query, first_stamp_s=3.4) is near
-    assert sound.select_bed(tied, query, first_stamp_s=7.4) is far
+    threshold = nums.bed_score_threshold
+    assert sound.select_bed(tied, query, first_stamp_s=3.4, threshold=threshold) is near
+    assert sound.select_bed(tied, query, first_stamp_s=7.4, threshold=threshold) is far
 
 
-def test_no_tag_hit_is_below_the_threshold(library: sound.Library) -> None:
+def test_no_tag_hit_is_below_the_threshold(library: sound.Library, nums: styles.Sound) -> None:
     query = BedQuery(theme="cooking", mood="nostalgic", energy=3)
-    assert sound.select_bed(library, query, first_stamp_s=1.0) is None
+    assert (
+        sound.select_bed(library, query, first_stamp_s=1.0, threshold=nums.bed_score_threshold)
+        is None
+    )
 
 
-def test_below_the_threshold_the_search_adapter_is_asked(library: sound.Library) -> None:
+def test_the_threshold_is_the_styles_number(library: sound.Library, nums: styles.Sound) -> None:
+    """024: `sound.bed_score_threshold` comes from the front matter, never from code. A tag
+    hit scores 1 and the energy distance at most 0.4, so the shipped 0.5 reads "at least
+    one tag matched"; a style that asks for both tags (1.5) sends a one-tag bed to the
+    search, and a style asking for none (0) keeps it."""
+    assert nums.bed_score_threshold == 0.5
+    one_tag = BedQuery(theme="tech", mood="nostalgic", energy=3)
+    assert sound.select_bed(library, one_tag, first_stamp_s=1.0, threshold=0.5) is not None
+    assert sound.select_bed(library, one_tag, first_stamp_s=1.0, threshold=1.5) is None
+    none = BedQuery(theme="cooking", mood="nostalgic", energy=3)
+    assert sound.select_bed(library, none, first_stamp_s=1.0, threshold=0.0) is not None
+
+
+def test_below_the_threshold_the_search_adapter_is_asked(
+    library: sound.Library, nums: styles.Sound
+) -> None:
     """7.2: below the score threshold the audio search runs with the same tags; the fake
-    returns seeded catalogue entries only."""
-    search = sound.FakeAudioSearch(library)
+    returns seeded catalogue entries only and records that it was asked."""
+    search = sound.FakeAudioSearch()
     query = BedQuery(theme="cooking", mood="nostalgic", energy=1)
-    chosen, note = sound.choose_bed(library, query, first_stamp_s=1.0, search=search)
+    chosen, note = sound.choose_bed(
+        library, query, first_stamp_s=1.0, threshold=nums.bed_score_threshold, search=search
+    )
     assert chosen is not None and chosen.id in {e.id for e in library.beds()}
     assert "search" in note
     assert search.calls == [query]
 
 
-def test_without_a_search_adapter_there_is_simply_no_bed(library: sound.Library) -> None:
-    chosen, note = sound.choose_bed(
-        library, BedQuery(theme="cooking", mood="nostalgic", energy=1), first_stamp_s=1.0
+def test_above_the_threshold_the_search_adapter_is_never_asked(
+    library: sound.Library, nums: styles.Sound
+) -> None:
+    """024: the search is the fallback, not a second opinion; a library bed over the
+    threshold is taken without a call."""
+    search = sound.FakeAudioSearch()
+    query = BedQuery(theme="tech", mood="curious", energy=3)
+    chosen, _ = sound.choose_bed(
+        library, query, first_stamp_s=1.0, threshold=nums.bed_score_threshold, search=search
     )
+    assert chosen is not None and chosen.id == "bed_tech_curious"
+    assert search.calls == []
+
+
+def test_without_a_search_adapter_there_is_simply_no_bed(
+    library: sound.Library, nums: styles.Sound
+) -> None:
+    chosen, note = sound.choose_bed(
+        library, BedQuery(theme="cooking", mood="nostalgic", energy=1), first_stamp_s=1.0,
+        threshold=nums.bed_score_threshold,
+    )  # fmt: skip
     assert chosen is None and "no bed" in note
 
 

@@ -148,6 +148,11 @@ def run_smoke(
     # 022: the synthesised audio catalogue, the one the shipped file will hold after 025.
     library = sound.load_catalogue(fixture.make_catalogue(root / "audio"))
     check(bool(library.beds()) and bool(library.sfx()), "the synthesised catalogue is empty")
+    # 024: the renderer carries the 7.2 audio search; the fake records whether the
+    # director asked it, and the fake plan's bed query scores in the library, so it is
+    # never asked - the gate is proved shut, not just present.
+    search = sound.FakeAudioSearch()
+    renderer = renderer or render.RemotionRenderer(search=search)
 
     # 008: every spec loads against the registry, and the style line resolves in code.
     specs = styles.load_all(render.registry())
@@ -257,6 +262,10 @@ def run_smoke(
     frames = check_picture(picture)
     check_cut(job.work_dir / "cut.mp4")
     cues = check_sound(reloaded, plan, story, library, specs)
+    check(
+        search.calls == [],
+        f"a library bed scored over the threshold, yet the audio search was asked: {search.calls}",
+    )
     short = job.out_dir / "short.mp4"
     check(short.is_file(), "rendering did not write out/short.mp4")
     short_s, short_lufs = check_short(short, picture)
@@ -609,7 +618,10 @@ def check_sound(
     for stem in ("voice.wav", "music.wav", "sfx.wav", "mix.wav"):
         check((stems / stem).is_file(), f"rendering did not write stems/{stem}")
     nums = specs[styles.DEFAULT].sound
-    bed, _ = sound.choose_bed(library, story.bed_query, first_stamp_s=sound.first_stamp_s(plan))
+    bed, _ = sound.choose_bed(
+        library, story.bed_query, first_stamp_s=sound.first_stamp_s(plan),
+        threshold=nums.bed_score_threshold,
+    )  # fmt: skip
     check(bed is not None, f"no bed was chosen for {story.bed_query}")
     assert bed is not None
     land_s = render.counter_land_s(specs[styles.DEFAULT])

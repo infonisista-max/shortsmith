@@ -88,6 +88,7 @@ captions:
   emphasis_max_ratio: 0.3
   gap_break_s: 0.35
 sound:
+  bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
   bed_db_under_voice: -10
   bed_accept_db: [-12, -9]
   speech_band_hz: [250, 4000]

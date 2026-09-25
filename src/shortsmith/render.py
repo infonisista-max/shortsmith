@@ -1677,11 +1677,18 @@ def _load_story(job: Job) -> SoundStory | None:
     return SoundStory.model_validate_json(path.read_text(encoding="utf-8"))
 
 
-def sound_mix(job: Job, *, library: sound.Library | None = None) -> sound.MixResult | None:
+def sound_mix(
+    job: Job,
+    *,
+    library: sound.Library | None = None,
+    search: sound.AudioSearch | None = None,
+) -> sound.MixResult | None:
     """The 022 sound director over the job's plan and sound story: the music and SFX
     stems beside the voice, and the premix the master is cut from. None when there is
     nothing to mix - an empty catalogue, or a job planned before the sound call (the
-    renderer's own tests) - and the short is then the voice alone, as it was before 022."""
+    renderer's own tests) - and the short is then the voice alone, as it was before 022.
+    `search` is the 7.2 audio search the director asks under the bed-score threshold
+    (024); None means no search is configured."""
     library = library if library is not None else sound.load_catalogue()
     story = _load_story(job)
     if not library.entries or story is None:
@@ -1695,6 +1702,7 @@ def sound_mix(job: Job, *, library: sound.Library | None = None) -> sound.MixRes
         nums=loaded_styles()[job.record.style].sound,
         library=library,
         runtime_s=presenter.total_duration(presenter.cut_list(plan)),
+        search=search,
         counter_land_s=counter_land_s(loaded_styles()[job.record.style]),
     )
     jobs.note(job, result.summary())
@@ -1719,7 +1727,12 @@ def _audio_rights(job: Job, result: sound.MixResult | None, library: sound.Libra
         rights.write(job.path, manifest, _load_plan(job))
 
 
-def mux(job: Job, *, library: sound.Library | None = None) -> Path:
+def mux(
+    job: Job,
+    *,
+    library: sound.Library | None = None,
+    search: sound.AudioSearch | None = None,
+) -> Path:
     """`work/stems/mix.wav` (the mastered mix of voice, bed and cues; 022) and
     `out/short.mp4`: the picture stream copied, the mix as AAC."""
     stems = _stems_dir(job)
@@ -1729,7 +1742,7 @@ def mux(job: Job, *, library: sound.Library | None = None) -> Path:
         if not needed.is_file():
             raise RenderError(f"{needed.relative_to(job.path).as_posix()} is missing before mux")
     library = library if library is not None else sound.load_catalogue()
-    result = sound_mix(job, library=library)
+    result = sound_mix(job, library=library, search=search)
     mix = stems / "mix.wav"
     master(result.premix if result is not None else voice, mix)
     _audio_rights(job, result, library)
@@ -1751,12 +1764,13 @@ def render_short(
     *,
     on_progress: Callable[[int], None] | None = None,
     library: sound.Library | None = None,
+    search: sound.AudioSearch | None = None,
 ) -> Path:
     """The whole `rendering` step (9.1): cut, voice stem, picture, sound and mux."""
     cut_presenter(job)
     voice_stem(job)
     render_picture(job, on_progress=on_progress)
-    return mux(job, library=library)
+    return mux(job, library=library, search=search)
 
 
 # --- the interface the pipeline uses ---------------------------------------------------
@@ -1783,6 +1797,14 @@ class Renderer(ABC):
 
 
 class RemotionRenderer(Renderer):
+    """The real step. `search` is the 7.2 runtime audio search the sound director asks
+    when no catalogue bed clears the style's threshold (`sound.freesound`, 024); the
+    renderer owns it the way the asset step owns its sources, so the pipeline's `render`
+    call stays the same with or without one."""
+
+    def __init__(self, *, search: sound.AudioSearch | None = None) -> None:
+        self._search = search
+
     def render(
         self,
         job: Job,
@@ -1790,7 +1812,7 @@ class RemotionRenderer(Renderer):
         on_progress: Callable[[int], None] | None = None,
         library: sound.Library | None = None,
     ) -> Path:
-        return render_short(job, on_progress=on_progress, library=library)
+        return render_short(job, on_progress=on_progress, library=library, search=self._search)
 
 
 class FakeRenderer(Renderer):

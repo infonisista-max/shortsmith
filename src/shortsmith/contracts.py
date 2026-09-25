@@ -411,6 +411,25 @@ class Catalogue(StrictModel):
     entries: list[AudioEntry] = []
 
 
+class AudioCandidate(StrictModel):
+    """One hit of the runtime audio search (7.2; ticket 024) before it is fetched: what
+    the source says about it (5.4: recorded, never filtered on), the page it lives on,
+    the preview the adapter downloads and the original's download URL for the log.
+    `id` is the source's own id; the catalogue entry it becomes is keyed by it."""
+
+    id: str
+    name: str
+    kind: AudioKind
+    tags: list[str] = []
+    licence: str
+    licence_url: str = ""
+    author: str | None = None
+    page_url: str
+    preview_url: str
+    download_url: str = ""
+    duration_s: float = 0.0
+
+
 class BalanceReport(StrictModel):
     """`work/stems/balance.json` (7.3): what the mix measured, and what the style asked
     for. `problems` is empty when the mix is inside the acceptance band."""

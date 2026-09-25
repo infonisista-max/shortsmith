@@ -16,9 +16,12 @@ track.
 
 **Bed (7.2).** `select_bed` scores every bed by tag overlap (theme, mood) less the
 energy distance, so a tag hit always outranks a closer energy; ties go to the bed whose
-drop point lands nearest the first stamp. Below `BED_SCORE_MIN` - no tag hit at all -
-`choose_bed` asks the `AudioSearch` adapter with the same query (Freesound in 024;
-`FakeAudioSearch` returns seeded catalogue entries only, so no test reaches the network).
+drop point lands nearest the first stamp. Below the style's `sound.bed_score_threshold`
+(the shipped 0.5 reads "no tag hit at all") `choose_bed` asks the `AudioSearch` adapter
+with the same query and the library it may grow: `sound.freesound` (024) searches,
+fetches, measures, checks and appends the result to the catalogue with its licence and
+author, so the rights row is an ordinary library row; `FakeAudioSearch` returns seeded
+catalogue entries only and records that it was asked, so no test reaches the network.
 
 **Floor hits (7.1).** The Dyson v2 mechanical hits are derived from plan events as the
 guaranteed floor so a short is never flat: `floor_hits` reads the style's
@@ -94,7 +97,8 @@ from shortsmith.contracts import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-CATALOGUE_PATH = REPO_ROOT / "assets" / "audio" / "catalog.yaml"
+CATALOGUE_NAME = "catalog.yaml"
+CATALOGUE_PATH = REPO_ROOT / "assets" / "audio" / CATALOGUE_NAME
 SAMPLE_RATE = ffmpeg.SAMPLE_RATE
 MIX_TIMEOUT_S = 1800.0
 MONO = f"aformat=channel_layouts=mono:sample_rates={SAMPLE_RATE}"
@@ -113,6 +117,12 @@ class Library:
 
     root: Path
     entries: tuple[AudioEntry, ...] = ()
+
+    @property
+    def catalogue(self) -> Path:
+        """The text file under `root` the entries came from, and that the audio search
+        appends to (024)."""
+        return self.root / CATALOGUE_NAME
 
     def beds(self) -> tuple[AudioEntry, ...]:
         return tuple(e for e in self.entries if e.kind == "bed")
@@ -162,9 +172,9 @@ def load_catalogue(path: Path = CATALOGUE_PATH) -> Library:
 # --- bed selection (7.2) ----------------------------------------------------------------
 
 # A tag hit is worth 1, so the energy distance (at most 4) can only order beds that
-# already agree on the tags; `BED_SCORE_MIN` is therefore "at least one tag matched".
+# already agree on the tags; the style's `sound.bed_score_threshold` of 0.5 therefore
+# reads "at least one tag matched" (7.2; the number lives in the front matter, 024).
 ENERGY_WEIGHT = 0.1
-BED_SCORE_MIN = 0.5
 
 
 def bed_score(entry: AudioEntry, query: BedQuery) -> float:
@@ -185,37 +195,41 @@ def drop_fit(entry: AudioEntry, first_stamp_s: float) -> float:
     return min(abs(d - first_stamp_s) for d in entry.drop_points_s)
 
 
-def select_bed(library: Library, query: BedQuery, *, first_stamp_s: float) -> AudioEntry | None:
-    """The best-scoring bed, ties broken by drop-point fit; None below the threshold."""
+def select_bed(
+    library: Library, query: BedQuery, *, first_stamp_s: float, threshold: float
+) -> AudioEntry | None:
+    """The best-scoring bed, ties broken by drop-point fit; None under `threshold`
+    (the style's `sound.bed_score_threshold`)."""
     beds = library.beds()
     if not beds:
         return None
     best = min(
         beds, key=lambda e: (-bed_score(e, query), drop_fit(e, first_stamp_s), e.id)
     )
-    return best if bed_score(best, query) >= BED_SCORE_MIN else None
+    return best if bed_score(best, query) >= threshold else None
 
 
 class AudioSearch(ABC):
     """The runtime audio search (7.2): asked with the same bed query when the library
-    scores below the threshold. Freesound is ticket 024."""
+    scores under the threshold, and given the library so what it finds can be measured,
+    checked and appended to that catalogue (`sound.freesound`, 024)."""
 
     @abstractmethod
-    def search(self, query: BedQuery) -> list[AudioEntry]:
-        """Beds matching `query`, best first; empty when nothing matched."""
+    def beds(self, query: BedQuery, library: Library) -> list[AudioEntry]:
+        """Measured, catalogued beds matching `query`, best first; empty when nothing
+        matched or the source could not be reached. Never raises into the mix."""
 
 
 class FakeAudioSearch(AudioSearch):
-    """12.1: returns seeded catalogue entries only, so no test reaches the network."""
+    """12.1: returns seeded catalogue entries only, so no test reaches the network, and
+    records every query it was asked so a test can assert whether the gate opened."""
 
-    def __init__(self, library: Library) -> None:
-        self._library = library
+    def __init__(self) -> None:
         self.calls: list[BedQuery] = []
 
-    def search(self, query: BedQuery) -> list[AudioEntry]:
+    def beds(self, query: BedQuery, library: Library) -> list[AudioEntry]:
         self.calls.append(query)
-        beds = self._library.beds()
-        return sorted(beds, key=lambda e: (abs(e.energy - query.energy), e.id))
+        return sorted(library.beds(), key=lambda e: (abs(e.energy - query.energy), e.id))
 
 
 def choose_bed(
@@ -223,11 +237,12 @@ def choose_bed(
     query: BedQuery,
     *,
     first_stamp_s: float,
+    threshold: float,
     search: AudioSearch | None = None,
 ) -> tuple[AudioEntry | None, str]:
-    """The bed and the note the job log gets: the library's best, else the search
-    adapter's best, else none (7.2)."""
-    chosen = select_bed(library, query, first_stamp_s=first_stamp_s)
+    """The bed and the note the job log gets: the library's best over `threshold`, else
+    the search adapter's best, else none (7.2)."""
+    chosen = select_bed(library, query, first_stamp_s=first_stamp_s, threshold=threshold)
     if chosen is not None:
         return chosen, f"bed {chosen.id} from the library"
     if search is None:
@@ -235,7 +250,7 @@ def choose_bed(
             f"no bed for theme {query.theme!r} mood {query.mood!r}: nothing in the library "
             "scored and no audio search is configured"
         )
-    found = search.search(query)
+    found = search.beds(query, library)
     if not found:
         return None, f"no bed for theme {query.theme!r} mood {query.mood!r}: the search found none"
     return found[0], f"bed {found[0].id} from the audio search"
@@ -731,8 +746,9 @@ def build_mix(
     notes: list[str] = []
 
     bed, note = choose_bed(
-        library, story.bed_query, first_stamp_s=first_stamp_s(plan), search=search
-    )
+        library, story.bed_query, first_stamp_s=first_stamp_s(plan),
+        threshold=nums.bed_score_threshold, search=search,
+    )  # fmt: skip
     notes.append(note)
     music = _music_stem(
         stems, bed=bed, library=library, story=story, nums=nums,

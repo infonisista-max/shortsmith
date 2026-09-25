@@ -1,0 +1,12 @@
+{
+  "_note": "What FreesoundAudioSearch sends per search, recorded through an httpx MockTransport (no network). The Authorization header (`Token <FREESOUND_API_KEY>`) is left out on purpose; tests assert it is present without printing it. The key never travels in the URL.",
+  "method": "GET",
+  "url": "https://freesound.org/apiv2/search/text/",
+  "params": {
+    "query": "tech curious",
+    "filter": "duration:[20 TO 600]",
+    "fields": "id,name,tags,license,username,url,previews,download,duration,type",
+    "page_size": "5"
+  },
+  "sfx_filter": "duration:[0 TO 5]"
+}

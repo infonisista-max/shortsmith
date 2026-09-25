@@ -107,6 +107,7 @@ from shortsmith.planner import Planner
 from shortsmith.qa import technical
 from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
+from shortsmith.sound import freesound
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import Transcriber
 
@@ -233,14 +234,15 @@ def create_app(
     transcriber = transcriber or transcriber_module.from_settings(settings, ledger=_book)
     planner = planner or planner_module.from_settings(settings, ledger=_book)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
-    # `renderer` None means Remotion (ticket 004) and `gate` None the technical gate
-    # (006); tests pass `FakeRenderer` and `FakeGate`. The asset step follows
+    # `renderer` None means Remotion (ticket 004) carrying the 7.2 audio search
+    # `FREESOUND_API_KEY` enables (024), and `gate` None the technical gate (006);
+    # tests pass `FakeRenderer` and `FakeGate`. The asset step follows
     # `ASSET_SOURCES` / `ASSET_POLICY` (016) with the `web` adapter (017), the free
     # libraries (018) and the relevance judge `RELEVANCE_JUDGE` names (017).
     worker = pipeline.Worker(
         transcriber=transcriber,
         planner=planner,
-        renderer=renderer,
+        renderer=renderer or render.RemotionRenderer(search=freesound.from_settings(settings)),
         gate=gate,
         sourcing=sourcing or assets.from_settings(settings, ledger=_book),
         specs=specs,

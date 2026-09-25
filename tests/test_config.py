@@ -33,6 +33,7 @@ def _startup(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
 
 def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
     unlisted = {
+        "FREESOUND_API_KEY",
         "PEXELS_API_KEY",
         "PIXABAY_API_KEY",
         "PLANNER_MODEL",
@@ -76,6 +77,7 @@ def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.asset_sources == "owner,web,commons,openverse,pexels,pixabay,generate"
     assert s.pexels_api_key is None
     assert s.pixabay_api_key is None
+    assert s.freesound_api_key is None  # 024: no key, no runtime audio search
 
 
 def test_asset_sources_override(monkeypatch: pytest.MonkeyPatch) -> None:

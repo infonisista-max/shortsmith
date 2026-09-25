@@ -218,6 +218,32 @@ _ENTRIES = re.compile(r"^entries:", re.MULTILINE)
 FIELD_ORDER = tuple(AudioEntry.model_fields)
 
 
+def raw_entries(text: str) -> list[dict[str, Any]]:
+    """The catalogue's entries as the plain dicts the file holds (an empty list for an
+    empty or missing `entries`), so a rewrite keeps every field as the operator wrote it."""
+    loaded: object = yaml.safe_load(text)
+    listed = cast(dict[str, Any], loaded).get("entries") if isinstance(loaded, dict) else None
+    return list(cast(list[dict[str, Any]], listed)) if listed else []
+
+
+def catalogue_text(text: str, entries: Sequence[dict[str, Any]]) -> str:
+    """`text` with its `entries:` list replaced by `entries`: the header comment above
+    the list is kept word for word; the list is dumped in field order. Both `measure`
+    and the audio search (024) write the file through this, so the shape is one."""
+    match = _ENTRIES.search(text)
+    header = text[: match.start()] if match else text
+    if header and not header.endswith("\n"):
+        header += "\n"
+    return header + yaml.safe_dump({"entries": list(entries)}, sort_keys=False, allow_unicode=True)
+
+
+def entry_dict(entry: AudioEntry) -> dict[str, Any]:
+    """An `AudioEntry` as the dict the catalogue holds, in the 7.2 field order, the
+    fields the measure left empty (`bpm`, `key`, `author`) left out rather than null."""
+    dumped = entry.model_dump(mode="json")
+    return {k: dumped[k] for k in FIELD_ORDER if k in dumped and dumped[k] is not None}
+
+
 def _with_measures(raw: dict[str, Any], measured: Measured) -> dict[str, Any]:
     """The entry with its measured fields replaced, in the 7.2 field order; a field the
     measure leaves empty is dropped rather than written as null."""
@@ -237,12 +263,10 @@ def measure(path: Path) -> int:
         print(f"no catalogue at {path}", file=sys.stderr)
         return 1
     text = path.read_text(encoding="utf-8")
-    loaded: object = yaml.safe_load(text)
-    raw_entries = cast(dict[str, Any], loaded).get("entries") if isinstance(loaded, dict) else None
-    if not raw_entries:
+    entries = raw_entries(text)
+    if not entries:
         print(f"{path.name}: no entries to measure")
         return 0
-    entries = cast(list[dict[str, Any]], raw_entries)
     problems: list[str] = []
     out: list[dict[str, Any]] = []
     for raw in entries:
@@ -261,9 +285,7 @@ def measure(path: Path) -> int:
             + (f", {measured.bpm} bpm" if measured.bpm is not None else "")
             + (f", {measured.key}" if measured.key is not None else "")
         )
-    match = _ENTRIES.search(text)
-    header = text[: match.start()] if match else ""
-    new_text = header + yaml.safe_dump({"entries": out}, sort_keys=False, allow_unicode=True)
+    new_text = catalogue_text(text, out)
     if not problems:
         try:
             parse_catalogue(new_text, name=path.name)

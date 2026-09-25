@@ -137,8 +137,10 @@ class Captions(CaptionStyle):
 
 
 class Sound(StrictModel):
-    """7.3 bed, envelope and cue numbers; the 7.1 floor hits; the forbidden list."""
+    """7.3 bed, envelope and cue numbers; the 7.1 floor hits; the forbidden list; the
+    7.2 bed-score line under which the audio search is asked (024)."""
 
+    bed_score_threshold: float
     bed_db_under_voice: float
     bed_accept_db: tuple[float, float]
     speech_band_hz: tuple[int, int]

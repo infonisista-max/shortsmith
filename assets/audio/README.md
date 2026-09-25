@@ -17,6 +17,19 @@ Every file is hand-listened by Shubham and passed through the sweep detector (ti
 before it is added, and its licence text is recorded in its `licence` field. `duration_s`,
 `bpm`, `key` and `energy` are measured by script; `tags` are hand-written.
 
+## Grown at runtime: `fetched/` (ticket 024)
+
+When no catalogue bed clears the style's `sound.bed_score_threshold`, the sound director
+asks the Freesound adapter (`sound.freesound`, enabled by `FREESOUND_API_KEY` in `.env`;
+the key is free and the search is not metered) with the same theme and mood tags. The
+best result's HQ preview is downloaded into `fetched/` (git-ignored like every audio
+file), measured by the same script as a seeded entry, and appended to `catalog.yaml` with
+`source: freesound`, its licence text and its author, tagged with the query it answered;
+it is then an ordinary library entry with an ordinary rights row, and the next job finds
+it without a call. A fetched SFX goes through the sweep detector first and is rejected on
+any hit; beds do not (a bed is one sound longer than 5 s by definition). Without a key
+the director has no search, says so in the job log, and the short goes without a bed.
+
 ## Tests and the smoke
 
 Neither uses this catalogue. `shortsmith.fixture.make_catalogue` synthesises a temporary
