@@ -23,7 +23,7 @@ Covers PRD "Deployment" day-3 measurement. Decision 9.1.
 
 ## Blocked by
 
-- Blocked by `issues/004-remotion-captions-pip-composition.md`
+- Nothing; 004 is done.
 
 ## User stories addressed
 

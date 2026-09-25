@@ -26,7 +26,6 @@ Covers PRD `gate`, `ledger` distribution. Decisions 14.1, 11.3, 9.2, 10.2, 10.3.
 ## Blocked by
 
 - Blocked by `issues/035-contact-sheet-summary-meta.md`
-- Blocked by `issues/045-job-list-page.md`
 
 ## User stories addressed
 

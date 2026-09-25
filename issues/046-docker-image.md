@@ -23,8 +23,7 @@ Covers PRD "Deployment". Decisions 9.1, 13.1.
 
 ## Blocked by
 
-- Blocked by `issues/030-transition-vocabulary-registry-complete.md`
-- Blocked by `issues/045-job-list-page.md`
+- Nothing; 030 was ordering-only (the image bundles whatever the tree holds), 045 is done.
 
 ## User stories addressed
 

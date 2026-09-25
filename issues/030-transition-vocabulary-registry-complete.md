@@ -19,7 +19,8 @@ Covers PRD render (transitions), "Global contracts" transition vocabulary, `styl
 - [ ] Transitions: `cut`, `fade` 0.35 s, `whip` 0.22 s with 14 px directional blur, `zoom` 0.3 s from 1.6, `spring` fly-in (damping 14, stiffness 160, mass 0.7), `wipe` 0.25 s; the next beat's enter carries the motion; exit is `cut` or `fade` only.
 - [ ] Style front matter `broll.enter_transitions`: explainer cut/fade/whip/zoom/spring, hitech cut/fade/wipe/zoom, educational cut/fade, animated all six; the renderer refuses a transition outside the beat's style list (defence in depth behind the grammar).
 - [ ] No transition triggers a cue (the sound director ignores transitions; test on a plan with a whip on every beat and no events → zero cues beyond the floor).
-- [ ] The registry lists captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list, chart, split, wall, map, infographic, pin_drop, route_arrow, label_flyin, counter, object_path and the six transitions; the explainer's `requires_components` lists all of them and loads as `shipped`.
+- [ ] The registry lists captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list, chart, split, wall, infographic, label_flyin, counter and the six transitions; the explainer's `requires_components` lists all of them and loads as `shipped`.
+- Rejoin note (board audit 2026-09-25): the four map components `map`, `pin_drop`, `route_arrow` and `object_path` are out of this ticket's list because 020 was demoted to ordinary HITL maps work and blocks nothing. They remain 9.2 tier-1 scope under 020/028 and rejoin the registry and the explainer's `requires_components` when those land; if unfinished at the day-14 gate, 047 reports each of the four by name as `incomplete`.
 - [ ] A test removes one component from a copy of the registry and asserts the explainer fails to load.
 - [ ] Smoke: FakePlanner's plan uses each of the five explainer transitions at least once; gates pass; smoke time recorded in the commit message.
 
@@ -33,9 +34,7 @@ Covers PRD render (transitions), "Global contracts" transition vocabulary, `styl
 
 ## Blocked by
 
-- Blocked by `issues/027-list-split-wall-components.md`
-- Blocked by `issues/028-pin-drop-route-arrow-object-path.md`
-- Blocked by `issues/029-label-flyin-counter.md`
+- Nothing; 027 and 029 are done, 028 follows the demoted 020 maps track (see the rejoin note above).
 
 ## User stories addressed
 

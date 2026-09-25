@@ -41,7 +41,7 @@ Long-form input: `reference add` accepts a long-form video (Tier A `id00R-3OmJ0`
 
 ## Blocked by
 
-- Blocked by `issues/023-sweep-detector-t6-catalogue-measure.md`
+- Nothing; 023 is done.
 
 ## User stories addressed
 

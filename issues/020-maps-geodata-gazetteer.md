@@ -25,7 +25,7 @@ Covers PRD `infographics` (maps), render `map`. Decisions 9.2, 9.3, 12.1, 13.1.
 
 ## Blocked by
 
-- Blocked by `issues/016-asset-step-ladder-rights.md`
+- Nothing; 016 is done.
 
 ## User stories addressed
 

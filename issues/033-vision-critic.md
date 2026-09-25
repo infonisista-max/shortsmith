@@ -25,7 +25,7 @@ Covers PRD `qa.critic`, `pipeline` critic step, `app` critic panel. Decisions 10
 
 ## Blocked by
 
-- Blocked by `issues/032-gate-t8-t11-t12-t13.md`
+- Nothing; 032 is done.
 
 ## User stories addressed
 

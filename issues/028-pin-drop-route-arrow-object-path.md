@@ -26,7 +26,7 @@ Covers PRD render (`pin_drop`, `route_arrow`, `object_path`). Decisions 9.2, 9.3
 ## Blocked by
 
 - Blocked by `issues/020-maps-geodata-gazetteer.md`
-- Blocked by `issues/026-hook-cards-finale-stamp-lower-third.md`
+- Note (board audit 2026-09-25): this ticket is AFK-typed but starts only after the HITL 020 maps work lands, since every animation takes its pixels from 020's `MapLayout`. 026 is done.
 
 ## User stories addressed
 

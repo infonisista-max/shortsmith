@@ -28,7 +28,6 @@ Covers PRD "Further Notes" slice 10. Decisions 1.4, 9.2, 9.4.
 ## Blocked by
 
 - Blocked by `issues/030-transition-vocabulary-registry-complete.md`
-- Blocked by `issues/032-gate-t8-t11-t12-t13.md`
 
 ## User stories addressed
 
