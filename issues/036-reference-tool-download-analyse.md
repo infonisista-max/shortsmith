@@ -32,6 +32,7 @@ Long-form input: `reference add` accepts a long-form video (Tier A `id00R-3OmJ0`
 ## Acceptance criteria
 
 - [ ] Tool verdicts for Gemini API, Demucs, PySceneDetect and Qwen are written in this ticket, each with use/reject and reason, dependency footprint, `046` Docker impact and per-reference API cost, before implementation starts.
+- [ ] Analysis output includes an effect inventory per reference: every visual effect/animation observed, with timestamp, duration, and what it emphasises (word / number / image / speaker) - including effects that have no name in our component registry, listed as 'unregistered'.
 - [ ] `python -m shortsmith.reference add <url> --category <c>` downloads with yt-dlp, stores `work/reference/<category>/<id>.mp4` (git-ignored), extracts `frames/*.jpg` with the README's ffmpeg command.
 - [ ] `reference.analyse(video) -> PatternData` measures cuts per 10 s, visual-change rate, transition density (fraction of cuts with motion blur or scale change in the adjacent frames), sound-hit density (onsets per 10 s in the non-speech band); each figure tagged MEASURED; caption pages, mode timeline and hook structure written as ESTIMATED placeholders until 037.
 - [ ] The category README is created or appended in the existing `docs/reference/README.md` format with the entry, figures, tags and the source URL; the pack version is bumped.

@@ -32,6 +32,7 @@ The real short for "`reference add` on a real short" comes from `docs/references
 ## Acceptance criteria
 
 - [ ] Tool verdicts for Gemini API, Demucs, PySceneDetect and Qwen are written in this ticket (or cited from an existing `036` verdict), each with use/reject and reason, dependency footprint, `046` Docker impact and per-reference API cost, before implementation starts.
+- [ ] Analysis output includes an effect inventory per reference: every visual effect/animation observed, with timestamp, duration, and what it emphasises (word / number / image / speaker) - including effects that have no name in our component registry, listed as 'unregistered'.
 - [ ] Caption pages per 10 s from OCR text changes on a 4 fps strip; a synthetic clip with drawn caption pages at known times yields the known count.
 - [ ] Mode timeline: face box per frame → `full` (large), `pip` (small circle region), `off` (none); B-roll fraction derived; tested on a synthetic clip with a face that changes size.
 - [ ] Hook structure: first 2 s at 4 fps written as `hook_strip.jpg` and described by one vision call (ledger row in a `reference` step); the description is tagged ESTIMATED.
