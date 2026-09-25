@@ -979,6 +979,55 @@ def test_spec_carries_the_palette_gradient_and_caption_style() -> None:
     assert spec.caption_style.keyword_fg == "#111" and spec.caption_style.keyword_bg == "#FFD60A"
 
 
+# --- transitions (ticket 030; decision 9.4) ---------------------------------------------
+
+
+def test_the_spec_carries_the_styles_transition_list_and_the_9_4_numbers() -> None:
+    """The composition reads the enabled list and every number from the spec, never
+    from code: the front matter's `broll.transitions` rows ride along verbatim."""
+    spec = _spec()
+    t = spec.transitions
+    assert t.enabled == ["cut", "fade", "whip", "zoom", "spring"]
+    assert t.fade.duration_s == 0.35
+    assert (t.whip.duration_s, t.whip.blur_px) == (0.22, 14)
+    assert (t.zoom.duration_s, t.zoom.scale_from) == (0.3, 1.6)
+    assert (t.spring.damping, t.spring.stiffness, t.spring.mass) == (14, 160, 0.7)
+    assert t.wipe.duration_s == 0.25
+    assert t == EXPLAINER.transitions
+
+
+def test_every_beat_carries_its_plan_enter_and_the_fake_uses_all_five() -> None:
+    plan = _plan()
+    spec = _spec()
+    assert [b.enter for b in spec.beats] == [b.enter for b in plan.beats]
+    assert {b.enter for b in spec.beats} == {"cut", "fade", "whip", "zoom", "spring"}
+
+
+def test_a_beat_entering_outside_the_style_list_fails_the_build() -> None:
+    """Defence in depth behind the grammar (9.4): the renderer refuses an enter the
+    style never enabled, naming the beat and the list."""
+    plan = _plan()
+    wiped = plan.model_copy(
+        update={
+            "beats": [
+                b.model_copy(update={"enter": "wipe"}) if b.id == "b05" else b for b in plan.beats
+            ]
+        }
+    )
+    with pytest.raises(render.RenderError, match=r"b05.*'wipe'.*enter_transitions.*9\.4"):
+        render.build_spec(
+            wiped,
+            _captions(plan),
+            presenter=Path("work/cut.mp4"),
+            source_size=(fixture.WIDTH, fixture.HEIGHT),
+            duration_s=fixture.DURATION_S,
+        )
+
+
+def test_registry_exports_the_six_transitions_after_030() -> None:
+    assert {"cut", "fade", "whip", "zoom", "spring", "wipe"} <= set(render.registry())
+
+
 # --- driver protocol ------------------------------------------------------------------
 
 

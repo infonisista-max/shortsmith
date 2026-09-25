@@ -367,7 +367,33 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
         f"render spec draws {drawn}",
     )
     check_set_pieces(spec, plan)
+    check_transitions(spec, plan)
     return manifest
+
+
+def check_transitions(spec: RenderSpec, plan: PicturePlan) -> None:
+    """030 (9.4): the spec carries the explainer's enter list and the vocabulary's
+    numbers from the front matter, every beat's `enter` is the plan's, and the fake plan
+    exercises each of the five explainer transitions at least once."""
+    style = styles.load_all(render.registry())[styles.DEFAULT]
+    check(
+        spec.transitions.enabled == list(style.broll.enter_transitions),
+        f"the render spec enables {spec.transitions.enabled}",
+    )
+    numbers = spec.transitions.model_dump(exclude={"enabled"})
+    check(
+        numbers == style.broll.transitions.model_dump(),
+        f"the render spec's transition numbers are not the front matter's: {numbers}",
+    )
+    check(
+        [b.enter for b in spec.beats] == [b.enter for b in plan.beats],
+        "a render beat's enter is not its plan beat's",
+    )
+    used = {b.enter for b in spec.beats}
+    check(
+        used == set(spec.transitions.enabled),
+        f"the fake plan enters with {sorted(used)}, not every explainer transition",
+    )
 
 
 def check_presenter(job: jobs.Job) -> int:

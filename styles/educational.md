@@ -48,6 +48,12 @@ broll:
     finale: {kind: fade, duration_s: 0.5}
   enter_transitions: [cut, fade]
   whip_max_per_3_beats: 0
+  transitions:
+    fade: {duration_s: 0.35}
+    whip: {duration_s: 0.22, blur_px: 14}
+    zoom: {duration_s: 0.3, scale_from: 1.6}
+    spring: {damping: 14, stiffness: 160, mass: 0.7}
+    wipe: {duration_s: 0.25}
   unique_assets_min_per_60s: 8
   unique_assets_max_per_60s: 16
   reuse_max: 4

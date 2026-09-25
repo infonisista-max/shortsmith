@@ -226,6 +226,39 @@ def test_nothing_on_whips_punch_ins_rings_or_lower_thirds(
     assert "b04" not in {h.beat_id for h in sound.floor_hits(bare, nums)}
 
 
+def test_no_transition_triggers_a_cue(
+    plan: PicturePlan, library: sound.Library, nums: styles.Sound
+) -> None:
+    """9.4 / 7.1 (030): a whip on every beat, no events, no planner cues and a flat mood
+    curve place nothing beyond the floor - the director never reads `enter`, so the
+    cues are exactly those of the same plan entering on cuts. (The grammar would reject
+    this plan; the director is tested past it.)"""
+
+    def entering(enter: str) -> PicturePlan:
+        return plan.model_copy(
+            update={
+                "beats": [
+                    b.model_copy(update={"enter": enter, "event": Event(kind="none"),
+                                         "counter": None})  # fmt: skip
+                    for b in plan.beats
+                ]
+            }
+        )
+
+    whipped, cut = entering("whip"), entering("cut")
+    assert all(b.enter == "whip" for b in whipped.beats)
+    silent = SoundStory(
+        prompt_version="t", theme="t",
+        mood_curve=[MoodPoint(t=0.0, level=0.0), MoodPoint(t=6.0, level=0.0)],
+        bed_query=BedQuery(theme="tech", mood="curious", energy=3), cues=[],
+    )  # fmt: skip
+    placed = sound.place_cues(whipped, silent, library, nums, runtime_s=60.0)
+    floor = {h.beat_id for h in sound.floor_hits(whipped, nums)}
+    assert {c.beat_id for c in placed.cues} == floor
+    assert all(c.source == "floor" for c in placed.cues)
+    assert placed == sound.place_cues(cut, silent, library, nums, runtime_s=60.0)
+
+
 def test_the_floor_classes_come_from_the_style(plan: PicturePlan, nums: styles.Sound) -> None:
     """The hit class per event is the style's `sound.floor_hits`, never code."""
     swapped = nums.model_copy(

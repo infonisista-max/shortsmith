@@ -35,7 +35,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import Field, ValidationError
 
-from shortsmith.contracts import CaptionStyle, Palette, StrictModel, Transition
+from shortsmith.contracts import CaptionStyle, Palette, StrictModel, Transition, Transitions
 
 STYLES_DIR = Path(__file__).resolve().parents[2] / "styles"
 DEFAULT = "explainer"
@@ -113,6 +113,9 @@ class Broll(StrictModel):
     motion: dict[str, dict[str, float | int | bool | str]]
     enter_transitions: list[Transition]
     whip_max_per_3_beats: int
+    # 030: the 9.4 vocabulary's numbers. Every spec carries all five rows, enabled or
+    # not, so the renderer reads one shape; `enter_transitions` is the subset it may use.
+    transitions: Transitions
     unique_assets_min_per_60s: int
     unique_assets_max_per_60s: int
     reuse_max: int

@@ -104,9 +104,17 @@ carries `counter` numbers - the digits of every frame written in
 `broll.motion.counter.grouping`, landing in the stamp's time with its shake, in the stamp's
 box measured on the widest text it shows (`counter_spec`).
 
+Ticket 030 (decision 9.4) carries the style's enter vocabulary on the spec
+(`RenderSpec.transitions`: the enabled subset from `broll.enter_transitions` and the
+numbers from `broll.transitions`), and `build_spec` refuses a beat whose `enter` is
+outside that list - the grammar already rejects it; this is the renderer's own guard.
+The composition draws each beat's picture through its `enter` and holds the previous
+beat beneath a `fade` or `wipe`, so the exit is always a cut or a fade.
+
 Every number the style front matter carries (the four `broll.motion` rows, the two y
-bands, the card count, the stamp palette name, `finale.min_s`/`max_s`) is read from
-it; the geometry read off the reference frames stays in the constants below.
+bands, the card count, the stamp palette name, `finale.min_s`/`max_s`, the transition
+rows) is read from it; the geometry read off the reference frames stays in the
+constants below.
 """
 
 from __future__ import annotations
@@ -168,6 +176,7 @@ from shortsmith.contracts import (
     SplitSpec,
     StampSpec,
     TitleWord,
+    TransitionStyle,
     VisualSpec,
     WallSpec,
 )
@@ -271,6 +280,8 @@ class StyleNumbers:
     finale: FinaleNumbers
     # 021: the `chart` and `infographic` rows, read by `infographics`.
     info: infographics.InfographicNumbers
+    # 030: the 9.4 enter list and numbers, carried on the spec verbatim.
+    transitions: TransitionStyle
 
 
 def broll_numbers(spec: StyleSpec) -> BrollNumbers:
@@ -334,6 +345,9 @@ def numbers_for(spec: StyleSpec) -> StyleNumbers:
         palette=spec.palette,
         finale=FinaleNumbers(min_s=spec.finale.min_s, max_s=spec.finale.max_s),
         info=infographics.numbers_for(spec),
+        transitions=TransitionStyle(
+            enabled=list(spec.broll.enter_transitions), **spec.broll.transitions.model_dump()
+        ),
     )
 
 
@@ -1340,6 +1354,11 @@ def build_spec(
     two_lines = set(captions.beats_with_two_lines)
     beats: list[BeatSpec] = []
     for b in plan.beats:
+        if b.enter not in numbers.transitions.enabled:
+            raise RenderError(
+                f"{b.id}: enter {b.enter!r} is not in the style's broll.enter_transitions "
+                f"{numbers.transitions.enabled} (9.4)"
+            )
         mode, visual = visuals.get(b.id, (b.mode, None))
         stamp = _stamp_text(b, manifest)
         labelled = visual is not None and visual.card is not None and visual.card.strip_px > 0
@@ -1405,6 +1424,7 @@ def build_spec(
         pip=geometry,
         palette=numbers.palette,
         caption_style=numbers.captions,
+        transitions=numbers.transitions,
     )
 
 

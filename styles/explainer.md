@@ -1,8 +1,9 @@
 ---
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
-requires_components: [captions, pip, hook_cards, finale, stamp, lower_third, list, split, wall,
-                      chart, infographic, label_flyin, counter, map]
+requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
+                      chart, split, wall, infographic, label_flyin, counter, map,
+                      cut, fade, whip, zoom, spring, wipe]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -61,6 +62,12 @@ broll:
           coast: "#9DBBF5", border: "#0B1D3A", coast_px: 3, border_px: 2}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
+  transitions:
+    fade: {duration_s: 0.35}
+    whip: {duration_s: 0.22, blur_px: 14}
+    zoom: {duration_s: 0.3, scale_from: 1.6}
+    spring: {damping: 14, stiffness: 160, mass: 0.7}
+    wipe: {duration_s: 0.25}
   unique_assets_min_per_60s: 12
   unique_assets_max_per_60s: 24
   reuse_max: 4
@@ -153,7 +160,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).
 - The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture, flying in one after another (`label_flyin`); a label that would land outside the phone's safe area fails the build.
 - A `map` beat is drawn from bundled map data, never sourced as a picture (9.3): it carries `map` with a `region` by name (a country, a state, "South Asia", or a city for a close-up) or a `bbox` of west, south, east, north degrees, 1 to `motion.map.markers_max` `markers` each `{name}` (write the place name; code looks the coordinate up and refuses a name it cannot find, so use the common English name), an optional `route` of two or more place names in order and an `object` (plane, ship or arrow) that travels it. The beat needs no `asset_id`. Its overlays are `pin_drop`, `route_arrow` (needs the route) and `object_path` (needs the route and the object).
-- Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4). Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
+- Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
 
 ## Captions
 - Word-synced from the ASR word list only; the planner never touches word times (6.1). Pages hold `words_per_page` words, preferring `prefer`; never split a marked name or number run; break on segment punctuation and on inter-word gaps over `gap_break_s`.

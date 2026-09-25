@@ -4,6 +4,8 @@
     "card",
     "chart",
     "counter",
+    "cut",
+    "fade",
     "finale",
     "hook_cards",
     "infographic",
@@ -14,7 +16,11 @@
     "photo",
     "pip",
     "split",
+    "spring",
     "stamp",
-    "wall"
+    "wall",
+    "whip",
+    "wipe",
+    "zoom"
   ]
 }

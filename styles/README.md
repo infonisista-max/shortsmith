@@ -9,7 +9,7 @@ Front matter must carry the seven key groups plus five more keys:
 | `aliases` | the resolver (1.1): words in the style line that pick this spec |
 | `beats` | grammar validator (3.1, 3.4) |
 | `presenter` | grammar validator (3.2) |
-| `broll` | grammar validator, asset step, renderer (4.1, 4.3, 9.2, 9.4) |
+| `broll` | grammar validator, asset step, renderer (4.1, 4.3, 9.2, 9.4); `enter_transitions` is the style's subset of the global vocabulary and `transitions` carries every row of its numbers (fade, whip, zoom, spring, wipe; `cut` has none), enabled or not |
 | `captions` | pager and renderer (6.1, 6.2, 6.3) |
 | `sound` | sound director and gate (7.1, 7.3) |
 | `finale` | grammar validator and gate |

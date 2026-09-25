@@ -445,6 +445,17 @@ export type CaptionStyle = {
   glow_px: number;
 };
 
+// 030: the 9.4 enter vocabulary - the style's enabled subset and every row's numbers,
+// read from the style front matter (`broll.transitions`); `cut` has no numbers.
+export type TransitionStyle = {
+  enabled: string[];
+  fade: { duration_s: number };
+  whip: { duration_s: number; blur_px: number };
+  zoom: { duration_s: number; scale_from: number };
+  spring: { damping: number; stiffness: number; mass: number };
+  wipe: { duration_s: number };
+};
+
 export type RenderSpec = {
   width: number;
   height: number;
@@ -460,6 +471,7 @@ export type RenderSpec = {
   pip: PipGeometry;
   palette: Palette;
   caption_style: CaptionStyle;
+  transitions: TransitionStyle;
 };
 
 // What the Studio shows with no spec: one second of gradient, no presenter.
@@ -509,5 +521,13 @@ export const EMPTY_SPEC: RenderSpec = {
     stroke_px: 2,
     drop_px: 3,
     glow_px: 18,
+  },
+  transitions: {
+    enabled: ["cut"],
+    fade: { duration_s: 0.35 },
+    whip: { duration_s: 0.22, blur_px: 14 },
+    zoom: { duration_s: 0.3, scale_from: 1.6 },
+    spring: { damping: 14, stiffness: 160, mass: 0.7 },
+    wipe: { duration_s: 0.25 },
   },
 };

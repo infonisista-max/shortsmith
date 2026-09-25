@@ -108,9 +108,11 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert (ex.finale.mode, ex.finale.min_s, ex.finale.max_s) == ("off", 0.8, 1.2)
     assert (ex.budget.judge_max_calls, ex.budget.search_max_queries) == (40, 60)  # 5.6
     assert ex.budget.gen_max_per_short == 8  # 5.5
+    # 030: the full tier-1 list, the two B-roll treatments and the six transitions (9.2, 9.4).
     assert ex.requires_components == [
-        "captions", "pip", "hook_cards", "finale", "stamp", "lower_third",
-        "list", "split", "wall", "chart", "infographic", "label_flyin", "counter", "map",
+        "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
+        "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
+        "cut", "fade", "whip", "zoom", "spring", "wipe",
     ]  # fmt: skip
     # 029: the counter writes its digits in the audience's grouping.
     assert ex.broll.motion["counter"] == {"kind": "count_up", "grouping": "indian"}
@@ -123,6 +125,76 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.broll.motion["chart"]["grouping"] == "indian"
     assert ex.broll.motion["infographic"]["labels_max"] == 5
     assert ex.palette.accent == "#FFD60A"
+
+
+TIER1_REGISTRY = [
+    "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
+    "list", "chart", "split", "wall", "infographic", "label_flyin", "counter",
+    "cut", "fade", "whip", "zoom", "spring", "wipe",
+]  # fmt: skip
+
+
+def test_the_registry_holds_every_tier_1_component_and_the_six_transitions() -> None:
+    """030: the renderer exports the whole tier-1 set (9.2) and the 9.4 vocabulary; the
+    four map animations rejoin with 028."""
+    assert set(TIER1_REGISTRY) <= set(REGISTRY), sorted(set(TIER1_REGISTRY) - set(REGISTRY))
+
+
+def test_the_explainer_requires_the_whole_registry_list_and_loads_shipped(
+    specs: dict[str, StyleSpec],
+) -> None:
+    ex = specs["explainer"]
+    assert ex.status == "shipped"
+    assert set(TIER1_REGISTRY) <= set(ex.requires_components)
+    assert set(ex.requires_components) <= set(REGISTRY)
+
+
+@pytest.mark.parametrize("component", TIER1_REGISTRY)
+def test_removing_a_component_from_the_registry_fails_the_explainer(component: str) -> None:
+    """030: a copy of the registry without one component, and the shipped spec that
+    requires it does not load (9.2)."""
+    without = [c for c in REGISTRY if c != component]
+    with pytest.raises(StyleError, match=rf"explainer.*\b{component}\b.*registry"):
+        styles.load_all(without)
+
+
+def test_each_style_enables_its_9_4_transition_subset(specs: dict[str, StyleSpec]) -> None:
+    assert specs["explainer"].broll.enter_transitions == ["cut", "fade", "whip", "zoom", "spring"]
+    assert specs["hitech"].broll.enter_transitions == ["cut", "fade", "wipe", "zoom"]
+    assert specs["educational"].broll.enter_transitions == ["cut", "fade"]
+    assert specs["animated"].broll.enter_transitions == [
+        "cut", "fade", "whip", "zoom", "spring", "wipe",
+    ]  # fmt: skip
+    for spec in specs.values():
+        assert spec.broll.enter_transitions[0] == "cut", spec.name
+
+
+def test_the_transition_numbers_are_the_9_4_decisions_in_every_spec(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """9.4: fade 0.35 s, whip 0.22 s with a 14 px directional blur, zoom 0.3 s from 1.6,
+    spring damping 14 / stiffness 160 / mass 0.7, wipe 0.25 s; `cut` has no numbers."""
+    for spec in specs.values():
+        t = spec.broll.transitions
+        assert t.fade.duration_s == 0.35, spec.name
+        assert (t.whip.duration_s, t.whip.blur_px) == (0.22, 14), spec.name
+        assert (t.zoom.duration_s, t.zoom.scale_from) == (0.3, 1.6), spec.name
+        assert (t.spring.damping, t.spring.stiffness, t.spring.mass) == (14, 160, 0.7), spec.name
+        assert t.wipe.duration_s == 0.25, spec.name
+
+
+def test_a_transition_row_missing_from_the_front_matter_fails_the_loader(
+    tmp_path: Path,
+) -> None:
+    """The vocabulary is global (9.4): every spec carries all five numbered rows, whether
+    or not it enables the transition, so the renderer reads one shape."""
+
+    def drop_whip(fm: dict[str, Any]) -> None:
+        del fm["broll"]["transitions"]["whip"]
+
+    where = _variant_dir(tmp_path, "educational", drop_whip)
+    with pytest.raises(StyleError, match=r"educational.*broll\.transitions\.whip"):
+        styles.load_all(REGISTRY, where)
 
 
 def test_explainer_pip_touches_the_caption_block_from_above(specs: dict[str, StyleSpec]) -> None:

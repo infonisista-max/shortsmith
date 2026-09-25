@@ -1272,6 +1272,45 @@ class Palette(StrictModel):
     accent: str
 
 
+class Timed(StrictModel):
+    """A transition with a length and nothing else (`fade`, `wipe`)."""
+
+    duration_s: float
+
+
+class WhipNumbers(Timed):
+    blur_px: int
+
+
+class ZoomNumbers(Timed):
+    scale_from: float
+
+
+class SpringNumbers(StrictModel):
+    damping: float
+    stiffness: float
+    mass: float
+
+
+class Transitions(StrictModel):
+    """9.4: the global enter vocabulary's numbers, one row per transition that has any
+    (`cut` has none), read from every style's `broll.transitions` front matter (030)."""
+
+    fade: Timed
+    whip: WhipNumbers
+    zoom: ZoomNumbers
+    spring: SpringNumbers
+    wipe: Timed
+
+
+class TransitionStyle(Transitions):
+    """What the composition reads (030): the style's enabled subset and the numbers.
+    The renderer refuses a beat whose `enter` is outside `enabled` (9.4, defence in
+    depth behind the grammar)."""
+
+    enabled: list[Transition]
+
+
 class CaptionStyle(StrictModel):
     """The 6.2 typography numbers the composition applies verbatim."""
 
@@ -1314,3 +1353,6 @@ class RenderSpec(StrictModel):
     pip: PipGeometry
     palette: Palette
     caption_style: CaptionStyle
+    # 030: the style's enter list and the 9.4 numbers; the composition animates each
+    # beat's `enter` from these.
+    transitions: TransitionStyle

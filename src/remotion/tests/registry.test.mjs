@@ -63,16 +63,68 @@ test("the composition lists map after ticket 020", () => {
   assert.ok(registry.components.includes("map"), "map is not registered");
 });
 
+const TRANSITIONS = ["cut", "fade", "whip", "zoom", "spring", "wipe"];
+
+test("the composition lists the six enter transitions after ticket 030", () => {
+  for (const name of TRANSITIONS) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+  }
+});
+
+test("the registry holds the whole tier-1 set the explainer requires (030)", () => {
+  const tier1 = ["captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards",
+                 "finale", "list", "chart", "split", "wall", "infographic", "label_flyin",
+                 "counter", ...TRANSITIONS];
+  for (const name of tier1) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+  }
+});
+
 test("Short.tsx draws every registered component", () => {
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const enters = readFileSync(join(root, "components", "transitions.tsx"), "utf-8");
   const drawn = { hook_cards: "HookCards", finale: "Finale", stamp: "Stamp",
                   lower_third: "LowerThird", photo: "Photo", card: "Card",
                   captions: "Captions", pip: "Pip", list: "List", split: "Split",
                   wall: "Wall", chart: "Chart", infographic: "Infographic",
                   label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase" };
+  // The transitions are drawn through the `Transition` dispatcher, one entry each.
+  assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   for (const name of registry.components) {
+    if (TRANSITIONS.includes(name)) {
+      assert.match(enters, new RegExp(`\\b${name}: `), `transitions.tsx never maps ${name}`);
+      continue;
+    }
     assert.match(short, new RegExp(`<${drawn[name]}\\b`), `Short.tsx never draws ${name}`);
   }
+});
+
+test("the transition dispatcher refuses an enter outside the style's list (9.4)", () => {
+  const enters = readFileSync(join(root, "components", "transitions.tsx"), "utf-8");
+  assert.match(enters, /numbers\.enabled\.includes\(enter\)/, "the enabled list is never read");
+  assert.match(enters, /throw new Error\(/, "an enter outside the list is not refused");
+});
+
+test("every transition reads its numbers from the spec, never a literal (9.4)", () => {
+  const rows = { fade: ["duration_s"], whip: ["duration_s", "blur_px"],
+                 zoom: ["duration_s", "scale_from"],
+                 spring: ["damping", "stiffness", "mass"], wipe: ["duration_s"] };
+  for (const [name, fields] of Object.entries(rows)) {
+    const source = readFileSync(join(root, "components", `${name}.tsx`), "utf-8");
+    assert.ok(source.includes(`numbers.${name}`), `${name}.tsx never reads numbers.${name}`);
+    for (const field of fields) {
+      assert.ok(source.includes(field), `${name}.tsx never reads ${field}`);
+    }
+  }
+  const cut = readFileSync(join(root, "components", "cut.tsx"), "utf-8");
+  assert.doesNotMatch(cut, /interpolate|spring\(/, "cut has no motion");
+});
+
+test("only fade and wipe hold the previous beat beneath (exit is cut or fade)", () => {
+  const enters = readFileSync(join(root, "components", "transitions.tsx"), "utf-8");
+  assert.match(enters, /enter === "fade" \|\| enter === "wipe"/);
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  assert.match(short, /holdsPrevious\(beat\.enter\)/, "Short.tsx never holds the previous beat");
 });
 
 test("the driver serves the asset image types", () => {

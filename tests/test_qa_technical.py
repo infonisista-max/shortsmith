@@ -912,7 +912,7 @@ def _spec(
     return RenderSpec(
         fps=30, frames=180, presenter="cut.mp4", source_width=1080, source_height=1920,
         beats=beats or [], captions=captions or [], pip=_pip(), palette=NUMBERS.palette,
-        caption_style=NUMBERS.captions,
+        caption_style=NUMBERS.captions, transitions=NUMBERS.transitions,
     )  # fmt: skip
 
 
