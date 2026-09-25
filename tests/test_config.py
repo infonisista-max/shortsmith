@@ -31,7 +31,11 @@ def _startup(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
     return _settings(monkeypatch, **env)
 
 
-def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
+def _settings(
+    monkeypatch: pytest.MonkeyPatch, *, env_file: str | Path | None = None, **env: str
+) -> Settings:
+    """Settings from `env` alone (every example key cleared first) plus `env_file`,
+    which is never the repo's `.env`: None or a temp file (board rules)."""
     unlisted = {
         "FREESOUND_API_KEY",
         "PEXELS_API_KEY",
@@ -49,7 +53,7 @@ def _settings(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
-    return config.load(env_file=None)
+    return config.load(env_file=env_file)
 
 
 def test_every_example_key_is_a_setting() -> None:
@@ -78,6 +82,75 @@ def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.pexels_api_key is None
     assert s.pixabay_api_key is None
     assert s.freesound_api_key is None  # 024: no key, no runtime audio search
+
+
+# 052: every optional key the code checks with `is None`.
+OPTIONAL_KEYS = (
+    "FREESOUND_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GROQ_API_KEY",
+    "GEMINI_API_KEY",
+    "PEXELS_API_KEY",
+    "PIXABAY_API_KEY",
+)
+
+
+def test_an_empty_key_in_the_environment_means_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """052: `KEY=` is "not set", never an empty token that arms an adapter and slips
+    past the startup check (11.3, 5.1, 7.2)."""
+    s = _settings(monkeypatch, SHORTSMITH_PASSCODE="", **{key: "" for key in OPTIONAL_KEYS})
+    for key in OPTIONAL_KEYS:
+        assert getattr(s, key.lower()) is None, key
+    assert s.shortsmith_passcode is None  # the app still refuses to start on it
+
+
+def test_an_empty_line_in_the_env_file_means_unset(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """052: the same through a dotenv file, the way the operator writes it."""
+    env_file = tmp_path / "env"
+    lines = [f"{key}=" for key in OPTIONAL_KEYS] + ["MAX_QUEUE=", "ASSET_SOURCES=", ""]
+    env_file.write_text("\n".join(lines), encoding="utf-8")
+    s = _settings(monkeypatch, env_file=env_file)
+    for key in OPTIONAL_KEYS:
+        assert getattr(s, key.lower()) is None, key
+    assert s.max_queue == 3
+    assert s.asset_sources == config.DEFAULT_ASSET_SOURCES
+    # A value on the same file is still read as written.
+    env_file.write_text("MAX_QUEUE=5\nGROQ_API_KEY=gsk_from_file\n", encoding="utf-8")
+    given = _settings(monkeypatch, env_file=env_file)
+    assert given.max_queue == 5
+    assert given.groq_api_key is not None
+    assert given.groq_api_key.get_secret_value() == "gsk_from_file"
+
+
+def test_an_empty_non_secret_value_falls_back_to_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """052: `MAX_QUEUE=` is the default 3, not a validation error; `ASSET_SOURCES=` is
+    the full 5.1 ladder, not an empty order."""
+    s = _settings(monkeypatch, MAX_QUEUE="", ASSET_SOURCES="")
+    assert s.max_queue == 3
+    assert s.asset_sources == config.DEFAULT_ASSET_SOURCES
+
+
+def test_an_empty_groq_key_still_stops_the_groq_transcriber_at_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """052 / 11.3: `GROQ_API_KEY=` must name the fix like a missing line does."""
+    with pytest.raises(config.ConfigError, match="GROQ_API_KEY"):
+        config.check_startup(
+            _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="groq", GROQ_API_KEY="")
+        )
+    with pytest.raises(config.ConfigError, match="ANTHROPIC_API_KEY"):
+        config.check_startup(
+            _startup(monkeypatch, PLANNER="api", TRANSCRIBER="fake", ANTHROPIC_API_KEY="")
+        )
+    with pytest.raises(config.ConfigError, match="GEMINI_API_KEY"):
+        config.check_startup(
+            _startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", IMAGE_GEN="gemini",
+                     GEMINI_API_KEY="")  # fmt: skip
+        )
 
 
 def test_asset_sources_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -158,13 +231,14 @@ def test_the_transcriber_defaults_to_groq_on_whisper_large_v3_in_hindi(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """12.1 / research §6: the real transcriber outside tests, fed as both approved
-    jobs were (whisper-large-v3, language forced to hi); an empty language means
-    Whisper detects it."""
+    jobs were (whisper-large-v3, language forced to hi). `auto` means Whisper detects
+    it; an empty value is unset, so it is `hi` again (052)."""
     s = _settings(monkeypatch)
     assert (s.transcriber, s.transcriber_model, s.transcriber_language) == (
         "groq", "whisper-large-v3", "hi",
     )  # fmt: skip
-    assert _settings(monkeypatch, TRANSCRIBER_LANGUAGE="").transcriber_language == ""
+    assert _settings(monkeypatch, TRANSCRIBER_LANGUAGE="auto").transcriber_language == "auto"
+    assert _settings(monkeypatch, TRANSCRIBER_LANGUAGE="").transcriber_language == "hi"
 
 
 def test_the_groq_transcriber_needs_a_key_at_startup(monkeypatch: pytest.MonkeyPatch) -> None:

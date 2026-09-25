@@ -366,6 +366,21 @@ def test_from_settings_builds_the_adapter_only_with_a_key() -> None:
     assert isinstance(built, freesound.FreesoundAudioSearch)
 
 
+def test_an_empty_freesound_key_means_no_search(
+    monkeypatch: pytest.MonkeyPatch, own_library: sound.Library
+) -> None:
+    """052 / 024: `FREESOUND_API_KEY=` in the operator's `.env` builds no adapter, so
+    the director's note says no search is configured instead of calling with `Token `."""
+    monkeypatch.setenv("FREESOUND_API_KEY", "")
+    search = freesound.from_settings(config.load(env_file=None))
+    assert search is None
+    chosen, note = sound.choose_bed(
+        own_library, BedQuery(theme="cooking", mood="nostalgic", energy=2),
+        first_stamp_s=1.0, threshold=THRESHOLD, search=search,
+    )  # fmt: skip
+    assert chosen is None and "no audio search is configured" in note
+
+
 def test_the_freesound_key_is_a_secret() -> None:
     s = _settings(freesound_api_key="freesound_secret")
     assert s.freesound_api_key is not None

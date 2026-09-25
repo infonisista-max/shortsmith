@@ -10,6 +10,7 @@ it runs on the operator's own subscription; `TRANSCRIBER=groq` (the default) nee
 `ASSET_SOURCES` must be an image source that
 exists, so a typo in that config edit stops the server instead of silently dropping a
 rung of the 5.1 ladder. A source whose free key is unset is skipped, not an error.
+An empty value (`KEY=` in `.env`, or an empty variable) counts as unset (052).
 """
 
 from __future__ import annotations
@@ -37,11 +38,18 @@ KNOWN_ASSET_SOURCES: frozenset[str] = frozenset(
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # 052: `env_ignore_empty` makes a bare `KEY=` line (or an empty variable) read as
+    # absent, so the field keeps its default. Otherwise an optional secret left blank in
+    # `.env` became `SecretStr('')`, armed the adapter with an empty token and passed
+    # the `is None` startup check that should have named it.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True, extra="ignore"
+    )
 
     # 12.1: the real transcriber outside tests; tests and smoke use the fake. Research
     # §6: both approved jobs ran whisper-large-v3 with the language forced to `hi`
-    # (the Hinglish-drift fix); empty lets Whisper detect it.
+    # (the Hinglish-drift fix); `auto` lets Whisper detect it (052: an empty value
+    # is unset, hence `hi`).
     transcriber: Transcriber = "groq"
     transcriber_model: str = "whisper-large-v3"
     transcriber_language: str = "hi"

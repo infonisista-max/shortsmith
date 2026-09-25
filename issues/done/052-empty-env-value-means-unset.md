@@ -50,6 +50,30 @@ skipped), 7.2 / 024 (no Freesound key → no runtime search).
       (`#FREESOUND_API_KEY=` → `FREESOUND_API_KEY=` and the other optional keys), and
       the header comment about empty values that can then go.
 
+## Done note (25 Sep 2026)
+
+- `Settings.model_config` gains `env_ignore_empty=True` (pydantic-settings 2.15 applies
+  it to both the process environment and the dotenv file). Every acceptance case is a
+  test in `tests/test_config.py` (environment, temp `_env_file`, `MAX_QUEUE=`,
+  `ASSET_SOURCES=`, `check_startup` on empty Groq / Anthropic / Gemini keys) and
+  `tests/test_freesound.py` (`FREESOUND_API_KEY=` builds no adapter; `choose_bed` then
+  says "no audio search is configured"). The passcode test with `""` still refuses.
+- One consequence the ticket did not foresee: `TRANSCRIBER_LANGUAGE=` used to mean "let
+  Whisper detect the language" (012). Under the new rule an empty value is unset, so it
+  is `hi` again. Detection now has a word: `TRANSCRIBER_LANGUAGE=auto`
+  (`transcriber.AUTO_LANGUAGE`; an empty string given to `Settings(...)` directly still
+  reads as auto, so the constructor path is unchanged). Tests updated in
+  `tests/test_config.py` and `tests/test_transcriber_groq.py`.
+- `.env.example` is denied to agent sessions; lines for the operator to change:
+  - Each optional key that is commented out can become a bare line again:
+    `#FREESOUND_API_KEY=` → `FREESOUND_API_KEY=`, and the same for `PEXELS_API_KEY`,
+    `PIXABAY_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (and `GROQ_API_KEY` if it
+    is commented out). A bare `KEY=` now means unset.
+  - The header comment explaining that an empty value is not "unset" can go.
+  - The `TRANSCRIBER_LANGUAGE` comment: "empty = auto-detect" → "`auto` = let Whisper
+    detect it; empty = the default `hi`".
+- Loops: ruff, pyright, pytest (1161 passed), smoke (T1–T13 pass, 48.9 s) all green.
+
 ## Blocked by
 
 - Nothing.

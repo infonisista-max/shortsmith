@@ -269,7 +269,10 @@ def test_from_settings_selects_by_transcriber() -> None:
     assert isinstance(groq, GroqTranscriber)
     assert groq.model == "whisper-large-v3"
     assert groq.language == "hi"
-    auto = from_settings(_settings(transcriber="groq", transcriber_language=""),
-                         ledger=lambda: book)
-    assert isinstance(auto, GroqTranscriber)
-    assert auto.language is None
+    # 052: `TRANSCRIBER_LANGUAGE=auto` is the spelling for "let Whisper detect it" now
+    # that an empty value in `.env` means unset; an empty string still reads as auto.
+    for spelling in ("auto", ""):
+        auto = from_settings(_settings(transcriber="groq", transcriber_language=spelling),
+                             ledger=lambda: book)
+        assert isinstance(auto, GroqTranscriber)
+        assert auto.language is None, spelling
