@@ -99,12 +99,14 @@ from shortsmith import planner as planner_module
 from shortsmith import transcriber as transcriber_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
-from shortsmith.contracts import ReferenceRecord
+from shortsmith.contracts import CriticReport, ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
 from shortsmith.jobs import SETTLED, STATUS_ORDER, Clock, Job, Status
 from shortsmith.pipeline import QueueFull
 from shortsmith.planner import Planner
+from shortsmith.qa import critic as critic_module
 from shortsmith.qa import technical
+from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
 from shortsmith.sound import freesound
@@ -199,6 +201,7 @@ def create_app(
     gate: Gate | None = None,
     sourcing: assets.Sourcing | None = None,
     detector: presenter.FaceDetector | None = None,
+    critic: Critic | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
     start_sweeper: bool = True,
@@ -247,6 +250,8 @@ def create_app(
         sourcing=sourcing or assets.from_settings(settings, ledger=_book),
         specs=specs,
         detector=detector,  # 013: None is the Haar detector; tests pass the fake
+        # 033: the editorial critic `CRITIC` names (10.2); tests pass the fake.
+        critic=critic or critic_module.from_settings(settings, ledger=_book),
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
         clock=clock,
@@ -844,7 +849,41 @@ def _result_block(job: Job) -> str:
     media = ""
     if job.status in SHOWS_SHORT and (job.out_dir / "short.mp4").is_file():
         media = _template("result.html").substitute(base=base)
-    return f"{media}<h2>Technical checks</h2>\n<ul class=\"checks\">\n{items}\n</ul>\n"
+    checks = f"<h2>Technical checks</h2>\n<ul class=\"checks\">\n{items}\n</ul>\n"
+    return f"{media}{checks}{_critic_block(report.critic)}"
+
+
+def _critic_block(report: CriticReport | None) -> str:
+    """The critic panel (10.2, 033): ten lines with score and reason, the overall, the
+    fix notes, the model name, the category, the "advisory" badge; or one sentence when
+    the critic could not answer. Nothing until the critic has run."""
+    if report is None:
+        return ""
+    mode = "advisory" if report.advisory else "blocking"
+    head = f'<h2>Critic <span class="badge {mode}">{mode}</span></h2>\n'
+    if report.status == "unavailable":
+        reason = html.escape(report.notes[0]) if report.notes else "no reason recorded"
+        return f'{head}<p class="critic-unavailable">The critic was unavailable: {reason}</p>\n'
+    lines = "\n".join(
+        f'  <li class="critic-line" data-line="{html.escape(line.name)}">'
+        f"<strong>{html.escape(line.name)} {html.escape(line.label)}</strong> "
+        f"{line.score}/10 · {html.escape(line.reason)}</li>"
+        for line in report.lines
+    )
+    parts = [
+        head,
+        f'<p class="critic-meta">model {html.escape(report.model)} · '
+        f"category {html.escape(report.category)}</p>\n",
+        f'<ul class="critic">\n{lines}\n</ul>\n',
+        f'<p class="critic-overall">Overall {report.overall}/10</p>\n',
+    ]
+    if report.fix_notes:
+        notes = "\n".join(f"  <li>{html.escape(note)}</li>" for note in report.fix_notes)
+        parts.append(f'<h3>Fix in five minutes</h3>\n<ol class="fixes">\n{notes}\n</ol>\n')
+    if report.notes:
+        noted = "\n".join(f"  <li>{html.escape(note)}</li>" for note in report.notes)
+        parts.append(f'<ul class="critic-notes">\n{noted}\n</ul>\n')
+    return "".join(parts)
 
 
 def _ledger_block(job: Job, average: ledger.RunningAverage | None = None) -> str:

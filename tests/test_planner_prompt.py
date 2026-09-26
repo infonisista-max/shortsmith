@@ -16,6 +16,7 @@ import pytest
 
 from shortsmith import fixture
 from shortsmith.contracts import (
+    CATEGORIES,
     Constraints,
     PicturePlan,
     PlanFeedback,
@@ -148,6 +149,15 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
         "must use",
     ):
         assert needle in text, needle
+
+
+def test_the_picture_prompt_names_the_categories_the_planner_may_choose_from() -> None:
+    """10.3 / 033: the category is set by the planner from the fixed list, so the list
+    is in the instructions in words, not only in the schema."""
+    text = prompt.build_prompt(_request(), "picture")
+    assert "`category`" in text
+    assert ", ".join(CATEGORIES) in text
+    assert '"category"' in text  # the schema carries the field too
 
 
 def test_the_sound_prompt_carries_the_snapped_picture_and_the_catalogue_tags() -> None:

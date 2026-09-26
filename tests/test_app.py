@@ -23,12 +23,20 @@ from pydantic import SecretStr
 from shortsmith import app as app_module
 from shortsmith import auth, fixture, jobs, render, styles, sweeper
 from shortsmith.config import ConfigError, Settings
-from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest
+from shortsmith.contracts import (
+    CRITIC_LINES,
+    CriticReport,
+    PicturePlan,
+    PlanFeedback,
+    PlanRequest,
+)
 from shortsmith.ingest import MIB, Limits
 from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
 from shortsmith.planner import ApiPlanner, ClaudeCodePlanner, FakePlanner
 from shortsmith.presenter import FakeFaceDetector
+from shortsmith.qa import critic as critic_module
 from shortsmith.qa import technical
+from shortsmith.qa.critic import FakeCritic, VisionCritic
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber, GroqTranscriber
@@ -56,6 +64,8 @@ def _settings(tmp_path: Path, passcode: str | None = PASSCODE, **overrides: Any)
     overrides.setdefault("transcriber", "fake")
     # ...and the fake relevance judge: `api` (the default, 5.2) needs one too (017).
     overrides.setdefault("relevance_judge", "fake")
+    # ...and the fake critic: `api` (the default, 10.2) needs the same key (033).
+    overrides.setdefault("critic", "fake")
     # ...and the fake image source: the default order's `web` is a real HTTP adapter
     # (017), and no test ever reaches the network (board rules).
     overrides.setdefault("asset_sources", "fake")
@@ -337,6 +347,66 @@ def test_job_page_after_the_worker_ran_shows_the_delivered_short(
     for name in technical.CHECK_ORDER:
         assert f'<li class="check pass">{name} pass' in body
     assert "FAIL" not in body and "not implemented" not in body
+
+
+def test_job_page_shows_the_critic_panel_on_a_delivered_job(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    """10.2 / 033: ten lines with score and reason, the overall, the fix notes, the
+    model name and the advisory badge; the report is also in the served qa.json."""
+    location = _post(client, media.clip()).headers["location"]
+    assert app.state.worker.run_next() is True
+    body = client.get(location).text
+    assert "<h2>Critic" in body and '<span class="badge advisory">advisory</span>' in body
+    for (name, label), score in zip(CRITIC_LINES, FakeCritic.SCORES, strict=True):
+        assert (
+            f'<li class="critic-line" data-line="{name}"><strong>{name} {label}</strong> '
+            f"{score}/10 · fake: {label} as planned</li>"
+        ) in body
+    assert f'<p class="critic-overall">Overall {FakeCritic.OVERALL}/10</p>' in body
+    for note in FakeCritic.NOTES:
+        assert f"<li>{html.escape(note)}</li>" in body
+    assert "model fake" in body and "category science" in body
+    assert "no reference data for science" in body
+    report = client.get(f"{location}/qa.json").json()
+    assert report["critic"]["overall"] == FakeCritic.OVERALL
+    assert report["critic"]["advisory"] is True
+
+
+def test_job_page_says_when_the_critic_was_unavailable(tmp_path: Path, media: Media) -> None:
+    class _Down(FakeCritic):
+        def score(self, inputs: critic_module.Inputs) -> CriticReport:
+            raise critic_module.CriticError("the critic answered 529: overloaded")
+
+    app = app_module.create_app(
+        _settings(tmp_path), transcriber=FakeTranscriber(), planner=FakePlanner(),
+        renderer=FakeRenderer(), gate=FakeGate(), specs=SPECS, detector=FakeFaceDetector(),
+        critic=_Down(), start_worker=False,
+    )  # fmt: skip
+    with TestClient(app) as client:
+        login(client)
+        location = _post(client, media.clip()).headers["location"]
+        assert app.state.worker.run_next() is True
+        body = client.get(location).text
+        assert 'data-step="delivered" class="step current"' in body
+        assert (
+            '<p class="critic-unavailable">The critic was unavailable: '
+            "the critic answered 529: overloaded</p>"
+        ) in body
+        assert 'class="critic-line"' not in body
+
+
+def test_the_app_builds_the_critic_from_the_config(tmp_path: Path) -> None:
+    """10.2: `CRITIC=api` is the vision critic on `CRITIC_MODEL`; the app tests run on
+    the fake, which `_settings` selects."""
+    app = app_module.create_app(
+        _settings(tmp_path, critic="api", critic_model="claude-opus-5",
+                  anthropic_api_key=SecretStr("sk-x")),
+        transcriber=FakeTranscriber(), planner=FakePlanner(), specs=SPECS,
+        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+    )  # fmt: skip
+    built = app.state.worker._critic  # pyright: ignore[reportPrivateUsage]
+    assert isinstance(built, VisionCritic) and built.model == "claude-opus-5"
 
 
 class _StillPlanner(FakePlanner):

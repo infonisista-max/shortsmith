@@ -65,8 +65,13 @@ the short as the voice alone.
 `qa` runs the technical gate (`qa.gate.Gate`: T1-T13, 032) which writes `out/qa.json`;
 a failing check fails the job at `qa` naming the check. The gate is built with the
 same specs the grammar judged the plan by, since T8 re-validates the plan. When every
-check passes the gate composes `out/contact.jpg`, and the job is `delivered` once
-`short.mp4`, `contact.jpg`, `rights.json` and `credits.md` exist (10.4).
+check passes the gate composes `out/contact.jpg`, and once `short.mp4`, `contact.jpg`,
+`rights.json` and `credits.md` exist (10.4) the critic (`qa.critic`, 033; 10.2) scores
+the short from the sheet, the strips and the plan and writes its report into the same
+`out/qa.json`. The critic is advisory: one that cannot answer leaves an `unavailable`
+report and the job is `delivered` all the same; only its hard-cap refusal
+(`BudgetExceeded`) fails the job, as every refused paid call does (11.3). The critic
+is injected like the adapters (`FakeCritic` unless the app passes the configured one).
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
@@ -106,6 +111,8 @@ from shortsmith.contracts import (
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.ledger import BudgetExceeded
 from shortsmith.planner import PlanInvalid, Planner
+from shortsmith.qa import critic as critic_module
+from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import Gate, TechnicalGate
 from shortsmith.render import RemotionRenderer, Renderer
 from shortsmith.styles import StyleError, StyleSpec
@@ -162,6 +169,7 @@ def run_job(
     specs: Specs | None = None,
     library: sound.Library | None = None,
     detector: presenter.FaceDetector | None = None,
+    critic: Critic | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
@@ -174,12 +182,14 @@ def run_job(
     sourcing = sourcing or assets.Sourcing()
     library = library if library is not None else sound.load_catalogue()
     detector = detector or presenter.HaarDetector()
+    # 033: the app passes the configured critic (`CRITIC`); there is no keyless real one.
+    critic = critic or FakeCritic()
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber, detector, specs)),
         ("planning", lambda j: _plan(j, planner, specs, library)),
         ("sourcing", lambda j: _source(j, sourcing, specs, clock)),
         ("rendering", lambda j: _render(j, renderer, clock, library)),
-        ("qa", lambda j: _qa(j, gate)),
+        ("qa", lambda j: _qa(j, gate, critic)),
     ]
     steps = steps[jobs.STEPS.index(start_step(job)) :]
     watchdog: subproc.Watchdog | None = None
@@ -414,7 +424,7 @@ class QaFailed(Exception):
         self.detail = detail
 
 
-def _qa(job: Job, gate: Gate) -> None:
+def _qa(job: Job, gate: Gate, critic: Critic) -> None:
     report = gate.check(job)
     failed = report.failed
     if failed is not None or not report.passed:
@@ -424,6 +434,9 @@ def _qa(job: Job, gate: Gate) -> None:
     missing = [name for name in DELIVERABLES if not (job.out_dir / name).is_file()]
     if missing:
         raise QaFailed("deliverables", f"missing out/{', out/'.join(missing)}")
+    # 033 / 10.2: the editorial gate, on the sheet the gate just composed; advisory, so
+    # it writes its report (or `unavailable`) and never stops delivery from here.
+    critic_module.run(job, critic)
 
 
 class Worker:
@@ -440,6 +453,7 @@ class Worker:
         specs: Specs | None = None,
         library: sound.Library | None = None,
         detector: presenter.FaceDetector | None = None,
+        critic: Critic | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
         clock: Clock = _utc_now,
@@ -453,6 +467,7 @@ class Worker:
         self._sourcing = sourcing or assets.Sourcing()
         self._library = library if library is not None else sound.load_catalogue()
         self._detector = detector or presenter.HaarDetector()
+        self._critic = critic or FakeCritic()  # 033: the app passes the configured one
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
         self._clock = clock
@@ -547,6 +562,7 @@ class Worker:
                 specs=self._specs,
                 library=self._library,
                 detector=self._detector,
+                critic=self._critic,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,

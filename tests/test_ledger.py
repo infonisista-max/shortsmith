@@ -39,6 +39,7 @@ PRICES = Prices(
 def _settings(tmp_path: Path, **overrides: object) -> Settings:
     overrides.setdefault("transcriber", "fake")  # 012: groq is the default outside tests
     overrides.setdefault("relevance_judge", "none")  # 017: `api` is the default (5.2)
+    overrides.setdefault("critic", "fake")  # 033: `api` is the default (10.2)
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         shortsmith_data_dir=tmp_path / "data",
@@ -128,10 +129,15 @@ def test_providers_in_use_follow_the_config(tmp_path: Path) -> None:
     assert ledger.providers_in_use(judged) == {"judge"}
     faked = _settings(tmp_path, planner="fake", relevance_judge="fake")
     assert ledger.providers_in_use(faked) == frozenset()
+    # 033: the critic is its own provider, priced like the planner; `fake` bills nothing.
+    criticised = _settings(tmp_path, planner="fake", critic="api")
+    assert ledger.providers_in_use(criticised) == {"critic"}
+    assert ledger.REQUIRED_UNITS["critic"] == ledger.REQUIRED_UNITS["planner"]
     full = _settings(
-        tmp_path, planner="api", image_gen="gemini", transcriber="groq", relevance_judge="api"
-    )
-    assert ledger.providers_in_use(full) == {"planner", "gemini", "groq", "judge"}
+        tmp_path, planner="api", image_gen="gemini", transcriber="groq", relevance_judge="api",
+        critic="api",
+    )  # fmt: skip
+    assert ledger.providers_in_use(full) == {"planner", "gemini", "groq", "judge", "critic"}
     # 012: the transcriber the config selects is what bills, not a key lying in .env.
     keyed = _settings(tmp_path, planner="fake", groq_api_key="k")  # noqa: S106 - test value
     assert ledger.providers_in_use(keyed) == frozenset()

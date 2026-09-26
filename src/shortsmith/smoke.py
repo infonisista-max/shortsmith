@@ -14,7 +14,8 @@ cascade on all eight strip stills with the 3.3 geometry on `job.json` and in the
 render spec (013), `work/picture.mp4` (H.264,
 1080x1920, round(6 x 30) frames, silent), the sound director's bed, cues, stems and
 balance report from a synthesised catalogue (022),
-`out/short.mp4`, `out/qa.json` with T1-T13 all passing (032; decision 12.1),
+`out/short.mp4`, `out/qa.json` with T1-T13 all passing (032; decision 12.1) and the
+fake critic's advisory report beside them, scored from the real sheet and strips (033),
 `out/contact.jpg` under 2 MB at the sheet's width with the PIP strip row, and the
 job's `uploaded -> ... -> qa -> delivered` trail, print one summary line and exit 0.
 Any failed assertion exits non-zero with the failing check on stderr. Over ninety
@@ -38,6 +39,7 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image
@@ -59,8 +61,10 @@ from shortsmith import (
     styles,
 )
 from shortsmith.contracts import (
+    CRITIC_LINES,
     TIER1_KINDS,
     Captions,
+    CriticReport,
     DiagramLayout,
     PicturePlan,
     RenderSpec,
@@ -70,7 +74,9 @@ from shortsmith.contracts import (
 )
 from shortsmith.ingest import Limits, VideoUpload
 from shortsmith.planner import FakePlanner, Planner, kinds_named
+from shortsmith.qa import critic as critic_module
 from shortsmith.qa import technical
+from shortsmith.qa.critic import FakeCritic
 from shortsmith.render import Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
@@ -179,10 +185,13 @@ def run_smoke(
     check((job.input_dir / "brief.md").is_file(), "ingest did not write input/brief.md")
     check((job.input_dir / "refs.json").is_file(), "ingest did not write input/refs.json")
 
-    # 009: the fake plan is judged by the fixture-shaped copy of explainer.
+    # 009: the fake plan is judged by the fixture-shaped copy of explainer. 033: the
+    # fake critic records what it was shown, so the strips are proved real below.
+    critic = FakeCritic()
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
         sourcing=smoke_sourcing(), specs=fixture.smoke_specs(specs), library=library,
+        critic=critic,
     )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
@@ -274,6 +283,7 @@ def run_smoke(
     check_qa(reloaded)
     sheet = job.out_dir / "contact.jpg"
     check_contact_sheet(sheet)
+    verdict = check_critic(reloaded, critic, plan)
     log_lines = reloaded.log_path.read_text(encoding="utf-8").splitlines()
     noted = [line.split(" ", 1)[1] for line in log_lines]
     # The steps' own notes (the sound director's summary, 022) sit between the status
@@ -284,6 +294,14 @@ def run_smoke(
         any(line.startswith("sound: bed ") for line in noted),
         f"the sound director left no summary in job.log: {noted}",
     )
+    # 033: the critic's line sits inside the `qa` step, after the gate's sheet.
+    critic_lines = [line for line in noted if line.startswith("critic: ")]
+    check(len(critic_lines) == 1, f"expected one critic line in job.log, got {critic_lines}")
+    at = noted.index(critic_lines[0])
+    check(
+        noted.index("rendering -> qa") < at < noted.index("qa -> delivered"),
+        "the critic's line is not inside the qa step",
+    )
 
     elapsed = time.perf_counter() - started
     summary = (
@@ -293,6 +311,7 @@ def run_smoke(
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
         f"{' '.join(TECHNICAL_CHECKS)} pass, "
+        f"critic {verdict.overall}/10 {'advisory' if verdict.advisory else 'blocking'}, "
         f"contact {sheet.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
@@ -780,6 +799,62 @@ def check_qa(job: jobs.Job) -> None:
         f"T13 did not record the empty ledger: {details['T13']}",
     )
     check(report.passed, "qa.json says the report failed although every check passed")
+
+
+def check_critic(job: jobs.Job, critic: FakeCritic, plan: PicturePlan) -> CriticReport:
+    """033 (10.2, 10.3): the fake critic scored the delivered short once, advisory, and
+    its report sits in `out/qa.json` beside T1-T13 with the plan's category and the
+    note that the library has no data for it yet. What it was shown is the proof that
+    `build_inputs` works on real media: the gate's sheet, the eight measured stills as
+    one strip, the first 2 s of the real short at 4 fps as another, the plan summary
+    with the 10.3 numbers, the mix's balance report and the transcript."""
+    report = technical.load_report(job)
+    assert report is not None
+    verdict = report.critic
+    check(verdict is not None, "qa.json carries no critic report")
+    assert verdict is not None
+    check(verdict.status == "scored", f"the critic report is {verdict.status}: {verdict.notes}")
+    check(verdict.advisory, "the critic is not advisory (10.2: advisory until calibrated)")
+    check(
+        [line.name for line in verdict.lines] == [name for name, _ in CRITIC_LINES],
+        f"the critic report lines are {[line.name for line in verdict.lines]}",
+    )
+    check(verdict.model == critic.model, f"the critic report names model {verdict.model!r}")
+    check(verdict.category == plan.category, f"the critic scored category {verdict.category!r}")
+    check(
+        f"no reference data for {plan.category}" in verdict.notes,
+        f"the report does not say the library has no {plan.category} data: {verdict.notes}",
+    )
+    check(critic.calls == 1, f"the critic was called {critic.calls} times, not once")
+    (shown,) = critic.inputs
+    check(shown.contact_sheet == (job.out_dir / "contact.jpg").read_bytes(),
+          "the critic was not shown out/contact.jpg")  # fmt: skip
+    for name, body, frames in (
+        ("PIP strip", shown.pip_strip, presenter.STRIP_COUNT),
+        ("hook strip", shown.hook_strip, contact_sheet.HOOK_FRAMES),
+    ):
+        check(body is not None, f"the critic was not shown the {name}")
+        assert body is not None
+        with Image.open(BytesIO(body)) as strip:
+            check(strip.format == "JPEG", f"the {name} is {strip.format}, not JPEG")
+            width = frames * critic_module.STRIP_FRAME_W + (frames + 1) * critic_module.STRIP_GUTTER
+            check(strip.width == width, f"the {name} is {strip.width} px wide, not {width}")
+    summary = shown.plan_summary
+    for needle in (
+        f"{len(plan.beats)} beats",
+        "modes by runtime: full",
+        "1 clamp: (6.1)",
+        "0 rescued",
+        "origins: ",
+        "web: ",
+        "generated: ",
+        f"category: {plan.category}",
+    ):
+        check(needle in summary, f"the plan summary lacks {needle!r}:\n{summary}")
+    check("inside the 7.3 band" in shown.balance, f"the balance text is {shown.balance!r}")
+    check(f"{EXPECTED_WORDS} words" in shown.transcript, "the transcript text lacks the words")
+    check(shown.anchors.startswith("## The bar"), "the anchors are not the reference pack's bar")
+    return verdict
 
 
 def check_contact_sheet(sheet: Path) -> None:

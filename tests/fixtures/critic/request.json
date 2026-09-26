@@ -1,0 +1,83 @@
+{
+  "model": "claude-sonnet-5",
+  "max_tokens": 4000,
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the editorial critic for Shortsmith, which turns a creator's talking-head recording into a 9:16 YouTube Short. You judge one finished short from its evidence: the contact sheet, the PIP strip, the hook strip, the plan summary, the stem balance report and the transcript. You do not see the video itself.\nThe bar is the market's best: editing at the level of top YouTube Shorts (Dhruv Rathee-style, CapCut-level polish). Calibration: the operator's two approved shorts, described in the anchors, rate 6 out of 10 on this scale; top-creator reference shorts rate 8; 10 is flawless and 1 is unwatchable. Where the category's pattern data gives measured ranges, score against them.\nScore every line 1-10 with exactly one reason each, in this order:\nE1 (hook): the first two seconds: a cold open that punches in on a face, then a title and cards that earn the next ten seconds.\nE2 (broll_relevance): every picture shows what its beat is about; cards and photos match the words, set pieces montage the short's own pictures.\nE3 (mode_variation): full, PIP and off alternate; no long run of one mode, the presenter never full-frame twice in a row.\nE4 (density): something changes on screen at least every 1.5 s: a beat, a landed event, a fly-in; nothing sits still.\nE5 (captions): two to four words a page, the keyword boxed, the block above the PIP and inside the safe area, hidden from the finale word.\nE6 (pip_framing): whole head plus neck and collar in the circle, chin near the lower third of it, never a tight face crop.\nE7 (sound): a quiet bed under the voice with short hits on stamps, reveals and the finale; no sweeps, no whooshes, nothing on cuts.\nE8 (payoff): the finale answers the hook; a callback, a reused asset or a number closes the loop the hook opened.\nE9 (integrity): every asset credited or disclosed, no watermark, no meme, no text inside a generated picture, numbers drawn from real data.\nE10 (embarrassment): nothing the presenter would be embarrassed to have posted: no mid-word cut, no frozen frame, no wrong picture, no misspelt stamp.\nThen give `overall`, 1-10, your verdict on the whole short (not an average), and up to 5 `fix_notes`: concrete fixes an editor could make in five minutes, the most valuable first.\nAnswer with JSON only: {\"lines\": [{\"name\": \"E1\", \"score\": 7, \"reason\": \"...\"}, ...], \"overall\": 7, \"fix_notes\": [\"...\"]}, the ten line objects in order, and nothing else.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    },
+    {
+      "type": "text",
+      "text": "## The bar\nGLOBAL: top YouTube Shorts",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "## Category pattern data (science)\n(none for this category)"
+        },
+        {
+          "type": "text",
+          "text": "## Plan summary\nRuntime: 6.0 s, 11 beats"
+        },
+        {
+          "type": "text",
+          "text": "## Stem balance\nbed 10.5 dB under the voice"
+        },
+        {
+          "type": "text",
+          "text": "## Transcript\nen, 6.0 s, 12 words: one two"
+        },
+        {
+          "type": "text",
+          "text": "## Notes on the inputs\n- no reference data for science"
+        },
+        {
+          "type": "text",
+          "text": "Contact sheet: the hook strip (first 2 s at 4 fps), the PIP strip, then one frame per second with a strip line under each (beat id, presenter mode F/P/O, visual kind as drawn, asset origin letter; a red corner marks a rescued or downgraded beat), safe-area outlines on the first frame of each row, and the technical summary panel."
+        },
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": "<jpeg base64>"
+          }
+        },
+        {
+          "type": "text",
+          "text": "PIP strip: the eight strip stills cropped through the measured window, as the presenter circle shows them, with the detector's face box drawn on each."
+        },
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": "<jpeg base64>"
+          }
+        },
+        {
+          "type": "text",
+          "text": "Hook strip: the first 2 s of the short at 4 fps, left to right."
+        },
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": "<jpeg base64>"
+          }
+        }
+      ]
+    }
+  ]
+}

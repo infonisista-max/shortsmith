@@ -33,9 +33,11 @@ from shortsmith import (
     subproc,
 )
 from shortsmith.contracts import (
+    CRITIC_LINES,
     Candidate,
     CaptionPage,
     Captions,
+    CriticReport,
     Cue,
     PicturePlan,
     PlanFeedback,
@@ -54,6 +56,9 @@ from shortsmith.planner import (
     UnavailablePlanner,
     prompt,
 )
+from shortsmith.qa import critic as critic_module
+from shortsmith.qa import technical
+from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import FakeGate, Gate
 from shortsmith.render import FakeRenderer, Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
@@ -90,7 +95,8 @@ def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
          planner: Planner | None = None, renderer: Renderer | None = None,
          gate: Gate | None = None,
          sourcing: assets.Sourcing | None = None,
-         detector: presenter.FaceDetector | None = None) -> jobs.Job:  # fmt: skip
+         detector: presenter.FaceDetector | None = None,
+         critic: Critic | None = None) -> jobs.Job:  # fmt: skip
     # 013: the fake detector, so the suite never waits on the cascade; the real one is
     # exercised below on the fixture and its faceless twin, and by the smoke.
     return pipeline.run_job(
@@ -102,6 +108,7 @@ def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
         sourcing=sourcing or _sourcing(),
         specs=SPECS,
         detector=detector or presenter.FakeFaceDetector(),
+        critic=critic or FakeCritic(),  # 033: the fake scores every delivered job
     )
 
 
@@ -130,8 +137,10 @@ def test_run_job_transcribes_plans_renders_gates_and_delivers(
     assert (job.out_dir / "contact.jpg").is_file()
     asr = Transcript.model_validate_json((job.work_dir / "asr.json").read_text(encoding="utf-8"))
     assert len(asr.words) == 12
+    # 033: the critic's note sits inside the `qa` step; the status trail is the rest.
+    assert _trail(job) == TRAIL
     log = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
-    assert log == TRAIL
+    assert len(log) == len(TRAIL) + 1 and log[-2].startswith("critic: overall ")
 
 
 class _Watching(FakeRenderer):
@@ -292,6 +301,77 @@ def test_the_worker_gates_through_the_technical_gate_by_default() -> None:
 
     worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
     assert isinstance(worker._gate, TechnicalGate)  # pyright: ignore[reportPrivateUsage]
+
+
+# --- the critic (10.2; ticket 033) --------------------------------------------------------
+
+
+def test_the_qa_step_runs_the_critic_after_the_gate_and_the_job_is_delivered(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """10.2: the critic scores every delivered job; its report sits in `out/qa.json`
+    beside T1-T13, advisory, and its line is in `job.log` inside the `qa` step."""
+    job = _uploaded(tmp_path, fixture_clip)
+    fake = FakeCritic()
+    done = _run(job, critic=fake)
+    assert done.status == "delivered"
+    report = technical.load_report(job)
+    assert report is not None and report.passed and report.critic is not None
+    assert report.critic.status == "scored" and report.critic.advisory is True
+    assert [line.name for line in report.critic.lines] == [n for n, _ in CRITIC_LINES]
+    assert report.critic.category == "science"
+    assert fake.calls == 1
+    (shown,) = fake.inputs
+    assert shown.contact_sheet is not None and shown.pip_strip is not None
+    assert "11 beats" in shown.plan_summary
+    noted = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
+    (critic_line,) = [line for line in noted if line.startswith("critic: ")]
+    assert noted.index("rendering -> qa") < noted.index(critic_line) < noted.index(
+        "qa -> delivered"
+    )
+
+
+class _UnreachableCritic(FakeCritic):
+    def score(self, inputs: critic_module.Inputs) -> CriticReport:
+        raise critic_module.CriticError("the critic could not be reached: boom")
+
+
+def test_a_critic_failure_never_blocks_delivery_while_advisory(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    done = _run(job, critic=_UnreachableCritic())
+    assert done.status == "delivered"
+    report = technical.load_report(job)
+    assert report is not None and report.critic is not None
+    assert report.critic.status == "unavailable"
+    assert report.critic.notes[0] == "the critic could not be reached: boom"
+
+
+class _OverBudgetCritic(FakeCritic):
+    def score(self, inputs: critic_module.Inputs) -> CriticReport:
+        raise BudgetExceeded("qa", spent_inr=70.0, estimated_inr=20.0, hard_inr=80.0)
+
+
+def test_the_critics_hard_cap_fails_the_job_at_qa_like_any_refused_paid_call(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """11.3: the hard cap is not an API failure; the job fails visibly at `qa`."""
+    done = _run(_uploaded(tmp_path, fixture_clip), critic=_OverBudgetCritic())
+    assert done.status == "failed"
+    assert done.record.error is not None and done.record.error.step == "qa"
+    assert done.record.error.message == "Budget exceeded at step qa."
+
+
+def test_a_failed_check_never_reaches_the_critic(tmp_path: Path, fixture_clip: Path) -> None:
+    fake = FakeCritic()
+    done = _run(_uploaded(tmp_path, fixture_clip), gate=FakeGate(fail="T2"), critic=fake)
+    assert done.status == "failed" and fake.calls == 0
+
+
+def test_the_worker_scores_through_the_fake_critic_unless_told_otherwise() -> None:
+    worker = pipeline.Worker(transcriber=FakeTranscriber(), planner=FakePlanner())
+    assert isinstance(worker._critic, FakeCritic)  # pyright: ignore[reportPrivateUsage]
 
 
 def test_the_worker_renders_through_remotion_by_default() -> None:
@@ -1087,7 +1167,10 @@ def _with_source(source: assets.ImageSource) -> assets.Sourcing:
 
 
 def _trail(job: jobs.Job) -> list[str]:
-    return [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
+    """The status lines of job.log; the steps' own notes (the critic's, 033) sit
+    between them and are left out here."""
+    lines = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
+    return [line for line in lines if line == "created uploaded" or " -> " in line]
 
 
 def test_retry_from_rendering_re_renders_and_calls_no_planner_and_no_source(

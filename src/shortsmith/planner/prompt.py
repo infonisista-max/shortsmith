@@ -29,6 +29,7 @@ from typing import Literal
 import yaml
 
 from shortsmith.contracts import (
+    CATEGORIES,
     TIER2_KINDS,
     PicturePlan,
     PlanFeedback,
@@ -38,13 +39,15 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v5 (ticket 020): the picture file gained the `map` recipe (region or bbox, markers by
-# name, route, object) and the rule that a map is drawn from bundled geodata, never
-# sourced; the sound file is unchanged. (v4, ticket 029: the `counter` overlay's numbers
-# and the `label_flyin` overlay on a diagram, the counter's landing as a sound event;
-# v3, ticket 021: the chart and diagram data; v2, ticket 027: the set-piece content
-# rules.)
-PROMPT_VERSION = "v5"
+# v6 (ticket 033): the picture file gained the `category` rule - the planner names the
+# short's category from the fixed list the reference library is organised by (10.3), so
+# the critic compares the short against that category; the sound file is unchanged.
+# (v5, ticket 020: the `map` recipe, region or bbox, markers by name, route, object, and
+# the rule that a map is drawn from bundled geodata, never sourced; v4, ticket 029: the
+# `counter` overlay's numbers and the `label_flyin` overlay on a diagram, the counter's
+# landing as a sound event; v3, ticket 021: the chart and diagram data; v2, ticket 027:
+# the set-piece content rules.)
+PROMPT_VERSION = "v6"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "
@@ -118,6 +121,7 @@ def _instructions(request: PlanRequest, call: Call) -> str:
         style_name=request.style.name,
         tiers=_tiers(request.style.numbers),
         full_reasons=", ".join(reasons),
+        categories=", ".join(CATEGORIES),
     )
 
 

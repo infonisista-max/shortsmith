@@ -1,0 +1,21 @@
+{
+  "id": "msg_01ShortsmithCritic000",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"lines\": [{\"name\": \"E1\", \"score\": 7, \"reason\": \"The cold open punches in on the face and the title lands inside two seconds.\"}, {\"name\": \"E2\", \"score\": 6, \"reason\": \"The card and the photo match their beats; the wall repeats the hook's pictures.\"}, {\"name\": \"E3\", \"score\": 8, \"reason\": \"Full, PIP and off alternate every beat or two; no mode runs long.\"}, {\"name\": \"E4\", \"score\": 7, \"reason\": \"Something changes on screen on every beat.\"}, {\"name\": \"E5\", \"score\": 8, \"reason\": \"Two to four words a page, the keyword boxed, nothing under the PIP.\"}, {\"name\": \"E6\", \"score\": 6, \"reason\": \"The chin sits high in the circle on three strip frames.\"}, {\"name\": \"E7\", \"score\": 7, \"reason\": \"The bed sits 10 dB under the voice with hits on the stamp and the finale.\"}, {\"name\": \"E8\", \"score\": 5, \"reason\": \"The finale word repeats the title instead of paying the question off.\"}, {\"name\": \"E9\", \"score\": 9, \"reason\": \"Every picture is credited and the generated ones are disclosed.\"}, {\"name\": \"E10\", \"score\": 9, \"reason\": \"Nothing on screen would embarrass the presenter.\"}], \"overall\": 7, \"fix_notes\": [\"Lower the PIP window so the chin sits at 82 % of the circle.\", \"Change the finale word to answer the hook's question.\", \"Give the wall its own pictures instead of the hook's three.\"]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 6120,
+    "cache_creation_input_tokens": 1830,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 410,
+    "service_tier": "standard"
+  }
+}

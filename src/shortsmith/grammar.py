@@ -38,6 +38,7 @@ from collections.abc import Sequence
 
 from shortsmith import presenter
 from shortsmith.contracts import (
+    CATEGORIES,
     TIER2_KINDS,
     Beat,
     Clamp,
@@ -168,6 +169,7 @@ def validate_picture(
     warnings += asset_warnings
     found += _transitions(beats, spec)
     found += _must_use(beats, plan, must_use)
+    found += _category(plan)
     warnings += _hook_wish(plan, brief)
 
     if found:
@@ -890,6 +892,20 @@ def _must_use(
         _v("2.3", None, f"must-use reference {ref!r} is not used by any beat or hook card")
         for ref in must_use
         if ref not in used
+    ]
+
+
+def _category(plan: PicturePlan) -> list[Violation]:
+    """10.3 (033): the short's category comes from the fixed list the reference
+    library is organised by; the message carries the list so the retry can pick."""
+    if plan.category in CATEGORIES:
+        return []
+    return [
+        _v(
+            "10.3",
+            None,
+            f"category {plan.category!r} is not one of {', '.join(CATEGORIES)}",
+        )
     ]
 
 

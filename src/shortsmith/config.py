@@ -5,8 +5,9 @@ Secrets are `SecretStr` so they never appear in logs or reprs. Tests construct
 `check_startup` is the 11.3 startup validation the app runs in its lifespan:
 `PLANNER=claude_code` (the default) needs `SHORTSMITH_SINGLE_OPERATOR=true`, since
 it runs on the operator's own subscription; `TRANSCRIBER=groq` (the default) needs
-`GROQ_API_KEY`; `PLANNER=api` and `RELEVANCE_JUDGE=api` (the default) need
-`ANTHROPIC_API_KEY`; `IMAGE_GEN=gemini` needs `GEMINI_API_KEY`; and every name in
+`GROQ_API_KEY`; `PLANNER=api`, `RELEVANCE_JUDGE=api` (the default) and `CRITIC=api`
+(the default, 033) need `ANTHROPIC_API_KEY`; `IMAGE_GEN=gemini` needs `GEMINI_API_KEY`;
+and every name in
 `ASSET_SOURCES` must be an image source that
 exists, so a typo in that config edit stops the server instead of silently dropping a
 rung of the 5.1 ladder. A source whose free key is unset is skipped, not an error.
@@ -26,6 +27,7 @@ Transcriber = Literal["fake", "groq"]
 AssetPolicy = Literal["any", "rights_safe"]
 ImageGen = Literal["none", "fake", "gemini"]
 RelevanceJudge = Literal["none", "fake", "api"]
+Critic = Literal["fake", "api"]
 GeocoderFallback = Literal["none", "nominatim"]
 
 # 5.1: the source order, written out in full. `owner` and `generate` are the fixed
@@ -87,6 +89,13 @@ class Settings(BaseSettings):
     # every beat on its source's own order; `fake` is what tests and smoke run on.
     relevance_judge: RelevanceJudge = "api"
     relevance_judge_model: str = "claude-haiku-4-5-20251001"  # 5.2: swappable by config
+    # 10.2 / 033: the editorial critic runs on every job from day one, advisory until
+    # calibrated (034). `api` is the vision critic on `CRITIC_MODEL` (the current
+    # Sonnet: it reads the whole contact sheet); `fake` is what tests and smoke run on,
+    # and a local run with no key. There is no `none`: skipping the critic is never
+    # allowed (11.3).
+    critic: Critic = "api"
+    critic_model: str = "claude-sonnet-5"
     # 5.5: ladder rung 2. `none` makes generation a no-op, `fake` writes the prompt on
     # a solid frame (a local run with no key), `gemini` is the direct REST adapter.
     # Model and endpoint are config strings, so another provider is an `.env` edit;
@@ -140,6 +149,12 @@ def check_startup(settings: Settings) -> None:
             "RELEVANCE_JUDGE=api calls the Anthropic Messages API for the image judge: "
             "set ANTHROPIC_API_KEY in .env, or RELEVANCE_JUDGE=none to source every beat "
             "on its source's own order (decision 5.2)"
+        )
+    if settings.critic == "api" and settings.anthropic_api_key is None:
+        raise ConfigError(
+            "CRITIC=api calls the Anthropic Messages API for the vision critic: set "
+            "ANTHROPIC_API_KEY in .env, or CRITIC=fake to score every job with the fixed "
+            "fake scores (decision 10.2)"
         )
     if settings.image_gen == "gemini" and settings.gemini_api_key is None:
         raise ConfigError(

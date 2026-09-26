@@ -25,9 +25,11 @@ def _example_keys() -> set[str]:
 
 
 def _startup(monkeypatch: pytest.MonkeyPatch, **env: str) -> Settings:
-    """Settings for a `check_startup` case: the judge defaults to `api`, which needs a
-    key of its own (5.2, 017), so a case not about the judge turns it off."""
+    """Settings for a `check_startup` case: the judge and the critic default to `api`,
+    which needs a key of its own (5.2, 017; 10.2, 033), so a case not about them turns
+    the judge off and the critic to the fake."""
     env.setdefault("RELEVANCE_JUDGE", "none")
+    env.setdefault("CRITIC", "fake")
     return _settings(monkeypatch, **env)
 
 
@@ -37,6 +39,8 @@ def _settings(
     """Settings from `env` alone (every example key cleared first) plus `env_file`,
     which is never the repo's `.env`: None or a temp file (board rules)."""
     unlisted = {
+        "CRITIC",
+        "CRITIC_MODEL",
         "FREESOUND_API_KEY",
         "PEXELS_API_KEY",
         "PIXABAY_API_KEY",
@@ -302,13 +306,38 @@ def test_the_relevance_judge_is_on_by_default_on_haiku_and_needs_a_key(
     swapped = _settings(monkeypatch, RELEVANCE_JUDGE_MODEL="claude-sonnet-5")
     assert swapped.relevance_judge_model == "claude-sonnet-5"
     with pytest.raises(config.ConfigError, match="RELEVANCE_JUDGE=none"):
-        config.check_startup(_settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+        config.check_startup(
+            _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", CRITIC="fake")
+        )
     config.check_startup(
         _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", ANTHROPIC_API_KEY="sk-x")
     )
     config.check_startup(
-        _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", RELEVANCE_JUDGE="fake")
+        _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", RELEVANCE_JUDGE="fake",
+                  CRITIC="fake")  # fmt: skip
     )
+
+
+def test_the_critic_is_on_by_default_on_sonnet_and_needs_a_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """10.2 / 033: the critic scores every job from day one on the current Sonnet, the
+    model swappable by config; `api` without ANTHROPIC_API_KEY stops the server naming
+    the fix, `fake` needs nothing, and there is no `none` (11.3: never skipped)."""
+    s = _settings(monkeypatch)
+    assert (s.critic, s.critic_model) == ("api", "claude-sonnet-5")
+    assert _settings(monkeypatch, CRITIC_MODEL="claude-opus-5").critic_model == "claude-opus-5"
+    with pytest.raises(config.ConfigError, match="CRITIC=fake"):
+        config.check_startup(
+            _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", RELEVANCE_JUDGE="none")
+        )
+    config.check_startup(
+        _settings(monkeypatch, PLANNER="fake", TRANSCRIBER="fake", RELEVANCE_JUDGE="none",
+                  ANTHROPIC_API_KEY="sk-x")  # fmt: skip
+    )
+    config.check_startup(_startup(monkeypatch, PLANNER="fake", TRANSCRIBER="fake"))
+    with pytest.raises(ValidationError):
+        _settings(monkeypatch, CRITIC="none")
 
 
 def test_the_planner_model_defaults_to_the_current_sonnet(monkeypatch: pytest.MonkeyPatch) -> None:

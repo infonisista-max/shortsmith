@@ -62,6 +62,13 @@ REQUIRED_UNITS: Mapping[str, tuple[str, ...]] = {
         "output_tokens",
     ),
     "search": ("queries",),
+    # 033: the vision critic's one call per job, priced like the planner's.
+    "critic": (
+        "input_tokens",
+        "cache_write_input_tokens",
+        "cache_read_input_tokens",
+        "output_tokens",
+    ),
     API_EQUIVALENT: ("input_tokens", "output_tokens"),
 }
 
@@ -141,6 +148,8 @@ def providers_in_use(settings: Settings) -> frozenset[str]:
         used.add(API_EQUIVALENT)
     if settings.relevance_judge == "api":
         used.add("judge")
+    if settings.critic == "api":
+        used.add("critic")
     if settings.image_gen == "gemini":
         used.add("gemini")
     if settings.transcriber == "groq":

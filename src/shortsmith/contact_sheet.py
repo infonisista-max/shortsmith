@@ -14,8 +14,8 @@ library, - none), with a red corner mark on a rescued (4.4) or downgraded (5.3) 
 The 6.3 platform safe-area zones are drawn as thin outlines on the
 first frame of every row. The last row is the summary panel: one dot per technical
 check T1-T13 (green pass, red fail, grey not run: the gate stopped before it, or a
-pre-032 report holding it), the critic scores as a placeholder until
-033, the relevance judge's spent calls against the style's ceiling (5.2), and the
+pre-032 report holding it), a pointer to the critic scores (they are in qa.json, 033;
+035 draws them here), the relevance judge's spent calls against the style's ceiling (5.2), and the
 ledger line (cash total, subscription tokens with their api-equivalent value, the
 soft-cap flag; 11.3). The file stays under 2 MB: `encode` steps the JPEG
 quality down and, as a last resort, scales the whole sheet.
@@ -356,9 +356,11 @@ def _draw_summary(
         draw.ellipse((x, cy - 8, x + 16, cy + 8), fill=colour)
         draw.text((x + 22, cy - 9), name, fill=TEXT_COLOUR, font=font)
         x += 70
+    # 033: the critic scores this sheet after it is composed, so its E1-E10 live in
+    # qa.json and on the job page; 035 redraws the panel with them.
     draw.text(
         (box.x + 12, box.y + 44),
-        f"critic E1-E10: pending (033) · {cost}",
+        f"critic E1-E10: in qa.json (drawn here by 035) · {cost}",
         fill=MUTED_COLOUR,
         font=font,
     )

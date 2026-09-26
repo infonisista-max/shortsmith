@@ -15,6 +15,7 @@ import pytest
 
 from shortsmith import fixture, grammar, render, smoke, styles
 from shortsmith.contracts import (
+    CATEGORIES,
     Beat,
     BedQuery,
     Constraints,
@@ -1018,3 +1019,19 @@ def test_planner_coordinates_on_a_marker_are_carried_not_rejected(spec: StyleSpe
     """9.3: the plan may write lat/lon; code ignores them (test in test_infographics)."""
     wrong = MapPlan(region="India", markers=[MapMarker(name="Delhi", lat=0.0, lon=0.0)])
     checked(_map(make_plan(), "b05", map=wrong), spec)
+
+
+# --- the category (10.3; ticket 033) ------------------------------------------------------
+
+
+def test_the_category_must_come_from_the_fixed_list(spec: StyleSpec) -> None:
+    """10.3: the planner names the short's category from `CATEGORIES`; anything else is
+    rejected at plan level with the list in the message, and `other` is allowed."""
+    for name in CATEGORIES:
+        checked(make_plan().model_copy(update={"category": name}), spec)
+    result = picture(make_plan().model_copy(update={"category": "cooking"}), spec)
+    assert rules(result) == {(None, "10.3")}
+    assert isinstance(result, grammar.Violations)
+    (line,) = result.lines()
+    assert line.startswith("plan (10.3): category 'cooking' is not one of ")
+    assert "history" in line and "other" in line

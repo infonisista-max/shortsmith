@@ -63,6 +63,7 @@ from shortsmith.contracts import (
     AssetManifest,
     CaptionPage,
     Captions,
+    CriticReport,
     CueRecord,
     CueSheet,
     PicturePlan,
@@ -121,8 +122,12 @@ class QaCheck(StrictModel):
 
 
 class QaReport(StrictModel):
+    """`out/qa.json`: the technical checks that ran, in order, and whether every one
+    passed; the critic's report (033, 10.2) once it has scored the delivered short."""
+
     checks: list[QaCheck]
     passed: bool
+    critic: CriticReport | None = None
 
     @property
     def failed(self) -> QaCheck | None:

@@ -22,6 +22,12 @@ planner:                    # PLANNER=api (one Messages call per planner call)
   cache_read_input_tokens: 0.025    # prompt-cache reads (the vendor charges below input)
   output_tokens: 1.25
 
+critic:                     # CRITIC=api (one vision Messages call per job, ticket 033)
+  input_tokens: 0.25
+  cache_write_input_tokens: 0.3125
+  cache_read_input_tokens: 0.025
+  output_tokens: 1.25
+
 search:                     # paid web image search, per query (free if scraped)
   queries: 0.2
 

@@ -7,7 +7,7 @@ AssetManifest and the RightsRow of the rights log (016), and the RenderSpec (004
 Planner-facing models use `extra="forbid"` so the JSON schema generated from them is
 the single source of truth embedded in the planner prompt; plan JSON is
 engine-agnostic (no render-engine terms in field names or values). QaReport lives in
-`qa.technical`; CriticReport and Meta arrive with their tickets.
+`qa.technical`; CriticReport (033) is here; Meta arrives with 035.
 """
 
 from __future__ import annotations
@@ -363,6 +363,22 @@ class WordRun(StrictModel):
         return self
 
 
+# 10.3: the reference library's categories. The planner names one per short from this
+# list (the grammar checks it, 033); the critic reads that category's pattern data and
+# frames (039). `other` is for a short none of the seeded categories fits.
+CATEGORIES: tuple[str, ...] = (
+    "history",
+    "geopolitics",
+    "finance",
+    "product",
+    "motivation",
+    "science",
+    "technology",
+    "health",
+    "other",
+)
+
+
 class PicturePlan(StrictModel):
     prompt_version: str
     cut: CutPlan
@@ -374,6 +390,13 @@ class PicturePlan(StrictModel):
     title: str
     description: str
     hashtags: list[str] = []
+    # 10.3 / 033: the short's subject category, one of `CATEGORIES`; the critic compares
+    # the short against that category's reference shorts. A plan from before 033 reads
+    # `other`.
+    category: str = Field(
+        default="other",
+        description=f"the short's subject category, one of: {', '.join(CATEGORIES)}",
+    )
 
 
 # --- sound story (decisions 7.1, 7.2, 8.1) ------------------------------------------
@@ -538,6 +561,67 @@ class PlanFeedback(StrictModel):
 
     previous: str
     violations: list[str]
+
+
+# --- the critic report (decisions 10.2, 10.3; ticket 033) ------------------------------
+
+# The E1-E10 rubric lines, in order: name and label.
+CRITIC_LINES: tuple[tuple[str, str], ...] = (
+    ("E1", "hook"),
+    ("E2", "broll_relevance"),
+    ("E3", "mode_variation"),
+    ("E4", "density"),
+    ("E5", "captions"),
+    ("E6", "pip_framing"),
+    ("E7", "sound"),
+    ("E8", "payoff"),
+    ("E9", "integrity"),
+    ("E10", "embarrassment"),
+)
+CRITIC_NOTES_MAX = 5  # 10.3: up to five "fix in 5 minutes" notes
+CriticStatus = Literal["scored", "unavailable"]
+
+
+class CriticLine(StrictModel):
+    """One rubric line: its name (E1-E10), its label, the 1-10 score and one reason."""
+
+    name: str
+    label: str
+    score: int = Field(ge=1, le=10)
+    reason: str
+
+
+class CriticReport(StrictModel):
+    """The editorial gate's verdict on one job (10.2): the ten lines in rubric order
+    with one reason each, the overall 1-10, up to five fix notes, the model that scored
+    it and whether it is advisory (10.2: advisory until the calibration streak of 034
+    flips it). `unavailable` is a critic that could not answer - an API failure, a reply
+    that was not the report - with the reason in `notes`; delivery is never blocked by
+    it while advisory. `category` is the plan's (10.3); `notes` also carries what the
+    inputs lacked (no reference data for the category, no hook strip)."""
+
+    status: CriticStatus = "scored"
+    lines: list[CriticLine] = []
+    overall: int | None = Field(default=None, ge=1, le=10)
+    fix_notes: list[str] = Field(default_factory=list, max_length=CRITIC_NOTES_MAX)
+    model: str
+    advisory: bool = True
+    category: str = "other"
+    notes: list[str] = []
+
+    @model_validator(mode="after")
+    def _shape_follows_status(self) -> CriticReport:
+        if self.status == "unavailable":
+            if self.lines or self.overall is not None:
+                raise ValueError("an unavailable report carries no lines and no overall")
+            return self
+        expected = [name for name, _ in CRITIC_LINES]
+        names = [line.name for line in self.lines]
+        if names != expected:
+            raise ValueError(f"lines must be {expected} in order, got {names}")
+        if self.overall is None:
+            raise ValueError("a scored report needs an overall")
+        return self
 
 
 # --- assets and rights (decisions 4.2, 4.4, 5.1, 5.3, 5.4, 5.6; ticket 016) ----------

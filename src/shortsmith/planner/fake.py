@@ -151,6 +151,7 @@ class FakePlanner(Planner):
             title="A short about nothing",
             description="Six seconds, twelve words, every kind of picture.",
             hashtags=["#shorts", "#nothing", "#synthetic"],
+            category="science",  # 033 / 10.3: a seeded category the library has no data for yet
         )
 
     def plan_sound(
