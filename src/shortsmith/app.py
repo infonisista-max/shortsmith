@@ -56,6 +56,12 @@ the critic-versus-phone comparison in `data/calibration.json` and settles the ve
 agreed N of last 5". `POST /jobs/<id>/performance` stores the published URL, views
 and retention; with `YOUTUBE_API_KEY` set and views left blank, one read-only Data API
 GET fills them. A job without a short answers 409 to both; a field off its range 422.
+Either save rewrites `out/meta.json` (035) so the record carries the latest verdict.
+
+Publishing text (10.4, ticket 035): once a job has a short its page shows the plan's
+title, the description with the credits and the disclosure line appended, and up to
+five hashtags, each in a block with a copy-to-clipboard button (`publishing`).
+`meta.json` is linked beside `qa.json`.
 
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
@@ -98,9 +104,11 @@ from shortsmith import (
     ingest,
     jobs,
     ledger,
+    meta,
     performance,
     pipeline,
     presenter,
+    publishing,
     render,
     styles,
     sweeper,
@@ -138,6 +146,7 @@ OUT_FILES: dict[str, str] = {
     "qa.json": "application/json",
     "rights.json": "application/json",  # 5.4 rights evidence (016)
     "credits.md": "text/markdown; charset=utf-8",
+    "meta.json": "application/json",  # 10.4 proof of the bar (035)
 }
 SHOWS_SHORT: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 QUEUE_RETRY_S = 3600  # "try in an hour"
@@ -546,7 +555,8 @@ def create_app(
         def store() -> None:
             rated = jobs.rate(job, score, note, now=clock)
             calibration.record(rated, now=clock)
-            calibration.apply(rated, now=clock)
+            settled = calibration.apply(rated, now=clock)
+            meta.write(settled, now=clock)  # 035: the record follows the verdict
 
         await run_in_threadpool(store)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
@@ -587,10 +597,11 @@ def create_app(
                 else:
                     source = "youtube"
                     note = f"views from YouTube at {clock().astimezone(jobs.IST):%d %b %H:%M} IST"
-            jobs.set_performance(
+            published = jobs.set_performance(
                 job, published_url=url, views=count, retention_pct=retention,
                 views_source=source, note=note, now=clock,
             )  # fmt: skip
+            meta.write(published, now=clock)  # 035: the audience lands on the record
 
         await run_in_threadpool(store)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
@@ -931,6 +942,7 @@ def render_job_page(
         references=references,
         brief=html.escape(brief),
         result=_result_block(job, agreed),
+        publishing=_publishing_block(job),
         feedback=_feedback_block(job),
         ledger=_ledger_block(job, average),
         json_url=f"/jobs/{html.escape(job.id)}.json",
@@ -1002,6 +1014,21 @@ def _critic_block(report: CriticReport | None, agreed: str = "") -> str:
         noted = "\n".join(f"  <li>{html.escape(note)}</li>" for note in report.notes)
         parts.append(f'<ul class="critic-notes">\n{noted}\n</ul>\n')
     return "".join(parts)
+
+
+def _publishing_block(job: Job) -> str:
+    """The copyable publishing text (10.4, 035): title, description with the credits
+    and the disclosure, hashtags; only once the job has a short and a plan."""
+    if job.status not in SHOWS_SHORT:
+        return ""
+    text = publishing.load(job)
+    if text is None:
+        return ""
+    return _template("publishing.html").substitute(
+        title=html.escape(text.title),
+        description=html.escape(text.description),
+        hashtags=html.escape(text.hashtag_line),
+    )
 
 
 def _feedback_block(job: Job) -> str:

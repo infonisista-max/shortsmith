@@ -27,10 +27,15 @@ from shortsmith.contact_sheet import (
     Box,
 )
 from shortsmith.contracts import (
+    CRITIC_LINES,
     AssetManifest,
     AssetRecord,
     Beat,
     BeatAsset,
+    BedQuery,
+    Clamp,
+    CriticLine,
+    CriticReport,
     CutPlan,
     FaceBox,
     Finale,
@@ -38,7 +43,9 @@ from shortsmith.contracts import (
     PicturePlan,
     PipGeometry,
     PresenterMeasurement,
+    SoundStory,
     Span,
+    ValidatedPlan,
 )
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaCheck, QaReport
@@ -280,6 +287,11 @@ def _strip_plan() -> PicturePlan:
     )  # fmt: skip
 
 
+def _sound_story() -> SoundStory:
+    return SoundStory(prompt_version="t", theme="t", mood_curve=[],
+                      bed_query=BedQuery(theme="t", mood="t", energy=1), cues=[])  # fmt: skip
+
+
 def _strip_manifest() -> AssetManifest:
     def record(asset_id: str, origin: str) -> AssetRecord:
         return AssetRecord.model_validate({
@@ -418,3 +430,156 @@ def test_compose_draws_the_strip_stills_of_a_measured_job(media: Media, tmp_path
     out = contact_sheet.compose(job)
     with Image.open(out) as saved:
         assert saved.size == (lay.width, contact_sheet.layout(HOOK_FRAMES, 6).height)
+
+
+# --- the summary panel (10.4; ticket 035) ----------------------------------------------------
+
+
+def _critic(**changes: object) -> CriticReport:
+    given: dict[str, object] = {
+        "lines": [
+            CriticLine(name=name, label=label, score=7 + (i % 3), reason=f"{label} ok")
+            for i, (name, label) in enumerate(CRITIC_LINES)
+        ],
+        "overall": 7,
+        "fix_notes": ["Tighten the cold open.", "Land the stamp on the number."],
+        "model": "fake",
+        "category": "science",
+    }
+    given.update(changes)
+    return CriticReport.model_validate(given)
+
+
+def _scored_report(critic: CriticReport | None) -> QaReport:
+    return _report(*([True] * 13)).model_copy(update={"critic": critic})
+
+
+def test_panel_lines_carry_the_critic_scores_the_fix_notes_and_the_counts() -> None:
+    lines = contact_sheet.panel_lines(
+        _scored_report(_critic()), "judge: off · ledger: INR 0.00 cash", "clamps 1 · rescued 0"
+    )
+    assert lines[0] == (
+        "critic: E1 7 · E2 8 · E3 9 · E4 7 · E5 8 · E6 9 · E7 7 · E8 8 · E9 9 · E10 7 · "
+        "overall 7/10 · advisory · fake"
+    )
+    assert lines[1] == "fix 1: Tighten the cold open."
+    assert lines[2] == "fix 2: Land the stamp on the number."
+    assert lines[-1] == "clamps 1 · rescued 0 · judge: off · ledger: INR 0.00 cash"
+    assert len(lines) == 4
+    blocking = contact_sheet.panel_lines(
+        _scored_report(_critic(advisory=False, fix_notes=[])), "ledger: -", "clamps 0 · rescued 0"
+    )
+    assert blocking == [
+        "critic: E1 7 · E2 8 · E3 9 · E4 7 · E5 8 · E6 9 · E7 7 · E8 8 · E9 9 · E10 7 · "
+        "overall 7/10 · blocking · fake",
+        "clamps 0 · rescued 0 · ledger: -",
+    ]
+
+
+def test_panel_lines_say_when_the_critic_has_not_run_or_could_not_answer() -> None:
+    assert contact_sheet.panel_lines(None, "ledger: -", "") == [
+        "critic: not scored yet",
+        "ledger: -",
+    ]
+    assert contact_sheet.panel_lines(
+        _scored_report(None), "ledger: -", "clamps 2 · rescued 1"
+    )[0] == "critic: not scored yet"
+    down = CriticReport(status="unavailable", model="fake", notes=["the critic answered 529"])
+    assert contact_sheet.panel_lines(_scored_report(down), "ledger: -", "")[0] == (
+        "critic: unavailable · the critic answered 529"
+    )
+
+
+def test_panel_lines_are_cut_to_the_panel_width() -> None:
+    long = _critic(fix_notes=["x" * 400])
+    lines = contact_sheet.panel_lines(_scored_report(long), "ledger: -", "")
+    assert len(lines[1]) <= contact_sheet.PANEL_CHARS and lines[1].endswith("…")
+    assert len(lines) <= contact_sheet.SUMMARY_LINES
+
+
+def test_the_summary_box_holds_the_dots_and_every_panel_line() -> None:
+    lay = contact_sheet.layout(HOOK_FRAMES, 6)
+    boxes = [
+        contact_sheet.panel_line_box(lay.summary, i) for i in range(contact_sheet.SUMMARY_LINES)
+    ]
+    assert boxes[0].y >= lay.summary.y + contact_sheet.DOTS_H
+    assert all(b.y + b.h <= lay.summary.y + lay.summary.h for b in boxes)
+    assert all(
+        later.y == earlier.y + contact_sheet.LINE_H
+        for earlier, later in zip(boxes, boxes[1:], strict=False)
+    )
+    assert contact_sheet.SUMMARY_LINES == 1 + 5 + 1  # the critic line, five notes, the counts
+
+
+def test_compose_image_draws_the_critic_line_the_notes_and_the_counts() -> None:
+    hook = [_solid((HOOK_W, HOOK_H), (0, 0, 0))] * HOOK_FRAMES
+    frames = [_solid((FRAME_W, FRAME_H), (0, 0, 0))]
+    lay = contact_sheet.layout(HOOK_FRAMES, 1)
+    image = contact_sheet.compose_image(
+        hook, frames, _scored_report(_critic()), "panel", "ledger: -",
+        counts="clamps 1 · rescued 0",
+    )  # fmt: skip
+    drawn = [0, 1, 2, contact_sheet.SUMMARY_LINES - 1]
+    for i in range(contact_sheet.SUMMARY_LINES):
+        box = contact_sheet.panel_line_box(lay.summary, i)
+        region = image.crop((box.x, box.y, box.x + box.w, box.y + box.h))
+        colours = len(region.getcolors(maxcolors=4096) or [])
+        assert (colours > 1) == (i in drawn), i
+
+    # The overall is drawn in the pass colour at 7 and above, the fail colour under it.
+    def panel_colours(critic: CriticReport) -> set[tuple[int, ...]]:
+        sheet = contact_sheet.compose_image(hook, frames, _scored_report(critic), "p", "ledger: -")
+        box = contact_sheet.panel_line_box(lay.summary, 0)
+        crop = sheet.crop((box.x, box.y, box.x + box.w, box.y + box.h))
+        return {c for _, c in (crop.getcolors(maxcolors=1 << 16) or []) if isinstance(c, tuple)}
+
+    assert contact_sheet.PASS_COLOUR in panel_colours(_critic(overall=7))
+    assert contact_sheet.FAIL_COLOUR in panel_colours(_critic(overall=6))
+
+
+def test_counts_line_names_the_clamps_and_the_rescued_beats() -> None:
+    validated = ValidatedPlan(
+        picture=_strip_plan(), sound=_sound_story(),
+        clamps=[Clamp(rule="6.1", beat_id=None, message="keywords trimmed"),
+                Clamp(rule="3.1", beat_id="b02", message="snapped")],
+    )  # fmt: skip
+    manifest = _strip_manifest()
+    assert contact_sheet.counts_line(validated, manifest) == "clamps 2 · rescued 1"
+    assert contact_sheet.counts_line(None, None) == "clamps 0 · rescued 0"
+    assert contact_sheet.clamped_beats(validated) == frozenset({"b02"})
+    assert contact_sheet.clamped_beats(None) == frozenset()
+
+
+def test_a_clamped_beat_gets_the_red_corner_too() -> None:
+    """10.4: the corner marks a rescued (4.4), downgraded (5.3) or clamped (8.2) beat."""
+    plain = contact_sheet.strip_line(1.25, _strip_plan(), _strip_manifest())
+    clamped = contact_sheet.strip_line(1.25, _strip_plan(), _strip_manifest(), clamped={"b02"})
+    assert (plain.text, plain.marked) == ("b02 P photo C", False)
+    assert (clamped.text, clamped.marked) == ("b02 P photo C", True)
+
+
+def test_compose_reads_the_critic_the_clamps_and_the_rescues_from_the_job(
+    media: Media, tmp_path: Path
+) -> None:
+    job = jobs.create(tmp_path)
+    (job.out_dir / "short.mp4").write_bytes(media.clip(duration_s=6.0, ext=".mp4").read_bytes())
+    (job.out_dir / "qa.json").write_text(_scored_report(_critic()).model_dump_json(), "utf-8")
+    validated = ValidatedPlan(
+        picture=_strip_plan(), sound=_sound_story(),
+        clamps=[Clamp(rule="3.1", beat_id="b02", message="snapped")],
+    )  # fmt: skip
+    (job.work_dir / "plan.json").write_text(_strip_plan().model_dump_json(), "utf-8")
+    (job.work_dir / "plan.validated.json").write_text(validated.model_dump_json(), "utf-8")
+    out = contact_sheet.compose(job)
+    lay = contact_sheet.layout(HOOK_FRAMES, 6)
+    with Image.open(out) as saved:
+        assert saved.size == (lay.width, lay.height)
+        # The b02 frame (t = 1 s) carries the clamp corner; the b01 frame does not.
+        b01, b02 = lay.frames[0], lay.frames[1]
+        corner = saved.getpixel((b02.frame.x + b02.frame.w - 3, b02.frame.y + 2))
+        assert isinstance(corner, tuple) and corner[0] > 150 and corner[1] < 120
+        plain = saved.getpixel((b01.frame.x + b01.frame.w - 3, b01.frame.y + 2))
+        assert isinstance(plain, tuple) and plain[0] < 120
+        box = contact_sheet.panel_line_box(lay.summary, 0)
+        region = saved.crop((box.x, box.y, box.x + box.w, box.y + box.h))
+        assert len(region.getcolors(maxcolors=1 << 16) or []) > 1

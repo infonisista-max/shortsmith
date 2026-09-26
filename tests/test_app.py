@@ -460,6 +460,57 @@ def test_a_rating_writes_the_calibration_and_the_page_shows_critic_agreed_n_of_5
     assert "critic agreed 1 of last 1" in client.get(location).text
 
 
+def test_the_job_page_offers_the_publishing_text_as_copyable_blocks(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    """10.4 / 035: title, description (the plan's text, the credits, the disclosure
+    when one applies) and up to five hashtags, each in a block with a copy button;
+    `meta.json` is linked and served."""
+    location = _delivered_job(client, app, media)
+    body = client.get(location).text
+    assert "<h2>Publish</h2>" in body
+    assert '<pre class="copy" id="publish-title">A short about nothing</pre>' in body
+    assert (
+        'id="publish-description">Six seconds, twelve words, every kind of picture.\n\n'
+        "Photo: fake web via https://fake.invalid/web/"
+    ) in body
+    assert '<pre class="copy" id="publish-hashtags">#shorts #nothing #synthetic</pre>' in body
+    assert body.count('data-copy-target="publish-') == 3 and "navigator.clipboard" in body
+    assert f'href="{location}/meta.json"' in body
+    served = client.get(f"{location}/meta.json")
+    assert served.status_code == 200
+    assert served.headers["content-type"].startswith("application/json")
+    assert served.json()["job_id"] == location.rsplit("/", 1)[1]
+    assert served.json()["delivered"] is True
+
+
+def test_the_publishing_block_waits_for_a_short(client: TestClient, media: Media) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    body = client.get(location).text
+    assert "<h2>Publish</h2>" not in body and "publish-title" not in body
+    assert client.get(f"{location}/meta.json").status_code == 404
+
+
+def test_a_rating_and_a_performance_save_rewrite_meta_json(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    location = _delivered_job(client, app, media)
+    first = client.get(f"{location}/meta.json").json()
+    assert first["rating"] is None and first["status"] == "delivered"
+    client.post(f"{location}/rating", data={"score": "6", "note": "ok"}, follow_redirects=False)
+    rated = client.get(f"{location}/meta.json").json()
+    assert rated["rating"]["score"] == 6 and rated["rating"]["note"] == "ok"
+    assert rated["status"] == "passed" and rated["delivered"] is True
+    client.post(
+        f"{location}/performance",
+        data={"published_url": "https://youtube.com/shorts/abc123DEF45", "views": "42"},
+        follow_redirects=False,
+    )
+    published = client.get(f"{location}/meta.json").json()
+    assert published["performance"]["views"] == 42
+    assert published["rating"]["score"] == 6
+
+
 def test_rating_refusals(client: TestClient, app: FastAPI, media: Media) -> None:
     """A job without a short cannot be rated (409), a score off the scale is 422, an
     unknown job 404; none of them writes anything."""

@@ -5,6 +5,13 @@ Shortsmith. Everything the planner and renderer produce is judged against them.
 The videos and frames are git-ignored under `work/reference/`; this README is
 the only committed part and contains the commands to regenerate the frames.
 
+Pack version: 1
+
+The pack version names the state of this library; every job's `out/meta.json`
+records the version its critic was calibrated on (decision 10.4, ticket 035).
+Bump it whenever an entry, a figure, a frame or the bar text changes; the
+`reference add` tool (036) bumps it on every entry it writes.
+
 ## The bar
 
 GLOBAL (every style): editing at the level of top YouTube Shorts (Dhruv

@@ -11,14 +11,18 @@ the beat at that time, its mode letter as drawn (F/P/O; a rung-4 rescue is P), i
 kind (the treatment actually drawn for photo and card beats), and the asset-origin
 letter (U user, W web, C Commons, O Openverse, P Pexels, X Pixabay, G generated, L
 library, - none), with a red corner mark on a rescued (4.4) or downgraded (5.3) beat.
-The 6.3 platform safe-area zones are drawn as thin outlines on the
-first frame of every row. The last row is the summary panel: one dot per technical
-check T1-T13 (green pass, red fail, grey not run: the gate stopped before it, or a
-pre-032 report holding it), a pointer to the critic scores (they are in qa.json, 033;
-035 draws them here), the relevance judge's spent calls against the style's ceiling (5.2), and the
-ledger line (cash total, subscription tokens with their api-equivalent value, the
-soft-cap flag; 11.3). The file stays under 2 MB: `encode` steps the JPEG
-quality down and, as a last resort, scales the whole sheet.
+A clamped beat (8.2) carries the same corner (035). The 6.3 platform safe-area zones
+are drawn as thin outlines on the first frame of every row. The last row is the
+summary panel (10.4, completed by 035): one dot per technical check T1-T13 (green
+pass, red fail, grey not run: the gate stopped before it, or a pre-032 report holding
+it), then `panel_lines`: the critic's E1-E10 scores with the overall (pass colour at
+7 and above, fail colour under), the mode and the model - or that it has not scored
+yet, or could not answer - up to five fix notes, and a last line with the clamp count,
+the rescued count, the relevance judge's spent calls against the style's ceiling (5.2)
+and the ledger line (cash total, subscription tokens with their api-equivalent value,
+the soft-cap flag; 11.3). The pipeline composes the sheet twice: once for the critic
+to score, once more with its scores drawn. The file stays under 2 MB: `encode` steps
+the JPEG quality down and, as a last resort, scales the whole sheet.
 
 `layout` is pure geometry so the tests pin every position; `compose_image` draws from
 in-memory frames; `compose(job)` pulls the frames from `out/short.mp4` in two ffmpeg
@@ -27,7 +31,7 @@ passes (`ffmpeg.frames_rgb`).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
@@ -35,7 +39,15 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from shortsmith import assets, ffmpeg, jobs, ledger, presenter
-from shortsmith.contracts import AssetManifest, FaceBox, PicturePlan, PresenterMeasurement
+from shortsmith.contracts import (
+    CRITIC_NOTES_MAX,
+    AssetManifest,
+    CriticReport,
+    FaceBox,
+    PicturePlan,
+    PresenterMeasurement,
+    ValidatedPlan,
+)
 from shortsmith.jobs import Job, JobRecord
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
@@ -62,9 +74,17 @@ PIP_H = PIP_W
 HEADER_H = 36
 LABEL_H = 20
 STRIP_H = 20
-SUMMARY_H = 72
+# 10.4 / 035: the summary panel is the dots row, then one line per `panel_lines` entry:
+# the critic line, up to five fix notes, and the counts-and-ledger line.
+DOTS_H = 36
+LINE_H = 20
+SUMMARY_LINES = 1 + CRITIC_NOTES_MAX + 1
+PANEL_PAD = 8
+SUMMARY_H = DOTS_H + SUMMARY_LINES * LINE_H + PANEL_PAD
+PANEL_CHARS = 220  # what fits across the panel at the 14 px font; longer lines are cut
 MAX_BYTES = 2_000_000
 TECHNICAL_CHECKS = technical.CHECK_ORDER  # T1-T13
+CRITIC_PASS = 7  # 10.2: the overall the critic passes a short at; its colour on the panel
 
 BG_COLOUR = (24, 24, 24)
 PANEL_COLOUR = (40, 40, 40)
@@ -220,17 +240,23 @@ class Strip:
     marked: bool
 
 
-def strip_line(t: float, plan: PicturePlan | None, manifest: AssetManifest | None) -> Strip:
-    """The strip under the frame at output time `t` (10.4)."""
+def strip_line(
+    t: float,
+    plan: PicturePlan | None,
+    manifest: AssetManifest | None,
+    clamped: Collection[str] = (),
+) -> Strip:
+    """The strip under the frame at output time `t` (10.4); `clamped` is the set of
+    beat ids the validator touched (8.2), marked like a rescue."""
     if plan is None or not plan.beats:
         return Strip("-", False)
     beat = next((b for b in plan.beats if b.start <= t < b.end), plan.beats[-1])
     decided = manifest.beat(beat.id) if manifest is not None else None
     mode, kind, asset_id = beat.mode, str(beat.kind), beat.asset_id
-    marked = False
+    marked = beat.id in clamped
     if decided is not None:
         asset_id = decided.asset_id
-        marked = decided.rescued or decided.treatment_downgraded
+        marked = marked or decided.rescued or decided.treatment_downgraded
         if decided.fallback_rung == 4:
             mode = "pip"
         elif beat.kind in ("photo", "card"):
@@ -336,17 +362,75 @@ def judge_line(manifest: AssetManifest | None) -> str:
     return line
 
 
+def counts_line(validated: ValidatedPlan | None, manifest: AssetManifest | None) -> str:
+    """The panel's counts (10.4): the validator's clamps (8.2) and the rescued beats (4.4)."""
+    clamps = len(validated.clamps) if validated is not None else 0
+    rescued = sum(1 for b in manifest.beats if b.rescued) if manifest is not None else 0
+    return f"clamps {clamps} · rescued {rescued}"
+
+
+def clamped_beats(validated: ValidatedPlan | None) -> frozenset[str]:
+    """The beat ids the validator touched (8.2): they get the strip's red corner."""
+    if validated is None:
+        return frozenset()
+    return frozenset(c.beat_id for c in validated.clamps if c.beat_id is not None)
+
+
+NOT_SCORED = "critic: not scored yet"
+
+
+def _cut(text: str) -> str:
+    return text if len(text) <= PANEL_CHARS else text[: PANEL_CHARS - 1] + "…"
+
+
+def critic_line(critic: CriticReport | None) -> str:
+    """The panel's critic line: E1-E10 with the overall, the mode and the model; or that
+    the critic has not scored yet, or could not answer (its reason first)."""
+    if critic is None:
+        return NOT_SCORED
+    if critic.status == "unavailable":
+        reason = critic.notes[0] if critic.notes else "no reason recorded"
+        return f"critic: unavailable · {reason}"
+    scores = " · ".join(f"{line.name} {line.score}" for line in critic.lines)
+    mode = "advisory" if critic.advisory else "blocking"
+    return f"critic: {scores} · overall {critic.overall}/10 · {mode} · {critic.model}"
+
+
+def panel_lines(report: QaReport | None, cost: str, counts: str) -> list[str]:
+    """The summary panel's text under the dots (10.4): the critic line, one line per fix
+    note (at most five), then the counts and the ledger on one line. Each line is cut
+    to the panel's width."""
+    critic = report.critic if report is not None else None
+    lines = [critic_line(critic)]
+    if critic is not None and critic.status == "scored":
+        lines += [f"fix {i}: {note}" for i, note in enumerate(critic.fix_notes, start=1)]
+    lines.append(" · ".join(part for part in (counts, cost) if part))
+    return [_cut(line) for line in lines[:SUMMARY_LINES]]
+
+
+def panel_line_box(summary: Box, index: int) -> Box:
+    """Where panel line `index` (0 = the critic line) is drawn inside the summary box."""
+    return Box(summary.x + 12, summary.y + DOTS_H + index * LINE_H, summary.w - 24, LINE_H)
+
+
+def _overall_colour(critic: CriticReport | None) -> tuple[int, int, int]:
+    if critic is None or critic.status != "scored" or critic.overall is None:
+        return MUTED_COLOUR
+    return PASS_COLOUR if critic.overall >= CRITIC_PASS else FAIL_COLOUR
+
+
 def _draw_summary(
     draw: ImageDraw.ImageDraw,
     box: Box,
     report: QaReport | None,
     font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
     cost: str = "ledger: -",
+    counts: str = "",
 ) -> None:
     draw.rectangle(box.rect, fill=PANEL_COLOUR)
     results = {c.name: c.status for c in report.checks} if report is not None else {}
     x = box.x + 12
-    cy = box.y + 22
+    cy = box.y + 20
     for name in TECHNICAL_CHECKS:
         # A check that did not run (the gate stopped before it) is grey: never green.
         status = results.get(name)
@@ -356,14 +440,23 @@ def _draw_summary(
         draw.ellipse((x, cy - 8, x + 16, cy + 8), fill=colour)
         draw.text((x + 22, cy - 9), name, fill=TEXT_COLOUR, font=font)
         x += 70
-    # 033: the critic scores this sheet after it is composed, so its E1-E10 live in
-    # qa.json and on the job page; 035 redraws the panel with them.
-    draw.text(
-        (box.x + 12, box.y + 44),
-        f"critic E1-E10: in qa.json (drawn here by 035) · {cost}",
-        fill=MUTED_COLOUR,
-        font=font,
-    )
+    critic = report.critic if report is not None else None
+    lines = panel_lines(report, cost, counts)
+    # The critic line first, the notes under it, the counts line always in the bottom
+    # slot, so the ledger sits in one place whatever the critic said.
+    slots = [*range(len(lines) - 1), SUMMARY_LINES - 1]
+    for slot, line in zip(slots, lines, strict=True):
+        cell = panel_line_box(box, slot)
+        if slot == 0:
+            # The critic line: the text, then the overall's verdict as a dot beside it.
+            colour = TEXT_COLOUR if line != NOT_SCORED else MUTED_COLOUR
+            draw.text((cell.x, cell.y + 2), line, fill=colour, font=font)
+            width = draw.textlength(line, font=font)
+            dot_x = cell.x + width + 10
+            draw.ellipse((dot_x, cell.y + 4, dot_x + 12, cell.y + 16), fill=_overall_colour(critic))
+        else:
+            colour = TEXT_COLOUR if slot == SUMMARY_LINES - 1 else MUTED_COLOUR
+            draw.text((cell.x, cell.y + 2), line, fill=colour, font=font)
 
 
 def compose_image(
@@ -373,6 +466,7 @@ def compose_image(
     title: str,
     cost: str = "ledger: -",
     *,
+    counts: str = "",
     hook_strips: list[Strip] | None = None,
     frame_strips: list[Strip] | None = None,
     pip: list[Image.Image] | None = None,
@@ -380,7 +474,8 @@ def compose_image(
     pip_strips: list[Strip] | None = None,
 ) -> Image.Image:
     """Draw the sheet from in-memory frames (hook strip first, then the PIP strip row
-    when `pip` cells are given, one per time in `pip_times`, then per-second)."""
+    when `pip` cells are given, one per time in `pip_times`, then per-second); `cost`
+    and `counts` are the summary panel's last line (035)."""
     pip = pip or []
     lay = layout(len(hook), len(frames), pip_times[: len(pip)])
     image = Image.new("RGB", (lay.width, lay.height), BG_COLOUR)
@@ -393,7 +488,7 @@ def compose_image(
         _draw_cell(image, draw, cell, frame, font, pip_strips[i] if pip_strips else None)
     for i, (cell, frame) in enumerate(zip(lay.frames, frames, strict=True)):
         _draw_cell(image, draw, cell, frame, font, frame_strips[i] if frame_strips else None)
-    _draw_summary(draw, lay.summary, report, font, cost)
+    _draw_summary(draw, lay.summary, report, font, cost, counts)
     return image
 
 
@@ -434,10 +529,17 @@ def compose(job: Job) -> Path:
         if plan_path.is_file()
         else None
     )
+    validated_path = job.work_dir / "plan.validated.json"
+    validated = (
+        ValidatedPlan.model_validate_json(validated_path.read_text(encoding="utf-8"))
+        if validated_path.is_file()
+        else None
+    )
     manifest = assets.load_manifest(job.path)
+    clamped = clamped_beats(validated)
     lay = layout(len(hook), len(frames))
-    hook_strips = [strip_line(c.time_s, plan, manifest) for c in lay.hook]
-    frame_strips = [strip_line(c.time_s, plan, manifest) for c in lay.frames]
+    hook_strips = [strip_line(c.time_s, plan, manifest, clamped) for c in lay.hook]
+    frame_strips = [strip_line(c.time_s, plan, manifest, clamped) for c in lay.frames]
     # Re-read: the ledger appends rows to job.json behind the worker's Job value, and
     # the measurement (013) landed there at `transcribing`.
     record = jobs.load(job.path).record
@@ -446,7 +548,8 @@ def compose(job: Job) -> Path:
     if record.presenter is not None:
         pip, pip_strips = pip_row(job, record.presenter)
         pip_times = record.presenter.times_s
-    image = compose_image(hook, frames, report, title, cost, hook_strips=hook_strips,
+    image = compose_image(hook, frames, report, title, cost,
+                          counts=counts_line(validated, manifest), hook_strips=hook_strips,
                           frame_strips=frame_strips, pip=pip, pip_times=pip_times,
                           pip_strips=pip_strips)  # fmt: skip
     return encode(image, job.out_dir / "contact.jpg")

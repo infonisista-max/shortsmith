@@ -72,9 +72,12 @@ the short from the sheet, the strips and the plan and writes its report into the
 `qa.calibration`): one that cannot answer leaves an `unavailable` report and the job
 is `delivered` all the same; only its hard-cap refusal (`BudgetExceeded`) fails the
 job, as every refused paid call does (11.3). The critic is injected like the adapters
-(`FakeCritic` unless the app passes the configured one). After `delivered` the verdict
+(`FakeCritic` unless the app passes the configured one). Once the critic has scored,
+the sheet is composed again so its summary panel carries the E1-E10 scores and the
+fix notes (035; the critic saw the panel without them). After `delivered` the verdict
 (10.4) is applied once: a blocking critic settles the job `passed` (>= 7) or
-`rejected` at once; otherwise it waits for the phone rating on the job page.
+`rejected` at once; otherwise it waits for the phone rating on the job page. Then
+`meta.write` records `out/meta.json` (035): the proof of the bar the gate reads.
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
@@ -100,7 +103,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, TypeAdapter
 
-from shortsmith import assets, captions, grammar, jobs, presenter, render, sound, subproc
+from shortsmith import assets, captions, grammar, jobs, meta, presenter, render, sound, subproc
 from shortsmith.contracts import (
     Constraints,
     PlanFeedback,
@@ -143,7 +146,7 @@ ERROR_TEXT: dict[str, str] = {
     "rendering": "We could not render the short.",
     "qa": "The short failed a technical check.",
 }
-DELIVERABLES = ("short.mp4", "contact.jpg", "rights.json", "credits.md")  # 10.4
+DELIVERABLES = meta.DELIVERABLES  # 10.4: short.mp4, contact.jpg, rights.json, credits.md
 
 MAX_DURATION_S = 60.0  # 3.1 / T3 (global, not a style number)
 
@@ -231,7 +234,10 @@ def run_job(
     # 10.4 / 034: a blocking critic settles the short at once (`passed` at 7, else
     # `rejected`); while advisory, or with no critic verdict, it stays `delivered`
     # until the phone rating comes in. Either way every deliverable stays served.
-    return calibration.apply(delivered, now=clock)
+    settled = calibration.apply(delivered, now=clock)
+    # 035: the proof of the bar, written once the verdict is in; a rating rewrites it.
+    meta.write(settled, now=clock)
+    return settled
 
 
 def start_step(job: Job) -> Status:
@@ -378,7 +384,8 @@ def _plan(job: Job, planner: Planner, specs: Specs, library: sound.Library) -> N
         ),
     )
     picture = checked.picture
-    jobs.amend(job, prompt_version=picture.prompt_version)
+    # 8.3 / 035: the prompt and the spec the plan was judged by, for `meta.json`.
+    jobs.amend(job, prompt_version=picture.prompt_version, style_version=spec.version)
 
     sound = _with_one_retry(
         job,
@@ -445,6 +452,9 @@ def _qa(job: Job, gate: Gate, critic: Critic) -> None:
     # 033 / 10.2: the editorial gate, on the sheet the gate just composed; advisory, so
     # it writes its report (or `unavailable`) and never stops delivery from here.
     critic_module.run(job, critic)
+    # 035 / 10.4: the sheet once more, now with the critic's scores and notes drawn in
+    # its summary panel (the critic had to see the sheet before it could score it).
+    gate.contact_sheet(job)
 
 
 class Worker:

@@ -40,9 +40,21 @@ from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
-from shortsmith.contracts import PresenterMeasurement
+# 034 / 035: the ledger row, the phone rating, the critic summary and the audience are
+# defined in `contracts` so `Meta` can carry them; they keep their old names here
+# (`jobs.CostRow`, `jobs.Rating`, ...), as do the slider's bounds.
+from shortsmith.contracts import RATING_MAX as RATING_MAX
+from shortsmith.contracts import RATING_MIN as RATING_MIN
+from shortsmith.contracts import (
+    CostRow,
+    CriticSummary,
+    Performance,
+    PresenterMeasurement,
+    Rating,
+    ViewsSource,
+)
 
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: no tzdata needed on Windows
 
@@ -79,9 +91,6 @@ SETTLED: frozenset[Status] = TERMINAL | frozenset[Status]({"delivered"})
 # 10.4: the three statuses a finished short sits in; `settle` moves among them.
 VERDICTS: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 ALL_STATUSES: frozenset[Status] = frozenset(get_args(Status))
-RATING_MIN, RATING_MAX = 1, 10  # 10.3: the phone slider
-ViewsSource = Literal["manual", "youtube"]
-CriticStatus = Literal["scored", "unavailable"]
 
 Clock = Callable[[], datetime]
 
@@ -124,62 +133,6 @@ class InputSummary(BaseModel):
     references: int = 0
 
 
-class CostRow(BaseModel):
-    """One paid call (decision 5.6), priced by the ledger; adapters report `units` only.
-    `inr` is cash and counts toward the caps. A subscription call (8.3) carries its
-    tokens as `tokens_estimated` with `inr` zero and `inr_equivalent` the display-only
-    value at the api-equivalent rate (11.3)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    step: str
-    provider: str
-    model: str
-    units: dict[str, float]
-    inr: float
-    tokens_estimated: int = 0
-    inr_equivalent: float = 0.0
-    at: datetime
-
-
-class Rating(BaseModel):
-    """The phone verdict (10.3, 034): 1-10 and a note, when it was given."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    score: int = Field(ge=RATING_MIN, le=RATING_MAX)
-    note: str = ""
-    rated_at: datetime
-
-
-class Performance(BaseModel):
-    """The published short's real audience (10.2, 14.1(a)): typed in by hand, or the
-    views read from the YouTube Data API for the stored URL. `note` is the last pull's
-    outcome in one line. Never an upload."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    published_url: str = ""
-    views: int | None = Field(default=None, ge=0)
-    retention_pct: float | None = Field(default=None, ge=0, le=100)
-    views_source: ViewsSource = "manual"
-    note: str = ""
-    updated_at: datetime
-
-
-class CriticSummary(BaseModel):
-    """What the critic said, on job.json (034): the overall and whether it was advisory
-    when it ran, so the verdict and the calibration read one file. The full report
-    (the ten lines, the notes) stays in out/qa.json."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    status: CriticStatus
-    overall: int | None = Field(default=None, ge=1, le=10)
-    advisory: bool = True
-    model: str
-
-
 class JobRecord(BaseModel):
     """Contents of job.json."""
 
@@ -201,6 +154,9 @@ class JobRecord(BaseModel):
     over_soft_cap: bool = False  # 11.3: a flag for the page and the sheet, nothing more
     progress: int | None = None  # percentage during `rendering` (11.1); cleared on transition
     prompt_version: str | None = None  # 8.3: the planner prompt the job's plans came from
+    # 035 / 1.2: the version of the style spec's front matter the plan was judged by,
+    # recorded at `planning` beside the prompt version; `meta.json` copies both.
+    style_version: str | None = None
     # 013 / 3.3: the face box, the PIP window and the circle diameter, measured once at
     # `transcribing`; the render reads the geometry from here and a retry never re-measures.
     presenter: PresenterMeasurement | None = None

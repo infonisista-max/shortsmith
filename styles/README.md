@@ -2,10 +2,11 @@
 
 One markdown file per style: YAML front matter between `---` fences, then the five prose sections. `shortsmith.styles.load_all` validates every file at app startup; a broken spec stops the app with the spec name and the problem (grill decisions 1.2, 1.4).
 
-Front matter must carry the seven key groups plus five more keys:
+Front matter must carry the seven key groups plus six more keys:
 
 | key | who reads it |
 | --- | --- |
+| `version` | `meta.json` (10.4, ticket 035): recorded on every job the spec judged, so a short's provenance names the spec it was made under; bump it by hand whenever a number or a prose section changes. Quote it (`"1"`) so YAML keeps it a string |
 | `aliases` | the resolver (1.1): words in the style line that pick this spec |
 | `beats` | grammar validator (3.1, 3.4) |
 | `presenter` | grammar validator (3.2) |

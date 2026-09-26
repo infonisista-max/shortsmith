@@ -331,6 +331,28 @@ def test_the_qa_step_runs_the_critic_after_the_gate_and_the_job_is_delivered(
     )
 
 
+def test_the_sheet_is_composed_again_once_the_critic_has_scored(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """035 / 10.4: the critic scores the sheet without its own scores on it, then the
+    gate composes it once more so the summary panel carries E1-E10 and the notes."""
+
+    class _Recording(FakeGate):
+        def __init__(self) -> None:
+            super().__init__()
+            self.seen: list[bool] = []
+
+        def contact_sheet(self, job: jobs.Job) -> Path:
+            report = technical.load_report(job)
+            self.seen.append(report is not None and report.critic is not None)
+            return super().contact_sheet(job)
+
+    gate = _Recording()
+    done = _run(_uploaded(tmp_path, fixture_clip), gate=gate)
+    assert done.status == "delivered"
+    assert gate.seen == [False, True]
+
+
 class _UnreachableCritic(FakeCritic):
     def score(self, inputs: critic_module.Inputs) -> CriticReport:
         raise critic_module.CriticError("the critic could not be reached: boom")

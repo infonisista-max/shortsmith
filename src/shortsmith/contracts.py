@@ -7,11 +7,15 @@ AssetManifest and the RightsRow of the rights log (016), and the RenderSpec (004
 Planner-facing models use `extra="forbid"` so the JSON schema generated from them is
 the single source of truth embedded in the planner prompt; plan JSON is
 engine-agnostic (no render-engine terms in field names or values). QaReport lives in
-`qa.technical`; CriticReport (033) is here; Meta arrives with 035.
+`qa.technical`; CriticReport (033) is here, and so are the job record's ledger row,
+phone rating, critic summary and audience (`CostRow`, `Rating`, `CriticSummary`,
+`Performance`; `jobs` re-exports them) so that `Meta`, the `out/meta.json` record of
+035 (10.4), can carry them without a cycle.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -1440,3 +1444,100 @@ class RenderSpec(StrictModel):
     # 030: the style's enter list and the 9.4 numbers; the composition animates each
     # beat's `enter` from these.
     transitions: TransitionStyle
+
+
+# --- the job record's shared pieces (decisions 5.6, 8.3, 10.2, 10.3, 14.1; tickets 011, 034) --
+
+RATING_MIN, RATING_MAX = 1, 10  # 10.3: the phone slider
+ViewsSource = Literal["manual", "youtube"]
+
+
+class CostRow(StrictModel):
+    """One paid call (decision 5.6), priced by the ledger; adapters report `units` only.
+    `inr` is cash and counts toward the caps. A subscription call (8.3) carries its
+    tokens as `tokens_estimated` with `inr` zero and `inr_equivalent` the display-only
+    value at the api-equivalent rate (11.3)."""
+
+    step: str
+    provider: str
+    model: str
+    units: dict[str, float]
+    inr: float
+    tokens_estimated: int = 0
+    inr_equivalent: float = 0.0
+    at: datetime
+
+
+class Rating(StrictModel):
+    """The phone verdict (10.3, 034): 1-10 and a note, when it was given."""
+
+    score: int = Field(ge=RATING_MIN, le=RATING_MAX)
+    note: str = ""
+    rated_at: datetime
+
+
+class Performance(StrictModel):
+    """The published short's real audience (10.2, 14.1(a)): typed in by hand, or the
+    views read from the YouTube Data API for the stored URL. `note` is the last pull's
+    outcome in one line. Never an upload."""
+
+    published_url: str = ""
+    views: int | None = Field(default=None, ge=0)
+    retention_pct: float | None = Field(default=None, ge=0, le=100)
+    views_source: ViewsSource = "manual"
+    note: str = ""
+    updated_at: datetime
+
+
+class CriticSummary(StrictModel):
+    """What the critic said, on job.json (034): the overall and whether it was advisory
+    when it ran, so the verdict and the calibration read one file. The full report
+    (the ten lines, the notes) stays in out/qa.json."""
+
+    status: CriticStatus
+    overall: int | None = Field(default=None, ge=1, le=10)
+    advisory: bool = True
+    model: str
+
+
+# --- meta.json (decision 10.4; ticket 035) ------------------------------------------------
+
+
+class TechnicalResult(StrictModel):
+    """One T1-T13 line as `out/qa.json` recorded it: `pass`, `fail`, or the pre-032
+    `not_implemented` placeholder."""
+
+    name: str
+    status: Literal["pass", "fail", "not_implemented"]
+    detail: str
+
+
+class Meta(StrictModel):
+    """`out/meta.json`: the proof of the bar for one short (10.4), the file the day-14
+    gate reads (14.1). `delivered` is the 10.4 rule (every technical check passed and
+    the four deliverables exist); `status` is where the verdict left the job. The
+    versions name what produced the short: the planner prompt (8.3), the style spec's
+    front matter (1.2) and the reference pack the critic was calibrated on (10.3).
+    `ledger` is every row of `job.json.cost`; the totals beside it are the page's."""
+
+    job_id: str
+    status: str
+    delivered: bool
+    style: str
+    style_version: str | None = None
+    prompt_version: str | None = None
+    category: str = "other"
+    reference_pack_version: str | None = None
+    technical: list[TechnicalResult] = []
+    technical_passed: bool = False
+    critic: CriticReport | None = None
+    rating: Rating | None = None
+    performance: Performance | None = None
+    ledger: list[CostRow] = []
+    cash_inr: float = 0.0
+    tokens_estimated: int = 0
+    inr_equivalent: float = 0.0
+    over_soft_cap: bool = False
+    clamps: int = 0
+    rescued: int = 0
+    written_at: datetime

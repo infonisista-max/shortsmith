@@ -377,5 +377,9 @@ def test_over_soft_cap_is_read_only_by_the_page_and_the_contact_sheet() -> None:
         and re.search(r"over_soft_cap", path.read_text(encoding="utf-8"))
     }
     # jobs.py declares the field and ledger.py writes it; the page and the sheet show
-    # it, and gate T13 (032) records it in qa.json without ever failing on it.
-    assert readers - {"jobs.py", "ledger.py"} == {"app.py", "contact_sheet.py", "qa/technical.py"}
+    # it, gate T13 (032) records it in qa.json without ever failing on it, and 035
+    # copies it into meta.json (contracts.Meta declares the copy, meta.py fills it,
+    # smoke.py asserts it is off on a free job). None of them changes a step.
+    assert readers - {"jobs.py", "ledger.py"} == {
+        "app.py", "contact_sheet.py", "contracts.py", "meta.py", "qa/technical.py", "smoke.py",
+    }  # fmt: skip

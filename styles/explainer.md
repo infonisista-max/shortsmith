@@ -1,4 +1,5 @@
 ---
+version: "1"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,

@@ -1,4 +1,5 @@
 ---
+version: "1"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,

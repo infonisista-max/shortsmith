@@ -16,7 +16,10 @@ render spec (013), `work/picture.mp4` (H.264,
 balance report from a synthesised catalogue (022),
 `out/short.mp4`, `out/qa.json` with T1-T13 all passing (032; decision 12.1) and the
 fake critic's advisory report beside them, scored from the real sheet and strips (033),
-`out/contact.jpg` under 2 MB at the sheet's width with the PIP strip row, and the
+`out/contact.jpg` under 2 MB at the sheet's width with the PIP strip row and the
+critic's scores drawn into its summary panel (035), `out/meta.json` validating against
+`contracts.Meta` with the versions and the empty ledger (035), the publishing text
+assembled from the plan and the credits (035), and the
 job's `uploaded -> ... -> qa -> delivered` trail, print one summary line and exit 0.
 Any failed assertion exits non-zero with the failing check on stderr. Over ninety
 seconds is a bug.
@@ -61,8 +64,10 @@ from shortsmith import (
     infographics,
     ingest,
     jobs,
+    meta,
     pipeline,
     presenter,
+    publishing,
     render,
     rights,
     sound,
@@ -74,6 +79,7 @@ from shortsmith.contracts import (
     Captions,
     CriticReport,
     DiagramLayout,
+    Meta,
     PicturePlan,
     RenderSpec,
     SoundStory,
@@ -316,6 +322,8 @@ def run_smoke(
     sheet = job.out_dir / "contact.jpg"
     check_contact_sheet(sheet)
     verdict = check_critic(reloaded, critic, plan)
+    check_meta(reloaded, plan, validated, verdict, specs[style])
+    check_publishing(reloaded, plan)
     log_lines = reloaded.log_path.read_text(encoding="utf-8").splitlines()
     noted = [line.split(" ", 1)[1] for line in log_lines]
     # The steps' own notes (the sound director's summary, 022) sit between the status
@@ -883,8 +891,21 @@ def check_critic(job: jobs.Job, critic: FakeCritic, plan: PicturePlan) -> Critic
     )
     check(critic.calls == 1, f"the critic was called {critic.calls} times, not once")
     (shown,) = critic.inputs
-    check(shown.contact_sheet == (job.out_dir / "contact.jpg").read_bytes(),
-          "the critic was not shown out/contact.jpg")  # fmt: skip
+    # 035: the critic saw the sheet before its scores were drawn on it, so the file on
+    # disk (composed again afterwards) is the same sheet at the same size, not the same
+    # bytes; the panel it now carries is checked in `check_contact_sheet`.
+    check(shown.contact_sheet is not None, "the critic was not shown out/contact.jpg")
+    assert shown.contact_sheet is not None
+    with (
+        Image.open(BytesIO(shown.contact_sheet)) as seen,
+        Image.open(job.out_dir / "contact.jpg") as final,
+    ):
+        check(seen.format == "JPEG", f"the critic's sheet is {seen.format}, not JPEG")
+        check(seen.size == final.size, f"the critic's sheet is {seen.size}, the final {final.size}")
+    check(
+        shown.contact_sheet != (job.out_dir / "contact.jpg").read_bytes(),
+        "out/contact.jpg was not composed again after the critic scored (035)",
+    )
     for name, body, frames in (
         ("PIP strip", shown.pip_strip, presenter.STRIP_COUNT),
         ("hook strip", shown.hook_strip, contact_sheet.HOOK_FRAMES),
@@ -915,7 +936,8 @@ def check_critic(job: jobs.Job, critic: FakeCritic, plan: PicturePlan) -> Critic
 
 def check_contact_sheet(sheet: Path) -> None:
     """`out/contact.jpg` per 10.4: a JPEG at the sheet width, under 2 MB, laid out for
-    the fixture's eight hook frames and six per-second frames."""
+    the fixture's eight hook frames and six per-second frames; its summary panel (035)
+    carries text on the critic line and the counts line."""
     check(sheet.is_file(), "qa did not write out/contact.jpg")
     check(sheet.stat().st_size < contact_sheet.MAX_BYTES, "contact.jpg is 2 MB or more")
     # 013: the sheet carries the PIP strip row between the hook row and the frames.
@@ -930,6 +952,71 @@ def check_contact_sheet(sheet: Path) -> None:
             f"contact.jpg is {image.size[0]}x{image.size[1]}, "
             f"expected {expected.width}x{expected.height}",
         )
+        for slot, what in ((0, "critic line"), (contact_sheet.SUMMARY_LINES - 1, "counts line")):
+            box = contact_sheet.panel_line_box(expected.summary, slot)
+            region = image.crop((box.x, box.y, box.x + box.w, box.y + box.h))
+            colours = len(region.getcolors(maxcolors=1 << 16) or [])
+            check(colours > 8, f"the summary panel's {what} is blank ({colours} colours)")
+
+
+def check_meta(
+    job: jobs.Job,
+    plan: PicturePlan,
+    validated: ValidatedPlan,
+    verdict: CriticReport,
+    spec: styles.StyleSpec,
+) -> None:
+    """`out/meta.json` per 10.4 (035): validates against `contracts.Meta` and records
+    the delivered short, the versions, the critic's report, the empty ledger and the
+    plan's clamps; no rating and no audience yet."""
+    path = job.out_dir / meta.NAME
+    check(path.is_file(), "the pipeline did not write out/meta.json")
+    recorded = Meta.model_validate_json(path.read_text(encoding="utf-8"))
+    check(recorded.job_id == job.id, f"meta.json names job {recorded.job_id!r}")
+    check(recorded.status == LAST_STATUS and recorded.delivered, "meta.json is not delivered")
+    check(
+        [c.name for c in recorded.technical] == list(TECHNICAL_CHECKS)
+        and all(c.status == "pass" for c in recorded.technical)
+        and recorded.technical_passed,
+        "meta.json does not carry T1-T13 all passing",
+    )
+    check(recorded.critic == verdict, "meta.json's critic report differs from qa.json's")
+    check(
+        (recorded.style, recorded.style_version) == (spec.name, spec.version),
+        f"meta.json style is {recorded.style} v{recorded.style_version}, "
+        f"expected {spec.name} v{spec.version}",
+    )
+    check(
+        recorded.prompt_version == plan.prompt_version,
+        f"meta.json prompt version is {recorded.prompt_version!r}",
+    )
+    check(recorded.category == plan.category, f"meta.json category is {recorded.category!r}")
+    check(
+        recorded.reference_pack_version is not None
+        and recorded.reference_pack_version == meta.pack_version(),
+        f"meta.json pack version is {recorded.reference_pack_version!r}",
+    )
+    check(recorded.ledger == [] and recorded.cash_inr == 0.0, "meta.json ledger is not empty")
+    check(not recorded.over_soft_cap, "meta.json says over the soft cap on a free job")
+    check(recorded.clamps == len(validated.clamps), f"meta.json counts {recorded.clamps} clamps")
+    check(recorded.rescued == 0, f"meta.json counts {recorded.rescued} rescued beats")
+    check(recorded.rating is None and recorded.performance is None, "meta.json is rated already")
+
+
+def check_publishing(job: jobs.Job, plan: PicturePlan) -> None:
+    """The copyable text (035): the plan's title, its description with the credits and
+    the disclosure line (the fake plan generates scenes), the hashtags."""
+    text = publishing.load(job)
+    check(text is not None, "no publishing text for the delivered job")
+    assert text is not None
+    check(text.title == plan.title, f"publishing title is {text.title!r}")
+    credits = (job.out_dir / "credits.md").read_text(encoding="utf-8").strip()
+    check(
+        text.description == f"{plan.description}\n\n{credits}",
+        "the description is not the plan's text plus credits.md",
+    )
+    check(rights.DISCLOSURE in text.description, "the description lacks the disclosure line")
+    check(text.hashtags == plan.hashtags[:5], f"hashtags are {text.hashtags}")
 
 
 def check_cut(cut: Path) -> None:

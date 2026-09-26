@@ -1,0 +1,20 @@
+<h2>Publish</h2>
+<div class="publish">
+  <p class="copy-head">Title <button type="button" data-copy-target="publish-title">Copy</button></p>
+  <pre class="copy" id="publish-title">$title</pre>
+  <p class="copy-head">Description <button type="button" data-copy-target="publish-description">Copy</button></p>
+  <pre class="copy" id="publish-description">$description</pre>
+  <p class="copy-head">Hashtags <button type="button" data-copy-target="publish-hashtags">Copy</button></p>
+  <pre class="copy" id="publish-hashtags">$hashtags</pre>
+</div>
+<script>
+document.querySelectorAll("[data-copy-target]").forEach(function (button) {
+  button.addEventListener("click", function () {
+    var text = document.getElementById(button.dataset.copyTarget).textContent;
+    navigator.clipboard.writeText(text).then(function () {
+      button.textContent = "Copied";
+      setTimeout(function () { button.textContent = "Copy"; }, 1500);
+    });
+  });
+});
+</script>

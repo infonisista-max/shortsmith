@@ -54,6 +54,10 @@
                       border: 0; border-radius: 8px; background: var(--accent); color: #111;
                       cursor: pointer; justify-self: start; }
   .rated, .performance-note { color: var(--muted); }
+  .copy-head { margin: .75rem 0 .25rem; font-weight: 700; }
+  .copy-head button { font: inherit; font-size: .85rem; padding: .2rem .6rem; border: 1px solid #8886;
+                      border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+  pre.copy { user-select: all; }
 </style>
 </head>
 <body>
@@ -71,6 +75,7 @@ $error
   <dt>References</dt><dd>$references</dd>
 </dl>
 $result
+$publishing
 $feedback
 $ledger
 <h2>Brief</h2>

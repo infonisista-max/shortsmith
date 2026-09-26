@@ -3,8 +3,8 @@
 A spec is `styles/<name>.md`: YAML front matter followed by the five prose sections
 (`## Beat grammar`, `## B-roll`, `## Captions`, `## Sound`, `## Finale`). The front
 matter carries the seven key groups (`aliases`, `beats`, `presenter`, `broll`,
-`captions`, `sound`, `finale`) plus `status`, `requires_components`, `budget`, `pip`
-and `palette`; every number a later ticket reads (the grammar validator, the pager,
+`captions`, `sound`, `finale`) plus `version`, `status`, `requires_components`,
+`budget`, `pip` and `palette`; every number a later ticket reads (the grammar validator, the pager,
 the renderer, the sound director, the gate) comes from here, never from code. The
 renderer and QA read only the numbers; the planner reads numbers and prose.
 
@@ -179,6 +179,9 @@ class Budget(StrictModel):
 
 
 class FrontMatter(StrictModel):
+    # 035 / 1.2: the spec's own version, recorded on every job it judged (`meta.json`);
+    # bumped by hand whenever a number or a prose section changes.
+    version: str
     status: Status
     aliases: list[str] = Field(min_length=1)
     requires_components: list[str]

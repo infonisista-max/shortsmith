@@ -88,6 +88,9 @@ STRIP_QUALITY = 80
 HOOK_FPS = contact_sheet.HOOK_FPS
 HOOK_SECONDS = contact_sheet.HOOK_SECONDS
 
+# The wording is pinned by tests/fixtures/critic/request.json (the recorded request);
+# the panel the critic sees carries the checks, the counts and the ledger, and its critic
+# line reads "not scored yet" (035) because the critic is the one about to score it.
 CONTACT_LABEL = (
     "Contact sheet: the hook strip (first 2 s at 4 fps), the PIP strip, then one frame "
     "per second with a strip line under each (beat id, presenter mode F/P/O, visual kind "
