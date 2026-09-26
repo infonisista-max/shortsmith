@@ -48,6 +48,15 @@ everything already fetched or generated. The refusals are a page with one senten
 hidden for the same reason), 503 with Retry-After when the queue is full, and the job
 stays failed with its button in both cases.
 
+Rating and performance (10.3, 10.4, 14.1(a), ticket 034): a page with a short carries
+a 1-10 slider and a note; `POST /jobs/<id>/rating` stores them on `job.json`, records
+the critic-versus-phone comparison in `data/calibration.json` and settles the verdict
+(`qa.calibration.apply`: while advisory a rating of 6 is `passed`, under it
+`rejected`; once blocking the critic must pass too). The critic panel shows "critic
+agreed N of last 5". `POST /jobs/<id>/performance` stores the published URL, views
+and retention; with `YOUTUBE_API_KEY` set and views left blank, one read-only Data API
+GET fills them. A job without a short answers 409 to both; a field off its range 422.
+
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 """
@@ -89,6 +98,7 @@ from shortsmith import (
     ingest,
     jobs,
     ledger,
+    performance,
     pipeline,
     presenter,
     render,
@@ -101,11 +111,12 @@ from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
 from shortsmith.contracts import CriticReport, ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
-from shortsmith.jobs import SETTLED, STATUS_ORDER, Clock, Job, Status
+from shortsmith.jobs import RATING_MAX, RATING_MIN, SETTLED, STATUS_ORDER, Clock, Job, Status
+from shortsmith.performance import YouTube, YouTubeError
 from shortsmith.pipeline import QueueFull
 from shortsmith.planner import Planner
+from shortsmith.qa import calibration, technical
 from shortsmith.qa import critic as critic_module
-from shortsmith.qa import technical
 from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
@@ -146,6 +157,13 @@ NOT_FAILED_SENTENCE = "This job did not fail, so there is nothing to retry."
 SWEPT_RETRY_SENTENCE = (
     "The recording and the working files for this job were deleted, so it cannot be run again."
 )
+# 034: a rating or a published URL needs a short to rate or to publish.
+NO_SHORT_TO_RATE_SENTENCE = "This job has no short to rate yet."
+NO_SHORT_TO_PUBLISH_SENTENCE = "This job has no short to publish yet."
+RATING_RANGE_SENTENCE = f"The rating must be a whole number from {RATING_MIN} to {RATING_MAX}."
+VIEWS_SENTENCE = "Views must be a whole number, zero or more, or left blank."
+RETENTION_SENTENCE = "Retention must be a percentage from 0 to 100, or left blank."
+NOT_RATED = "not rated yet"
 BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _REFS = TypeAdapter(list[ReferenceRecord])
@@ -202,6 +220,7 @@ def create_app(
     sourcing: assets.Sourcing | None = None,
     detector: presenter.FaceDetector | None = None,
     critic: Critic | None = None,
+    youtube: YouTube | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
     start_sweeper: bool = True,
@@ -256,6 +275,9 @@ def create_app(
         max_job_minutes=settings.max_job_minutes,
         clock=clock,
     )
+    # 034 / 14.1(a): the read-only view-count pull `YOUTUBE_API_KEY` enables; tests
+    # pass one on a mock transport. None leaves views a hand-typed field.
+    youtube = youtube if youtube is not None else performance.from_settings(settings)
     max_jobs_per_day = settings.max_jobs_per_day
     data_dir = settings.shortsmith_data_dir
     secret = settings.shortsmith_passcode
@@ -288,6 +310,10 @@ def create_app(
     def sweep_now() -> list[sweeper.Action]:
         return sweeper.sweep(data_dir, now=clock)
 
+    def agreed_line() -> str:
+        """034: the critic panel's "critic agreed N of last 5"."""
+        return calibration.agreed_line(calibration.load(data_dir))
+
     async def sweep_loop() -> None:
         """11.2: retention runs in-process every 15 minutes. One pass failing (a file
         held open on Windows, say) is a log line, never the end of the task."""
@@ -305,6 +331,7 @@ def create_app(
     app.state.limits = limits
     app.state.failures = failures
     app.state.specs = specs
+    app.state.youtube = youtube
     app.add_middleware(PasscodeGuard, passcode=passcode, clock=clock)
 
     @app.get("/health")
@@ -494,9 +521,79 @@ def create_app(
         if job is None:
             return HTMLResponse("<h1>No such job</h1>", status_code=404)
         average = await run_in_threadpool(ledger.running_average, data_dir)
+        agreed = await run_in_threadpool(agreed_line)
         return HTMLResponse(
-            render_job_page(job, position=_queue_position(job, worker), average=average)
+            render_job_page(
+                job, position=_queue_position(job, worker), average=average, agreed=agreed
+            )
         )
+
+    @app.post("/jobs/{job_id}/rating")
+    async def rate(job_id: str, request: Request) -> Response:
+        """The phone verdict (10.3, 034): store the score and the note, record the
+        critic-versus-phone comparison, settle the job's status (10.4)."""
+        job = jobs.find(data_dir, job_id)
+        if job is None:
+            return JSONResponse({"error": "no such job"}, status_code=404)
+        if job.status not in SHOWS_SHORT:
+            return HTMLResponse(render_refusal(job, NO_SHORT_TO_RATE_SENTENCE), status_code=409)
+        form = await request.form()
+        score = _whole_number(_text(form.get("score")))
+        if score is None or not RATING_MIN <= score <= RATING_MAX:
+            return HTMLResponse(render_refusal(job, RATING_RANGE_SENTENCE), status_code=422)
+        note = _text(form.get("note"))
+
+        def store() -> None:
+            rated = jobs.rate(job, score, note, now=clock)
+            calibration.record(rated, now=clock)
+            calibration.apply(rated, now=clock)
+
+        await run_in_threadpool(store)
+        return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
+    @app.post("/jobs/{job_id}/performance")
+    async def publish(job_id: str, request: Request) -> Response:
+        """The published short's audience (14.1(a)): the URL, views and retention as
+        typed; views left blank are read from YouTube when a key is configured. The
+        typed fields are stored whether or not the pull succeeds; never an upload."""
+        job = jobs.find(data_dir, job_id)
+        if job is None:
+            return JSONResponse({"error": "no such job"}, status_code=404)
+        if job.status not in SHOWS_SHORT:
+            return HTMLResponse(
+                render_refusal(job, NO_SHORT_TO_PUBLISH_SENTENCE), status_code=409
+            )
+        form = await request.form()
+        url = _text(form.get("published_url")).strip()
+        views_text = _text(form.get("views")).strip()
+        views = _whole_number(views_text) if views_text else None
+        if views_text and (views is None or views < 0):
+            return HTMLResponse(render_refusal(job, VIEWS_SENTENCE), status_code=422)
+        retention_text = _text(form.get("retention")).strip().rstrip("%").strip()
+        retention = _percentage(retention_text) if retention_text else None
+        if retention_text and retention is None:
+            return HTMLResponse(render_refusal(job, RETENTION_SENTENCE), status_code=422)
+
+        def store() -> None:
+            source: jobs.ViewsSource = "manual"
+            note = ""
+            count = views
+            video = performance.video_id(url) if url else None
+            if youtube is not None and count is None and video is not None:
+                try:
+                    count = youtube.views(video)
+                except YouTubeError as exc:
+                    note = str(exc)
+                else:
+                    source = "youtube"
+                    note = f"views from YouTube at {clock().astimezone(jobs.IST):%d %b %H:%M} IST"
+            jobs.set_performance(
+                job, published_url=url, views=count, retention_pct=retention,
+                views_source=source, note=note, now=clock,
+            )  # fmt: skip
+
+        await run_in_threadpool(store)
+        return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
     @app.post("/jobs/{job_id}/retry")
     async def retry(job_id: str) -> Response:
@@ -638,6 +735,21 @@ def _text(value: object) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _whole_number(text: str) -> int | None:
+    """A non-negative integer typed into a form field, else None."""
+    text = text.strip()
+    return int(text) if text.isdigit() else None
+
+
+def _percentage(text: str) -> float | None:
+    """A number from 0 to 100 typed into a form field, else None."""
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    return value if 0 <= value <= 100 else None
+
+
 def _spool(value: object, dest_dir: Path) -> VideoUpload | None:
     """Copy one multipart file to `dest_dir`; None for an empty or absent field."""
     if not isinstance(value, UploadFile) or not value.filename:
@@ -761,7 +873,9 @@ def render_job_page(
     now: datetime | None = None,
     position: int | None = None,
     average: ledger.RunningAverage | None = None,
+    agreed: str = "",
 ) -> str:
+    """`agreed` is the calibration's "critic agreed N of last 5" line (034)."""
     now = now or datetime.now(UTC)
     record = job.record
     brief_path = job.input_dir / "brief.md"
@@ -816,7 +930,8 @@ def render_job_page(
         style_note=html.escape(record.style_note) or "–",
         references=references,
         brief=html.escape(brief),
-        result=_result_block(job),
+        result=_result_block(job, agreed),
+        feedback=_feedback_block(job),
         ledger=_ledger_block(job, average),
         json_url=f"/jobs/{html.escape(job.id)}.json",
         created_at=record.created_at.isoformat(),
@@ -833,7 +948,7 @@ CHECK_LABELS: dict[str, str] = {
 }  # fmt: skip
 
 
-def _result_block(job: Job) -> str:
+def _result_block(job: Job, agreed: str = "") -> str:
     """The short, the contact sheet and the download links once the job is `delivered`
     (11.1, 10.4), and the technical check list whenever `out/qa.json` exists, so a job
     that failed at `qa` still shows which check stopped it."""
@@ -850,17 +965,20 @@ def _result_block(job: Job) -> str:
     if job.status in SHOWS_SHORT and (job.out_dir / "short.mp4").is_file():
         media = _template("result.html").substitute(base=base)
     checks = f"<h2>Technical checks</h2>\n<ul class=\"checks\">\n{items}\n</ul>\n"
-    return f"{media}{checks}{_critic_block(report.critic)}"
+    return f"{media}{checks}{_critic_block(report.critic, agreed)}"
 
 
-def _critic_block(report: CriticReport | None) -> str:
+def _critic_block(report: CriticReport | None, agreed: str = "") -> str:
     """The critic panel (10.2, 033): ten lines with score and reason, the overall, the
-    fix notes, the model name, the category, the "advisory" badge; or one sentence when
-    the critic could not answer. Nothing until the critic has run."""
+    fix notes, the model name, the category, the "advisory" badge and the calibration
+    line "critic agreed N of last 5" (034); or one sentence when the critic could not
+    answer. Nothing until the critic has run."""
     if report is None:
         return ""
     mode = "advisory" if report.advisory else "blocking"
     head = f'<h2>Critic <span class="badge {mode}">{mode}</span></h2>\n'
+    if agreed:
+        head += f'<p class="calibration">{html.escape(agreed)}</p>\n'
     if report.status == "unavailable":
         reason = html.escape(report.notes[0]) if report.notes else "no reason recorded"
         return f'{head}<p class="critic-unavailable">The critic was unavailable: {reason}</p>\n'
@@ -884,6 +1002,46 @@ def _critic_block(report: CriticReport | None) -> str:
         noted = "\n".join(f"  <li>{html.escape(note)}</li>" for note in report.notes)
         parts.append(f'<ul class="critic-notes">\n{noted}\n</ul>\n')
     return "".join(parts)
+
+
+def _feedback_block(job: Job) -> str:
+    """The rating slider and note, and the YouTube performance fields (10.3, 14.1(a);
+    034), each rendered with the stored value; only once the job has a short."""
+    if job.status not in SHOWS_SHORT:
+        return ""
+    record = job.record
+    rating = record.rating
+    if rating is None:
+        score, note, rated = 5, "", NOT_RATED
+    else:
+        score, note = rating.score, rating.note
+        rated = f"Rated {score}/10 on {rating.rated_at.astimezone(jobs.IST):%d %b %H:%M} IST"
+    perf = record.performance
+    if perf is None:
+        url, views, retention, line = "", "", "", "not published yet"
+    else:
+        url = perf.published_url
+        views = str(perf.views) if perf.views is not None else ""
+        retention = f"{perf.retention_pct:g}" if perf.retention_pct is not None else ""
+        parts: list[str] = []
+        if perf.views is not None:
+            parts.append(f"{perf.views} views")
+        if perf.retention_pct is not None:
+            parts.append(f"retention {perf.retention_pct:g}%")
+        parts.append(f"updated {perf.updated_at.astimezone(jobs.IST):%d %b %H:%M} IST")
+        if perf.note:
+            parts.append(perf.note)
+        line = " · ".join(parts)
+    return _template("feedback.html").substitute(
+        base=f"/jobs/{html.escape(job.id)}",
+        score=score,
+        note=html.escape(note),
+        rated=html.escape(rated),
+        published_url=html.escape(url),
+        views=views,
+        retention=retention,
+        performance_line=html.escape(line),
+    )
 
 
 def _ledger_block(job: Job, average: ledger.RunningAverage | None = None) -> str:
@@ -968,7 +1126,7 @@ def _job_row(job: Job, now: datetime) -> str:
     return (
         f'  <tr data-job="{job_id}"><td><a href="/jobs/{job_id}">{job_id}</a></td>'
         f'<td class="status-{html.escape(record.status)}">{html.escape(record.status)}</td>'
-        "<td>-</td>"  # the rating arrives with 034
+        f"<td>{f'{record.rating.score}/10' if record.rating is not None else '-'}</td>"
         f"<td>{f'INR {cash:.2f}' if cash > 0 else '-'}</td>"
         f"<td>{when}</td>"
         f"<td>{_retention(job, now)}</td></tr>"

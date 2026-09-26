@@ -13,6 +13,15 @@ Illegal transitions raise `IllegalTransition` and touch nothing on disk. A reque
 job may jump from `uploaded` straight to its `retry_from` step and to no other, so
 the pipeline re-enters where it failed without any other job being able to skip one.
 
+The verdict (10.4, ticket 034): `delivered`, `passed` and `rejected` are the three
+settled statuses a short can sit in, and they move among themselves by `settle` alone,
+never by `transition` (which still treats `passed` and `rejected` as terminal for the
+pipeline). What moves a job between them is the phone rating (`rate`, on
+`job.json.rating`) judged with the critic's summary (`job.json.critic`, written by the
+critic step) under the calibration's rule in `qa.calibration`; a `delivered` job is
+always downloadable, `rejected` or not. The YouTube performance fields
+(`set_performance`, 14.1(a)) are bookkeeping on the same record and change no status.
+
 `job.json` has more than one writer inside a step (the ledger appends cost rows, the
 renderer reports progress) while the worker holds its own `Job` value, so every write
 goes through `amend`: it re-reads the file, applies the change and writes the result.
@@ -31,7 +40,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from shortsmith.contracts import PresenterMeasurement
 
@@ -67,7 +76,12 @@ TERMINAL: frozenset[Status] = frozenset({"passed", "rejected", "failed"})
 # changes again by a rating (034). The page's elapsed clock stops here, and the sweeper
 # (042) touches nothing outside this set: a queued or running job keeps every file.
 SETTLED: frozenset[Status] = TERMINAL | frozenset[Status]({"delivered"})
+# 10.4: the three statuses a finished short sits in; `settle` moves among them.
+VERDICTS: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 ALL_STATUSES: frozenset[Status] = frozenset(get_args(Status))
+RATING_MIN, RATING_MAX = 1, 10  # 10.3: the phone slider
+ViewsSource = Literal["manual", "youtube"]
+CriticStatus = Literal["scored", "unavailable"]
 
 Clock = Callable[[], datetime]
 
@@ -128,6 +142,44 @@ class CostRow(BaseModel):
     at: datetime
 
 
+class Rating(BaseModel):
+    """The phone verdict (10.3, 034): 1-10 and a note, when it was given."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    score: int = Field(ge=RATING_MIN, le=RATING_MAX)
+    note: str = ""
+    rated_at: datetime
+
+
+class Performance(BaseModel):
+    """The published short's real audience (10.2, 14.1(a)): typed in by hand, or the
+    views read from the YouTube Data API for the stored URL. `note` is the last pull's
+    outcome in one line. Never an upload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    published_url: str = ""
+    views: int | None = Field(default=None, ge=0)
+    retention_pct: float | None = Field(default=None, ge=0, le=100)
+    views_source: ViewsSource = "manual"
+    note: str = ""
+    updated_at: datetime
+
+
+class CriticSummary(BaseModel):
+    """What the critic said, on job.json (034): the overall and whether it was advisory
+    when it ran, so the verdict and the calibration read one file. The full report
+    (the ten lines, the notes) stays in out/qa.json."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: CriticStatus
+    overall: int | None = Field(default=None, ge=1, le=10)
+    advisory: bool = True
+    model: str
+
+
 class JobRecord(BaseModel):
     """Contents of job.json."""
 
@@ -157,6 +209,11 @@ class JobRecord(BaseModel):
     # forward jump out of `uploaded` legal, and it stays on the record afterwards as
     # the note that this run was a retry.
     retry_from: Status | None = None
+    # 034: the phone rating (10.3), the critic's summary (10.2) and the published
+    # short's audience (14.1(a)); `meta.json` (035) copies all three.
+    rating: Rating | None = None
+    critic: CriticSummary | None = None
+    performance: Performance | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -388,6 +445,82 @@ def requeue(job: Job, *, now: Clock = _utc_now) -> Job:
 def note(job: Job, line: str, *, now: Clock = _utc_now) -> None:
     """Append a line to job.log without touching job.json (a retry inside a step)."""
     _append_log(job, now(), line)
+
+
+def data_dir_of(job: Job) -> Path:
+    """The data directory the job was created under (`<data_dir>/jobs/<id>`, 2.2):
+    where `calibration.json` and the other cross-job files live."""
+    return job.path.parent.parent
+
+
+def _settled_or_raise(job: Job, requested: str) -> None:
+    if job.status not in VERDICTS:
+        raise IllegalTransition(job.id, job.status, requested)
+
+
+def rate(job: Job, score: int, note: str, *, now: Clock = _utc_now) -> Job:
+    """Store the phone rating on job.json (10.3) and log it. Only a job with a short
+    (`delivered`, `passed`, `rejected`) can be rated; a score off the 1-10 scale is a
+    `ValueError`. The status is not touched here: the verdict is `qa.calibration`'s,
+    which reads this rating and the critic's summary together."""
+    _settled_or_raise(job, "rating")
+    stamp = now()
+    rating = Rating(score=score, note=note.strip(), rated_at=stamp)  # ValidationError
+    updated = amend(job, rating=rating, updated_at=stamp)
+    line = f"rated {rating.score}/10" + (f": {rating.note}" if rating.note else "")
+    _append_log(updated, stamp, line)
+    return updated
+
+
+def set_performance(
+    job: Job,
+    *,
+    published_url: str = "",
+    views: int | None = None,
+    retention_pct: float | None = None,
+    views_source: ViewsSource = "manual",
+    note: str = "",
+    now: Clock = _utc_now,
+) -> Job:
+    """Store the published URL, views and retention on job.json (14.1(a)) and log
+    them; a job without a short has nothing published. No status changes."""
+    _settled_or_raise(job, "performance")
+    stamp = now()
+    performance = Performance(
+        published_url=published_url.strip(),
+        views=views,
+        retention_pct=retention_pct,
+        views_source=views_source,
+        note=note.strip(),
+        updated_at=stamp,
+    )
+    updated = amend(job, performance=performance, updated_at=stamp)
+    parts = [f"performance: {performance.published_url or '(no url)'}"]
+    if performance.views is not None:
+        parts.append(f"views {performance.views} ({performance.views_source})")
+    if performance.retention_pct is not None:
+        parts.append(f"retention {performance.retention_pct:g}%")
+    if performance.note:
+        parts.append(performance.note)
+    _append_log(updated, stamp, " ".join(parts))
+    return updated
+
+
+def settle(job: Job, status: Status, reason: str, *, now: Clock = _utc_now) -> Job:
+    """Move a finished short among `delivered`, `passed` and `rejected` (10.4), logging
+    `<from> -> <to> by <reason>`. This is the only way between them, since the verdict
+    follows the rating and a re-rating may reverse it; `transition` never reopens
+    `passed` or `rejected`. The same status again writes nothing."""
+    _settled_or_raise(job, status)
+    if status not in VERDICTS:
+        raise IllegalTransition(job.id, job.status, status)
+    current = load(job.path)
+    if current.status == status:
+        return current
+    stamp = now()
+    updated = amend(job, status=status, updated_at=stamp)
+    _append_log(updated, stamp, f"{current.status} -> {status} by {reason}")
+    return updated
 
 
 REPLACE_ATTEMPTS = 100

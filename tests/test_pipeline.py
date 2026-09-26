@@ -56,8 +56,8 @@ from shortsmith.planner import (
     UnavailablePlanner,
     prompt,
 )
+from shortsmith.qa import calibration, technical
 from shortsmith.qa import critic as critic_module
-from shortsmith.qa import technical
 from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import FakeGate, Gate
 from shortsmith.render import FakeRenderer, Renderer
@@ -346,6 +346,52 @@ def test_a_critic_failure_never_blocks_delivery_while_advisory(
     assert report is not None and report.critic is not None
     assert report.critic.status == "unavailable"
     assert report.critic.notes[0] == "the critic could not be reached: boom"
+
+
+def _blocking(data_dir: Path) -> None:
+    """A calibration file whose last five rated jobs all matched (10.2)."""
+    calibration.save(
+        data_dir,
+        calibration.Calibration(
+            entries=[
+                calibration.Entry(
+                    job_id=f"20260926-09000{i}-abcdef", critic_overall=8, critic_pass=True,
+                    rating=7, phone_pass=True, matched=True, at=datetime(2026, 9, 26, tzinfo=UTC),
+                )  # fmt: skip
+                for i in range(5)
+            ]
+        ),
+    )
+
+
+@pytest.mark.parametrize(("overall", "expected"), [(7, "passed"), (6, "rejected")])
+def test_a_blocking_critic_settles_an_unrated_job_at_delivery(
+    tmp_path: Path, fixture_clip: Path, overall: int, expected: str
+) -> None:
+    """10.4 / 034: once blocking, `passed` needs critic >= 7 and `rejected` is the
+    critic under it; the job went through `delivered` first and keeps its files."""
+    _blocking(tmp_path)
+    done = _run(_uploaded(tmp_path, fixture_clip), critic=FakeCritic(overall=overall))
+    assert done.status == expected
+    report = technical.load_report(done)
+    assert report is not None and report.critic is not None and report.critic.advisory is False
+    assert (done.out_dir / "short.mp4").is_file()
+    trail = [line.split(" ", 1)[1] for line in done.log_path.read_text("utf-8").splitlines()]
+    assert "qa -> delivered" in trail
+    assert trail[-1] == f"delivered -> {expected} by critic {overall}/10 blocking"
+
+
+def test_an_unavailable_critic_leaves_a_job_delivered_even_while_blocking(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    _blocking(tmp_path)
+    done = _run(_uploaded(tmp_path, fixture_clip), critic=_UnreachableCritic())
+    assert done.status == "delivered"
+
+
+def test_while_advisory_the_critic_settles_nothing(tmp_path: Path, fixture_clip: Path) -> None:
+    done = _run(_uploaded(tmp_path, fixture_clip), critic=FakeCritic(overall=2))
+    assert done.status == "delivered"
 
 
 class _OverBudgetCritic(FakeCritic):

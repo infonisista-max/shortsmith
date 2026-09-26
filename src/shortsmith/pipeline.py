@@ -68,10 +68,13 @@ same specs the grammar judged the plan by, since T8 re-validates the plan. When 
 check passes the gate composes `out/contact.jpg`, and once `short.mp4`, `contact.jpg`,
 `rights.json` and `credits.md` exist (10.4) the critic (`qa.critic`, 033; 10.2) scores
 the short from the sheet, the strips and the plan and writes its report into the same
-`out/qa.json`. The critic is advisory: one that cannot answer leaves an `unavailable`
-report and the job is `delivered` all the same; only its hard-cap refusal
-(`BudgetExceeded`) fails the job, as every refused paid call does (11.3). The critic
-is injected like the adapters (`FakeCritic` unless the app passes the configured one).
+`out/qa.json`. The critic is advisory until the calibration streak flips it (034,
+`qa.calibration`): one that cannot answer leaves an `unavailable` report and the job
+is `delivered` all the same; only its hard-cap refusal (`BudgetExceeded`) fails the
+job, as every refused paid call does (11.3). The critic is injected like the adapters
+(`FakeCritic` unless the app passes the configured one). After `delivered` the verdict
+(10.4) is applied once: a blocking critic settles the job `passed` (>= 7) or
+`rejected` at once; otherwise it waits for the phone rating on the job page.
 
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
@@ -111,6 +114,7 @@ from shortsmith.contracts import (
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.ledger import BudgetExceeded
 from shortsmith.planner import PlanInvalid, Planner
+from shortsmith.qa import calibration
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import Gate, TechnicalGate
@@ -223,7 +227,11 @@ def run_job(
     finally:
         if watchdog is not None:
             watchdog.stop()
-    return jobs.transition(job, "delivered")
+    delivered = jobs.transition(job, "delivered")
+    # 10.4 / 034: a blocking critic settles the short at once (`passed` at 7, else
+    # `rejected`); while advisory, or with no critic verdict, it stays `delivered`
+    # until the phone rating comes in. Either way every deliverable stays served.
+    return calibration.apply(delivered, now=clock)
 
 
 def start_step(job: Job) -> Status:

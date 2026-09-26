@@ -63,7 +63,10 @@ from shortsmith.contracts import (
 )
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
-from shortsmith.qa import technical
+from shortsmith.qa import (
+    calibration,  # `critic.calibration.record(job)` (034)
+    technical,
+)
 
 PROVIDER = "critic"
 STEP = "qa"  # the pipeline step the critic runs in (after the gate, before `delivered`)
@@ -73,8 +76,6 @@ TIMEOUT_S = 300.0
 MAX_RETRIES = 2
 CHARS_PER_TOKEN = 3  # a generous token estimate for the hard-cap check only
 TOKENS_PER_IMAGE = 2000  # a strip's worth of image tokens, for the same estimate
-# 10.2: advisory until 034's calibration streak says otherwise.
-ADVISORY = True
 
 REFERENCE_DIR = Path(__file__).resolve().parents[3] / "docs" / "reference"
 REFERENCE_README = REFERENCE_DIR / "README.md"
@@ -703,25 +704,36 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Critic
 
 def run(job: Job, critic: Critic, *, reference_dir: Path = REFERENCE_DIR) -> CriticReport:
     """The pipeline's critic step, after the gate has passed and the sheet exists: build
-    the inputs, score, write the report into `out/qa.json` and note `job.log`. A critic
-    that cannot answer (`CriticError`) leaves an `unavailable` report and the job goes
-    on to `delivered`; the hard cap (`BudgetExceeded`) is not caught, it fails the job
-    as every refused paid call does (11.3)."""
+    the inputs, score, write the report into `out/qa.json`, its summary onto `job.json`
+    (034: the overall and the mode, for the verdict and the calibration) and note
+    `job.log`. The mode is the calibration's (10.2): advisory until four of the last
+    five rated jobs matched the phone, blocking from then on. A critic that cannot
+    answer (`CriticError`) leaves an `unavailable` report and the job goes on to
+    `delivered`; the hard cap (`BudgetExceeded`) is not caught, it fails the job as
+    every refused paid call does (11.3)."""
     report = technical.load_report(job)
     if report is None:
         raise CriticError("out/qa.json is missing: the gate runs before the critic")
     inputs = build_inputs(job, reference_dir=reference_dir)
+    advisory = calibration.mode(jobs.data_dir_of(job)) == "advisory"
+    mode = "advisory" if advisory else "blocking"
     try:
         result = critic.bind(job).score(inputs)
     except CriticError as exc:
         result = unavailable(critic.model, str(exc), category=inputs.category, notes=inputs.notes)
+        result = result.model_copy(update={"advisory": advisory})
         jobs.note(job, f"critic: unavailable: {exc}")
     else:
-        result = result.model_copy(update={"advisory": ADVISORY})
-        mode = "advisory" if ADVISORY else "blocking"
+        result = result.model_copy(update={"advisory": advisory})
         scores = ", ".join(f"{line.name} {line.score}" for line in result.lines)
         jobs.note(
             job, f"critic: overall {result.overall}/10 {mode} ({result.model}): {scores}"
         )
     technical.write_report(job, report.model_copy(update={"critic": result}))
+    jobs.amend(
+        job,
+        critic=jobs.CriticSummary(
+            status=result.status, overall=result.overall, advisory=advisory, model=result.model
+        ),
+    )
     return result

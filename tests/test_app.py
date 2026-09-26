@@ -396,6 +396,209 @@ def test_job_page_says_when_the_critic_was_unavailable(tmp_path: Path, media: Me
         assert 'class="critic-line"' not in body
 
 
+# --- the phone rating and the verdict (10.3, 10.4; ticket 034) ---------------------------
+
+
+def _delivered_job(client: TestClient, app: FastAPI, media: Media) -> str:
+    location = _post(client, media.clip()).headers["location"]
+    assert app.state.worker.run_next() is True
+    return location
+
+
+def test_the_job_page_offers_the_slider_and_a_rating_is_stored_and_shown(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    """10.3: a 1-10 slider and a note on the delivered page; `POST /jobs/<id>/rating`
+    stores `{score, note, rated_at}` on job.json and the page renders the stored value;
+    while advisory a rating of 6 makes the job `passed` (10.4)."""
+    location = _delivered_job(client, app, media)
+    body = client.get(location).text
+    assert f'<form class="rating" method="post" action="{location}/rating">' in body
+    assert 'name="score" min="1" max="10"' in body and 'name="note"' in body
+    assert "not rated yet" in body
+    saved = client.post(
+        f"{location}/rating", data={"score": "6", "note": "hook works, finale flat"},
+        follow_redirects=False,
+    )  # fmt: skip
+    assert saved.status_code == 303 and saved.headers["location"] == location
+    record = client.get(f"{location}.json").json()
+    assert record["rating"]["score"] == 6 and record["rating"]["note"] == "hook works, finale flat"
+    assert record["rating"]["rated_at"] is not None
+    assert record["status"] == "passed"
+    body = client.get(location).text
+    assert 'name="score" min="1" max="10" value="6"' in body
+    assert ">hook works, finale flat</textarea>" in body
+    assert "Rated 6/10" in body
+    assert 'data-step="passed" class="step current"' in body
+
+
+def test_a_rating_under_6_rejects_the_job_and_it_stays_downloadable(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    location = _delivered_job(client, app, media)
+    client.post(f"{location}/rating", data={"score": "5"}, follow_redirects=False)
+    assert client.get(f"{location}.json").json()["status"] == "rejected"
+    assert client.get(f"{location}/short.mp4").status_code == 200
+    assert f'href="{location}/short.mp4?download=1"' in client.get(location).text
+    # A second look reverses it (the rating is what the verdict follows).
+    client.post(f"{location}/rating", data={"score": "8"}, follow_redirects=False)
+    assert client.get(f"{location}.json").json()["status"] == "passed"
+
+
+def test_a_rating_writes_the_calibration_and_the_page_shows_critic_agreed_n_of_5(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    """10.3: `data/calibration.json` tracks the critic-versus-phone match streak and the
+    critic panel shows "critic agreed N of last 5"."""
+    location = _delivered_job(client, app, media)
+    assert "no rated jobs yet" in client.get(location).text
+    client.post(f"{location}/rating", data={"score": "7"}, follow_redirects=False)  # fake: 7
+    cal = json.loads((app.state.data_dir / "calibration.json").read_text("utf-8"))
+    (entry,) = cal["entries"]
+    assert entry["job_id"] == location.rsplit("/", 1)[1]
+    assert entry["critic_pass"] and entry["phone_pass"] and entry["matched"]
+    assert "critic agreed 1 of last 1" in client.get(location).text
+
+
+def test_rating_refusals(client: TestClient, app: FastAPI, media: Media) -> None:
+    """A job without a short cannot be rated (409), a score off the scale is 422, an
+    unknown job 404; none of them writes anything."""
+    location = _post(client, media.clip()).headers["location"]  # uploaded, not run
+    refused = client.post(f"{location}/rating", data={"score": "7"}, follow_redirects=False)
+    assert refused.status_code == 409 and "no short to rate" in refused.text
+    assert client.get(f"{location}.json").json()["rating"] is None
+    assert app.state.worker.run_next() is True
+    for bad in ("0", "11", "seven", ""):
+        refused = client.post(f"{location}/rating", data={"score": bad}, follow_redirects=False)
+        assert refused.status_code == 422, bad
+    assert client.get(f"{location}.json").json()["rating"] is None
+    unknown = client.post("/jobs/20260101-000000-abcdef/rating", data={"score": "7"})
+    assert unknown.status_code == 404
+
+
+def test_the_job_list_shows_the_rating(client: TestClient, app: FastAPI, media: Media) -> None:
+    location = _delivered_job(client, app, media)
+    job_id = location.rsplit("/", 1)[1]
+    rows = dict(zip(_list_rows(client.get("/jobs").text),
+                    client.get("/jobs").text.split('<tr data-job="')[1:], strict=True))  # fmt: skip
+    assert "<td>-</td>" in rows[job_id]
+    client.post(f"{location}/rating", data={"score": "8"}, follow_redirects=False)
+    rows = dict(zip(_list_rows(client.get("/jobs").text),
+                    client.get("/jobs").text.split('<tr data-job="')[1:], strict=True))  # fmt: skip
+    assert "<td>8/10</td>" in rows[job_id] and 'class="status-passed"' in rows[job_id]
+
+
+# --- YouTube performance (10.2, 14.1(a); ticket 034) ---------------------------------------
+
+
+def test_performance_fields_are_stored_by_hand_and_shown(
+    client: TestClient, app: FastAPI, media: Media
+) -> None:
+    location = _delivered_job(client, app, media)
+    body = client.get(location).text
+    assert f'<form class="performance" method="post" action="{location}/performance">' in body
+    saved = client.post(
+        f"{location}/performance",
+        data={"published_url": "https://youtube.com/shorts/abc123DEF45", "views": "1200",
+              "retention": "63.5"},
+        follow_redirects=False,
+    )  # fmt: skip
+    assert saved.status_code == 303
+    record = client.get(f"{location}.json").json()
+    assert record["performance"]["published_url"] == "https://youtube.com/shorts/abc123DEF45"
+    assert record["performance"]["views"] == 1200
+    assert record["performance"]["retention_pct"] == 63.5
+    assert record["performance"]["views_source"] == "manual"
+    assert record["status"] == "delivered"  # no status change from performance
+    body = client.get(location).text
+    assert 'value="https://youtube.com/shorts/abc123DEF45"' in body
+    assert 'name="views" min="0" value="1200"' in body and 'name="retention"' in body
+    assert "63.5" in body
+
+
+def test_performance_refusals(client: TestClient, app: FastAPI, media: Media) -> None:
+    location = _post(client, media.clip()).headers["location"]
+    refused = client.post(f"{location}/performance", data={"published_url": "x"},
+                          follow_redirects=False)  # fmt: skip
+    assert refused.status_code == 409
+    assert app.state.worker.run_next() is True
+    for data in ({"views": "many"}, {"retention": "101"}, {"views": "-1"}):
+        assert client.post(f"{location}/performance", data=data).status_code == 422, data
+    assert client.get(f"{location}.json").json()["performance"] is None
+
+
+def _youtube_app(tmp_path: Path, tape: Any) -> FastAPI:
+    from shortsmith.performance import YouTube
+
+    return app_module.create_app(
+        _settings(tmp_path), transcriber=FakeTranscriber(), planner=FakePlanner(),
+        renderer=FakeRenderer(), gate=FakeGate(), specs=SPECS, detector=FakeFaceDetector(),
+        youtube=YouTube(api_key=SecretStr("k"), client=tape.client()), start_worker=False,
+    )  # fmt: skip
+
+
+def test_with_a_key_the_views_are_pulled_read_only_for_the_stored_url(
+    tmp_path: Path, media: Media
+) -> None:
+    """14.1(a): `YOUTUBE_API_KEY` set and views left blank -> one GET fills them; a
+    hand-typed count is kept as typed. Never an upload."""
+    from tests.test_performance import Tape, recorded
+
+    tape = Tape(recorded())
+    app = _youtube_app(tmp_path, tape)
+    with TestClient(app) as client:
+        login(client)
+        location = _delivered_job(client, app, media)
+        client.post(f"{location}/performance",
+                    data={"published_url": "https://youtu.be/abc123DEF45", "retention": "40"},
+                    follow_redirects=False)  # fmt: skip
+        record = client.get(f"{location}.json").json()
+        assert record["performance"]["views"] == 18342
+        assert record["performance"]["views_source"] == "youtube"
+        assert record["performance"]["retention_pct"] == 40.0
+        assert len(tape.requests) == 1 and tape.requests[0].method == "GET"
+        assert "views from YouTube" in client.get(location).text
+        client.post(f"{location}/performance",
+                    data={"published_url": "https://youtu.be/abc123DEF45", "views": "5"},
+                    follow_redirects=False)  # fmt: skip
+        assert client.get(f"{location}.json").json()["performance"]["views"] == 5
+        assert len(tape.requests) == 1
+
+
+def test_a_failed_pull_keeps_the_typed_fields_and_says_why_on_the_page(
+    tmp_path: Path, media: Media
+) -> None:
+    from tests.test_performance import Tape
+
+    app = _youtube_app(tmp_path, Tape({"error": {"code": 403, "message": "quota"}}, status=403))
+    with TestClient(app) as client:
+        login(client)
+        location = _delivered_job(client, app, media)
+        client.post(f"{location}/performance",
+                    data={"published_url": "https://youtu.be/abc123DEF45"},
+                    follow_redirects=False)  # fmt: skip
+        record = client.get(f"{location}.json").json()
+        assert record["performance"]["views"] is None
+        assert record["performance"]["published_url"] == "https://youtu.be/abc123DEF45"
+        assert "YouTube answered 403: quota" in client.get(location).text
+
+
+def test_the_app_builds_the_youtube_pull_from_the_config(tmp_path: Path) -> None:
+    from shortsmith.performance import YouTube
+
+    off = app_module.create_app(
+        _settings(tmp_path), transcriber=FakeTranscriber(), planner=FakePlanner(), specs=SPECS,
+        renderer=FakeRenderer(), gate=FakeGate(), start_worker=False,
+    )  # fmt: skip
+    assert off.state.youtube is None
+    on = app_module.create_app(
+        _settings(tmp_path, youtube_api_key=SecretStr("k")), transcriber=FakeTranscriber(),
+        planner=FakePlanner(), specs=SPECS, renderer=FakeRenderer(), gate=FakeGate(),
+        start_worker=False,
+    )  # fmt: skip
+    assert isinstance(on.state.youtube, YouTube)
+
+
 def test_the_app_builds_the_critic_from_the_config(tmp_path: Path) -> None:
     """10.2: `CRITIC=api` is the vision critic on `CRITIC_MODEL`; the app tests run on
     the fake, which `_settings` selects."""

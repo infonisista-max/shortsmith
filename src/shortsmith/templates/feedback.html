@@ -1,0 +1,15 @@
+<h2>Your rating</h2>
+<form class="rating" method="post" action="$base/rating">
+  <label>Score <input type="range" name="score" min="1" max="10" value="$score" oninput="this.form.querySelector('output').value = this.value"> <output>$score</output>/10</label>
+  <label>Note <textarea name="note" rows="2" placeholder="one line on the phone verdict">$note</textarea></label>
+  <button type="submit">Save rating</button>
+</form>
+<p class="rated">$rated</p>
+<h2>YouTube performance</h2>
+<form class="performance" method="post" action="$base/performance">
+  <label>Published URL <input type="url" name="published_url" value="$published_url" placeholder="https://youtube.com/shorts/..."></label>
+  <label>Views <input type="number" name="views" min="0" value="$views"></label>
+  <label>Retention % <input type="number" name="retention" min="0" max="100" step="0.1" value="$retention"></label>
+  <button type="submit">Save performance</button>
+</form>
+<p class="performance-note">$performance_line</p>

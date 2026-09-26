@@ -1,0 +1,21 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "recorded-2026-09-26",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "etag": "recorded-item",
+      "id": "abc123DEF45",
+      "statistics": {
+        "viewCount": "18342",
+        "likeCount": "911",
+        "favoriteCount": "0",
+        "commentCount": "37"
+      }
+    }
+  ],
+  "pageInfo": {
+    "totalResults": 1,
+    "resultsPerPage": 1
+  }
+}

@@ -96,6 +96,10 @@ class Settings(BaseSettings):
     # allowed (11.3).
     critic: Critic = "api"
     critic_model: str = "claude-sonnet-5"
+    # 10.2 / 14.1(a) / 034: a read-only YouTube Data API pull of the view count for a
+    # published URL typed onto the job page; unset, views are a hand-typed field. Free
+    # quota, no ledger row. Never an upload.
+    youtube_api_key: SecretStr | None = None
     # 5.5: ladder rung 2. `none` makes generation a no-op, `fake` writes the prompt on
     # a solid frame (a local run with no key), `gemini` is the direct REST adapter.
     # Model and endpoint are config strings, so another provider is an `.env` edit;

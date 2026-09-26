@@ -193,6 +193,132 @@ def test_a_job_that_fails_twice_at_the_same_step_keeps_both_errors_in_the_log(
     assert all("step=rendering" in line for line in failures)
 
 
+def _delivered(tmp_path: Path, clock: Clock) -> jobs.Job:
+    job = jobs.create(tmp_path, now=clock)
+    for status in STATUS_ORDER[1:]:
+        job = jobs.transition(job, status, now=clock)
+    return job
+
+
+def test_rate_stores_score_note_and_time_on_job_json_with_a_log_line(
+    tmp_path: Path, clock: Clock
+) -> None:
+    """10.3 / 034: the phone rating lands on `job.json.rating` and the log says so; a
+    second rating overwrites the first (the slider re-posts) and both are in the log."""
+    job = _delivered(tmp_path, clock)
+    assert job.record.rating is None
+    rated = jobs.rate(job, 7, "good hook, weak finale", now=clock)
+    on_disk = jobs.load(job.path).record
+    assert on_disk.rating == rated.record.rating
+    assert on_disk.rating is not None
+    assert on_disk.rating.score == 7 and on_disk.rating.note == "good hook, weak finale"
+    assert on_disk.rating.rated_at == on_disk.updated_at
+    assert on_disk.status == "delivered"  # the verdict is the calibration's, not here
+    rated = jobs.rate(rated, 4, "", now=clock)
+    assert jobs.load(job.path).record.rating == rated.record.rating
+    lines = job.log_path.read_text(encoding="utf-8").splitlines()
+    assert lines[-2].endswith("rated 7/10: good hook, weak finale")
+    assert lines[-1].endswith("rated 4/10")
+
+
+@pytest.mark.parametrize("score", [0, 11])
+def test_rate_refuses_a_score_off_the_1_to_10_scale(
+    tmp_path: Path, clock: Clock, score: int
+) -> None:
+    job = _delivered(tmp_path, clock)
+    with pytest.raises(ValueError):
+        jobs.rate(job, score, "", now=clock)
+    assert jobs.load(job.path).record.rating is None
+
+
+def test_rate_refuses_a_job_that_has_no_short_yet(tmp_path: Path, clock: Clock) -> None:
+    job = jobs.transition(jobs.create(tmp_path, now=clock), "transcribing", now=clock)
+    with pytest.raises(IllegalTransition):
+        jobs.rate(job, 7, "", now=clock)
+
+
+def test_settle_moves_a_job_between_delivered_passed_and_rejected_only(
+    tmp_path: Path, clock: Clock
+) -> None:
+    """10.4: the verdict may change with the rating (a `passed` job rated 4 is
+    `rejected`), so the three settled statuses move among themselves by `settle` and
+    by nothing else; `transition` still treats `passed` and `rejected` as terminal."""
+    job = _delivered(tmp_path, clock)
+    job = jobs.settle(job, "passed", "rating 7/10", now=clock)
+    assert jobs.load(job.path).status == "passed"
+    job = jobs.settle(job, "rejected", "rating 4/10", now=clock)
+    assert jobs.load(job.path).status == "rejected"
+    job = jobs.settle(job, "delivered", "rating withdrawn", now=clock)
+    assert jobs.load(job.path).status == "delivered"
+    lines = job.log_path.read_text(encoding="utf-8").splitlines()
+    assert lines[-3].endswith("delivered -> passed by rating 7/10")
+    assert lines[-2].endswith("passed -> rejected by rating 4/10")
+    assert lines[-1].endswith("rejected -> delivered by rating withdrawn")
+    with pytest.raises(IllegalTransition):
+        jobs.transition(jobs.settle(job, "passed", "x", now=clock), "rejected", now=clock)
+
+
+def test_settle_to_the_same_status_writes_nothing(tmp_path: Path, clock: Clock) -> None:
+    job = _delivered(tmp_path, clock)
+    before_json = job.json_path.read_bytes()
+    before_log = job.log_path.read_bytes()
+    assert jobs.settle(job, "delivered", "no change", now=clock).status == "delivered"
+    assert job.json_path.read_bytes() == before_json
+    assert job.log_path.read_bytes() == before_log
+
+
+@pytest.mark.parametrize("status", ["uploaded", "failed"])
+def test_settle_refuses_a_job_that_is_not_settled_or_a_status_that_is_not_a_verdict(
+    tmp_path: Path, clock: Clock, status: str
+) -> None:
+    job = jobs.create(tmp_path, now=clock)
+    with pytest.raises(IllegalTransition):
+        jobs.settle(job, "passed", "x", now=clock)
+    with pytest.raises(IllegalTransition):
+        jobs.settle(_delivered(tmp_path, clock), status, "x", now=clock)  # type: ignore[arg-type]
+
+
+def test_set_performance_stores_the_youtube_fields_with_a_log_line(
+    tmp_path: Path, clock: Clock
+) -> None:
+    """14.1(a): the published URL, views and retention are fields on the job, filled by
+    hand or by a read-only pull; never an upload."""
+    job = _delivered(tmp_path, clock)
+    assert job.record.performance is None
+    stored = jobs.set_performance(
+        job,
+        published_url="https://youtube.com/shorts/abc123DEF45",
+        views=1200,
+        retention_pct=63.5,
+        views_source="manual",
+        now=clock,
+    )
+    on_disk = jobs.load(job.path).record
+    assert on_disk.performance == stored.record.performance
+    assert on_disk.performance is not None
+    assert on_disk.performance.published_url == "https://youtube.com/shorts/abc123DEF45"
+    assert on_disk.performance.views == 1200 and on_disk.performance.retention_pct == 63.5
+    assert on_disk.performance.views_source == "manual"
+    assert on_disk.performance.updated_at == on_disk.updated_at
+    assert on_disk.status == "delivered"
+    last = job.log_path.read_text(encoding="utf-8").splitlines()[-1]
+    assert last.endswith(
+        "performance: https://youtube.com/shorts/abc123DEF45 views 1200 (manual) retention 63.5%"
+    )
+
+
+def test_set_performance_refuses_a_job_that_has_no_short_yet(tmp_path: Path, clock: Clock) -> None:
+    with pytest.raises(IllegalTransition):
+        jobs.set_performance(jobs.create(tmp_path, now=clock), published_url="x", now=clock)
+
+
+def test_data_dir_of_is_the_directory_the_job_was_created_under(
+    tmp_path: Path, clock: Clock
+) -> None:
+    job = jobs.create(tmp_path, now=clock)
+    assert jobs.data_dir_of(job) == tmp_path
+
+
 def test_failed_carries_step_message_detail(tmp_path: Path, clock: Clock) -> None:
     job = jobs.create(tmp_path, now=clock)
     job = jobs.transition(job, "transcribing", now=clock)

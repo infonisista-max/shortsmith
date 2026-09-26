@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -28,7 +29,7 @@ from shortsmith.config import Settings
 from shortsmith.contracts import CATEGORIES, CRITIC_LINES, CriticLine, CriticReport, PicturePlan
 from shortsmith.ledger import BudgetExceeded, Caps, Ledger, Prices
 from shortsmith.planner import FakePlanner
-from shortsmith.qa import critic, technical
+from shortsmith.qa import calibration, critic, technical
 from shortsmith.qa.critic import Critic, CriticError, FakeCritic, Inputs, VisionCritic
 from shortsmith.qa.gate import FakeGate
 from shortsmith.render import FakeRenderer
@@ -516,6 +517,46 @@ def test_run_writes_the_report_into_qa_json_advisory_and_notes_the_log(
     assert f"critic: overall {written.overall}/10 advisory (fake)" in log
 
 
+def test_run_writes_the_summary_onto_job_json_for_the_verdict_and_the_calibration(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """034: `job.json.critic` carries the overall, the status and the mode the critic
+    ran under, so the verdict and `calibration.json` read one file."""
+    job = _delivered(tmp_path, fixture_clip)
+    critic.run(job, FakeCritic(overall=8), reference_dir=tmp_path / "none")
+    summary = jobs.load(job.path).record.critic
+    assert summary is not None
+    assert summary.status == "scored" and summary.overall == 8 and summary.advisory is True
+    assert summary.model == "fake"
+
+
+def test_run_is_blocking_once_the_calibration_streak_says_so(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """10.2: the mode comes from `<data_dir>/calibration.json` (four of the last five
+    rated jobs matched), never from a constant; the report and the log both say so."""
+    job = _delivered(tmp_path, fixture_clip)
+    calibration.save(tmp_path, _streak(matches=4))
+    written = critic.run(job, FakeCritic(overall=8), reference_dir=tmp_path / "none")
+    assert written.advisory is False
+    summary = jobs.load(job.path).record.critic
+    assert summary is not None and summary.advisory is False
+    assert "critic: overall 8/10 blocking (fake)" in job.log_path.read_text("utf-8")
+    calibration.save(tmp_path, _streak(matches=3))
+    assert critic.run(job, FakeCritic(), reference_dir=tmp_path / "none").advisory is True
+
+
+def _streak(*, matches: int) -> calibration.Calibration:
+    entries = [
+        calibration.Entry(
+            job_id=f"20260926-09000{i}-abcdef", critic_overall=8, critic_pass=True, rating=7,
+            phone_pass=True, matched=i < matches, at=datetime(2026, 9, 26, tzinfo=UTC),
+        )  # fmt: skip
+        for i in range(5)
+    ]
+    return calibration.Calibration(entries=entries)
+
+
 class _Broken(FakeCritic):
     def score(self, inputs: Inputs) -> CriticReport:
         raise CriticError("the critic could not be reached: boom")
@@ -527,6 +568,8 @@ def test_a_critic_that_cannot_answer_leaves_the_report_unavailable_not_the_job_f
     job = _delivered(tmp_path, fixture_clip)
     written = critic.run(job, _Broken(), reference_dir=tmp_path / "none")
     assert written.status == "unavailable"
+    summary = jobs.load(job.path).record.critic
+    assert summary is not None and summary.status == "unavailable" and summary.overall is None
     # The reason first, then what the inputs lacked, so the page can say both.
     assert written.notes[0] == "the critic could not be reached: boom"
     assert "no reference data for science" in written.notes
