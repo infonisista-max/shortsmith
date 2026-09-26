@@ -6,7 +6,8 @@
 # end of each iteration, so Drive sync never sits on the live-write path. The timeout branch waits
 # for the killed tree to release its handles; every harness note retries and never throws; a
 # timeout that leaves a dirty tree stops the loop for a supervised rescue (once.ps1) instead of an
-# unattended re-pick of the ticket that just outran the clock.
+# unattended re-pick of the ticket that just outran the clock. The log is stream-json, one event
+# per line, written as it happens, so a killed iteration keeps everything up to the kill.
 param(
     [int]$MaxIterations  = 2,
     [int]$TimeoutMinutes = 40,
@@ -68,8 +69,12 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $log   = Join-Path $LocalDir "afk-$stamp-iter$i.log"
     Write-Host "=== iteration $i/$MaxIterations -> $log ==="
+    # stream-json + per-line Add-Content: text mode prints only at completion, so a killed iteration
+    # left an empty log (proven 26 Sep). Each event lands in the file as it happens. The explicit
+    # exit carries claude's exit code through the pipeline, so a failed run still counts as one.
     $inner = "`$env:UV_NO_SYNC='1'; Set-Location '$RepoRoot'; Get-Content -Raw '$PromptFile' | " +
-             "claude -p --permission-mode acceptEdits$modelArg --max-turns $MaxTurns --verbose *>> '$log'"
+             "claude -p --output-format stream-json --permission-mode acceptEdits$modelArg --max-turns $MaxTurns --verbose 2>&1 | " +
+             "ForEach-Object { Add-Content -LiteralPath '$log' -Value ([string]`$_) -Encoding Unicode }; exit `$LASTEXITCODE"
     $proc = Start-Process powershell -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-Command",$inner `
             -WorkingDirectory $RepoRoot -PassThru -WindowStyle Hidden
     $stopAfter = $false
