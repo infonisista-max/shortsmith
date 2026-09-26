@@ -28,10 +28,18 @@ Everything happens in a temp directory that is removed afterwards, unless
 `SHORTSMITH_SMOKE_KEEP=1` (ticket 049): then the run lands under `work/smoke/` beneath
 the current directory, survives, and the summary line ends with the absolute path of
 `picture.mp4` so the operator can watch the render. `work/` is git-ignored.
+
+`--style hitech` (ticket 048; decisions 1.4, 9.2, 9.4) renders the same walk under the
+`hitech` draft: the smoke first proves the form's resolver still redirects the word to
+`explainer` with the notice, then selects the draft directly (the resolver never picks
+one), and every check reads that spec's numbers - its palette, typography, PIP ring,
+four-transition subset with `wipe` on a beat - through the same T1-T13. The draft stays
+`draft`; nothing about it is judged here.
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import tempfile
@@ -137,9 +145,34 @@ class SmokeResult:
     picture: Path
 
 
+def select_style(style: str, specs: dict[str, styles.StyleSpec]) -> styles.Resolution:
+    """The style the smoke renders under (008, 048). The default resolves from the form's
+    style line, with no notice. Any other name is a draft the resolver must still redirect
+    to `explainer` with the 1.4 notice - proved here - and is then selected directly, as
+    the operator does for a smoke render and never a user job."""
+    if style == styles.DEFAULT:
+        resolution = styles.resolve(SMOKE_STYLE_LINE, specs)
+        check(
+            resolution.name == styles.DEFAULT and resolution.notice == "",
+            f"resolved {resolution}",
+        )
+        return resolution
+    check(style in specs, f"style {style!r} is not a loaded spec (loaded: {sorted(specs)})")
+    check(specs[style].status == "draft", f"{style} is shipped; only drafts are selected directly")
+    redirected = styles.resolve(style, specs)
+    check(
+        redirected.name == styles.DEFAULT
+        and redirected.notice == f"{style} not available yet, using {styles.DEFAULT}",
+        f"the form would resolve {style!r} to {redirected}, not to {styles.DEFAULT} "
+        "with the notice",
+    )
+    return styles.Resolution(name=style, note=style)
+
+
 def run_smoke(
     root: Path,
     *,
+    style: str = styles.DEFAULT,
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
     renderer: Renderer | None = None,
@@ -165,8 +198,7 @@ def run_smoke(
     # 008: every spec loads against the registry, and the style line resolves in code.
     specs = styles.load_all(render.registry())
     check(styles.shipped(specs) == ["explainer"], f"shipped styles: {styles.shipped(specs)}")
-    resolution = styles.resolve(SMOKE_STYLE_LINE, specs)
-    check(resolution.name == "explainer" and resolution.notice == "", f"resolved {resolution}")
+    resolution = select_style(style, specs)
 
     job = ingest.accept(
         root / "data",
@@ -178,19 +210,19 @@ def run_smoke(
     )
     check(job.status == "uploaded", f"ingest left the job {job.status!r}, not 'uploaded'")
     check(
-        (job.record.style, job.record.style_note) == ("explainer", SMOKE_STYLE_LINE),
+        (job.record.style, job.record.style_note) == (style, resolution.note),
         "job.json does not carry the resolved style and note",
     )
     check((job.input_dir / "raw.mp4").is_file(), "ingest did not write input/raw.mp4")
     check((job.input_dir / "brief.md").is_file(), "ingest did not write input/brief.md")
     check((job.input_dir / "refs.json").is_file(), "ingest did not write input/refs.json")
 
-    # 009: the fake plan is judged by the fixture-shaped copy of explainer. 033: the
-    # fake critic records what it was shown, so the strips are proved real below.
+    # 009: the fake plan is judged by the fixture-shaped copy of the selected style. 033:
+    # the fake critic records what it was shown, so the strips are proved real below.
     critic = FakeCritic()
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
-        sourcing=smoke_sourcing(), specs=fixture.smoke_specs(specs), library=library,
+        sourcing=smoke_sourcing(), specs=fixture.smoke_specs(specs, style), library=library,
         critic=critic,
     )  # fmt: skip
     worker.submit(job.path)
@@ -264,15 +296,15 @@ def run_smoke(
         all(1 <= p.lines <= 2 and len(p.words) == len(p.word_indices) for p in pages),
         "a caption page is not laid out in one or two lines",
     )
-    manifest = check_assets(reloaded, plan)
-    faces = check_presenter(reloaded)
+    manifest = check_assets(reloaded, plan, style)
+    faces = check_presenter(reloaded, style)
     picture = job.work_dir / "picture.mp4"
     check(picture.is_file(), "rendering did not write work/picture.mp4")
     check((job.work_dir / "render_spec.json").is_file(), "rendering did not write render_spec.json")
     check((job.work_dir / "render.log").is_file(), "rendering did not keep work/render.log")
     frames = check_picture(picture)
     check_cut(job.work_dir / "cut.mp4")
-    cues = check_sound(reloaded, plan, story, library, specs)
+    cues = check_sound(reloaded, plan, story, library, specs[style])
     check(
         search.calls == [],
         f"a library bed scored over the threshold, yet the audio search was asked: {search.calls}",
@@ -305,7 +337,8 @@ def run_smoke(
 
     elapsed = time.perf_counter() - started
     summary = (
-        f"smoke ok: job {job.id} -> {reloaded.status}, {len(on_disk.words)} words, "
+        f"smoke ok: style {style}, job {job.id} -> {reloaded.status}, "
+        f"{len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
@@ -318,7 +351,7 @@ def run_smoke(
     return SmokeResult(job_dir=job.path, summary=summary, picture=picture)
 
 
-def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
+def check_assets(job: jobs.Job, plan: PicturePlan, style: str) -> assets.AssetManifest:
     """016: `work/assets.json` sources every labelled beat through the fakes with no
     rescue, the photo beat as a photo and the card beat as a card; the rights log is
     complete and the credits exist; the render spec draws both. 017: the fake
@@ -385,23 +418,25 @@ def check_assets(job: jobs.Job, plan: PicturePlan) -> assets.AssetManifest:
         drawn == {"b03": "photo", "b04": "card", "b08": "photo", "b10": "photo"},
         f"render spec draws {drawn}",
     )
-    check_set_pieces(spec, plan)
-    check_transitions(spec, plan)
+    check_set_pieces(spec, plan, style)
+    check_transitions(spec, plan, style)
+    check_look(spec, style)
     return manifest
 
 
-def check_transitions(spec: RenderSpec, plan: PicturePlan) -> None:
-    """030 (9.4): the spec carries the explainer's enter list and the vocabulary's
-    numbers from the front matter, every beat's `enter` is the plan's, and the fake plan
-    exercises each of the five explainer transitions at least once."""
-    style = styles.load_all(render.registry())[styles.DEFAULT]
+def check_transitions(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
+    """030 (9.4): the spec carries the style's enter list and the vocabulary's numbers
+    from the front matter, every beat's `enter` is the plan's, and the fake plan
+    exercises each of the style's enabled transitions at least once (048: under
+    `hitech` that is cut, fade, wipe and zoom, the whip and spring swapped away)."""
+    loaded = styles.load_all(render.registry())[style]
     check(
-        spec.transitions.enabled == list(style.broll.enter_transitions),
+        spec.transitions.enabled == list(loaded.broll.enter_transitions),
         f"the render spec enables {spec.transitions.enabled}",
     )
     numbers = spec.transitions.model_dump(exclude={"enabled"})
     check(
-        numbers == style.broll.transitions.model_dump(),
+        numbers == loaded.broll.transitions.model_dump(),
         f"the render spec's transition numbers are not the front matter's: {numbers}",
     )
     check(
@@ -411,11 +446,29 @@ def check_transitions(spec: RenderSpec, plan: PicturePlan) -> None:
     used = {b.enter for b in spec.beats}
     check(
         used == set(spec.transitions.enabled),
-        f"the fake plan enters with {sorted(used)}, not every explainer transition",
+        f"the fake plan enters with {sorted(used)}, not every {style} transition",
     )
 
 
-def check_presenter(job: jobs.Job) -> int:
+def check_look(spec: RenderSpec, style: str) -> None:
+    """048 (1.2): the render spec's palette, caption typography, PIP ring and stamp
+    colour are the selected style's front matter, never another spec's."""
+    loaded = styles.load_all(render.registry())[style]
+    check(spec.palette == loaded.palette, f"the render spec's palette is {spec.palette}")
+    check(
+        spec.caption_style == loaded.caption_style(),
+        f"the render spec's caption typography is not {style}'s",
+    )
+    check(
+        (spec.pip.ring_px, spec.pip.ring_color) == (loaded.pip.ring_px, loaded.pip.ring_color),
+        f"the PIP ring is {spec.pip.ring_px} px {spec.pip.ring_color}, not {style}'s",
+    )
+    lead = render.stamp_colors(render.numbers_for(loaded))[0]
+    off_palette = [b.id for b in spec.beats if b.stamp is not None and b.stamp.color != lead]
+    check(not off_palette, f"stamps on {off_palette} are not in {style}'s stamp palette")
+
+
+def check_presenter(job: jobs.Job, style: str) -> int:
     """013: the real cascade found the fixture's drawn face on every strip still, the
     eight stills are on disk, the measurement on job.json is the 3.3 geometry (a
     full-width square window, the circle on the caption block's top edge), and the
@@ -433,7 +486,7 @@ def check_presenter(job: jobs.Job) -> int:
     check(not missing, f"strip stills missing: {missing}")
     check(measured.times_s == list(presenter.strip_times(fixture.DURATION_S)),
           f"strip times are {measured.times_s}")  # fmt: skip
-    spec_style = styles.load_all(render.registry())[styles.DEFAULT]
+    spec_style = styles.load_all(render.registry())[style]
     expected = presenter.pip_geometry(measured.face, (fixture.WIDTH, fixture.HEIGHT), spec_style)
     check(measured.pip == expected, f"job.json pip {measured.pip} is not the 3.3 geometry")
     check(
@@ -453,7 +506,7 @@ def check_presenter(job: jobs.Job) -> int:
     return found
 
 
-def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
+def check_set_pieces(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
     """026: the short opens with the two-beat hook (a full-frame cold open that punches
     in, then the title and three cards) and ends with the finale card; the two landed
     events are drawn where the plan puts them, inside the style's geometry."""
@@ -473,7 +526,7 @@ def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
     check(finale_beat is spec.beats[-1], "the finale is not the last beat of the spec")
     stamped = sorted(b.id for b in spec.beats if b.stamp is not None)
     check(stamped == ["b03"], f"stamps land on {stamped}, not the plan's stamp beats")
-    numbers = render.style_numbers(styles.DEFAULT)
+    numbers = render.style_numbers(style)
     limit = numbers.broll.stamp_max_y_fraction * render.HEIGHT
     for beat in spec.beats:
         if beat.stamp is None:
@@ -482,12 +535,12 @@ def check_set_pieces(spec: RenderSpec, plan: PicturePlan) -> None:
         check(low <= limit, f"{beat.id}'s stamp ends at y {low:g}, past the top {limit:g}")
     labelled = [b.id for b in spec.beats if b.lower_third is not None]
     check(not labelled, f"lower-thirds drawn on {labelled}; b04's card strip carries it")
-    check_list_split_wall(spec, plan)
-    check_infographics(spec, plan)
-    check_map(spec, plan)
+    check_list_split_wall(spec, plan, style)
+    check_infographics(spec, plan, style)
+    check_map(spec, plan, style)
 
 
-def check_map(spec: RenderSpec, plan: PicturePlan) -> None:
+def check_map(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
     """020: the fake plan's `map` beat draws a region of the bundled land with its two
     markers at the fake geocoder's coordinates (never the plan's), Delhi north-east of
     Mumbai, every dot and label inside the safe band, the route ready for 028, and no
@@ -505,7 +558,7 @@ def check_map(spec: RenderSpec, plan: PicturePlan) -> None:
     check({m.source for m in layout.markers} == {"fake"}, "the markers were not fake-geocoded")
     delhi, mumbai = layout.markers
     check(delhi.y < mumbai.y and delhi.x > mumbai.x, "Delhi is not north-east of Mumbai")
-    limit = render.style_numbers(styles.DEFAULT).broll.card_max_bottom_y
+    limit = render.style_numbers(style).broll.card_max_bottom_y
     for m in layout.markers:
         inside = (
             infographics.SAFE_LEFT <= m.x <= render.WIDTH - infographics.SAFE_RIGHT_PX
@@ -520,12 +573,12 @@ def check_map(spec: RenderSpec, plan: PicturePlan) -> None:
     check(layout.object == beat.map.object, f"the map object is {layout.object!r}")
 
 
-def check_infographics(spec: RenderSpec, plan: PicturePlan) -> None:
+def check_infographics(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
     """021: the fake plan's `chart` beat is drawn from its series (the numbers written in
     the style's grouping, the axes scaled, the plot above `broll.card_max_bottom_y`) and
     its `infographic` beat draws its label-free base with every label in code, inside the
     safe area."""
-    numbers = render.style_numbers(styles.DEFAULT)
+    numbers = render.style_numbers(style)
     limit = numbers.broll.card_max_bottom_y
     planned = {b.kind: b for b in plan.beats if b.kind in ("chart", "infographic")}
     check(set(planned) == {"chart", "infographic"}, f"the fake plan names {sorted(planned)}")
@@ -565,10 +618,12 @@ def check_infographics(spec: RenderSpec, plan: PicturePlan) -> None:
             and label.top + label.height <= limit
         )
         check(inside, f"the label {label.text!r} draws outside the safe area")
-    check_flyin_and_counter(spec, plan, diagram)
+    check_flyin_and_counter(spec, plan, diagram, style)
 
 
-def check_flyin_and_counter(spec: RenderSpec, plan: PicturePlan, diagram: DiagramLayout) -> None:
+def check_flyin_and_counter(
+    spec: RenderSpec, plan: PicturePlan, diagram: DiagramLayout, style: str
+) -> None:
     """029: the diagram's labels fly in one after another from off-frame and have all
     landed inside the first part of their beat; the fake plan's counter beat counts from
     its start to its target in the style's grouping, lands in the stamp's time, and
@@ -596,7 +651,7 @@ def check_flyin_and_counter(spec: RenderSpec, plan: PicturePlan, diagram: Diagra
     counter = drawn.counter
     check(counter is not None, f"{drawn.id} carries no counter")
     assert counter is not None
-    numbers = render.style_numbers(styles.DEFAULT)
+    numbers = render.style_numbers(style)
     first, last = (
         infographics.with_unit(
             infographics.format_value(v, decimals=planned.decimals,
@@ -623,11 +678,11 @@ def check_flyin_and_counter(spec: RenderSpec, plan: PicturePlan, diagram: Diagra
     check(drawn.stamp is None, f"{drawn.id} draws a stamp as well as its counter (3.1)")
 
 
-def check_list_split_wall(spec: RenderSpec, plan: PicturePlan) -> None:
+def check_list_split_wall(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
     """027: the fake plan's `list`, `split` and `wall` beats are drawn with the items
     the plan gave them, every picture resolved through the manifest, and every box
     inside the safe area and above the style's `broll.card_max_bottom_y`."""
-    numbers = render.style_numbers(styles.DEFAULT)
+    numbers = render.style_numbers(style)
     limit = numbers.broll.card_max_bottom_y
     planned = {b.kind: b for b in plan.beats if b.kind in ("list", "split", "wall")}
     check(set(planned) == {"list", "split", "wall"}, f"the fake plan names {sorted(planned)}")
@@ -688,7 +743,7 @@ def check_sound(
     plan: PicturePlan,
     story: SoundStory,
     library: sound.Library,
-    specs: dict[str, styles.StyleSpec],
+    spec: styles.StyleSpec,
 ) -> tuple[sound.PlacedCue, ...]:
     """022: the fixture short has a bed and at least one floor hit. The stems sit beside
     the mix, the balance report is inside the 7.3 acceptance band, and the bed and every
@@ -696,19 +751,20 @@ def check_sound(
 
     The director is pure above ffmpeg, so the smoke re-derives the bed and the cues from
     the same plan, story and catalogue the renderer had, and checks the files it left.
-    The renderer reads the shipped spec's sound numbers, not the fixture-shaped copy the
-    grammar uses, so this is the real `cues_max_per_60s` scaled to six seconds."""
+    The renderer reads the selected spec's sound numbers as loaded from disk, not the
+    fixture-shaped copy the grammar uses, so this is the real `cues_max_per_60s` scaled
+    to six seconds."""
     stems = job.work_dir / "stems"
     for stem in ("voice.wav", "music.wav", "sfx.wav", "mix.wav"):
         check((stems / stem).is_file(), f"rendering did not write stems/{stem}")
-    nums = specs[styles.DEFAULT].sound
+    nums = spec.sound
     bed, _ = sound.choose_bed(
         library, story.bed_query, first_stamp_s=sound.first_stamp_s(plan),
         threshold=nums.bed_score_threshold,
     )  # fmt: skip
     check(bed is not None, f"no bed was chosen for {story.bed_query}")
     assert bed is not None
-    land_s = render.counter_land_s(specs[styles.DEFAULT])
+    land_s = render.counter_land_s(spec)
     floor = sound.floor_hits(plan, nums, counter_land_s=land_s)
     check(bool(floor), "the plan's events earned no floor hit (7.1: a short is never flat)")
     # 029: the counter's hit fires where its digits land, not at its beat's start.
@@ -941,16 +997,33 @@ def workspace(keep: bool) -> Generator[Path]:
         yield Path(tmp)
 
 
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m shortsmith.smoke",
+        description="Render the fixture end to end with every fake (decision 12.1).",
+    )
+    parser.add_argument(
+        "--style",
+        default=styles.DEFAULT,
+        help=f"the style spec to render under; a draft such as hitech (048). "
+        f"Default: {styles.DEFAULT}",
+    )
+    return parser.parse_args(argv if argv is not None else [])
+
+
 def main(
     argv: list[str] | None = None,
     *,
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
 ) -> int:
+    args = parse_args(argv)
     keep = keep_requested()
     with workspace(keep) as root:
         try:
-            result = run_smoke(root, transcriber=transcriber, planner=planner)
+            result = run_smoke(
+                root, style=args.style, transcriber=transcriber, planner=planner
+            )
         except Exception as exc:  # noqa: BLE001 - the smoke reports every failure the same way
             print(f"smoke FAILED: {exc}", file=sys.stderr)
             return 1

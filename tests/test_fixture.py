@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from shortsmith import fixture
+from shortsmith import fixture, render, styles
 from shortsmith.ffmpeg import frame_rgb, probe
 
 REPO = Path(__file__).resolve().parents[1]
@@ -57,3 +57,25 @@ def test_burst_times_are_the_documented_ones() -> None:
     assert fixture.BURST_TIMES == (0.2, 1.2, 2.2, 3.2, 4.2, 5.2)
     assert fixture.BURST_LEN_S == 0.3
     assert fixture.DURATION_S == 6.0
+
+
+def test_smoke_specs_scale_the_named_style_and_leave_the_others() -> None:
+    """048: the fixture-shaped copy can be made of any loaded style, so the `hitech`
+    draft is judged by its own numbers scaled to the clip; the default stays the
+    default when no name is given, and the untouched styles are the shipped files'."""
+    specs = styles.load_all(render.registry())
+    by_default = fixture.smoke_specs(specs)
+    assert by_default["explainer"].beats.min_s == fixture.SMOKE_BEATS["min_s"]
+    assert by_default["hitech"] == specs["hitech"]
+    scaled = fixture.smoke_specs(specs, "hitech")
+    assert scaled["hitech"].beats.min_s == fixture.SMOKE_BEATS["min_s"]
+    assert scaled["hitech"].sound.cues_max_per_60s == fixture.SMOKE_SOUND["cues_max_per_60s"]
+    assert scaled["hitech"].broll.unique_assets_max_per_60s == (
+        fixture.SMOKE_BROLL["unique_assets_max_per_60s"]
+    )
+    # Everything the scaling does not name is the draft's own: palette, typography, PIP.
+    assert scaled["hitech"].palette == specs["hitech"].palette
+    assert scaled["hitech"].captions == specs["hitech"].captions
+    assert scaled["hitech"].pip == specs["hitech"].pip
+    assert scaled["hitech"].status == "draft"
+    assert scaled["explainer"] == specs["explainer"]

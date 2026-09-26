@@ -12,11 +12,19 @@ beat's searched asset (the chart beat's is a number beat's reuse alias). The pla
 passes the grammar under `fixture.smoke_specs` (the explainer copy
 with beat, asset-count and ramp numbers scaled to six seconds) with zero violations;
 it uses only the explainer's five transitions (9.4). The fake ignores `feedback`.
+
+Ticket 048 renders the fixture under the `hitech` draft, whose enter list is `cut`,
+`fade`, `wipe`, `zoom`. The fake keeps its canned enters and swaps any the requested
+style does not enable for the nearest one it does (`ENTER_FALLBACKS`: a whip becomes
+a wipe, a spring a zoom, and anything still outside the list a cut), reading the list
+from `request.style.numbers` so the plan uses every enabled transition once and never
+one the grammar would reject. A request carrying no numbers gets the explainer enters.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import cast
 
 from shortsmith.contracts import (
     Beat as B,
@@ -34,8 +42,10 @@ from shortsmith.contracts import (
     PicturePlan,
     PlanFeedback,
     PlanRequest,
+    PlanStyle,
     SoundStory,
     Span,
+    Transition,
 )
 from shortsmith.contracts import (
     CounterPlan as Counter,
@@ -68,12 +78,52 @@ def kinds_named(plan: PicturePlan) -> set[str]:
     return named
 
 
+# The explainer's five enters (030), which every style enables in full or in part.
+EXPLAINER_ENTERS: tuple[Transition, ...] = ("cut", "fade", "whip", "zoom", "spring")
+# 048 (9.4): what a canned enter becomes under a style that does not enable it, in
+# order of preference; `cut` is the last resort and is in every list.
+ENTER_FALLBACKS: Mapping[Transition, tuple[Transition, ...]] = {
+    "whip": ("wipe", "zoom", "fade"),
+    "spring": ("zoom", "wipe", "fade"),
+    "wipe": ("fade",),
+    "zoom": ("fade",),
+    "fade": (),
+}
+
+
+def enabled_enters(style: PlanStyle) -> tuple[Transition, ...]:
+    """The style's `broll.enter_transitions` from the request's numbers; the explainer
+    five when the request carries no numbers (the planner's own tests)."""
+    broll = style.numbers.get("broll")
+    if not isinstance(broll, Mapping):
+        return EXPLAINER_ENTERS
+    listed = cast(Mapping[str, object], broll).get("enter_transitions")
+    if not isinstance(listed, Sequence) or isinstance(listed, str):
+        return EXPLAINER_ENTERS
+    return tuple(cast(Transition, str(t)) for t in cast(Sequence[object], listed))
+
+
+def enter_for(wanted: Transition, enabled: Sequence[Transition]) -> Transition:
+    """`wanted` when the style enables it, else its first enabled fallback, else `cut`."""
+    if wanted in enabled:
+        return wanted
+    for alternative in ENTER_FALLBACKS.get(wanted, ()):
+        if alternative in enabled:
+            return alternative
+    return "cut"
+
+
 class FakePlanner(Planner):
     PROMPT_VERSION = "fake-1"
 
     def plan_picture(
         self, request: PlanRequest, *, feedback: PlanFeedback | None = None
     ) -> PicturePlan:
+        enabled = enabled_enters(request.style)
+
+        def enter(wanted: Transition) -> Transition:
+            return enter_for(wanted, enabled)
+
         beats = [
             B(id="b01", start=0.0, end=0.5, mode="full", reason="cold_open",
               kind="presenter_full"),
@@ -82,17 +132,17 @@ class FakePlanner(Planner):
             B(id="b03", start=1.0, end=1.5, mode="pip", kind="photo", motion="ken_burns_in",
               subject_kind="concept", depicts="scene", query="slow colour gradient sky",
               query_fallback="abstract gradient", source_intent="search", asset_id="a1",
-              enter="fade", event=Event(kind="stamp", text="NOTHING")),
+              enter=enter("fade"), event=Event(kind="stamp", text="NOTHING")),
             B(id="b04", start=1.5, end=2.0, mode="pip", kind="card", motion="push_in",
               subject_kind="entity", query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",
-              enter="whip", event=Event(kind="lower_third", text="India Gate · Delhi")),
+              enter=enter("whip"), event=Event(kind="lower_third", text="India Gate · Delhi")),
             # 020: the map is drawn from the bundled geodata with the markers at the
             # geocoder's points; it sources no picture. 028 animates its three overlays.
             B(id="b05", start=2.0, end=2.5, mode="off", kind="map",
               overlays=["pin_drop", "route_arrow", "object_path"], motion="travel",
               subject_kind="entity", query="Delhi to Mumbai route",
-              query_fallback="India map", enter="fade",  # 009: `wipe` is not explainer (9.4)
+              query_fallback="India map", enter=enter("fade"),  # 009: `wipe` is not explainer
               map=MapPlan(region="India",
                           markers=[MapMarker(name="Delhi"), MapMarker(name="Mumbai")],
                           route=["Delhi", "Mumbai"], object="plane")),
@@ -118,14 +168,14 @@ class FakePlanner(Planner):
             B(id="b08", start=3.5, end=4.0, mode="off", kind="list", motion="reveal",
               subject_kind="concept", query="three things about nothing",
               query_fallback="empty list", source_intent="generate", asset_id="a7",
-              enter="spring", set_piece_title="Three kinds of nothing",
+              enter=enter("spring"), set_piece_title="Three kinds of nothing",
               items=[Item(text="Nothing to see", asset_id="a5"),
                      Item(text="Nothing to hear", asset_id="a6"),
                      Item(text="Nothing at all")]),
             B(id="b09", start=4.0, end=4.5, mode="pip", kind="split", motion="pan_left",
               subject_kind="entity", query="two synthetic faces side by side",
               query_fallback="two portraits", source_intent="search", asset_id="a8",
-              enter="zoom", set_piece_title="Delhi versus Mumbai",
+              enter=enter("zoom"), set_piece_title="Delhi versus Mumbai",
               items=[Item(text="Delhi", asset_id="a1"), Item(text="Mumbai", asset_id="a2")]),
             B(id="b10", start=4.5, end=5.0, mode="off", kind="wall", motion="pan_right",
               subject_kind="concept", depicts="scene", query="grid of colour gradients",

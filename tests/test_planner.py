@@ -131,6 +131,44 @@ def test_plans_carry_the_prompt_version(request_: PlanRequest) -> None:
     assert isinstance(FakePlanner().plan_sound(request_, plan), SoundStory)
 
 
+def test_fake_enters_are_the_explainer_five_when_the_style_carries_no_numbers(
+    request_: PlanRequest,
+) -> None:
+    """The canned enters (030): fade, whip, fade, spring, zoom on b03-b05, b08, b09."""
+    plan = FakePlanner().plan_picture(request_)
+    enters = {b.id: b.enter for b in plan.beats}
+    assert (enters["b03"], enters["b04"], enters["b05"]) == ("fade", "whip", "fade")
+    assert (enters["b08"], enters["b09"]) == ("spring", "zoom")
+    assert {enters[b] for b in ("b01", "b02", "b06", "b07", "b10", "b11")} == {"cut"}
+
+
+def test_fake_enters_stay_inside_the_requested_style_and_cover_it(
+    request_: PlanRequest,
+) -> None:
+    """048 (9.4): under the `hitech` draft (cut, fade, wipe, zoom) the fake swaps the
+    whip for a wipe and the spring for a zoom, so the plan uses every enabled
+    transition at least once and nothing outside the list; the rest is unchanged."""
+    from shortsmith import render, styles
+
+    hitech = styles.load_all(render.registry())["hitech"]
+    styled = request_.model_copy(
+        update={
+            "style": PlanStyle(
+                name="hitech", status="draft", numbers=hitech.numbers(), prose=hitech.prose
+            )
+        }
+    )
+    plan = FakePlanner().plan_picture(styled)
+    enters = {b.id: b.enter for b in plan.beats}
+    enabled = set(hitech.broll.enter_transitions)
+    assert set(enters.values()) == enabled == {"cut", "fade", "wipe", "zoom"}
+    assert (enters["b04"], enters["b08"]) == ("wipe", "zoom")
+    plain = FakePlanner().plan_picture(request_)
+    assert [b.model_copy(update={"enter": "cut"}) for b in plan.beats] == [
+        b.model_copy(update={"enter": "cut"}) for b in plain.beats
+    ]
+
+
 def test_from_settings_selects_the_fake_only_for_planner_fake(
     request_: PlanRequest, tmp_path: Path
 ) -> None:

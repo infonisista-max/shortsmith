@@ -1,7 +1,9 @@
 ---
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
-requires_components: [captions, pip, spec_stamp, glow_ring, counter]
+requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
+                      chart, split, wall, infographic, label_flyin, counter, map,
+                      cut, fade, wipe, zoom]
 beats:
   min_s: 0.7
   max_s: 5.0
@@ -47,6 +49,17 @@ broll:
     lower_third: {kind: fade, duration_s: 0.3, top_y: 1150, bottom_y: 1240}
     hook_cards: {kind: zoom, cards: 3}
     finale: {kind: fade, duration_s: 0.35}
+    list: {kind: reveal, items_max: 6, duration_s: 0.30, scale_from: 1.08, scale_to: 1.14,
+           dim: 0.55}
+    split: {kind: slide, panes: 2, duration_s: 0.25}
+    wall: {kind: zoom, cells_min: 4, cells_max: 9, duration_s: 0.25, scale_from: 1.12,
+           scale_to: 1.2, dim: 0.7}
+    chart: {kind: draw_on, marks_max: 6, duration_s: 0.5, decimals: 0, grouping: indian}
+    infographic: {kind: fly_in, labels_max: 5, duration_s: 0.30, scale_from: 1.04,
+                  scale_to: 1.1, dim: 0.35}
+    counter: {kind: count_up, grouping: indian}
+    map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#0F2A44",
+          coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2}
   enter_transitions: [cut, fade, wipe, zoom]
   whip_max_per_3_beats: 0
   transitions:
@@ -130,13 +143,14 @@ palette:
   accent: "#22D3EE"
 ---
 # Style: hitech
-Dark, glowing, product and tech facts. DRAFT (grill decision 1.4): aliases resolve to `explainer` with a notice until one rated short flips this to shipped. This is the draft the 1.4 smoke render uses (ticket 048), since it needs the fewest style-specific components.
+Dark, glowing, product and tech facts. DRAFT (grill decision 1.4): aliases resolve to `explainer` with a notice until one rated short flips this to shipped. This is the draft the 1.4 smoke render uses (ticket 048: `python -m shortsmith.smoke --style hitech`), so `requires_components` is complete against the renderer registry: the spec stamp is the `stamp` component in the `cyan_white` palette and the glow border is the `pip` ring in `pip.ring_color`. Not judged, not shipped; the numbers are a first draft for the smoke, not read off reference frames.
 
 ## Beat grammar
 - Beats `min_s`–`max_s`; presenter in a framed PIP with a glow border most of the time; the hook is a spec or number stamp over the product. Same tiling, snapping and no-mid-word rules as explainer (3.1).
 
 ## B-roll
 - Product images on the dark gradient, UI mock cards, spec stamps and number counters; sources and rights as in explainer (5.1). Generated named products stay illustration-style (`illustration_look`).
+- The set pieces, infographics and map are the explainer's components under hitech numbers: flat cards (`rotate_deg` 0, a 2 px border), deeper dims under lists and walls, the map's land in the gradient's blue with a cyan coast.
 - Transitions are `cut`, `fade`, `wipe` and `zoom` (9.4); no whips or springs.
 
 ## Captions

@@ -82,17 +82,20 @@ SMOKE_SOUND: dict[str, float] = {
 }
 
 
-def smoke_specs(specs: Mapping[str, StyleSpec]) -> dict[str, StyleSpec]:
-    """`specs` with the default style replaced by its fixture-shaped copy."""
-    base = specs[styles.DEFAULT]
+def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> dict[str, StyleSpec]:
+    """`specs` with the style `name` (the default unless told otherwise) replaced by its
+    fixture-shaped copy. Ticket 048 renders the fixture under the `hitech` draft, so
+    the draft is judged by its own numbers scaled the same way; every other spec is
+    handed back untouched."""
+    base = specs[name]
     scaled = base.model_copy(deep=True)
-    for name, value in SMOKE_BEATS.items():
-        setattr(scaled.beats, name, value)
-    for name, count in SMOKE_BROLL.items():
-        setattr(scaled.broll, name, count)
-    for name, value in SMOKE_SOUND.items():
-        setattr(scaled.sound, name, value)
-    return {**specs, styles.DEFAULT: scaled}
+    for field, value in SMOKE_BEATS.items():
+        setattr(scaled.beats, field, value)
+    for field, count in SMOKE_BROLL.items():
+        setattr(scaled.broll, field, count)
+    for field, value in SMOKE_SOUND.items():
+        setattr(scaled.sound, field, value)
+    return {**specs, name: scaled}
 
 
 # --- the synthesised audio catalogue (ticket 022; decisions 7.2, 12.1) ------------------

@@ -256,9 +256,49 @@ def test_a_shipped_spec_naming_a_component_absent_from_the_registry_fails(
 
 def test_drafts_may_require_components_the_registry_lacks(specs: dict[str, StyleSpec]) -> None:
     unbuilt = {
-        c for n in ("educational", "animated", "hitech") for c in specs[n].requires_components
+        c for n in ("educational", "animated") for c in specs[n].requires_components
     } - set(REGISTRY)
     assert unbuilt, "a draft should name at least one component still to build"
+
+
+HITECH_COMPONENTS = [
+    "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
+    "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
+    "cut", "fade", "wipe", "zoom",
+]  # fmt: skip
+
+
+def test_hitech_is_a_draft_whose_components_are_all_in_the_registry(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """048: the draft the 1.4 smoke render uses names every component the render
+    exercises and nothing the registry lacks; it stays a draft, so its aliases keep
+    redirecting to explainer on the page."""
+    hitech = specs["hitech"]
+    assert hitech.status == "draft"
+    assert set(hitech.requires_components) == set(HITECH_COMPONENTS)
+    assert set(hitech.requires_components) <= set(REGISTRY)
+    assert set(hitech.broll.enter_transitions) <= set(hitech.requires_components)
+    assert "whip" not in hitech.requires_components
+    assert "spring" not in hitech.requires_components
+    # The renderer's readers accept the completed front matter: every motion row it
+    # reads is there, with hitech's own palette and stamp colours.
+    numbers = render.numbers_for(hitech)
+    assert numbers.palette == hitech.palette
+    assert numbers.palette.accent == "#22D3EE" and hitech.palette != specs["explainer"].palette
+    assert render.stamp_colors(numbers)[0] == "#22D3EE"
+    assert numbers.captions.size_px == 70 and numbers.captions.font_weight == 700
+
+
+def test_components_doc_records_the_hitech_render(specs: dict[str, StyleSpec]) -> None:
+    """048: `docs/components.md` lists every component the hitech smoke exercised, one
+    table row per registry component (047 reads the same table)."""
+    doc = (styles.STYLES_DIR.parent / "docs" / "components.md").read_text(encoding="utf-8")
+    rows = [line for line in doc.splitlines() if line.startswith("| `")]
+    named = {line.split("`")[1] for line in rows}
+    assert set(REGISTRY) <= named, sorted(set(REGISTRY) - named)
+    assert set(specs["hitech"].requires_components) <= named
+    assert "hitech" in doc
 
 
 def _make_draft(fm: dict[str, Any]) -> None:
