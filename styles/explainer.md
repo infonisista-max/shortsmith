@@ -4,6 +4,7 @@ status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
+                      pin_drop, route_arrow, object_path,
                       cut, fade, whip, zoom, spring, wipe]
 beats:
   min_s: 0.7

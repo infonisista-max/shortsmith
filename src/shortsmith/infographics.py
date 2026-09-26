@@ -29,9 +29,13 @@ same division of labour as the set pieces of 026 / 027.
   into the band with the Mercator maths in `geo`; the bundled Natural Earth land, coast
   and borders projected, clipped to the frame and written as SVG paths; every marker at
   the coordinate the geocoder gave its name (the plan's own lat/lon are never read),
-  its label pill beside the dot inside the safe area; the route as pixels for 028. A
-  name the geocoder does not know is `InfographicError` naming it - a marker is never
-  placed by a guess.
+  its label pill beside the dot inside the safe area; the route as pixels. A name the
+  geocoder does not know is `InfographicError` naming it - a marker is never placed by
+  a guess. Ticket 028 animates it: the beat's `pin_drop`, `route_arrow` and
+  `object_path` overlays switch the three motions on, `map_timeline` shares the beat
+  between them in that order from its length, and `route_segments` turns the route
+  polyline into legs with the tangent heading the arrowhead and the moving object
+  follow. Every pixel still comes from the layout; the planner names places only.
 
 The base picture is always label-free: `assets.generate` appends "no text, no labels"
 to a diagram base's prompt (5.5) and the asset step marks the asset as a diagram base,
@@ -44,6 +48,7 @@ typography); the geometry below is this engine's look, as in `render`.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -61,8 +66,10 @@ from shortsmith.contracts import (
     MapLayout,
     MapMarkerLayout,
     MapObject,
+    OverlayKind,
     Palette,
     PlanLabel,
+    RouteSegment,
     SeriesPoint,
     Treatment,
 )
@@ -116,6 +123,22 @@ MAP_DOT_PX, MAP_RING_PX = 22, 4
 MAP_CLIP_MARGIN_PX = 60.0
 CITY_SPAN_DEG = 3.0  # a region that is a point (a city) shows this many degrees across
 MIN_SPAN_DEG = 1.0  # a crop is never narrower than this in either axis
+
+# 028: the map's three animations share the first `MOTIONS_IN_FRACTION` of the beat in
+# order - the pins drop, the route draws on, the object travels - so the last one has
+# landed while there is still time to read the map. Each phase has a ceiling a long beat
+# never exceeds; a short beat scales every phase by the one factor that fits the window,
+# so the order and the proportions hold at any length (the same rule as the labels).
+MOTIONS_IN_FRACTION = 0.8
+PIN_STAGGER_MAX_S = 0.2  # between one pin's drop and the next
+PIN_DROP_MAX_S = 0.3  # the fall and the spring settle
+LABEL_POP_MAX_S = 0.2  # the label pill growing in once its pin has landed
+ROUTE_DRAW_MAX_S = 0.8
+OBJECT_TRAVEL_MAX_S = 1.5
+PIN_DROP_PX = 140.0  # a pin falls this far onto its point
+ROUTE_PX = 6.0  # the route's stroke
+ARROW_PX = 28.0  # the arrowhead's length
+OBJECT_PX = 64.0  # the sprite's box
 
 
 class InfographicError(ValueError):
@@ -684,13 +707,105 @@ def _marker_layout(
     )  # fmt: skip
 
 
+@dataclass(frozen=True)
+class MapTimeline:
+    """When each of the map's motions runs, in seconds from the beat's start (028): one
+    drop start per marker, the drop and label-pop lengths, the route's start and draw
+    time, the object's start and travel time, and `landed_s`, when the last present
+    motion has landed. An absent motion is 0 long and the ones after it close up."""
+
+    pin_delays: tuple[float, ...]
+    pin_drop_s: float
+    label_pop_s: float
+    route_start_s: float
+    route_draw_s: float
+    object_start_s: float
+    object_travel_s: float
+    landed_s: float
+
+
+def map_timeline(
+    length_s: float, *, markers: int, pins: bool, route: bool, obj: bool
+) -> MapTimeline:
+    """The beat's first `MOTIONS_IN_FRACTION` shared between the present motions in
+    order - pins, route, object - each at its ceiling on a long beat, all scaled by
+    the one factor that fits the window on a short one."""
+    window = max(0.0, length_s) * MOTIONS_IN_FRACTION
+    pins_full = (
+        (max(1, markers) - 1) * PIN_STAGGER_MAX_S + PIN_DROP_MAX_S + LABEL_POP_MAX_S
+        if pins
+        else 0.0
+    )
+    route_full = ROUTE_DRAW_MAX_S if route else 0.0
+    object_full = OBJECT_TRAVEL_MAX_S if obj else 0.0
+    total = pins_full + route_full + object_full
+    factor = min(1.0, window / total) if total > 0 else 0.0
+    stagger = PIN_STAGGER_MAX_S * factor if pins else 0.0
+    pin_drop_s = PIN_DROP_MAX_S * factor if pins else 0.0
+    label_pop_s = LABEL_POP_MAX_S * factor if pins else 0.0
+    pin_delays = tuple(i * stagger for i in range(max(1, markers)))
+    pins_end = (pin_delays[-1] + pin_drop_s + label_pop_s) if pins else 0.0
+    route_draw_s = route_full * factor
+    object_travel_s = object_full * factor
+    route_start_s = pins_end
+    object_start_s = route_start_s + route_draw_s
+    return MapTimeline(
+        pin_delays=pin_delays,
+        pin_drop_s=pin_drop_s,
+        label_pop_s=label_pop_s,
+        route_start_s=route_start_s,
+        route_draw_s=route_draw_s,
+        object_start_s=object_start_s,
+        object_travel_s=object_travel_s,
+        landed_s=object_start_s + object_travel_s,
+    )
+
+
+def route_segments(points: Sequence[tuple[float, float]]) -> list[RouteSegment]:
+    """The route polyline as straight legs (028): each with its ends, its start and end
+    as fractions of the whole length, and the tangent heading in screen degrees
+    (`atan2` with y down: 0 east, 90 south, 180 west, -90 north). A zero-length leg is
+    dropped; a route with no length at all is no legs."""
+    legs: list[tuple[tuple[float, float], tuple[float, float], float]] = []
+    for (x0, y0), (x1, y1) in zip(points, points[1:], strict=False):
+        length = math.hypot(x1 - x0, y1 - y0)
+        if length > 0:
+            legs.append(((x0, y0), (x1, y1), length))
+    total = sum(length for _, _, length in legs)
+    if total <= 0:
+        return []
+    out: list[RouteSegment] = []
+    walked = 0.0
+    for (x0, y0), (x1, y1), length in legs:
+        out.append(
+            RouteSegment(
+                x0=x0, y0=y0, x1=x1, y1=y1, t0=walked / total, t1=(walked + length) / total,
+                heading_deg=math.degrees(math.atan2(y1 - y0, x1 - x0)),
+            )  # fmt: skip
+        )
+        walked += length
+    return out
+
+
+def route_path(points: Sequence[tuple[float, float]]) -> str:
+    """The route as an SVG path string to a tenth of a pixel, as the base paths are."""
+    if not points:
+        return ""
+    head, *rest = points
+    return " ".join([f"M {head[0]:.1f} {head[1]:.1f}", *(f"L {x:.1f} {y:.1f}" for x, y in rest)])
+
+
 def resolve_map(
     recipe: MapRecipe, *, numbers: InfographicNumbers, geocoder: Geocoder,
-    layers: geo.Layers | None = None,
+    layers: geo.Layers | None = None, overlays: Sequence[OverlayKind] = (),
+    length_s: float = 0.0,
 ) -> MapLayout:  # fmt: skip
     """The map laid out in composition pixels (9.3): the crop fitted into the band
     inside the safe box and above the style's `broll.card_max_bottom_y`, the base as
-    SVG paths, the markers at their geocoded points, the route as pixels."""
+    SVG paths, the markers at their geocoded points, the route as pixels. `overlays`
+    are the beat's (028): `pin_drop`, `route_arrow` and `object_path` switch the three
+    motions on, timed from the beat's `length_s`; with none the map is static and the
+    length is not read."""
     m, style = numbers.map, numbers.captions
     if not recipe.markers:
         raise InfographicError("a map has no markers (9.3)")
@@ -698,6 +813,18 @@ def resolve_map(
         raise InfographicError(
             f"a map has {len(recipe.markers)} markers, over broll.motion.map.markers_max "
             f"{m.markers_max}"
+        )
+    pins = "pin_drop" in overlays
+    arrow = "route_arrow" in overlays
+    moving = "object_path" in overlays
+    if (arrow or moving) and len(recipe.route) < 2:
+        raise InfographicError(
+            f"{'route_arrow' if arrow else 'object_path'} follows the map's route; this map "
+            "has none (9.3)"
+        )
+    if moving and recipe.object is None:
+        raise InfographicError(
+            "object_path moves the map's object (plane | ship | arrow); none is named (9.3)"
         )
     places = [_locate(geocoder, marker.name, "marker") for marker in recipe.markers]
     route_places = [_locate(geocoder, name, "route point") for name in recipe.route]
@@ -722,7 +849,15 @@ def resolve_map(
         WIDTH + 2 * MAP_CLIP_MARGIN_PX, HEIGHT + 2 * MAP_CLIP_MARGIN_PX,
     )  # fmt: skip
     paths = geo.base_paths(layers or geo.load_layers(), projection, frame)
-    markers = [_marker_layout(p, projection, style=style, numbers=m) for p in places]
+    timeline = map_timeline(length_s, markers=len(places), pins=pins, route=arrow, obj=moving)
+    markers = [
+        _marker_layout(p, projection, style=style, numbers=m).model_copy(
+            update={"delay_s": delay}
+        )
+        for p, delay in zip(places, timeline.pin_delays, strict=True)
+    ]
+    route = [projection.project(p.lon, p.lat) for p in route_places]
+    segments = route_segments(route) if (arrow or moving) else []
     return MapLayout(
         region=recipe.region, bbox=crop, left=band[0], top=band[1], width=band[2],
         height=band[3], scale=projection.scale, center_lon=projection.center_lon,
@@ -730,8 +865,19 @@ def resolve_map(
         center_y=projection.center_y, land=paths.land, coast=paths.coast,
         borders=paths.borders, land_color=m.land, coast_color=m.coast, border_color=m.border,
         coast_px=m.coast_px, border_px=m.border_px, markers=markers,
-        route=[projection.project(p.lon, p.lat) for p in route_places], object=recipe.object,
+        route=route, object=recipe.object,
         marker_color=numbers.palette.accent, dot_px=MAP_DOT_PX, ring_px=MAP_RING_PX,
         label_fill=DIAGRAM_LABEL_FILL, label_radius_px=DIAGRAM_LABEL_RADIUS_PX,
         text_color="#FFFFFF", draw_s=m.draw_s,
+        # 028: the three animations, on or off by the beat's overlays.
+        pin_drop=pins, route_arrow=arrow, object_path=moving,
+        pin_drop_s=timeline.pin_drop_s, pin_drop_px=PIN_DROP_PX if pins else 0.0,
+        label_pop_s=timeline.label_pop_s,
+        route_path=route_path(route) if segments else "",
+        route_length_px=sum(math.dist((s.x0, s.y0), (s.x1, s.y1)) for s in segments),
+        segments=segments, route_start_s=timeline.route_start_s,
+        route_draw_s=timeline.route_draw_s, route_px=ROUTE_PX if arrow else 0.0,
+        arrow_px=ARROW_PX if arrow else 0.0, object_start_s=timeline.object_start_s,
+        object_travel_s=timeline.object_travel_s, object_px=OBJECT_PX if moving else 0.0,
+        landed_s=timeline.landed_s,
     )  # fmt: skip

@@ -12,7 +12,9 @@
 // gradient. Ticket 029 flies the diagram's labels in (`label_flyin`, over its base) and
 // adds the `counter`, a number beat's landed event in the stamp's layer. Ticket 020 draws
 // the `map` from the bundled geodata over the gradient (the water), with its markers at
-// real coordinates; 028 animates them. Other kinds arrive with their tickets.
+// real coordinates. Ticket 028 animates it over the base, in layer order: `route_arrow`
+// draws the route on, `pin_drop` drops the markers in (the base draws them static when
+// the beat has no pin drop), `object_path` moves the object along the route on top.
 //
 // Ticket 030 (decision 9.4): a beat's picture - its B-roll, set piece, infographic, map
 // or full-frame presenter (`BeatLayers`) - enters through the beat's `enter` transition
@@ -34,8 +36,11 @@ import { LabelFlyin } from "./components/label_flyin";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { MapBase } from "./components/map";
+import { ObjectPath } from "./components/object_path";
 import { Photo } from "./components/photo";
+import { PinDrop } from "./components/pin_drop";
 import { Pip, Presenter } from "./components/pip";
+import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
 import { Stamp } from "./components/stamp";
 import { Transition, holdFrames, holdsPrevious } from "./components/transitions";
@@ -105,6 +110,21 @@ const BeatLayers: React.FC<{ spec: RenderSpec; beat: BeatSpec; frame: number }> 
           width={spec.width}
           height={spec.height}
         />
+      ) : null}
+      {beat.map?.route_arrow ? (
+        <RouteArrow
+          spec={beat.map}
+          frame={since}
+          fps={spec.fps}
+          width={spec.width}
+          height={spec.height}
+        />
+      ) : null}
+      {beat.map?.pin_drop ? (
+        <PinDrop spec={beat.map} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat.map?.object_path ? (
+        <ObjectPath spec={beat.map} frame={since} fps={spec.fps} />
       ) : null}
       {beat.mode === "full" ? <Presenter spec={spec} beat={beat} frame={frame} /> : null}
     </AbsoluteFill>

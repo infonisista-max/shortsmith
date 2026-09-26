@@ -29,9 +29,9 @@ it. A blank cell means the style does not enable that component.
 | `label_flyin` | 1 | implemented | b07 | b07 | labels fly in one after another |
 | `counter` | 1 | implemented | b06 | b06 | counts to 12 words, lands in the stamp's time |
 | `map` | 1 | implemented | b05 | b05 | bundled geodata, fake-geocoded markers; hitech: dark land, cyan coast |
-| `pin_drop` | 1 | incomplete | b05 (planned only) | b05 (planned only) | ticket 028: not in the registry yet |
-| `route_arrow` | 1 | incomplete | b05 (planned only) | b05 (planned only) | ticket 028: not in the registry yet |
-| `object_path` | 1 | incomplete | b05 (planned only) | b05 (planned only) | ticket 028: not in the registry yet |
+| `pin_drop` | 1 | implemented | b05 | b05 | markers drop in on a stagger with a spring settle, label pops after the landing (028) |
+| `route_arrow` | 1 | implemented | b05 | b05 | Delhi to Mumbai draws on with an arrowhead at the tip, after the pins (028) |
+| `object_path` | 1 | implemented | b05 | b05 | the plane sprite flies the route heading along the tangent, after the draw-on (028) |
 | `cut` | transition | implemented | b01, b02, b06, b07, b10, b11 | b01, b02, b06, b07, b10, b11 | the default enter |
 | `fade` | transition | implemented | b03, b05 | b03, b05 | 0.35 s |
 | `whip` | transition | implemented | b04 |  | hitech does not enable it; the fake swaps it for a wipe |

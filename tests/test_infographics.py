@@ -511,3 +511,138 @@ def test_map_recipe_reads_the_beats_map_plan() -> None:
     bare = beat.model_copy(update={"map": None})
     with pytest.raises(infographics.InfographicError, match="map"):
         infographics.map_recipe(bare)
+
+
+# --- map animations (ticket 028; decisions 9.2, 9.3, 4.1) ---------------------------------
+
+ALL_MAP_OVERLAYS = ("pin_drop", "route_arrow", "object_path")
+
+
+def _timeline(length_s: float, *, pins: bool = True, route: bool = True, obj: bool = True,
+              markers: int = 2) -> infographics.MapTimeline:  # fmt: skip
+    return infographics.map_timeline(length_s, markers=markers, pins=pins, route=route, obj=obj)
+
+
+def test_the_three_map_motions_share_the_beat_in_order_pins_route_object() -> None:
+    tl = _timeline(5.0)
+    # a long beat (its window past the 3.0 s the ceilings add up to) keeps every
+    # ceiling: the stagger, the drop, the draw and the travel
+    assert tl.pin_delays == (0.0, pytest.approx(infographics.PIN_STAGGER_MAX_S))
+    assert tl.pin_drop_s == pytest.approx(infographics.PIN_DROP_MAX_S)
+    assert tl.route_draw_s == pytest.approx(infographics.ROUTE_DRAW_MAX_S)
+    assert tl.object_travel_s == pytest.approx(infographics.OBJECT_TRAVEL_MAX_S)
+    pins_end = tl.pin_delays[-1] + tl.pin_drop_s + tl.label_pop_s
+    assert tl.route_start_s == pytest.approx(pins_end)
+    assert tl.object_start_s == pytest.approx(tl.route_start_s + tl.route_draw_s)
+    assert tl.landed_s == pytest.approx(tl.object_start_s + tl.object_travel_s)
+    assert tl.landed_s <= 5.0 * infographics.MOTIONS_IN_FRACTION
+    # and lands well inside the beat, with the ceilings' 3.0 s of motion
+    assert tl.landed_s == pytest.approx(3.0)
+
+
+def test_a_short_beat_scales_every_phase_by_one_factor_so_the_object_lands_in_time() -> None:
+    short, long = _timeline(0.5), _timeline(5.0)
+    assert short.landed_s == pytest.approx(0.5 * infographics.MOTIONS_IN_FRACTION)
+    factor = short.pin_drop_s / long.pin_drop_s
+    assert 0 < factor < 1
+    assert short.route_draw_s / long.route_draw_s == pytest.approx(factor)
+    assert short.object_travel_s / long.object_travel_s == pytest.approx(factor)
+    assert short.label_pop_s / long.label_pop_s == pytest.approx(factor)
+    assert short.pin_delays[1] / long.pin_delays[1] == pytest.approx(factor)
+
+
+def test_more_markers_stagger_the_pins_and_push_the_route_later() -> None:
+    two, five = _timeline(5.0, markers=2), _timeline(5.0, markers=5)
+    assert len(five.pin_delays) == 5
+    assert five.pin_delays == tuple(
+        pytest.approx(i * infographics.PIN_STAGGER_MAX_S) for i in range(5)
+    )
+    assert five.route_start_s > two.route_start_s
+
+
+def test_an_absent_motion_takes_no_time_and_the_rest_close_up() -> None:
+    no_pins = _timeline(3.0, pins=False)
+    assert no_pins.pin_delays == (0.0, 0.0) and no_pins.pin_drop_s == 0.0
+    assert no_pins.label_pop_s == 0.0 and no_pins.route_start_s == 0.0
+    no_object = _timeline(3.0, obj=False)
+    assert no_object.object_travel_s == 0.0
+    assert no_object.landed_s == pytest.approx(no_object.route_start_s + no_object.route_draw_s)
+    object_only = _timeline(3.0, pins=False, route=False)
+    assert object_only.object_start_s == 0.0 and object_only.route_draw_s == 0.0
+    assert object_only.landed_s == pytest.approx(object_only.object_travel_s)
+    nothing = _timeline(3.0, pins=False, route=False, obj=False)
+    assert nothing.landed_s == 0.0 and nothing.pin_delays == (0.0, 0.0)
+
+
+def test_route_segments_carry_the_tangent_heading_and_the_length_fractions() -> None:
+    segments = infographics.route_segments(
+        [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (100.0, 100.0), (0.0, 100.0)]
+    )
+    # screen degrees: 0 east, 90 south (y grows downward), 180 west; the repeated
+    # point is a zero-length segment and is dropped
+    assert [s.heading_deg for s in segments] == pytest.approx([0.0, 90.0, 180.0])
+    assert [(s.t0, s.t1) for s in segments] == [
+        (pytest.approx(0.0), pytest.approx(1 / 3)),
+        (pytest.approx(1 / 3), pytest.approx(2 / 3)),
+        (pytest.approx(2 / 3), pytest.approx(1.0)),
+    ]
+    assert (segments[1].x0, segments[1].y0, segments[1].x1, segments[1].y1) == (100, 0, 100, 100)
+    north_west = infographics.route_segments([(100.0, 100.0), (0.0, 0.0)])
+    assert north_west[0].heading_deg == pytest.approx(-135.0)
+    assert infographics.route_segments([(5.0, 5.0)]) == []
+    assert infographics.route_segments([(5.0, 5.0), (5.0, 5.0)]) == []
+    assert infographics.route_segments([]) == []
+
+
+def _routed(
+    overlays: tuple[str, ...] = ALL_MAP_OVERLAYS, *, length_s: float = 2.0,
+    route: tuple[str, ...] = ("Delhi", "Mumbai"), obj: str | None = "plane",
+) -> infographics.MapLayout:  # fmt: skip
+    recipe = infographics.MapRecipe(
+        region="India",
+        markers=(infographics.MapMarkerRecipe("Delhi"), infographics.MapMarkerRecipe("Mumbai")),
+        route=route,
+        object=obj,  # pyright: ignore[reportArgumentType]
+    )
+    return infographics.resolve_map(
+        recipe, numbers=NUMBERS, geocoder=geo.FakeGeocoder(),
+        overlays=overlays,  # pyright: ignore[reportArgumentType]
+        length_s=length_s,
+    )  # fmt: skip
+
+
+def test_the_map_overlays_are_laid_out_on_the_layout_from_the_beat_length() -> None:
+    layout = _routed()
+    assert layout.pin_drop and layout.route_arrow and layout.object_path
+    timeline = _timeline(2.0)
+    assert [m.delay_s for m in layout.markers] == [pytest.approx(d) for d in timeline.pin_delays]
+    assert layout.pin_drop_s == pytest.approx(timeline.pin_drop_s)
+    assert layout.pin_drop_px == infographics.PIN_DROP_PX
+    assert layout.route_start_s == pytest.approx(timeline.route_start_s)
+    assert layout.object_start_s == pytest.approx(timeline.object_start_s)
+    assert layout.landed_s == pytest.approx(timeline.landed_s)
+    assert layout.landed_s <= 2.0 * infographics.MOTIONS_IN_FRACTION
+    # the route's pixels are the projected polyline, and its segments the tangent
+    (x0, y0), (x1, y1) = layout.route
+    assert layout.route_path == f"M {x0:.1f} {y0:.1f} L {x1:.1f} {y1:.1f}"
+    assert layout.route_length_px == pytest.approx(((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5)
+    assert len(layout.segments) == 1
+    assert 90.0 < layout.segments[0].heading_deg < 180.0  # Mumbai is south-west of Delhi
+    assert layout.route_px > 0 and layout.arrow_px > 0 and layout.object_px > 0
+
+
+def test_a_map_with_no_overlays_stays_static() -> None:
+    static = _map("Delhi", "Mumbai")
+    assert not (static.pin_drop or static.route_arrow or static.object_path)
+    assert all(m.delay_s == 0.0 for m in static.markers)
+    assert static.landed_s == 0.0 and static.segments == [] and static.route_path == ""
+    pins_only = _routed(("pin_drop",))
+    assert pins_only.pin_drop and not pins_only.route_arrow and not pins_only.object_path
+    assert pins_only.landed_s == pytest.approx(_timeline(2.0, route=False, obj=False).landed_s)
+
+
+def test_the_route_overlays_are_refused_without_a_route_or_an_object() -> None:
+    with pytest.raises(infographics.InfographicError, match="route"):
+        _routed(("route_arrow",), route=())
+    with pytest.raises(infographics.InfographicError, match="object"):
+        _routed(("object_path",), obj=None)

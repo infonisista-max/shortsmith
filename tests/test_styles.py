@@ -112,6 +112,7 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.requires_components == [
         "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
         "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
+        "pin_drop", "route_arrow", "object_path",
         "cut", "fade", "whip", "zoom", "spring", "wipe",
     ]  # fmt: skip
     # 029: the counter writes its digits in the audience's grouping.
@@ -129,14 +130,15 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
 
 TIER1_REGISTRY = [
     "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
-    "list", "chart", "split", "wall", "infographic", "label_flyin", "counter",
+    "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
+    "pin_drop", "route_arrow", "object_path",
     "cut", "fade", "whip", "zoom", "spring", "wipe",
 ]  # fmt: skip
 
 
 def test_the_registry_holds_every_tier_1_component_and_the_six_transitions() -> None:
     """030: the renderer exports the whole tier-1 set (9.2) and the 9.4 vocabulary; the
-    four map animations rejoin with 028."""
+    map (020) and its three animations (028) included."""
     assert set(TIER1_REGISTRY) <= set(REGISTRY), sorted(set(TIER1_REGISTRY) - set(REGISTRY))
 
 
@@ -264,6 +266,7 @@ def test_drafts_may_require_components_the_registry_lacks(specs: dict[str, Style
 HITECH_COMPONENTS = [
     "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
     "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
+    "pin_drop", "route_arrow", "object_path",
     "cut", "fade", "wipe", "zoom",
 ]  # fmt: skip
 

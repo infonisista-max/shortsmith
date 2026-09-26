@@ -4,6 +4,7 @@ status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
+                      pin_drop, route_arrow, object_path,
                       cut, fade, wipe, zoom]
 beats:
   min_s: 0.7

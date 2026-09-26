@@ -63,6 +63,31 @@ test("the composition lists map after ticket 020", () => {
   assert.ok(registry.components.includes("map"), "map is not registered");
 });
 
+const MAP_ANIMATIONS = ["pin_drop", "route_arrow", "object_path"];
+
+test("the composition lists the three map animations after ticket 028", () => {
+  for (const name of MAP_ANIMATIONS) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+  }
+});
+
+test("the map animations read their timing and pixels from the layout, never a literal (028)", () => {
+  const rows = {
+    pin_drop: ["delay_s", "pin_drop_s", "pin_drop_px", "label_pop_s"],
+    route_arrow: ["route_start_s", "route_draw_s", "route_length_px", "route_path", "arrow_px"],
+    object_path: ["object_start_s", "object_travel_s", "segments", "heading_deg", "object_px"],
+  };
+  for (const [name, fields] of Object.entries(rows)) {
+    const source = readFileSync(join(root, "components", `${name}.tsx`), "utf-8");
+    for (const field of fields) {
+      assert.ok(source.includes(`.${field}`), `${name}.tsx never reads ${field}`);
+    }
+  }
+  // the object follows the route's tangent: the heading comes from the segment, not a guess
+  const object = readFileSync(join(root, "components", "object_path.tsx"), "utf-8");
+  assert.match(object, /rotate\(\$\{/, "object_path.tsx never turns the sprite");
+});
+
 const TRANSITIONS = ["cut", "fade", "whip", "zoom", "spring", "wipe"];
 
 test("the composition lists the six enter transitions after ticket 030", () => {
@@ -74,7 +99,7 @@ test("the composition lists the six enter transitions after ticket 030", () => {
 test("the registry holds the whole tier-1 set the explainer requires (030)", () => {
   const tier1 = ["captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards",
                  "finale", "list", "chart", "split", "wall", "infographic", "label_flyin",
-                 "counter", ...TRANSITIONS];
+                 "counter", "map", ...MAP_ANIMATIONS, ...TRANSITIONS];
   for (const name of tier1) {
     assert.ok(registry.components.includes(name), `${name} is not registered`);
   }
@@ -87,7 +112,8 @@ test("Short.tsx draws every registered component", () => {
                   lower_third: "LowerThird", photo: "Photo", card: "Card",
                   captions: "Captions", pip: "Pip", list: "List", split: "Split",
                   wall: "Wall", chart: "Chart", infographic: "Infographic",
-                  label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase" };
+                  label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase",
+                  pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   for (const name of registry.components) {

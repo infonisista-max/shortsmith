@@ -16,8 +16,11 @@ import { LabelFlyin } from "./components/label_flyin";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { MapBase } from "./components/map";
+import { ObjectPath } from "./components/object_path";
 import { Photo } from "./components/photo";
+import { PinDrop } from "./components/pin_drop";
 import { Pip } from "./components/pip";
+import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
 import { Spring } from "./components/spring";
 import { Stamp } from "./components/stamp";
@@ -41,8 +44,11 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   list: List,
   lower_third: LowerThird,
   map: MapBase,
+  object_path: ObjectPath,
   photo: Photo,
+  pin_drop: PinDrop,
   pip: Pip,
+  route_arrow: RouteArrow,
   split: Split,
   spring: Spring,
   stamp: Stamp,

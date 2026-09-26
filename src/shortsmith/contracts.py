@@ -1222,6 +1222,21 @@ class MapMarkerLayout(StrictModel):
     source: str = "gazetteer"
 
 
+class RouteSegment(StrictModel):
+    """One straight leg of the map's route in composition pixels (ticket 028): its two
+    ends, where it starts and ends as fractions of the whole route's length (`t0`,
+    `t1`), and the tangent heading in screen degrees (0 east, 90 south, since y grows
+    downward) that the arrowhead and the moving object turn to."""
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    t0: float
+    t1: float
+    heading_deg: float
+
+
 class MapLayout(StrictModel):
     """The `map` set piece (9.3, ticket 020): the base drawn from the bundled Natural
     Earth layers as SVG paths in composition pixels (land fill, coast and border
@@ -1229,7 +1244,17 @@ class MapLayout(StrictModel):
     the markers placed by real coordinates, and the route polyline 028 animates. The
     projection numbers (`scale`, the centre) are here so 028 can put anything else on
     the same maths; `bbox` is the crop as drawn, `left/top/width/height` the band the
-    crop was fitted into."""
+    crop was fitted into.
+
+    Ticket 028: the three map animations, each switched on by its overlay on the beat
+    and timed by `infographics.map_timeline` from the beat's length, in order - the
+    pins drop (each marker's `delay_s`, then `pin_drop_s` to settle from `pin_drop_px`
+    above, the label popping over `label_pop_s` once it lands), the route draws on
+    (`route_path` with its `route_length_px`, from `route_start_s` over
+    `route_draw_s`, the arrowhead at the tip), then the object travels the `segments`
+    (from `object_start_s` over `object_travel_s`, heading along the tangent).
+    `landed_s` is when the last of them has landed; everything is 0 or empty on a
+    static map."""
 
     region: str
     bbox: tuple[float, float, float, float]
@@ -1260,6 +1285,24 @@ class MapLayout(StrictModel):
     label_radius_px: int
     text_color: str
     draw_s: float
+    # 028: the three animations and their timing (see the class docstring).
+    pin_drop: bool = False
+    route_arrow: bool = False
+    object_path: bool = False
+    pin_drop_s: float = 0.0
+    pin_drop_px: float = 0.0
+    label_pop_s: float = 0.0
+    route_path: str = ""
+    route_length_px: float = 0.0
+    segments: list[RouteSegment] = []
+    route_start_s: float = 0.0
+    route_draw_s: float = 0.0
+    route_px: float = 0.0
+    arrow_px: float = 0.0
+    object_start_s: float = 0.0
+    object_travel_s: float = 0.0
+    object_px: float = 0.0
+    landed_s: float = 0.0
 
 
 class PunchIn(StrictModel):

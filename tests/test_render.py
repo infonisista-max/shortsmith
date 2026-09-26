@@ -1424,3 +1424,33 @@ def test_the_remotion_renderer_carries_a_geocoder_the_gazetteer_by_default() -> 
 
 def test_registry_exports_map_after_020() -> None:
     assert "map" in render.registry()
+
+
+# --- map animations (ticket 028; decisions 9.2, 9.3) --------------------------------------------
+
+
+def test_the_map_beat_carries_its_three_animations_timed_from_the_beat(tmp_path: Path) -> None:
+    plan = _plan()
+    beat = _piece_beat(plan, "map")
+    assert set(beat.overlays) == {"pin_drop", "route_arrow", "object_path"}
+    drawn = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == beat.id)
+    layout = drawn.map
+    assert layout is not None
+    assert layout.pin_drop and layout.route_arrow and layout.object_path
+    assert layout.route_path.startswith("M ") and len(layout.segments) == 1
+    assert layout.route_length_px > 0 and layout.object == "plane"
+    # timed from the beat's length, in order, landing inside the beat
+    length = beat.end - beat.start
+    assert 0 < layout.landed_s <= length * infographics.MOTIONS_IN_FRACTION + 1e-9
+    assert layout.markers[0].delay_s == 0.0 and layout.markers[1].delay_s > 0
+    assert layout.route_start_s >= layout.markers[1].delay_s + layout.pin_drop_s
+    assert layout.object_start_s >= layout.route_start_s + layout.route_draw_s
+    # every pixel is the layout's: the plan named places only
+    assert beat.map is not None and all(m.lat is None for m in beat.map.markers)
+
+
+def test_registry_exports_the_map_animations_after_028() -> None:
+    animations = {"pin_drop", "route_arrow", "object_path"}
+    assert animations <= set(render.registry())
+    required = render.loaded_styles()["explainer"].requires_components
+    assert animations <= set(required)

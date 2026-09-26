@@ -339,6 +339,18 @@ export type MapMarkerLayout = {
   source: string;
 };
 
+// 028: one straight leg of the route: its ends, its start and end as fractions of the
+// route's length, and the tangent heading in screen degrees (0 east, 90 south).
+export type RouteSegment = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  t0: number;
+  t1: number;
+  heading_deg: number;
+};
+
 export type MapLayout = {
   region: string;
   bbox: [number, number, number, number];
@@ -369,6 +381,26 @@ export type MapLayout = {
   label_radius_px: number;
   text_color: string;
   draw_s: number;
+  // 028: the three animations, on or off by the beat's overlays, timed by
+  // `infographics.map_timeline` in order: pins drop, the route draws on, the object
+  // travels. Every number is 0 or empty on a static map.
+  pin_drop: boolean;
+  route_arrow: boolean;
+  object_path: boolean;
+  pin_drop_s: number;
+  pin_drop_px: number;
+  label_pop_s: number;
+  route_path: string;
+  route_length_px: number;
+  segments: RouteSegment[];
+  route_start_s: number;
+  route_draw_s: number;
+  route_px: number;
+  arrow_px: number;
+  object_start_s: number;
+  object_travel_s: number;
+  object_px: number;
+  landed_s: number;
 };
 
 export type PunchIn = {

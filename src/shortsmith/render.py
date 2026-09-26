@@ -96,7 +96,10 @@ montage member, never a showing):
 Ticket 020 adds the `map`: `infographics.resolve_map` projects the bundled Natural Earth
 layers into pixels and places the markers by the geocoder's coordinates; `build_spec`
 takes the geocoder (the bundled gazetteer by default) and binds it to the job's directory
-for the fallback's cache. A map beat sources no picture (`assets.NOT_SOURCED`).
+for the fallback's cache. A map beat sources no picture (`assets.NOT_SOURCED`). Ticket
+028 animates it: the beat's `pin_drop`, `route_arrow` and `object_path` overlays are
+timed by `infographics.map_timeline` from the beat's length and drawn by the components
+of the same names over the base; every pixel is the layout's.
 
 Ticket 029 adds the two overlays: `label_flyin` is the diagram's labels flying in (their
 stagger and edges are `infographics.resolve_diagram`'s), and `counter` on a beat whose plan
@@ -1279,13 +1282,16 @@ def map_layout(
 ) -> MapLayout | None:
     """The `map` drawn from the bundled geodata with its markers at the geocoder's
     points (020, 9.3). A name the geocoder does not know is a build failure naming it,
-    as a diagram label outside the safe area is (021): never a guessed point."""
+    as a diagram label outside the safe area is (021): never a guessed point. The
+    beat's `pin_drop`, `route_arrow` and `object_path` overlays switch the three map
+    animations on, timed from the beat's length (028)."""
     if beat.kind != "map":
         return None
     try:
         return infographics.resolve_map(
-            infographics.map_recipe(beat), numbers=numbers.info, geocoder=geocoder
-        )
+            infographics.map_recipe(beat), numbers=numbers.info, geocoder=geocoder,
+            overlays=beat.overlays, length_s=beat.end - beat.start,
+        )  # fmt: skip
     except infographics.InfographicError as exc:
         raise RenderError(f"{beat.id}: {exc}") from None
 

@@ -254,12 +254,15 @@ def test_a_tier1_kind_with_no_table_row_is_incomplete(tmp_path: Path) -> None:
     assert "presenter_full" not in by_name and "presenter_pip" not in by_name
 
 
-def test_the_repo_table_lists_the_three_map_animations_as_incomplete(tmp_path: Path) -> None:
+def test_the_repo_table_lists_every_tier1_component_as_implemented(tmp_path: Path) -> None:
+    """028 landed the three map animations, the last tier-1 rows the table owed."""
     report = gate.collect(tmp_path)
-    names = {s.name for s in report.components if not s.implemented}
-    assert {"pin_drop", "route_arrow", "object_path"} <= names
-    assert "component pin_drop: ticket 028: not in the registry yet" in report.incomplete
-    assert all(s.implemented for s in report.components if s.name == "captions")
+    by_name = {s.name: s for s in report.components}
+    assert {"pin_drop", "route_arrow", "object_path", "map", "captions"} <= set(by_name)
+    assert all(s.implemented for s in report.components), [
+        f"{s.name}: {s.reason}" for s in report.components if not s.implemented
+    ]
+    assert not [item for item in report.incomplete if item.startswith("component ")]
 
 
 # --- the cost distribution (11.3) -----------------------------------------------------------
@@ -389,7 +392,7 @@ def test_main_prints_every_section_and_names_the_incomplete_items(
     ):  # fmt: skip
         assert heading in out, heading
     assert "gate jobs: 3 of 5 found" in out
-    assert "component pin_drop:" in out
+    assert "component pin_drop:" not in out  # 028: the map animations are implemented
     assert "Result: FAIL" in out
 
 
