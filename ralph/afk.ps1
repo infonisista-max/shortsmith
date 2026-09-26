@@ -72,8 +72,10 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     # stream-json + per-line Add-Content: text mode prints only at completion, so a killed iteration
     # left an empty log (proven 26 Sep). Each event lands in the file as it happens. The explicit
     # exit carries claude's exit code through the pipeline, so a failed run still counts as one.
+    # --disallowedTools 'mcp__*': the unattended agent gets no claude.ai connectors (Drive, Supabase,
+    # ...) - least privilege, and their schemas stay out of its context.
     $inner = "`$env:UV_NO_SYNC='1'; Set-Location '$RepoRoot'; Get-Content -Raw '$PromptFile' | " +
-             "claude -p --output-format stream-json --permission-mode acceptEdits$modelArg --max-turns $MaxTurns --verbose 2>&1 | " +
+             "claude -p --output-format stream-json --permission-mode acceptEdits$modelArg --max-turns $MaxTurns --verbose --disallowedTools 'mcp__*' 2>&1 | " +
              "ForEach-Object { Add-Content -LiteralPath '$log' -Value ([string]`$_) -Encoding Unicode }; exit `$LASTEXITCODE"
     $proc = Start-Process powershell -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-Command",$inner `
             -WorkingDirectory $RepoRoot -PassThru -WindowStyle Hidden
