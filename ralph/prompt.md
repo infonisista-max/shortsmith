@@ -47,7 +47,7 @@ Before committing, run the feedback loops, in this order, and fix everything the
 
 - `uv run ruff check .` to lint
 - `uv run pyright` to type-check
-- `uv run pytest -q` to run the tests
+- `uv run pytest -q <test files>` to run the tests, in foreground chunks of under 8 minutes each (group by test file); never one full-suite run: it outlives the 10-minute tool ceiling, and a backgrounded suite ends a -p session with work uncommitted
 - `uv run python -m shortsmith.smoke` to render the fixture clip end-to-end with the fake transcriber and fake planner
 
 If anything under `src/remotion/**` changed in this session — any file, any
