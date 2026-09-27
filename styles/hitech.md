@@ -1,8 +1,8 @@
 ---
-version: "2"
+version: "3"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
-requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
+requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
                       cut, fade, wipe, zoom]
@@ -15,20 +15,20 @@ beats:
   mean_max_s: 3.2
   density_gap_max_s: 1.5
   snap_window_s: 0.15
-  cold_open_min_s: 0.7
-  cold_open_max_s: 2.0
-  hook_cards_min_s: 2.0
-  hook_cards_max_s: 4.0
-  hook_title_max_words: 8
+  opening_beats_min: 2
+  opening_beats_max: 3
+  opening_max_s: 5.0
 presenter:
   modes: [full, pip, "off"]
   full_max_fraction: 0.2
   full_never_consecutive: true
-  full_reasons: [cold_open, emotional_line, argument_turn]
+  full_reasons: [emotional_line, argument_turn]
   pip_max_run: 6
   off_max_run: 4
-  hook_modes: [full, "off"]
+  opening_mode: pip
   finale_mode: "off"
+cut:
+  max_pause_s: 0.6
 pip:
   left: 60
   top: 970
@@ -39,7 +39,7 @@ pip:
   ring_px: 4
   ring_color: "#22D3EE"
 broll:
-  kinds: [photo, card, stamp, lower_third, hook_cards, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, wall, map, infographic, pin_drop, route_arrow, label_flyin,
           counter, object_path]
   tier2_kinds: []
@@ -49,8 +49,7 @@ broll:
            ring_color: "#22D3EE"}
     stamp: {kind: land, duration_s: 0.12, shake: false, palette: cyan_white}
     lower_third: {kind: fade, duration_s: 0.3, top_y: 1150, bottom_y: 1240}
-    hook_cards: {kind: zoom, cards: 3}
-    finale: {kind: fade, duration_s: 0.35}
+    finale: {kind: fade, duration_s: 0.35, cards: 3}
     list: {kind: reveal, items_max: 6, duration_s: 0.30, scale_from: 1.08, scale_to: 1.14,
            dim: 0.55}
     split: {kind: slide, panes: 2, duration_s: 0.25}
@@ -149,7 +148,7 @@ palette:
 Dark, glowing, product and tech facts. DRAFT (grill decision 1.4): aliases resolve to `explainer` with a notice until one rated short flips this to shipped. This is the draft the 1.4 smoke render uses (ticket 048: `python -m shortsmith.smoke --style hitech`), so `requires_components` is complete against the renderer registry: the spec stamp is the `stamp` component in the `cyan_white` palette and the glow border is the `pip` ring in `pip.ring_color`. Not judged, not shipped; the numbers are a first draft for the smoke, not read off reference frames.
 
 ## Beat grammar
-- Beats `min_s`–`max_s`; presenter in a framed PIP with a glow border most of the time; the hook is a spec or number stamp over the product. Same tiling, snapping and no-mid-word rules as explainer (3.1).
+- Beats `min_s`–`max_s`; presenter in a framed PIP with a glow border most of the time. The short opens with the speaker's first words (055): `opening_beats_min`–`opening_beats_max` quick `opening_mode` beats over the product's strongest images (owner reference first, then the best sourced or generated image), no title card, nothing lifted or dropped; the cut removes only silence (`cut.max_pause_s`). Same tiling, snapping and no-mid-word rules as explainer (3.1).
 
 ## B-roll
 - Product images on the dark gradient, UI mock cards, spec stamps and number counters; sources and rights as in explainer (5.1). Generated named products stay illustration-style (`illustration_look`).

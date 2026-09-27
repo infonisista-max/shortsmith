@@ -15,9 +15,9 @@ from shortsmith.contracts import (
     CutPlan,
     Finale,
     Generated,
-    Hook,
     PicturePlan,
     RightsRow,
+    SetPieceItem,
     Span,
 )
 
@@ -52,18 +52,19 @@ def _beat_asset(beat_id: str, asset_id: str | None, rung: int = 0) -> BeatAsset:
     )
 
 
-def _plan(*beats: tuple[str, str, str | None], cards: tuple[str, ...] = ()) -> PicturePlan:
+def _plan(*beats: tuple[str, str, str | None], items: tuple[str, ...] = ()) -> PicturePlan:
+    """`items` are the asset ids the first beat shows as a set piece's cells (027; the
+    montage members that show other beats' assets)."""
     built = [
         Beat.model_validate({"id": bid, "start": float(i), "end": float(i + 1), "mode": "off",
-                             "kind": kind, "asset_id": asset})  # fmt: skip
+                             "kind": kind, "asset_id": asset,
+                             "items": [SetPieceItem(asset_id=a) for a in items] if i == 0 else []})
         for i, (bid, kind, asset) in enumerate(beats)
-    ]
+    ]  # fmt: skip
     return PicturePlan(
         prompt_version="t",
         cut=CutPlan(keep=[Span(start=0.0, end=float(len(built)))]),
         beats=built,
-        hook=Hook(title="t", cold_open_span=Span(start=0.0, end=1.0), original_position="drop",
-                  card_asset_ids=list(cards)),  # fmt: skip
         finale=Finale(beat_id=built[-1].id, text="t"),
         title="t",
         description="t",
@@ -83,8 +84,8 @@ GEN_SCENE = Generated(model="gen", prompt="a street at dusk", render="photoreal"
 
 
 def test_one_row_per_unique_asset_with_every_beat_that_shows_it() -> None:
-    plan = _plan(("b01", "hook_cards", "a1"), ("b02", "photo", "a1"), ("b03", "card", "a2"),
-                 ("b04", "photo", "a9"), ("b05", "finale", "a1"), cards=("a1", "a2"))  # fmt: skip
+    plan = _plan(("b01", "wall", "a1"), ("b02", "photo", "a1"), ("b03", "card", "a2"),
+                 ("b04", "photo", "a9"), ("b05", "finale", "a1"), items=("a1", "a2"))  # fmt: skip
     manifest = _manifest(
         [_record("a1", "commons"), _record("a2")],
         [_beat_asset("b02", "a1"), _beat_asset("b03", "a2"), _beat_asset("b04", "a1", 3)],
@@ -93,7 +94,7 @@ def test_one_row_per_unique_asset_with_every_beat_that_shows_it() -> None:
     rows = rights.rows(manifest, plan)
     assert [r.id for r in rows] == ["a1", "a2"]
     assert rows[0].beat_ids == ["b01", "b02", "b04", "b05"]
-    assert rows[1].beat_ids == ["b01", "b03"]  # the hook-cards beat shows every card
+    assert rows[1].beat_ids == ["b01", "b03"]  # the wall beat shows every cell's asset
 
 
 def test_rows_carry_the_5_4_shape() -> None:
@@ -210,7 +211,7 @@ def test_complete_log_passes() -> None:
 
 
 def test_a_beat_whose_asset_has_no_row_fails() -> None:
-    plan = _plan(("b01", "photo", "a1"), ("b02", "hook_cards", "a7"), cards=("a7",))
+    plan = _plan(("b01", "photo", "a1"), ("b02", "card", "a7"))
     manifest = _manifest([_record("a1")], [_beat_asset("b01", "a1")])
     problems = rights.completeness(rights.rows(manifest, plan), manifest, plan)
     assert problems == ["b02: asset a7 has no rights row"]

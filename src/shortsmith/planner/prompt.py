@@ -14,8 +14,10 @@ adapter puts its cache markers.
 
 The tier lists come from the spec: tier 1 is `broll.kinds`, tier 2 is every tier-2
 kind with the spec's `broll.tier2_kinds` allowed and the rest refused (4.1 / 9.2).
-Changing an instruction file's meaning means a new file and a new `PROMPT_VERSION`;
-the version lands on every plan and in `job.json`.
+The picture file states the 055 rule in one paragraph: the short starts with the first
+spoken word, every word plays once in the speaker's order, the cut removes only
+silence. Changing an instruction file's meaning means a new file and a new
+`PROMPT_VERSION`; the version lands on every plan and in `job.json`.
 """
 
 from __future__ import annotations
@@ -39,15 +41,16 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v6 (ticket 033): the picture file gained the `category` rule - the planner names the
-# short's category from the fixed list the reference library is organised by (10.3), so
-# the critic compares the short against that category; the sound file is unchanged.
-# (v5, ticket 020: the `map` recipe, region or bbox, markers by name, route, object, and
-# the rule that a map is drawn from bundled geodata, never sourced; v4, ticket 029: the
-# `counter` overlay's numbers and the `label_flyin` overlay on a diagram, the counter's
-# landing as a sound event; v3, ticket 021: the chart and diagram data; v2, ticket 027:
-# the set-piece content rules.)
-PROMPT_VERSION = "v6"
+# v7 (ticket 055): the short opens with the speaker's own first words over the strongest
+# images of the subject - no cold-open lift, no hook title, no hook cards; the cut
+# removes only silence (code tightens pauses over `cut.max_pause_s`), beats are written
+# on the recording's timeline and code maps them onto the cut; the sound file is
+# unchanged. (v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe,
+# region or bbox, markers by name, route, object, and the rule that a map is drawn from
+# bundled geodata, never sourced; v4, ticket 029: the `counter` overlay's numbers and the
+# `label_flyin` overlay on a diagram, the counter's landing as a sound event; v3, ticket
+# 021: the chart and diagram data; v2, ticket 027: the set-piece content rules.)
+PROMPT_VERSION = "v7"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

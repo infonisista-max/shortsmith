@@ -164,11 +164,11 @@ def _visual_spec(tmp_path: Path, plan: PicturePlan | None = None,
 def test_only_the_kinds_with_a_base_still_carry_their_asset(tmp_path: Path) -> None:
     """A photo and a card beat draw their asset as the beat (016); after 027 a `list`
     and a `wall` draw theirs as the dimmed base under the set piece. Every other kind -
-    the presenter, the hook, the `split` (its asset is the badge) and the finale - has
-    no visual of its own."""
+    the presenter, the `split` (its asset is the badge) and the finale - has no visual
+    of its own. 055: the opening beats b01 (photo) and b02 (card) are the first two."""
     spec = _visual_spec(tmp_path)
     visual = {b.id: b.visual for b in spec.beats}
-    photo, card = visual["b03"], visual["b04"]
+    photo, card = visual["b01"], visual["b02"]
     assert photo is not None and photo.treatment == "photo" and photo.card is None
     assert card is not None and card.treatment == "card" and card.card is not None
     assert Path(photo.src).is_absolute() and Path(photo.src).is_file()
@@ -176,12 +176,12 @@ def test_only_the_kinds_with_a_base_still_carry_their_asset(tmp_path: Path) -> N
     assert (photo.dim, card.dim) == (0.0, 0.0)
     base = {b: visual[b] for b in ("b08", "b10")}  # the list and the wall
     assert all(v is not None and v.treatment == "photo" and v.dim > 0 for v in base.values())
-    carriers = ("b03", "b04", "b08", "b10")
+    carriers = ("b01", "b02", "b04", "b08", "b10")
     assert all(visual[b] is None for b in visual if b not in carriers)
 
 
 def test_photo_ken_burns_numbers_come_from_the_style(tmp_path: Path) -> None:
-    photo = _visual_spec(tmp_path).beats[2].visual
+    photo = _visual_spec(tmp_path).beats[0].visual
     assert photo is not None
     assert (photo.scale_from, photo.scale_to) == (1.10, 1.16)  # explainer broll.motion.photo
 
@@ -218,12 +218,36 @@ def test_a_redressed_beat_carries_the_new_crop(tmp_path: Path) -> None:
     assert (second.zoom, second.focus_x) == (1.15, 0.35) != (first.zoom, first.focus_x)
 
 
+DIAGRAM_QUERIES = {"labelled diagram of a tone burst", "sound wave diagram"}  # b07's
+LIST_QUERIES = {"three things about nothing", "empty list"}  # b08's
+
+
+def _entity_opening(plan: PicturePlan) -> PicturePlan:
+    """The fake plan with its opening (b01, b02) and b04 as entity beats: 055 always
+    finds the opening an image, so a concept beat nothing is found for later has no
+    earlier concept asset to re-dress and falls to rung 4."""
+    return plan.model_copy(update={"beats": [
+        b.model_copy(update={"subject_kind": "entity", "depicts": None})
+        if b.id in ("b01", "b02", "b04") else b
+        for b in plan.beats
+    ]})  # fmt: skip
+
+
+def _nothing_for_the_set_pieces(tmp_path: Path, plan: PicturePlan) -> AssetManifest:
+    missing = DIAGRAM_QUERIES | LIST_QUERIES
+    return _sourced(
+        tmp_path, plan,
+        web=assets.FakeImageSource("web", nothing_for=missing | {PORTRAIT_SKY}),
+        commons=assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)},
+                                       nothing_for=missing),
+    )  # fmt: skip
+
+
 def test_a_rung_4_beat_swaps_to_pip_over_the_gradient(tmp_path: Path) -> None:
-    plan = _plan()
-    empty = assets.FakeImageSource("web", nothing_found=True)
-    spec = _visual_spec(tmp_path, plan, _sourced(tmp_path, plan, web=empty))
-    b04 = next(b for b in spec.beats if b.id == "b04")
-    assert (b04.mode, b04.visual) == ("pip", None)
+    plan = _entity_opening(_plan())
+    spec = _visual_spec(tmp_path, plan, _nothing_for_the_set_pieces(tmp_path, plan))
+    b07 = next(b for b in spec.beats if b.id == "b07")
+    assert (b07.mode, b07.visual) == ("pip", None)
     b08 = next(b for b in spec.beats if b.id == "b08")  # an `off` list beat, rescued too
     assert b08.mode == "pip"
 
@@ -354,7 +378,7 @@ def test_card_look_numbers_come_from_the_style() -> None:
 
 
 def test_the_card_strip_shows_the_lower_third_label(tmp_path: Path) -> None:
-    card = _visual_spec(tmp_path).beats[3].visual
+    card = _visual_spec(tmp_path).beats[1].visual
     assert card is not None and card.card is not None
     assert card.card.strip_text == "India Gate · Delhi"
 
@@ -362,82 +386,76 @@ def test_the_card_strip_shows_the_lower_third_label(tmp_path: Path) -> None:
 # --- set pieces and overlays (ticket 026; decisions 3.2, 3.4, 4.1, 4.2, 6.3) -----------
 
 
-def _only(manifest: AssetManifest, *keep: str) -> AssetManifest:
-    """The manifest with every hook-card alias but `keep` resolved to nothing."""
-    aliases = {k: (v if k in keep else None) for k, v in manifest.aliases.items()}
-    return manifest.model_copy(update={"aliases": aliases})
+def test_the_opening_beats_are_pip_over_full_screen_images_with_no_hook(tmp_path: Path) -> None:
+    """055: the first two beats draw the speaker in the circle over a photo and a card;
+    no beat carries a hook, no beat is `hook_cards`, and only `full` beats punch in."""
+    spec = _visual_spec(tmp_path)
+    first, second = spec.beats[:2]
+    assert (first.mode, second.mode) == ("pip", "pip")
+    assert first.visual is not None and first.visual.treatment == "photo"
+    assert second.visual is not None and second.visual.treatment == "card"
+    assert first.punch_in is None and second.punch_in is None
+    assert not any(hasattr(b, "hook") for b in spec.beats)
+    assert "hook_cards" not in {b.kind for b in spec.beats}
 
 
-def test_the_hook_beat_carries_its_title_and_three_cards_in_plan_order(tmp_path: Path) -> None:
-    plan = _plan()
-    spec = _visual_spec(tmp_path, plan)
-    hook = next(b for b in spec.beats if b.id == "b02").hook
-    assert hook is not None
-    assert " ".join(hook.title_lines) == plan.hook.title
-    assert len(hook.cards) == EXPLAINER.broll.hook_cards == 3
-    manifest = _sourced(tmp_path, plan)
-    wanted = [manifest.aliases[i] for i in plan.hook.card_asset_ids]
-    assert all(Path(c.src).is_absolute() and Path(c.src).is_file() for c in hook.cards)
-    assert len({c.src for c in hook.cards}) == 3 and len(set(wanted)) == 3
-    assert hook.cards[0].left < hook.cards[1].left  # left slot, then the right one
-
-
-def test_fewer_than_three_hook_assets_give_one_centred_card(tmp_path: Path) -> None:
-    plan = _plan()
-    manifest = _only(_sourced(tmp_path, plan), "a1")
-    hook = next(b for b in _visual_spec(tmp_path, plan, manifest).beats if b.id == "b02").hook
-    assert hook is not None and len(hook.cards) == 1
-    card = hook.cards[0]
-    assert card.left + card.box_width / 2 == pytest.approx(render.WIDTH / 2)
-
-
-def test_a_hook_with_no_resolved_asset_still_draws_its_title(tmp_path: Path) -> None:
-    plan = _plan()
-    manifest = _only(_sourced(tmp_path, plan))
-    hook = next(b for b in _visual_spec(tmp_path, plan, manifest).beats if b.id == "b02").hook
-    assert hook is not None and hook.cards == [] and hook.title_lines
-
-
-def test_hook_cards_end_above_the_caption_block(tmp_path: Path) -> None:
-    plan = _plan()
-    hook = next(b for b in _visual_spec(tmp_path, plan).beats if b.id == "b02").hook
-    assert hook is not None
-    block_top = styles.caption_block_top(EXPLAINER.captions)
-    assert max(c.top + c.box_height for c in hook.cards) <= block_top
-    assert min(c.left for c in hook.cards) >= render.SAFE_LEFT
-    assert max(c.left + c.box_width for c in hook.cards) <= render.WIDTH - render.SAFE_LEFT
-
-
-def test_the_hook_title_wraps_to_at_most_two_lines_inside_the_caption_width() -> None:
-    long_title = "Why this one small change made everything suddenly cheaper"
-    plan = _plan()
-    plan = plan.model_copy(update={"hook": plan.hook.model_copy(update={"title": long_title})})
-    spec = render.build_spec(
-        plan, _captions(plan), presenter=Path("work/cut.mp4"),
-        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
-    )  # fmt: skip
-    hook = next(b for b in spec.beats if b.id == "b02").hook
-    assert hook is not None and 1 <= len(hook.title_lines) <= render.HOOK_TITLE_MAX_LINES
-    assert " ".join(hook.title_lines) == long_title
-    style = EXPLAINER.captions
-    for line in hook.title_lines:
-        width = captions.measure(line, family=style.font_family, weight=style.font_weight,
-                                 size_px=hook.title_font_px,
-                                 letter_spacing_px=style.letter_spacing_px)  # fmt: skip
-        assert width <= style.max_width_px + 1e-6
-
-
-def test_the_cold_open_beat_is_full_frame_with_the_research_punch_in() -> None:
-    cold_open = _spec().beats[0]
-    assert cold_open.mode == "full"
-    punch = cold_open.punch_in
+def test_the_full_beat_is_the_only_one_with_the_research_punch_in() -> None:
+    spec = _spec()
+    full = [b for b in spec.beats if b.mode == "full"]
+    assert [b.id for b in full] == ["b03"]
+    punch = full[0].punch_in
     assert punch is not None
     assert (punch.scale_from, punch.settle_to, punch.settle_s) == (1.22, 1.03, 0.9)
     assert (punch.contrast, punch.saturate, punch.origin_y) == (1.06, 1.08, 0.30)
-    assert all(b.punch_in is None for b in _spec().beats if b.mode != "full")
+    assert all(b.punch_in is None for b in spec.beats if b.mode != "full")
 
 
-def test_the_finale_carries_the_presenter_circle_the_payoff_word_and_the_hook_cards(
+def test_the_finale_cards_are_the_shorts_first_distinct_images_in_beat_order(
+    tmp_path: Path,
+) -> None:
+    """055: the opening's images first, then the next distinct assets, up to the
+    style's `broll.motion.finale.cards`; each labelled with its beat's lower-third."""
+    plan = _plan()
+    manifest = _sourced(tmp_path, plan)
+    spec = _visual_spec(tmp_path, plan, manifest)
+    finale = next(b for b in spec.beats if b.id == plan.finale.beat_id).finale
+    assert finale is not None
+    assert len(finale.cards) == EXPLAINER.broll.finale_cards == 3
+    ids = render.opening_asset_ids(plan, manifest, 3)
+    first_two = [manifest.beat("b01"), manifest.beat("b02")]
+    assert [d.asset_id for d in first_two if d is not None] == ids[:2]
+    files = [str((tmp_path / "job" / record.file).resolve())
+             for record in (manifest.asset(i) for i in ids) if record is not None]  # fmt: skip
+    assert [c.src for c in finale.cards] == files
+    opening = next(b for b in spec.beats if b.id == "b01").visual
+    assert opening is not None and finale.cards[0].src == opening.src
+    assert finale.cards[1].label == "India Gate · Delhi"  # b02's lower-third
+    assert all(Path(c.src).is_absolute() and Path(c.src).is_file() for c in finale.cards)
+    assert finale.cards[1].left < finale.cards[2].left  # left shoulder, then the right one
+
+
+def test_fewer_resolved_assets_give_fewer_finale_cards_never_a_failure(tmp_path: Path) -> None:
+    plan = _plan()
+    manifest = _sourced(tmp_path, plan)
+    first = manifest.beat("b01")
+    assert first is not None and first.asset_id is not None
+    one = manifest.model_copy(update={"assets": [a for a in manifest.assets
+                                                 if a.id == first.asset_id]})  # fmt: skip
+    finale = next(b for b in _visual_spec(tmp_path, plan, one).beats if b.finale).finale
+    assert finale is not None and len(finale.cards) == 1
+    none = manifest.model_copy(update={"assets": []})
+    finale = next(b for b in _visual_spec(tmp_path, plan, none).beats if b.finale).finale
+    assert finale is not None and finale.cards == [] and finale.text == plan.finale.text
+
+
+def test_finale_cards_stay_inside_the_side_margins(tmp_path: Path) -> None:
+    finale = next(b for b in _visual_spec(tmp_path).beats if b.finale).finale
+    assert finale is not None
+    assert min(c.left for c in finale.cards) >= render.SAFE_LEFT
+    assert max(c.left + c.box_width for c in finale.cards) <= render.WIDTH - render.SAFE_LEFT
+
+
+def test_the_finale_carries_the_presenter_circle_the_payoff_word_and_the_cards(
     tmp_path: Path,
 ) -> None:
     plan = _plan()
@@ -478,12 +496,12 @@ def test_a_caption_page_that_runs_into_the_finale_fails_the_build() -> None:
 
 
 def test_the_stamp_look_comes_from_the_style_front_matter() -> None:
-    stamp = _spec().beats[2].stamp
+    stamp = _spec().beats[3].stamp  # b04, the fake plan's stamp beat (055)
     assert stamp is not None and stamp.text == "NOTHING"
     assert (stamp.land_s, stamp.shake_s) == (0.16, render.STAMP_SHAKE_S)  # motion.stamp
     assert stamp.color == "#FFD60A"  # broll.motion.stamp.palette yellow_green_red
     assert stamp.rotate_deg != 0.0 and stamp.scale_from == render.STAMP_SCALE_FROM
-    assert all(b.stamp is None for b in _spec().beats if b.id != "b03")
+    assert all(b.stamp is None for b in _spec().beats if b.id != "b04")
 
 
 @pytest.mark.parametrize(
@@ -551,7 +569,7 @@ def test_the_lower_third_is_suppressed_where_the_card_strip_already_shows_it(
     tmp_path: Path,
 ) -> None:
     spec = _visual_spec(tmp_path)
-    beat = next(b for b in spec.beats if b.id == "b04")
+    beat = next(b for b in spec.beats if b.id == "b02")
     assert beat.visual is not None and beat.visual.card is not None
     assert beat.visual.card.strip_text == "India Gate · Delhi" and beat.lower_third is None
 
@@ -792,9 +810,8 @@ def test_a_label_outside_the_safe_area_fails_the_build(tmp_path: Path) -> None:
 
 
 def test_a_rescued_infographic_beat_draws_no_diagram(tmp_path: Path) -> None:
-    plan = _plan()
-    empty = assets.FakeImageSource("web", nothing_found=True)
-    spec = _visual_spec(tmp_path, plan, _sourced(tmp_path, plan, web=empty, commons=empty))
+    plan = _entity_opening(_plan())
+    spec = _visual_spec(tmp_path, plan, _nothing_for_the_set_pieces(tmp_path, plan))
     beat = next(b for b in spec.beats if b.id == _piece_beat(plan, "infographic").id)
     assert beat.infographic is None and beat.mode == "pip"
 
@@ -896,7 +913,7 @@ def test_spec_has_round_duration_times_fps_frames_and_beats_tile_them() -> None:
     for a, b in zip(spec.beats, spec.beats[1:], strict=False):
         assert a.end_frame == b.start_frame
     modes = [b.mode for b in spec.beats]
-    assert modes[0] == "full" and "pip" in modes and "off" in modes
+    assert modes[:2] == ["pip", "pip"] and "full" in modes and "off" in modes  # 055
     assert spec.presenter.endswith("cut.mp4")
 
 
@@ -1348,9 +1365,9 @@ def _near(a: tuple[int, ...], b: tuple[int, ...], tolerance: int = 30) -> bool:
 def test_the_photo_and_the_card_are_drawn_from_their_asset_files(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    """016 end to end through Remotion: at 1.25 s (b03) the frame shows the portrait
-    photo's colour full-bleed; at 1.75 s (b04) the card centre shows the card image and
-    the cover behind it is the same image darkened."""
+    """016 end to end through Remotion: at 0.25 s (b01) the frame shows the portrait
+    photo's colour full-bleed; at 0.75 s (b02) the card centre shows the card image and
+    the cover behind it is the same image darkened (055: the opening beats)."""
     plan = _plan()
     job = _job_with(tmp_path, fixture_clip, plan)
     manifest_in_job = assets.source_assets(
@@ -1378,14 +1395,14 @@ def test_the_photo_and_the_card_are_drawn_from_their_asset_files(
             i = 3 * ((image.height // 2) * image.width + image.width // 2)
         return data[i], data[i + 1], data[i + 2]
 
-    assert _near(_pixel(frames[5], 900, 700), colour("b03"))
-    card = next(b for b in spec.beats if b.id == "b04").visual
+    assert _near(_pixel(frames[1], 900, 700), colour("b01"))
+    card = next(b for b in spec.beats if b.id == "b02").visual
     assert card is not None and card.card is not None
     cx = round(card.card.left + card.card.width / 2)
     cy = round(card.card.top + card.card.border_px + card.card.image_height / 2)
-    centre = _pixel(frames[7], cx, cy)
-    assert _near(centre, colour("b04"))
-    cover = _pixel(frames[7], 1000, 1800)
+    centre = _pixel(frames[3], cx, cy)
+    assert _near(centre, colour("b02"))
+    cover = _pixel(frames[3], 1000, 1800)
     assert sum(cover) < sum(centre)
 
 

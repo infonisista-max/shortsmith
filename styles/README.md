@@ -2,14 +2,15 @@
 
 One markdown file per style: YAML front matter between `---` fences, then the five prose sections. `shortsmith.styles.load_all` validates every file at app startup; a broken spec stops the app with the spec name and the problem (grill decisions 1.2, 1.4).
 
-Front matter must carry the seven key groups plus six more keys:
+Front matter must carry the eight key groups plus six more keys:
 
 | key | who reads it |
 | --- | --- |
 | `version` | `meta.json` (10.4, ticket 035): recorded on every job the spec judged, so a short's provenance names the spec it was made under; bump it by hand whenever a number or a prose section changes. Quote it (`"1"`) so YAML keeps it a string |
 | `aliases` | the resolver (1.1): words in the style line that pick this spec |
-| `beats` | grammar validator (3.1, 3.4) |
-| `presenter` | grammar validator (3.2) |
+| `beats` | grammar validator (3.1, 3.4): beat lengths and the opening's shape (`opening_beats_min`, `opening_beats_max`, `opening_max_s`; 055) |
+| `presenter` | grammar validator (3.2); `opening_mode` is the opening beats' mode (055) |
+| `cut` | grammar validator (3.4 as amended by 055): `max_pause_s`, the longest pause between two kept words; code tightens longer ones and never touches a word |
 | `broll` | grammar validator, asset step, renderer (4.1, 4.3, 9.2, 9.4); `enter_transitions` is the style's subset of the global vocabulary and `transitions` carries every row of its numbers (fade, whip, zoom, spring, wipe; `cut` has none), enabled or not |
 | `captions` | pager and renderer (6.1, 6.2, 6.3) |
 | `sound` | sound director and gate (7.1, 7.3); `default_bed_query` is the plain-words last rung of the runtime bed search (7.2, 054) |

@@ -1,5 +1,5 @@
 ---
-version: "2"
+version: "3"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -12,20 +12,20 @@ beats:
   mean_max_s: 3.2
   density_gap_max_s: 1.2
   snap_window_s: 0.15
-  cold_open_min_s: 0.7
-  cold_open_max_s: 2.0
-  hook_cards_min_s: 2.0
-  hook_cards_max_s: 4.0
-  hook_title_max_words: 8
+  opening_beats_min: 2
+  opening_beats_max: 3
+  opening_max_s: 5.0
 presenter:
   modes: [full, pip, "off"]
   full_max_fraction: 0.15
   full_never_consecutive: true
-  full_reasons: [cold_open, emotional_line, argument_turn]
+  full_reasons: [emotional_line, argument_turn]
   pip_max_run: 6
   off_max_run: 6
-  hook_modes: ["off"]
+  opening_mode: pip
   finale_mode: "off"
+cut:
+  max_pause_s: 0.6
 pip:
   left: 60
   top: 990
@@ -36,7 +36,7 @@ pip:
   ring_px: 8
   ring_color: "#F97316"
 broll:
-  kinds: [photo, card, stamp, lower_third, hook_cards, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, wall, map, infographic, pin_drop, route_arrow, label_flyin,
           counter, object_path]
   tier2_kinds: [parallax, vector_illustration]
@@ -46,8 +46,7 @@ broll:
            ring_color: "#F97316"}
     stamp: {kind: pop, duration_s: 0.12, shake: true, palette: accent}
     lower_third: {kind: spring, duration_s: 0.3, top_y: 1150, bottom_y: 1240}
-    hook_cards: {kind: spring, cards: 3}
-    finale: {kind: spring, duration_s: 0.4}
+    finale: {kind: spring, duration_s: 0.4, cards: 3}
   enter_transitions: [cut, fade, whip, zoom, spring, wipe]
   whip_max_per_3_beats: 1
   transitions:
@@ -135,7 +134,7 @@ palette:
 Motion-graphics heavy; illustrated B-roll dominates. DRAFT (grill decision 1.4): aliases resolve to `explainer` with a notice until one rated short flips this to shipped. Full parallax depth and the vector-illustration look are the tier-2 kinds tied to this skin (9.2).
 
 ## Beat grammar
-- Short beats (`min_s`–`max_s`), presenter mostly PIP or off; `full` is rare (`full_max_fraction`). The hook is an animated title card, so hook beats are `off` only.
+- Short beats (`min_s`–`max_s`), presenter mostly PIP or off; `full` is rare (`full_max_fraction`). The short opens with the speaker's first words (055): `opening_beats_min`–`opening_beats_max` `opening_mode` beats over the strongest illustrations of the subject (owner reference first), no animated title card, nothing lifted or dropped; the cut removes only silence (`cut.max_pause_s`).
 - Same tiling, snapping and no-mid-word rules as explainer (3.1).
 
 ## B-roll

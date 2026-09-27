@@ -1,9 +1,14 @@
-"""grammar: the plan validator (ticket 009; decisions 3.1, 3.2, 3.4, 4.1, 4.2, 4.3,
-7.3, 8.2, 9.4). Pure code over PicturePlan / SoundStory, Transcript and StyleSpec:
-clamps what 8.2 lets code fix (each logged), rejects the rest with beat id and rule
-number on every message, and warns where 3.4 / 4.3 say warn. Every number comes from
-the explainer front matter loaded from disk; the boundary pairs sit on both sides of
-each threshold the decisions name."""
+"""grammar: the plan validator (ticket 009; decisions 3.1, 3.2, 3.4 as amended by 055,
+4.1, 4.2, 4.3, 7.3, 8.2, 9.4). Pure code over PicturePlan / SoundStory, Transcript and
+StyleSpec: clamps what 8.2 lets code fix (each logged), rejects the rest with beat id
+and rule number on every message, and warns where 4.3 says warn. Every number comes
+from the explainer front matter loaded from disk; the boundary pairs sit on both sides
+of each threshold the decisions name.
+
+Ticket 055: the speaker's order (a lifted or dropped line is rejected naming the span,
+replayed from F1's plan), pause tightening as a clamp on the F1 transcript, beats
+mapped from the recording onto the cut, and the opening (two pip beats over images,
+the owner's reference first)."""
 
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from shortsmith import fixture, grammar, render, smoke, styles
+from shortsmith import fixture, grammar, presenter, render, smoke, styles
 from shortsmith.contracts import (
     CATEGORIES,
     Beat,
@@ -24,7 +29,6 @@ from shortsmith.contracts import (
     CutPlan,
     Event,
     Finale,
-    Hook,
     MapMarker,
     MapPlan,
     Mode,
@@ -47,7 +51,13 @@ from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import FakeTranscriber
 
 BRIEF = "Topic: why the sky is blue. Angle: scattering in one breath. Hook wish: none."
-WORD_LEN_S = 0.3
+# Each beat's one word starts this far into it (the first beat's at its start), so the
+# 0.4 s silence between words is under `cut.max_pause_s` (0.6) and a boundary moved
+# 0.16 s past a word end still lands in silence.
+WORD_LEAD_S = 0.4
+F1_TRANSCRIPT = Path(__file__).parent / "fixtures" / "f1" / "transcript.json"
+# F1 (job 20260927-041728-656506): the line the old hook lifted from 22.74-24.1 s.
+F1_LIFT = Span(start=22.74, end=24.1)
 # 027: turning a body beat into a set piece means giving it the content a set piece
 # carries, so the length and mean tests below still pass the item rules.
 AS_LIST: dict[str, Any] = {
@@ -65,10 +75,13 @@ def spec() -> StyleSpec:
 
 # --- plan builders --------------------------------------------------------------------
 #
-# A plan that passes every explainer rule: a 1.5 s `full` cold open, 3.0 s `off` hook
-# cards, twenty 2.5 s body beats (pip x4, off x2 repeating; photo / card alternating,
-# each with a stamp so nothing on screen sits still past 1.5 s; twelve assets cycling
-# so some are reused) and a 1.0 s `off` finale. 55.5 s in all, mean 2.41 s.
+# A plan that passes every explainer rule: two 2.5 s `pip` opening beats over a photo
+# and a card (055: the speaker's first words over the strongest images, ending exactly
+# at `opening_max_s`), twenty 2.5 s body beats (pip x4, off x2 repeating; photo / card
+# alternating, each with a stamp so nothing on screen sits still past 1.5 s; twelve
+# assets cycling so some are reused) and a 1.0 s `off` finale. 56.0 s in all, mean
+# 2.43 s. Beat times are recording seconds; with the whole recording kept they are the
+# output's too.
 
 BODY_MODES: tuple[Mode, ...] = ("pip", "pip", "pip", "pip", "off", "off")
 _MODE_LETTERS: dict[str, Mode] = {"p": "pip", "o": "off", "f": "full"}
@@ -100,13 +113,11 @@ def body_beat(n: int, start: float, length: float, *, mode: Mode, asset: str) ->
 
 def make_plan(
     *,
-    cold_open_s: float = 1.5,
-    hook_cards_s: float = 3.0,
+    opening_s: float = 2.5,
     finale_s: float = 1.0,
     body_lengths: Sequence[float] = (2.5,) * 20,
     body_modes: Sequence[Mode] | None = None,
     assets: int = 12,
-    title: str = "Why the sky is blue",
     keywords: Sequence[int] = (),
     hashtags: Sequence[str] = ("#shorts", "#sky"),
 ) -> PicturePlan:
@@ -115,12 +126,12 @@ def make_plan(
         if body_modes is not None
         else [BODY_MODES[i % len(BODY_MODES)] for i in range(len(body_lengths))]
     )
+    # The opening: b01 a photo, b02 a card (body_beat's alternation from n = -2), both
+    # pip, with their own assets so the body's reuse arithmetic is untouched.
     beats = [
-        Beat(id="b01", start=0.0, end=cold_open_s, mode="full", reason="cold_open",
-             kind="presenter_full"),
-        Beat(id="b02", start=cold_open_s, end=round(cold_open_s + hook_cards_s, 3), mode="off",
-             kind="hook_cards", asset_id="a01"),
-    ]  # fmt: skip
+        body_beat(-2, 0.0, opening_s, mode="pip", asset="o1"),
+        body_beat(-1, opening_s, opening_s, mode="pip", asset="o2"),
+    ]
     t = beats[-1].end
     for n, (length, mode) in enumerate(zip(body_lengths, body, strict=True)):
         beats.append(body_beat(n, t, length, mode=mode, asset=f"a{n % assets + 1:02d}"))
@@ -134,12 +145,6 @@ def make_plan(
         prompt_version="test-1",
         cut=CutPlan(keep=[Span(start=0.0, end=beats[-1].end)]),
         beats=beats,
-        hook=Hook(
-            title=title,
-            cold_open_span=Span(start=0.0, end=cold_open_s),
-            original_position="drop",
-            card_asset_ids=["a01", "a02", "a03"],
-        ),
         finale=Finale(beat_id=finale_id, text="That is why."),
         keywords=list(keywords),
         title="Why the sky is blue",
@@ -148,20 +153,26 @@ def make_plan(
     )
 
 
-def transcript_for(plan: PicturePlan, *extra_ends: float) -> Transcript:
-    """A word ending exactly at every beat boundary (and at `extra_ends`), so nothing
-    snaps unless a test moves a boundary off a word end."""
-    ends = sorted({round(b.end, 3) for b in plan.beats} | {round(e, 3) for e in extra_ends})
-    words = [
-        Word(text=f"w{i}", start=round(end - WORD_LEN_S, 3), end=end, segment=i // 3)
-        for i, end in enumerate(ends)
-    ]
-    duration = max(plan.beats[-1].end, ends[-1])
+def transcript_for(plan: PicturePlan, *, gap_before: dict[str, float] | None = None) -> Transcript:
+    """One word per beat, ending exactly at the beat's end and starting `WORD_LEAD_S`
+    into it (the first at 0), so nothing snaps unless a test moves a boundary off a
+    word end and no pause is over `cut.max_pause_s`. `gap_before` widens the silence
+    before a beat's word (beat id -> lead), for the pause-tightening tests."""
+    leads = gap_before or {}
+    words: list[Word] = []
+    for i, b in enumerate(plan.beats):
+        lead = 0.0 if i == 0 else leads.get(b.id, WORD_LEAD_S)
+        words.append(Word(text=f"w{i}", start=round(b.start + lead, 3), end=b.end, segment=i // 3))
+    duration = plan.beats[-1].end
     segments = [
         Segment(start=words[i].start, end=words[min(i + 2, len(words) - 1)].end, avg_logprob=-0.1)
         for i in range(0, len(words), 3)
     ]
     return Transcript(language="en", duration_s=duration, segments=segments, words=words)
+
+
+def f1_transcript() -> Transcript:
+    return Transcript.model_validate_json(F1_TRANSCRIPT.read_text(encoding="utf-8"))
 
 
 def replace(plan: PicturePlan, beat_id: str, **changes: Any) -> PicturePlan:
@@ -197,11 +208,13 @@ def rules(result: object) -> set[tuple[str | None, str]]:
 
 def picture(
     plan: PicturePlan, spec: StyleSpec, *, transcript: Transcript | None = None,
-    brief: str = BRIEF, must_use: Sequence[str] = (),
+    brief: str = BRIEF, must_use: Sequence[str] = (), references: Sequence[str] = (),
+    timeline: grammar.Timeline = "recording",
 ) -> grammar.PictureCheck | grammar.Violations:  # fmt: skip
     return grammar.validate_picture(
-        plan, transcript or transcript_for(plan), spec, brief=brief, must_use=must_use
-    )
+        plan, transcript or transcript_for(plan), spec, brief=brief, must_use=must_use,
+        references=references, timeline=timeline,
+    )  # fmt: skip
 
 
 def checked(plan: PicturePlan, spec: StyleSpec, **kwargs: Any) -> grammar.PictureCheck:
@@ -300,8 +313,8 @@ def test_plan_mean_boundaries(spec: StyleSpec, mean: float, ok: bool) -> None:
     gap and only the mean decides."""
     body = 20
     total = mean * (body + 3)
-    length = round((total - 1.5 - 3.0 - 1.0) / body, 4)
-    plan = make_plan(body_lengths=[length] * body, assets=15)  # 73.6 s needs 14 assets
+    length = round((total - 2 * 2.5 - 1.0) / body, 4)  # two opening beats and the finale
+    plan = make_plan(body_lengths=[length] * body, assets=15)  # 73.8 s needs 14 assets
     for b in plan.beats[2:-1]:
         plan = replace(plan, b.id, event=Event(), **AS_LIST)
     if ok:
@@ -352,27 +365,29 @@ def test_consecutive_full_beats_are_rejected(spec: StyleSpec) -> None:
 
 
 def test_full_fraction_exactly_at_the_cap_passes_and_above_fails(spec: StyleSpec) -> None:
-    """64 s plan, 2.0 s cold open + seven 2.0 s full beats = 16 s = 0.25 exactly."""
+    """64 s plan (5 s opening, 29 x 2.0 s body, 1 s finale), eight 2.0 s full beats =
+    16 s = 0.25 exactly; a ninth passes the cap."""
     body = [2.0] * 29
-    full_at = [0, 4, 8, 12, 16, 20, 24]
+    full_at = [0, 4, 8, 12, 16, 20, 24, 28]
     pattern = modes("".join("f" if i in full_at else "p" for i in range(29)))
-    plan = make_plan(cold_open_s=2.0, body_lengths=body, body_modes=pattern, assets=16)
+    plan = make_plan(body_lengths=body, body_modes=pattern, assets=16)
     for i in full_at:
         plan = replace(plan, f"b{i + 3:02d}", kind="presenter_full", reason="emotional_line",
                        motion=None, subject_kind=None, query="", asset_id=None)  # fmt: skip
     # pip runs of three between full beats, off nowhere: the modes stay legal.
     checked(plan, spec)
-    over = replace(plan, "b30", mode="full", kind="presenter_full", reason="emotional_line",
+    over = replace(plan, "b17", mode="full", kind="presenter_full", reason="emotional_line",
                    motion=None, subject_kind=None, query="", asset_id=None)  # fmt: skip
     assert (None, "3.2") in rules(picture(over, spec))
 
 
 def test_seventh_consecutive_pip_is_rejected(spec: StyleSpec) -> None:
-    six = modes("pppppp o pppppp o pppppp")
+    """The two opening beats are pip, so the body's first run counts from three."""
+    six = modes("pppp o pppppp o pppppp o p")
     checked(make_plan(body_lengths=[2.5] * 20, body_modes=six), spec)
-    seven = modes("ppppppp o pppppp o ppppp")
+    seven = modes("ppppp o pppppp o pppppp o")
     result = picture(make_plan(body_lengths=[2.5] * 20, body_modes=seven), spec)
-    assert ("b09", "3.2") in rules(result)  # the seventh pip beat is b09
+    assert ("b07", "3.2") in rules(result)  # the seventh pip beat is b07
 
 
 def test_fourth_consecutive_off_is_rejected(spec: StyleSpec) -> None:
@@ -383,83 +398,237 @@ def test_fourth_consecutive_off_is_rejected(spec: StyleSpec) -> None:
     assert ("b07", "3.2") in rules(picture(plan, spec))
 
 
-def test_hook_beat_in_pip_and_finale_not_off_are_rejected(spec: StyleSpec) -> None:
-    plan = make_plan()
-    pip_hook = replace(plan, "b01", mode="pip", kind="presenter_pip", reason=None)
-    assert ("b01", "3.2") in rules(picture(pip_hook, spec))
-    pip_finale = replace(plan, "b23", mode="pip")
+def test_finale_not_off_is_rejected(spec: StyleSpec) -> None:
+    pip_finale = replace(make_plan(), "b23", mode="pip")
     assert ("b23", "3.2") in rules(picture(pip_finale, spec))
 
 
-# --- the hook (3.4) ----------------------------------------------------------------------
+# --- the speaker's order and the cut (3.4 as amended by 055) ------------------------------
 
 
-def test_hook_title_word_count(spec: StyleSpec) -> None:
-    checked(make_plan(title="one two three four five six seven eight"), spec)
-    result = picture(make_plan(title="one two three four five six seven eight nine"), spec)
-    assert ("b02", "3.4") in rules(result)
+def _f1_plan(cut: CutPlan) -> PicturePlan:
+    """A plan over the F1 recording (59.93 s) with the given cut; only the cut rules are
+    asserted on it, so its beats are the base plan's stretched to the recording."""
+    base = make_plan(body_lengths=[2.5] * 20, finale_s=1.0)
+    scale = 59.93 / base.beats[-1].end
+    beats = [
+        b.model_copy(update={"start": round(b.start * scale, 3), "end": round(b.end * scale, 3)})
+        for b in base.beats
+    ]
+    return base.model_copy(update={"cut": cut, "beats": beats})
 
 
-@pytest.mark.parametrize(
-    ("cold_open", "hook_cards"), [(0.6, 3.0), (2.1, 3.0), (1.5, 1.9), (1.5, 4.1)]
-)
-def test_hook_slot_lengths_are_enforced(
-    spec: StyleSpec, cold_open: float, hook_cards: float
+def test_f1s_lift_replayed_as_a_re_ordered_cut_is_rejected_naming_the_span(
+    spec: StyleSpec,
 ) -> None:
-    result = picture(make_plan(cold_open_s=cold_open, hook_cards_s=hook_cards), spec)
-    assert ("b01", "3.4") in rules(result) or ("b02", "3.4") in rules(result)
-
-
-def with_hook(plan: PicturePlan, **changes: Any) -> PicturePlan:
-    return plan.model_copy(update={"hook": plan.hook.model_copy(update=changes)})
-
-
-def test_hook_cards_must_name_plan_assets(spec: StyleSpec) -> None:
-    plan = with_hook(make_plan(), card_asset_ids=["a01", "zz"])
-    assert ("b02", "3.4") in rules(picture(plan, spec))
-
-
-def test_lifted_span_must_sit_on_word_boundaries(spec: StyleSpec) -> None:
-    """A cold open lifted from 20.0-21.5 s and kept in place: the cut keeps 54 s of
-    the body so the 55.5 s of beats still tile the output (3.1)."""
-    base = make_plan()
-    transcript = transcript_for(base, 20.0, 21.5)
-    lifted = with_hook(
-        base.model_copy(update={"cut": CutPlan(keep=[Span(start=0.0, end=54.0)])}),
-        cold_open_span=Span(start=20.0, end=21.5),
-        original_position="keep",
-    )
-    checked(lifted, spec, transcript=transcript)
-    # 21.4 s is inside the word ending at 21.5 s.
-    mid_word = with_hook(lifted, cold_open_span=Span(start=20.0, end=21.4))
-    assert ("b01", "3.4") in rules(picture(mid_word, spec, transcript=transcript))
-
-
-def test_duplicated_cold_open_span_needs_an_explicit_keep(spec: StyleSpec) -> None:
-    """3.4: the cut list removes the lifted span from the body under `drop`, so the
-    line repeats only under an explicit `keep`; a plan that says `keep` but planned
-    its beats as if the span played once is caught by the runtime (3.1) with the
-    repeat named, and `keep` on a span the cut drops is a contradiction (3.4)."""
-    base = make_plan()
-    transcript = transcript_for(base, 20.0, 21.5)
-    span = Span(start=20.0, end=21.5)
-    lifted = with_hook(base, cold_open_span=span, original_position="drop")
-    checked(lifted, spec, transcript=transcript)  # 1.5 s lifted + 54 s of body = 55.5 s
-    forgot = with_hook(lifted, original_position="keep")
-    result = picture(forgot, spec, transcript=transcript)
-    assert (None, "3.1") in rules(result)
+    """F1 lifted 'आप यकीन नहीं मानोगे' (22.74-24.1 s) to the front and dropped it from
+    its place. As a cut that plays that span first, the plan is rejected at plan level
+    with the span named; nothing else is checked on a cut that is not the speech."""
+    lifted = CutPlan(keep=[F1_LIFT, Span(start=0.0, end=F1_LIFT.start),
+                           Span(start=F1_LIFT.end, end=59.93)])  # fmt: skip
+    result = picture(_f1_plan(lifted), spec, transcript=f1_transcript())
+    assert rules(result) == {(None, "3.4")}
     assert isinstance(result, grammar.Violations)
-    assert any("plays twice" in v.message and "keep" in v.message for v in result.items)
-    cut = CutPlan(keep=[Span(start=0.0, end=55.5)], drop=[span])
-    contradiction = forgot.model_copy(update={"cut": cut})
-    assert ("b01", "3.4") in rules(picture(contradiction, spec, transcript=transcript))
+    (line,) = result.lines()
+    assert "22.74-24.1 s" in line and "speaker's order" in line
+
+
+def test_a_drop_that_removes_spoken_words_is_rejected_naming_the_words(
+    spec: StyleSpec,
+) -> None:
+    """F1's other half: dropping the line at its original place removes four words."""
+    dropped = CutPlan(keep=[Span(start=0.0, end=59.93)], drop=[F1_LIFT])
+    result = picture(_f1_plan(dropped), spec, transcript=f1_transcript())
+    assert rules(result) == {(None, "3.4")}
+    assert isinstance(result, grammar.Violations)
+    (line,) = result.lines()
+    assert "आप यकीन नहीं मानोगे" in line and "22.74-24.1 s" in line and "silence" in line
+    # A keep list that ends before the last word drops words too.
+    early = CutPlan(keep=[Span(start=0.0, end=59.0)])
+    result = picture(_f1_plan(early), spec, transcript=f1_transcript())
+    assert isinstance(result, grammar.Violations)
+    assert any("क्यूं" in v.message for v in result.items)
+
+
+def test_a_cut_edge_inside_a_word_is_rejected_but_an_edge_in_silence_passes(
+    spec: StyleSpec,
+) -> None:
+    base = make_plan()
+    transcript = transcript_for(base)  # b04's word (w3) runs 7.9-10.0 s; silence 7.5-7.9 s
+    into = base.model_copy(update={"cut": CutPlan(keep=[Span(start=0.0, end=56.0)],
+                                                  drop=[Span(start=8.5, end=8.6)])})  # fmt: skip
+    result = picture(into, spec, transcript=transcript)
+    assert rules(result) == {(None, "3.4")}
+    assert isinstance(result, grammar.Violations)
+    (line,) = result.lines()
+    assert "'w3'" in line and "7.9-10 s" in line
+    silent = base.model_copy(update={"cut": CutPlan(keep=[Span(start=0.0, end=56.0)],
+                                                    drop=[Span(start=7.6, end=7.8)])})  # fmt: skip
+    checked(silent, spec, transcript=transcript)
+
+
+def test_a_pause_over_max_pause_s_is_tightened_as_a_clamp_and_the_beats_follow(
+    spec: StyleSpec,
+) -> None:
+    """055: b06's word starts 1.4 s into the beat (a 1.4 s pause after b05's word);
+    code keeps 0.6 s of it, so the validated cut loses 0.8 s at 12.8-13.6 s, every beat
+    from b06 on moves 0.8 s earlier on the output and the clamp names the pause."""
+    plan = make_plan()
+    transcript = transcript_for(plan, gap_before={"b06": 1.4})
+    result = checked(plan, spec, transcript=transcript)
+    assert [(c.rule, c.message.split(":")[0]) for c in result.clamps] == [("3.4", "cut")]
+    assert "1.4 s pause after 'w4'" in result.clamps[0].message
+    picture_ = result.picture
+    assert [(s.start, s.end) for s in picture_.cut.keep] == [(0.0, 12.8), (13.6, 56.0)]
+    assert picture_.cut.drop == []
+    by_id = {b.id: b for b in picture_.beats}
+    assert (by_id["b05"].start, by_id["b05"].end) == (10.0, 12.5)
+    assert (by_id["b06"].start, by_id["b06"].end) == (12.5, 14.2)
+    assert by_id["b23"].end == pytest.approx(55.2)
+    spans = presenter.cut_list(picture_)
+    placed = [w for _, w in presenter.words_on_cut(spans, transcript.words)]
+    assert max(b.start - a.end for a, b in zip(placed, placed[1:], strict=False)) <= 0.6 + 1e-9
+    assert len(placed) == len(transcript.words)
+
+
+def test_the_f1_transcript_is_tightened_once_and_no_word_is_shortened(spec: StyleSpec) -> None:
+    """The F1 recording has one pause over 0.6 s (0.74 s after 'खिलाओ' at 19.06 s)."""
+    transcript = f1_transcript()
+    plan = _f1_plan(CutPlan(keep=[Span(start=0.0, end=59.93)]))
+    spans, cut, clamps = grammar.cut_spans(plan, transcript.words, spec)
+    assert len(clamps) == 1 and "'खिलाओ'" in clamps[0].message and "0.74 s" in clamps[0].message
+    assert presenter.total_duration(spans) == pytest.approx(59.93 - 0.14, abs=1e-3)
+    assert cut.keep == spans and cut.drop == []
+    placed = presenter.words_on_cut(spans, transcript.words)
+    assert [i for i, _ in placed] == list(range(len(transcript.words)))
+    for (_, on_cut), word in zip(placed, transcript.words, strict=True):
+        assert on_cut.end - on_cut.start == pytest.approx(word.end - word.start, abs=1e-3)
+    # Tightening a tightened cut changes nothing (T8 re-validates the validated plan).
+    again, cut_again, none = grammar.cut_spans(plan.model_copy(update={"cut": cut}),
+                                               transcript.words, spec)  # fmt: skip
+    assert again == spans and cut_again == cut and none == []
+
+
+def test_the_head_before_the_first_word_is_trimmed_to_the_snap_window(spec: StyleSpec) -> None:
+    """055: the short starts with the first spoken word; the first beat starts at 0 on
+    the output and the cut starts within `snap_window_s` of the word."""
+    plan = make_plan()
+    transcript = transcript_for(plan)
+    late = [transcript.words[0].model_copy(update={"start": 0.9}), *transcript.words[1:]]
+    result = checked(plan, spec, transcript=transcript.model_copy(update={"words": late}))
+    assert result.picture.cut.keep[0].start == pytest.approx(0.9 - spec.beats.snap_window_s)
+    assert result.picture.beats[0].start == 0.0
+    assert result.picture.beats[0].end == pytest.approx(2.5 - 0.75)
+    assert any("head" in c.message for c in result.clamps)
+
+
+def test_beats_are_planned_on_the_recording_and_mapped_onto_the_cut(spec: StyleSpec) -> None:
+    """055: the planner drops 0.8 s of silence at 12.6-13.4 s (inside the 1.4 s pause
+    before b06's word); its beats still tile the recording and come out tiling the cut,
+    b06 shortened by the drop. Re-validating the validated plan on the output timeline
+    changes nothing."""
+    plan = make_plan().model_copy(update={"cut": CutPlan(
+        keep=[Span(start=0.0, end=56.0)], drop=[Span(start=12.6, end=13.4)],
+    )})  # fmt: skip
+    transcript = transcript_for(plan, gap_before={"b06": 1.4})
+    result = checked(plan, spec, transcript=transcript)
+    assert result.clamps == []  # the remaining pause is 0.6 s: nothing to tighten
+    assert result.picture.cut == plan.cut
+    by_id = {b.id: b for b in result.picture.beats}
+    assert (by_id["b06"].start, by_id["b06"].end) == (12.5, 14.2)
+    assert by_id["b23"].end == pytest.approx(55.2)
+    again = checked(result.picture, spec, transcript=transcript, timeline="output")
+    assert again.picture == result.picture and again.clamps == []
+    # A beat lying wholly inside dropped audio has no length on the cut.
+    inside = plan.model_copy(update={"cut": CutPlan(
+        keep=[Span(start=0.0, end=56.0)], drop=[Span(start=12.6, end=15.0)],
+    )})  # fmt: skip
+    words = transcript_for(plan, gap_before={"b06": 2.5, "b07": 0.0}).words
+    words = [w for w in words if w.text != "w5"]  # no word inside the drop
+    silent = transcript.model_copy(update={"words": words})
+    result2 = picture(inside, spec, transcript=silent)
+    assert ("b06", "3.1") in rules(result2)
 
 
 def test_beats_must_tile_the_cut_runtime(spec: StyleSpec) -> None:
-    """3.1: a plan whose beats end before (or after) the cut list's runtime is rejected."""
+    """3.1: a plan whose beats end before the cut list's runtime is rejected (the tail
+    after the last word is the planner's to keep)."""
     base = make_plan()
-    short_cut = base.model_copy(update={"cut": CutPlan(keep=[Span(start=0.0, end=50.0)])})
-    assert (None, "3.1") in rules(picture(short_cut, spec))
+    long_tail = base.model_copy(update={"cut": CutPlan(keep=[Span(start=0.0, end=57.0)])})
+    transcript = transcript_for(base).model_copy(update={"duration_s": 57.0})
+    assert (None, "3.1") in rules(picture(long_tail, spec, transcript=transcript))
+
+
+# --- the opening (3.4 as amended by 055) -----------------------------------------------------
+
+
+def test_the_base_opening_is_two_pip_beats_over_images_ending_at_opening_max_s(
+    spec: StyleSpec,
+) -> None:
+    plan = make_plan()
+    assert [(b.mode, b.kind) for b in plan.beats[:2]] == [("pip", "photo"), ("pip", "card")]
+    assert plan.beats[1].end == spec.beats.opening_max_s == 5.0
+    checked(plan, spec)
+    late = make_plan(opening_s=2.51)  # b02 ends at 5.02 s
+    assert ("b02", "3.4") in rules(picture(late, spec))
+
+
+@pytest.mark.parametrize(
+    ("beat_id", "changes"),
+    [
+        ("b01", {"mode": "full", "kind": "presenter_full", "reason": "emotional_line",
+                 "motion": None, "subject_kind": None, "query": "", "asset_id": None,
+                 "event": Event()}),
+        ("b01", {"mode": "off"}),
+        ("b02", {"mode": "pip", "kind": "presenter_pip", "motion": None, "subject_kind": None,
+                 "query": "", "asset_id": None, "event": Event()}),
+        ("b02", {"asset_id": None}),
+        ("b01", {**AS_LIST}),
+    ],
+)  # fmt: skip
+def test_an_opening_beat_that_is_not_pip_over_an_image_is_rejected(
+    spec: StyleSpec, beat_id: str, changes: dict[str, Any]
+) -> None:
+    """No cold open, no hook cards, no presenter-only beat: the first two beats are pip
+    over a photo or card with an asset."""
+    result = picture(replace(make_plan(), beat_id, **changes), spec)
+    assert (beat_id, "3.4") in rules(result)
+    assert isinstance(result, grammar.Violations)
+    assert any("opening beat" in v.message for v in result.items if v.beat_id == beat_id)
+    # The third beat is free: a full beat there is the body's business.
+    third = replace(make_plan(), "b03", mode="full", kind="presenter_full",
+                    reason="argument_turn", motion=None, subject_kind=None, query="",
+                    asset_id=None)  # fmt: skip
+    checked(third, spec)
+
+
+def test_the_owner_reference_opens_the_short_when_the_job_has_one(spec: StyleSpec) -> None:
+    plan = make_plan()
+    result = picture(plan, spec, references=["ref1", "ref2"])
+    assert ("b01", "3.4") in rules(result)
+    assert isinstance(result, grammar.Violations)
+    assert any("owner's reference" in v.message and "ref1" in v.message for v in result.items)
+    checked(replace(plan, "b01", asset_id="ref2"), spec, references=["ref1", "ref2"])
+    checked(plan, spec)  # no references: any image opens
+
+
+def test_the_first_beat_is_no_longer_exempt_from_the_density_rule(spec: StyleSpec) -> None:
+    """The cold open carried its punch-in; a pip photo has to change on screen."""
+    still = replace(make_plan(), "b01", event=Event())
+    assert ("b01", "3.1") in rules(picture(still, spec))
+
+
+def test_a_plan_with_a_hook_object_or_a_hook_cards_beat_does_not_parse(spec: StyleSpec) -> None:
+    from pydantic import ValidationError
+
+    data = make_plan().model_dump()
+    with pytest.raises(ValidationError):
+        PicturePlan.model_validate({**data, "hook": {"title": "t"}})
+    beat = {**data["beats"][1], "kind": "hook_cards"}
+    with pytest.raises(ValidationError):
+        Beat.model_validate(beat)
+    with pytest.raises(ValidationError):
+        Beat.model_validate({**data["beats"][0], "mode": "full", "reason": "cold_open"})
 
 
 # --- kinds, motion, subjects (4.1, 4.2) --------------------------------------------------
@@ -483,7 +652,7 @@ def test_a_kind_outside_the_style_list_is_rejected(spec: StyleSpec) -> None:
 
 def test_non_presenter_beat_without_a_motion_is_rejected(spec: StyleSpec) -> None:
     assert ("b05", "4.1") in rules(picture(replace(make_plan(), "b05", motion=None), spec))
-    # hook cards and the finale carry their fixed motion from the spec; presenter beats none.
+    # the finale carries its fixed motion from the spec; presenter beats none.
     checked(make_plan(), spec)
 
 
@@ -565,8 +734,8 @@ def test_a_list_or_split_without_a_title_is_rejected(spec: StyleSpec) -> None:
 
 
 def test_set_piece_items_are_not_asset_showings(spec: StyleSpec) -> None:
-    """4.3: like the hook's cards, an item is a montage member, never a showing, so it
-    neither adds a unique asset nor spends the asset's `reuse_max`."""
+    """4.3: an item is a montage member, never a showing, so it neither adds a unique
+    asset nor spends the asset's `reuse_max`."""
     plan = _piece(make_plan(assets=12), "b05", "wall", _items(9, asset="a01"))
     checked(plan, spec)
 
@@ -709,24 +878,21 @@ def test_label_flyin_rides_only_on_an_infographic(spec: StyleSpec) -> None:
 
 
 def test_unique_asset_count_scales_with_runtime(spec: StyleSpec) -> None:
-    """55.5 s: 12/60 s -> 11 needed, 24/60 s -> 23 allowed."""
-    checked(make_plan(assets=11), spec)
-    assert (None, "4.3") in rules(picture(make_plan(assets=10), spec))
-    # 61.2 s of 2.0 s beats: 24/60 s -> 25 allowed; 27 fresh assets is a slideshow's
+    """55.5 s: 12/60 s -> 11 needed, 24/60 s -> 23 allowed; the opening's two assets
+    count with the body's."""
+    checked(make_plan(assets=9), spec)  # 9 + 2 = 11
+    assert (None, "4.3") in rules(picture(make_plan(assets=8), spec))
+    # 60.2 s of 2.0 s beats: 24/60 s -> 25 allowed; 27 fresh assets is a slideshow's
     # opposite, a blur (4.3).
     def tight(assets: int) -> PicturePlan:
-        return make_plan(
-            cold_open_s=2.0, hook_cards_s=4.0, finale_s=1.2, body_lengths=[2.0] * 27,
-            assets=assets,
-        )  # fmt: skip
+        return make_plan(finale_s=1.2, body_lengths=[2.0] * 27, assets=assets)
 
-    checked(tight(25), spec)
-    assert (None, "4.3") in rules(picture(tight(27), spec))
+    checked(tight(23), spec)
+    assert (None, "4.3") in rules(picture(tight(25), spec))
 
 
 def test_reuse_over_reuse_max_is_rejected(spec: StyleSpec) -> None:
-    """4.3: `reuse_max` beats per asset; hook cards are a montage of plan assets and
-    do not count as showings."""
+    """4.3: `reuse_max` beats per asset."""
     plan = make_plan(assets=12)
     four = replace(plan, "b04", asset_id="a01")  # a01: b03, b04, b15, finale
     checked(four, spec)
@@ -781,12 +947,15 @@ def test_must_use_ids_are_read_from_the_brief() -> None:
     assert grammar.must_use_ids("Topic: x.", refs) == []
 
 
-def test_title_ignoring_a_numeric_hook_wish_is_a_warning(spec: StyleSpec) -> None:
+def test_a_must_use_reference_may_ride_on_a_set_piece_item(spec: StyleSpec) -> None:
+    plan = _piece(make_plan(), "b05", "wall", _items(4, asset="ref1"))
+    checked(replace(plan, "b05", asset_id="ref1"), spec, must_use=["ref1"])
+
+
+def test_a_hook_wish_in_the_brief_is_no_longer_a_warning(spec: StyleSpec) -> None:
+    """055: the hook wish steers the opening images, never a title; there is no title."""
     brief = "Topic: sky. Hook wish: 3 reasons the sky is blue."
-    result = checked(make_plan(title="Why the sky is blue"), spec, brief=brief)
-    assert any("3.4" in w and "hook wish" in w for w in result.warnings)
-    result = checked(make_plan(title="3 reasons the sky is blue"), spec, brief=brief)
-    assert result.warnings == []
+    assert checked(make_plan(), spec, brief=brief).warnings == []
 
 
 # --- the sound story (7.3, 8.2, 9.4) -----------------------------------------------------
@@ -858,7 +1027,7 @@ def test_twenty_first_cue_is_dropped_and_one_cue_per_beat(spec: StyleSpec) -> No
     """7.3: 20 cues per 60 s; the 55.5 s plan allows 18 (floor). The extras are
     planner cues dropped from the end, each a logged clamp."""
     plan = make_plan(body_lengths=[2.5] * 22)  # 60.5 s -> 20 cues
-    ids = [b.id for b in plan.beats if b.event.kind == "stamp"]  # 22 body beats
+    ids = [b.id for b in plan.beats if b.event.kind == "stamp"]  # opening + 22 body beats
     cues = [Cue(beat_id=i, intent="tick", at="event") for i in ids[:21]]
     result = sound(story_for(plan, cues=cues), plan, spec)
     assert isinstance(result, grammar.SoundCheck)
@@ -926,6 +1095,7 @@ def test_the_fake_plan_passes_the_fixture_rules_with_zero_violations() -> None:
     result = grammar.validate(plan, story, transcript, specs["explainer"], brief=request.brief)
     assert isinstance(result, grammar.ValidatedPlan), [str(v) for v in getattr(result, "items", [])]
     assert result.picture.beats == plan.beats  # every boundary already on a word end or in silence
+    assert result.picture.cut == plan.cut  # 055: the fixture's pauses are under the scaled maximum
     assert [c.message.split(":")[0] for c in result.clamps] == ["keywords"]
     explainer = styles.load_all(render.registry())["explainer"]
     real = grammar.validate(plan, story, transcript, explainer)

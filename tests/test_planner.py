@@ -1,8 +1,9 @@
 """planner: interface plus co-located FakePlanner returning a canned PicturePlan and
 SoundStory shaped for the 6 s fixture (decisions 8.1, 12.1). The canned plan tiles
-0-6 s with no gaps, opens with a `full` cold open, has an `off` hook-cards beat, at
-least one `pip` beat, and names every tier-1 kind (4.1 as amended by 9.2) at least
-once - kinds the renderer cannot draw yet are still valid plan data."""
+0-6 s with no gaps, opens with two `pip` beats over images (055: the speaker's first
+words, nothing lifted), has one `full` beat, and names every tier-1 kind (4.1 as
+amended by 9.2) at least once - kinds the renderer cannot draw yet are still valid
+plan data."""
 
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from shortsmith.contracts import (
     TIER1_KINDS,
     Constraints,
     PicturePlan,
+    PlanReference,
     PlanRequest,
     PlanStyle,
     SoundStory,
@@ -52,16 +54,38 @@ def test_beats_tile_the_fixture_with_no_gaps(request_: PlanRequest) -> None:
     assert len({b.id for b in plan.beats}) == len(plan.beats)
 
 
-def test_hook_shape_cold_open_then_hook_cards(request_: PlanRequest) -> None:
-    """3.4: beat 1 is `full` with the `cold_open` tag, beat 2 is `off` hook cards."""
+def test_the_opening_is_two_pip_beats_over_images_and_nothing_is_lifted(
+    request_: PlanRequest,
+) -> None:
+    """3.4 as amended by 055: the first two beats are `pip` over a photo and a card
+    with assets, the plan has no hook object, and the cut keeps the whole recording in
+    order (nothing lifted, nothing dropped)."""
     plan = FakePlanner().plan_picture(request_)
     first, second = plan.beats[0], plan.beats[1]
-    assert (first.mode, first.reason, first.kind) == ("full", "cold_open", "presenter_full")
-    assert (second.mode, second.kind) == ("off", "hook_cards")
-    assert 1 <= len(plan.hook.title.split()) <= 8
-    assert plan.hook.cold_open_span.start == first.start
-    assert plan.hook.cold_open_span.end == first.end
-    assert plan.hook.original_position in ("keep", "drop")
+    assert (first.mode, first.kind, first.asset_id) == ("pip", "photo", "a1")
+    assert (second.mode, second.kind, second.asset_id) == ("pip", "card", "a2")
+    assert first.reason is None and not hasattr(plan, "hook")
+    assert [(s.start, s.end) for s in plan.cut.keep] == [(0.0, fixture.DURATION_S)]
+    assert plan.cut.drop == []
+    assert "hook_cards" not in {b.kind for b in plan.beats}
+
+
+def test_the_first_opening_beat_shows_the_owners_reference_when_there_is_one(
+    request_: PlanRequest,
+) -> None:
+    """055: the owner's reference image comes first in the opening."""
+    with_ref = request_.model_copy(update={"references": [
+        PlanReference(id="ref1", kind="image", caption="my product", width=1200, height=1600),
+    ]})  # fmt: skip
+    plan = FakePlanner().plan_picture(with_ref)
+    assert plan.beats[0].asset_id == "ref1"
+    assert FakePlanner().plan_picture(request_).beats[0].asset_id == "a1"
+
+
+def test_the_one_full_beat_carries_a_reason_that_is_not_cold_open(request_: PlanRequest) -> None:
+    plan = FakePlanner().plan_picture(request_)
+    full = [b for b in plan.beats if b.mode == "full"]
+    assert [(b.id, b.kind, b.reason) for b in full] == [("b03", "presenter_full", "emotional_line")]
 
 
 def test_finale_is_the_last_beat_and_off(request_: PlanRequest) -> None:
@@ -91,7 +115,7 @@ def test_non_presenter_beats_carry_exactly_one_motion_and_a_subject(
     """4.1: one motion per non-presenter beat; 4.2: subject_kind + query on each."""
     plan = FakePlanner().plan_picture(request_)
     for beat in plan.beats:
-        if beat.kind in ("presenter_full", "hook_cards", "finale"):
+        if beat.kind in ("presenter_full", "finale"):
             continue
         assert beat.motion is not None, beat.id
         assert beat.subject_kind is not None and beat.query, beat.id
@@ -134,12 +158,13 @@ def test_plans_carry_the_prompt_version(request_: PlanRequest) -> None:
 def test_fake_enters_are_the_explainer_five_when_the_style_carries_no_numbers(
     request_: PlanRequest,
 ) -> None:
-    """The canned enters (030): fade, whip, fade, spring, zoom on b03-b05, b08, b09."""
+    """The canned enters (030, 055): whip, fade, fade, spring, zoom on b02, b03, b05,
+    b08, b09."""
     plan = FakePlanner().plan_picture(request_)
     enters = {b.id: b.enter for b in plan.beats}
-    assert (enters["b03"], enters["b04"], enters["b05"]) == ("fade", "whip", "fade")
+    assert (enters["b02"], enters["b03"], enters["b05"]) == ("whip", "fade", "fade")
     assert (enters["b08"], enters["b09"]) == ("spring", "zoom")
-    assert {enters[b] for b in ("b01", "b02", "b06", "b07", "b10", "b11")} == {"cut"}
+    assert {enters[b] for b in ("b01", "b04", "b06", "b07", "b10", "b11")} == {"cut"}
 
 
 def test_fake_enters_stay_inside_the_requested_style_and_cover_it(
@@ -162,7 +187,7 @@ def test_fake_enters_stay_inside_the_requested_style_and_cover_it(
     enters = {b.id: b.enter for b in plan.beats}
     enabled = set(hitech.broll.enter_transitions)
     assert set(enters.values()) == enabled == {"cut", "fade", "wipe", "zoom"}
-    assert (enters["b04"], enters["b08"]) == ("wipe", "zoom")
+    assert (enters["b02"], enters["b08"]) == ("wipe", "zoom")
     plain = FakePlanner().plan_picture(request_)
     assert [b.model_copy(update={"enter": "cut"}) for b in plan.beats] == [
         b.model_copy(update={"enter": "cut"}) for b in plain.beats

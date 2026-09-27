@@ -358,7 +358,9 @@ class Generating:
     def model(self) -> str:
         return self.generator.model if self.generator is not None else ""
 
-    def make(self, beat: Beat, cache: Path) -> GeneratedAsset | None:
+    def make(self, beat: Beat, cache: Path, *, force: bool = False) -> GeneratedAsset | None:
+        """`force` (055) generates past the cap: an opening beat's image is required, and
+        11.3 says cost never degrades quality; the cap note is still written."""
         generator, spec = self.generator, self.spec
         if generator is None or spec is None:
             return None
@@ -373,7 +375,7 @@ class Generating:
         cached = _cached(folder)
         if cached is not None:  # 5.6: a retry or a re-render generates nothing again
             return GeneratedAsset(cached, record)
-        if self.max_images and self.images >= self.max_images:
+        if self.max_images and self.images >= self.max_images and not force:
             if not self.capped:
                 self.capped = True
                 self.notes.append(

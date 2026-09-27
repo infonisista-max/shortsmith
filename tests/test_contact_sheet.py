@@ -39,7 +39,6 @@ from shortsmith.contracts import (
     CutPlan,
     FaceBox,
     Finale,
-    Hook,
     PicturePlan,
     PipGeometry,
     PresenterMeasurement,
@@ -281,8 +280,6 @@ def _strip_plan() -> PicturePlan:
     ]  # fmt: skip
     return PicturePlan(
         prompt_version="t", cut=CutPlan(keep=[Span(start=0.0, end=5.0)]), beats=beats,
-        hook=Hook(title="t", cold_open_span=Span(start=0.0, end=1.0), original_position="drop",
-                  card_asset_ids=["a1"]),
         finale=Finale(beat_id="b05", text="t"), title="t", description="t",
     )  # fmt: skip
 

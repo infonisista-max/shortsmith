@@ -113,8 +113,9 @@ SMOKE_BRIEF = (
 )
 SMOKE_STYLE_LINE = "explainer, energetic"
 SMOKE_LIMITS = Limits(min_duration_s=fixture.DURATION_S)
-# 016: the fake plan's photo beat (b03) asks for this; Commons answers it with a
-# full-bleed portrait, web (which is always a card, 5.1) answers everything else.
+# 016: the fake plan's photo beats (b01, the opening's first image, and b04) ask for
+# this; Commons answers it with a full-bleed portrait, web (which is always a card, 5.1)
+# answers everything else.
 PHOTO_QUERY = "slow colour gradient sky"
 
 
@@ -378,8 +379,9 @@ def check_assets(job: jobs.Job, plan: PicturePlan, style: str) -> assets.AssetMa
     check(not rescued, f"beats rescued although the fakes answer: {rescued}")
     treatments = {b.beat_id: b.treatment for b in manifest.beats}
     check(
-        (treatments.get("b03"), treatments.get("b04")) == ("photo", "card"),
-        f"b03/b04 drawn as {treatments.get('b03')}/{treatments.get('b04')}, not photo/card",
+        (treatments.get("b01"), treatments.get("b02")) == ("photo", "card"),
+        f"b01/b02 drawn as {treatments.get('b01')}/{treatments.get('b02')}, not photo/card "
+        "(055: the opening's two images)",
     )
     # 017: the fake judge scored every candidate, so every searched asset carries a
     # verdict, no beat was sourced unjudged, and the style's ceiling was not reached.
@@ -420,10 +422,11 @@ def check_assets(job: jobs.Job, plan: PicturePlan, style: str) -> assets.AssetMa
     spec = RenderSpec.model_validate_json(
         (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
     )
-    # 027: b08 (list) and b10 (wall) also carry a visual - their dimmed base still.
+    # 027: b08 (list) and b10 (wall) also carry a visual - their dimmed base still;
+    # 055: b01 and b02 are the opening's photo and card, b04 the stamped photo (a1 again).
     drawn = {b.id: b.visual.treatment for b in spec.beats if b.visual is not None}
     check(
-        drawn == {"b03": "photo", "b04": "card", "b08": "photo", "b10": "photo"},
+        drawn == {"b01": "photo", "b02": "card", "b04": "photo", "b08": "photo", "b10": "photo"},
         f"render spec draws {drawn}",
     )
     check_set_pieces(spec, plan, style)
@@ -515,25 +518,33 @@ def check_presenter(job: jobs.Job, style: str) -> int:
 
 
 def check_set_pieces(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
-    """026: the short opens with the two-beat hook (a full-frame cold open that punches
-    in, then the title and three cards) and ends with the finale card; the two landed
-    events are drawn where the plan puts them, inside the style's geometry."""
-    cold_open, hook_beat = spec.beats[0], spec.beats[1]
-    check(cold_open.mode == "full", f"the cold open is {cold_open.mode}, not full")
-    check(cold_open.punch_in is not None, "the cold open does not punch in (research S2)")
-    hook = hook_beat.hook
-    check(hook is not None, "the hook-cards beat carries no hook")
-    assert hook is not None
-    check(bool(hook.title_lines), "the hook draws no title")
-    check(len(hook.cards) == 3, f"the hook draws {len(hook.cards)} cards, not three")
+    """055: the short opens with the speaker's first words in `pip` over two full-screen
+    images (no cold open, no title, no hook cards), the one `full` beat punches in,
+    and the finale card closes with the payoff word and the opening's images around
+    the circle; the two landed events are drawn where the plan puts them, inside the
+    style's geometry."""
+    numbers = render.style_numbers(style)
+    opening = spec.beats[:2]
+    for beat in opening:
+        check(beat.mode == "pip", f"opening beat {beat.id} is {beat.mode}, not pip")
+        check(beat.visual is not None, f"opening beat {beat.id} draws no full-screen image")
+        check(beat.punch_in is None, f"opening beat {beat.id} punches in; only full beats do")
+    full = [b for b in spec.beats if b.mode == "full"]
+    check([b.id for b in full] == ["b03"], f"full beats are {[b.id for b in full]}, not [b03]")
+    check(all(b.punch_in is not None for b in full), "the full beat does not punch in (S2)")
     finale_beat = next(b for b in spec.beats if b.id == plan.finale.beat_id)
     card = finale_beat.finale
     check(card is not None, "the finale beat carries no finale card")
     assert card is not None
     check(card.text == plan.finale.text, f"the finale word is {card.text!r}")
     check(finale_beat is spec.beats[-1], "the finale is not the last beat of the spec")
+    wanted = numbers.broll.finale_cards
+    check(len(card.cards) == wanted, f"the finale draws {len(card.cards)} cards, not {wanted}")
+    first = opening[0].visual
+    assert first is not None
+    check(card.cards[0].src == first.src, "the finale's first card is not the opening's image")
     stamped = sorted(b.id for b in spec.beats if b.stamp is not None)
-    check(stamped == ["b03"], f"stamps land on {stamped}, not the plan's stamp beats")
+    check(stamped == ["b04"], f"stamps land on {stamped}, not the plan's stamp beats")
     numbers = render.style_numbers(style)
     limit = numbers.broll.stamp_max_y_fraction * render.HEIGHT
     for beat in spec.beats:
@@ -542,7 +553,7 @@ def check_set_pieces(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
         low = beat.stamp.top + beat.stamp.height
         check(low <= limit, f"{beat.id}'s stamp ends at y {low:g}, past the top {limit:g}")
     labelled = [b.id for b in spec.beats if b.lower_third is not None]
-    check(not labelled, f"lower-thirds drawn on {labelled}; b04's card strip carries it")
+    check(not labelled, f"lower-thirds drawn on {labelled}; b02's card strip carries it")
     check_list_split_wall(spec, plan, style)
     check_infographics(spec, plan, style)
     check_map(spec, plan, style)

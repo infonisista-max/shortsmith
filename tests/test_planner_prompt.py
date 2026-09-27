@@ -47,7 +47,7 @@ def _request() -> PlanRequest:
             name="explainer",
             numbers={
                 "beats": {"min_s": 0.7, "max_s": 6.0},
-                "presenter": {"full_reasons": ["cold_open", "emotional_line", "argument_turn"]},
+                "presenter": {"full_reasons": ["emotional_line", "argument_turn"]},
                 "broll": {"kinds": ["photo", "card", "stamp", "map"], "tier2_kinds": []},
             },
             prose="## Beat grammar\n- Beats 2-6 s.",
@@ -124,7 +124,7 @@ def test_the_picture_prompt_lists_the_tiers_from_the_spec() -> None:
     text = prompt.build_prompt(_request(), "picture")
     assert "Tier 1 (allowed): photo, card, stamp, map" in text
     assert "Tier 2 (not allowed on this style): parallax, vector_illustration" in text
-    assert "cold_open, emotional_line, argument_turn" in text
+    assert "emotional_line, argument_turn" in text and "cold_open" not in text
 
 
 def test_a_style_with_tier2_kinds_lists_them_as_allowed() -> None:
@@ -137,18 +137,30 @@ def test_a_style_with_tier2_kinds_lists_them_as_allowed() -> None:
 
 
 def test_the_picture_prompt_carries_the_planning_rules() -> None:
-    """2.3 brief-fact stamping, 5.1 source_intent, 3.4 original_position, 6.1
-    name_runs and keywords are asked for in words, not only by the schema."""
+    """2.3 brief-fact stamping, 5.1 source_intent, 6.1 name_runs and keywords are asked
+    for in words, not only by the schema; 055's rule (the first spoken word, every word
+    once in order, the cut removes only silence) is stated, and the hook fields are
+    gone from the prompt and the schema."""
     text = prompt.build_prompt(_request(), "picture")
     for needle in (
         "stamp",
         "source_intent",
-        "hook.original_position",
         "name_runs",
         "keywords",
         "must use",
+        "first spoken word",
+        "plays every word once",
+        "never drop one",
+        "removes only silence",
+        "cut.max_pause_s",
+        "beats.opening_beats_min",
+        "presenter.opening_mode",
     ):
         assert needle in text, needle
+    for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
+                 '"hook"', "cold_open"):
+        assert gone not in text, gone
+    assert prompt.PROMPT_VERSION == "v7"
 
 
 def test_the_picture_prompt_names_the_categories_the_planner_may_choose_from() -> None:

@@ -1,5 +1,5 @@
 ---
-version: "2"
+version: "3"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -12,20 +12,20 @@ beats:
   mean_max_s: 8.0
   density_gap_max_s: 2.5
   snap_window_s: 0.15
-  cold_open_min_s: 1.0
-  cold_open_max_s: 3.0
-  hook_cards_min_s: 2.0
-  hook_cards_max_s: 4.0
-  hook_title_max_words: 10
+  opening_beats_min: 2
+  opening_beats_max: 3
+  opening_max_s: 6.0
 presenter:
   modes: [full, pip, "off"]
   full_max_fraction: 0.4
   full_never_consecutive: false
-  full_reasons: [cold_open, emotional_line, argument_turn, setup, summary]
+  full_reasons: [emotional_line, argument_turn, setup, summary]
   pip_max_run: 8
   off_max_run: 3
-  hook_modes: [full, "off"]
+  opening_mode: pip
   finale_mode: "off"
+cut:
+  max_pause_s: 0.8  # a teacher's pause is longer than an explainer's
 pip:
   left: 60
   top: 1000
@@ -36,7 +36,7 @@ pip:
   ring_px: 4
   ring_color: "#1B7F79"
 broll:
-  kinds: [photo, card, stamp, lower_third, hook_cards, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, map, infographic, pin_drop, route_arrow, label_flyin, counter]
   tier2_kinds: []
   motion:
@@ -45,8 +45,7 @@ broll:
            ring_color: "#1B7F79"}
     stamp: {kind: fade, duration_s: 0.3, shake: false, palette: teal}
     lower_third: {kind: fade, duration_s: 0.35, top_y: 1150, bottom_y: 1240}
-    hook_cards: {kind: fade, cards: 3}
-    finale: {kind: fade, duration_s: 0.5}
+    finale: {kind: fade, duration_s: 0.5, cards: 3}
   enter_transitions: [cut, fade]
   whip_max_per_3_beats: 0
   transitions:
@@ -135,7 +134,7 @@ Calm, clear teaching. DRAFT (grill decision 1.4): aliases resolve to `explainer`
 
 ## Beat grammar
 - Longer beats than explainer (`mean_min_s`–`mean_max_s`): presenter full-frame for the setup and the summary (`setup` and `summary` are valid reasons here), PIP during diagrams, off-screen while a step card or process animation carries the point.
-- The hook is the question the video answers: cold open on the question, hook cards showing the three things the answer needs.
+- The short opens with the speaker's own first words (055): `opening_beats_min`–`opening_beats_max` `opening_mode` beats over full-screen images of the subject (owner reference first, then the best sourced or generated image); no cold open lifted from elsewhere, no title card, nothing dropped. The cut removes only silence, pauses tightened to `cut.max_pause_s`.
 - Same tiling, snapping and no-mid-word rules as explainer (3.1).
 
 ## B-roll

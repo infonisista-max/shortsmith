@@ -827,9 +827,12 @@ def revalidate(job: Job, specs: Mapping[str, StyleSpec]) -> list[str] | None:
         )  # fmt: skip
         for r in refs
     ]
+    # 055: a validated plan's beats are already on the output timeline and its cut is
+    # already tightened, so the grammar is told not to map them again.
     out = grammar.validate(
         validated.picture, validated.sound, transcript, spec,
         brief=brief, must_use=grammar.must_use_ids(brief, references),
+        references=[r.id for r in references], timeline="output",
     )  # fmt: skip
     return out.lines() if isinstance(out, grammar.Violations) else []
 

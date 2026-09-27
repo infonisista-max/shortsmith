@@ -380,8 +380,9 @@ def _plan(job: Job, planner: Planner, specs: Specs, library: sound.Library) -> N
         lambda feedback: planner.plan_picture(request, feedback=feedback),
         "plan.raw.json",
         lambda raw: grammar.validate_picture(
-            raw, transcript, spec, brief=request.brief, must_use=must_use
-        ),
+            raw, transcript, spec, brief=request.brief, must_use=must_use,
+            references=[r.id for r in request.references],
+        ),  # fmt: skip
     )
     picture = checked.picture
     # 8.3 / 035: the prompt and the spec the plan was judged by, for `meta.json`.

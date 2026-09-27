@@ -1,7 +1,7 @@
 """The rights log (PRD `rights`; decisions 5.4, 4.2; ticket 016).
 
 `write(job_dir, manifest, plan)` writes `out/rights.json`, one row per unique asset
-in the 5.4 shape with every beat that shows it (sourced beats, and the hook-card and
+in the 5.4 shape with every beat that shows it (sourced beats, and the set-piece and
 finale beats that point at it through the manifest's aliases), and derives
 `out/credits.md`: one "Photo: <author or domain> via <page url>" line per asset that
 is neither the owner's nor generated, the music and sound lines, then the AI-disclosure
@@ -65,16 +65,15 @@ def _resolve(manifest: AssetManifest, asset_id: str) -> str | None:
 
 def shown(beat: Beat, manifest: AssetManifest, plan: PicturePlan) -> list[str]:
     """The asset ids a beat puts on screen, once each: its sourced asset, or the
-    planned id resolved through the aliases; a hook-cards beat also shows the hook's
-    cards, and a `list`, `split` or `wall` beat the assets of its items (027)."""
+    planned id resolved through the aliases, and for a `list`, `split` or `wall` beat
+    the assets of its items (027). The finale's cards (055) are assets other beats
+    already show, so they add no row and need none here."""
     decided = manifest.beat(beat.id)
     ids: list[str | None] = []
     if decided is not None:
         ids.append(decided.asset_id)
     elif beat.asset_id is not None:
         ids.append(_resolve(manifest, beat.asset_id))
-    if beat.kind == "hook_cards":
-        ids += [_resolve(manifest, card) for card in plan.hook.card_asset_ids]
     ids += [_resolve(manifest, i.asset_id) for i in beat.items if i.asset_id is not None]
     return list(dict.fromkeys(i for i in ids if i is not None))
 

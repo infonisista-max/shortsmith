@@ -2,8 +2,8 @@
 
 A spec is `styles/<name>.md`: YAML front matter followed by the five prose sections
 (`## Beat grammar`, `## B-roll`, `## Captions`, `## Sound`, `## Finale`). The front
-matter carries the seven key groups (`aliases`, `beats`, `presenter`, `broll`,
-`captions`, `sound`, `finale`) plus `version`, `status`, `requires_components`,
+matter carries the eight key groups (`aliases`, `beats`, `presenter`, `broll`,
+`captions`, `sound`, `finale`, `cut`) plus `version`, `status`, `requires_components`,
 `budget`, `pip` and `palette`; every number a later ticket reads (the grammar validator, the pager,
 the renderer, the sound director, the gate) comes from here, never from code. The
 renderer and QA read only the numbers; the planner reads numbers and prose.
@@ -47,6 +47,7 @@ KEY_GROUPS: tuple[str, ...] = (
     "captions",
     "sound",
     "finale",
+    "cut",
 )
 PROSE_SECTIONS: tuple[str, ...] = ("Beat grammar", "B-roll", "Captions", "Sound", "Finale")
 
@@ -61,7 +62,11 @@ class StyleError(ValueError):
 
 
 class Beats(StrictModel):
-    """3.1 beat lengths plus the 3.4 hook slot lengths, all in seconds."""
+    """3.1 beat lengths plus the opening's shape (3.4 as amended by 055): the short's
+    first `opening_beats_min` to `opening_beats_max` beats are quick beats over
+    full-screen images of the main subject, the `opening_beats_min`-th ending by
+    `opening_max_s`. All in seconds. Every style sets `opening_beats_min` to 2; 0
+    switches the opening rules off, which only a test's spec copy does."""
 
     min_s: float
     max_s: float
@@ -71,15 +76,14 @@ class Beats(StrictModel):
     mean_max_s: float
     density_gap_max_s: float
     snap_window_s: float
-    cold_open_min_s: float
-    cold_open_max_s: float
-    hook_cards_min_s: float
-    hook_cards_max_s: float
-    hook_title_max_words: int
+    opening_beats_min: int = Field(ge=0)
+    opening_beats_max: int = Field(ge=1)
+    opening_max_s: float
 
 
 class Presenter(StrictModel):
-    """3.2 presenter modes and run limits."""
+    """3.2 presenter modes and run limits; `opening_mode` is the mode of the opening
+    beats (055: the speaker in the circle over the images, `pip`)."""
 
     modes: list[str]
     full_max_fraction: float
@@ -87,8 +91,16 @@ class Presenter(StrictModel):
     full_reasons: list[str]
     pip_max_run: int
     off_max_run: int
-    hook_modes: list[str]
+    opening_mode: str
     finale_mode: str
+
+
+class Cut(StrictModel):
+    """055 (3.4 as amended): the cut removes only silence. A pause between two kept
+    words longer than `max_pause_s` is tightened to it by code, half kept on each
+    side; the head before the first word keeps at most `beats.snap_window_s`."""
+
+    max_pause_s: float = Field(gt=0.0)
 
 
 class Pip(StrictModel):
@@ -194,6 +206,7 @@ class FrontMatter(StrictModel):
     captions: Captions
     sound: Sound
     finale: FinaleSpec
+    cut: Cut
     budget: Budget
     palette: Palette
 

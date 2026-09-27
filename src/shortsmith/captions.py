@@ -2,8 +2,8 @@
 
 Pure code from the final word list and the plan to `Captions`. `build` removes the
 planner's cut spans with the same span list the audio uses (`presenter.cut_list`,
-`presenter.words_on_cut`), so word times are on the cut timeline and the cold-open
-lift reorders them; it hides every word from the finale beat's start onward, pages
+`presenter.words_on_cut`), so word times are on the cut timeline in the speaker's
+order (055); it hides every word from the finale beat's start onward, pages
 the rest and reports the beats a two-line page shows over (6.3: lower-thirds are
 suppressed there). Word and keyword indices on the pages are transcript indices.
 

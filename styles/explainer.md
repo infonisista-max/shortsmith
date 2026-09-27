@@ -1,8 +1,8 @@
 ---
-version: "2"
+version: "3"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
-requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
+requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
                       cut, fade, whip, zoom, spring, wipe]
@@ -15,20 +15,20 @@ beats:
   mean_max_s: 3.2
   density_gap_max_s: 1.5
   snap_window_s: 0.15
-  cold_open_min_s: 0.7
-  cold_open_max_s: 2.0
-  hook_cards_min_s: 2.0
-  hook_cards_max_s: 4.0
-  hook_title_max_words: 8
+  opening_beats_min: 2
+  opening_beats_max: 3
+  opening_max_s: 5.0
 presenter:
   modes: [full, pip, "off"]
   full_max_fraction: 0.25
   full_never_consecutive: true
-  full_reasons: [cold_open, emotional_line, argument_turn]
+  full_reasons: [emotional_line, argument_turn]
   pip_max_run: 6
   off_max_run: 3
-  hook_modes: [full, "off"]
+  opening_mode: pip
   finale_mode: "off"
+cut:
+  max_pause_s: 0.6  # 055: a sentence pause; the pager already breaks a page at 0.35 s
 pip:
   left: 60
   top: 960
@@ -39,7 +39,7 @@ pip:
   ring_px: 6
   ring_color: "#FFFFFF"
 broll:
-  kinds: [photo, card, stamp, lower_third, hook_cards, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, wall, map, infographic, pin_drop, route_arrow, label_flyin,
           counter, object_path]
   tier2_kinds: []
@@ -49,8 +49,7 @@ broll:
            ring_color: "#E53935"}
     stamp: {kind: land, duration_s: 0.16, shake: true, palette: yellow_green_red}
     lower_third: {kind: fade, duration_s: 0.35, top_y: 1150, bottom_y: 1240}
-    hook_cards: {kind: spring, cards: 3}
-    finale: {kind: fade, duration_s: 0.35}
+    finale: {kind: fade, duration_s: 0.35, cards: 3}
     list: {kind: reveal, items_max: 6, duration_s: 0.35, scale_from: 1.15, scale_to: 1.25,
            dim: 0.45}
     split: {kind: slide, panes: 2, duration_s: 0.30}
@@ -151,7 +150,8 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 ## Beat grammar
 - A beat is one contiguous span of the cut voice track with one presenter mode, one visual kind, one asset and at most one landed event; beats tile the runtime with no gaps (3.1). Propose boundaries in seconds; code snaps each to the nearest word end within `snap_window_s`, so never plan a cut mid-word.
 - Keep the plan mean between `mean_min_s` and `mean_max_s`; set pieces (list, chart, split, wall, finale) may run to `set_piece_max_s`. Something must change on screen at least every `density_gap_max_s`.
-- Hook is two beats of fixed shape (3.4): a `full` cold open with the `cold_open` reason (0.7–2.0 s, may be lifted from anywhere in the recording; say whether the original stays or drops), then `off` hook cards (2.0–4.0 s) with a title of at most `hook_title_max_words` words and three cards from the plan's assets in priority order.
+- The short opens with the speaker's own first words (3.4 as amended by 055): the first sentence is `opening_beats_min`–`opening_beats_max` quick `opening_mode` beats over full-screen images of the main subject, the first `opening_beats_min` of them ending by `opening_max_s`. No line is lifted from elsewhere, no hook title, no hook cards, normal captions. The opening images are the short's strongest: the owner's reference first; else the best sourced image of the main subject (a named person or place under the 5.1/053 rules; a thing or idea from any source); else a generated image. The brief's hook wish steers what those images show, never the order of the voice.
+- The cut removes only silence, breaths and dead air: every transcript word appears once, in the order it was spoken; `cut.drop` never covers a word. Code tightens any pause between two kept words longer than `cut.max_pause_s` and trims the head before the first word.
 - Presenter modes are `full`, `pip`, `off` (3.2). Every `full` beat carries one reason tag from `full_reasons`; `full` beats are never consecutive and never more than `full_max_fraction` of the runtime. PIP runs up to `pip_max_run` beats are fine (the references ran six); `off` runs up to `off_max_run`.
 - PIP framing: whole head plus neck/collar, chin at `chin_anchor` of the window, never a tight face crop (3.3).
 
@@ -179,4 +179,4 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - Voice −19 LUFS / −3 dBTP on the stem, master −14 LUFS / −1.5 dBTP (7.3).
 
 ## Finale
-- The last beat is `off`, `min_s`–`max_s` long: the payoff line plus a call-to-action card with the presenter in its centre circle; captions are hidden from the finale word onward. The finale word gets a drum floor hit.
+- The last beat is `off`, `min_s`–`max_s` long: the payoff line plus a call-to-action card with the presenter in its centre circle and the short's first `motion.finale.cards` images (the opening's) around it, closing the loop; captions are hidden from the finale word onward. The finale word gets a drum floor hit.

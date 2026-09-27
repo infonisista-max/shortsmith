@@ -381,7 +381,7 @@ def choose_bed(
 # money reveal and a stamp earns the money reveal, so the style's drum lands on it rather
 # than its bass. The names are the style's (`sound.floor_hits`); the mapping from the plan
 # to them is this engine's reading of the beat grammar.
-CARD_KINDS = frozenset({"hook_cards", "card", "wall"})
+CARD_KINDS = frozenset({"card", "wall"})  # 055: the hook-cards beat is gone
 HEADER_KINDS = frozenset({"list"})
 TRIGGER_ORDER: tuple[str, ...] = (
     "finale_word",

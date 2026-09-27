@@ -20,10 +20,12 @@ detector was not loosened; the drawing met it.
 names every tier-1 kind in six seconds, which no real style's beat numbers allow
 (explainer's 0.7 s minimum and 2.0-3.2 s mean cannot hold eleven beats in 6 s), so
 the smoke and the tests that run the fake plan through the pipeline validate it
-against a copy of `explainer` whose beat, asset-count and ramp numbers are scaled
-to the clip. Nothing else changes: typography, PIP, palette, finale and every other
-number stay the shipped spec's, the validator and the pipeline never know a fixture
-exists, and the T3 finale check stays unscaled.
+against a copy of `explainer` whose beat, asset-count, ramp and pause numbers are
+scaled to the clip (055: the bursts sit 0.7 s apart and the first word starts at
+0.2 s, so the pause maximum and the head lead are widened to leave the clip whole).
+Nothing else changes: typography, PIP, palette, finale and every other number stay
+the shipped spec's, the validator and the pipeline never know a fixture exists, and
+the T3 finale check stays unscaled.
 """
 
 from __future__ import annotations
@@ -67,10 +69,10 @@ SMOKE_BEATS: dict[str, float] = {
     "target_mean_s": 0.55,
     "mean_min_s": 0.5,  # 6 s / 11 beats = 0.545 s
     "mean_max_s": 0.7,
-    "cold_open_min_s": 0.4,
-    "cold_open_max_s": 0.6,
-    "hook_cards_min_s": 0.4,
-    "hook_cards_max_s": 0.6,
+    "opening_max_s": 1.0,  # 055: the two opening beats are the first second
+    # 055: the head before the first word keeps at most a snap window; the fixture's
+    # first word starts at 0.2 s (the first burst), so 0.2 keeps the clip whole.
+    "snap_window_s": 0.2,
 }
 SMOKE_BROLL: dict[str, int] = {
     "unique_assets_min_per_60s": 10,  # -> 1 in 6 s
@@ -79,6 +81,9 @@ SMOKE_BROLL: dict[str, int] = {
 SMOKE_SOUND: dict[str, float] = {
     "ramp_min_s": 0.4,  # the fake's curve rises over 0.5 s
     "cues_max_per_60s": 60,  # -> 6 in 6 s; the fake places 5
+}
+SMOKE_CUT: dict[str, float] = {
+    "max_pause_s": 0.8,  # 055: the bursts are 0.7 s apart; a real pause rule would cut them
 }
 
 
@@ -95,6 +100,8 @@ def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> d
         setattr(scaled.broll, field, count)
     for field, value in SMOKE_SOUND.items():
         setattr(scaled.sound, field, value)
+    for field, value in SMOKE_CUT.items():
+        setattr(scaled.cut, field, value)
     return {**specs, name: scaled}
 
 
@@ -117,7 +124,7 @@ CATALOGUE_BEDS: tuple[BedRow, ...] = (
 )  # fmt: skip
 # id, intent tags, click Hz. The first three carry the 7.1 floor-hit classes.
 CATALOGUE_SFX: tuple[tuple[str, tuple[str, ...], int], ...] = (
-    ("sfx_bass_hit", ("bass", "cold_open_hit", "reveal"), 70),
+    ("sfx_bass_hit", ("bass", "opening_hit", "reveal"), 70),
     ("sfx_drum_hit", ("drum", "money", "finale_hit"), 95),
     ("sfx_thump", ("thump", "card_fly_in"), 130),
     ("sfx_tick", ("popup_tick", "tick"), 1400),

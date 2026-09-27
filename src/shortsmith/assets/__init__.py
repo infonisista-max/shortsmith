@@ -5,8 +5,17 @@ in order and decides, per beat, which asset it shows and how, recording everythi
 an `AssetManifest` (`work/assets.json`):
 
 - Sourced beats are the non-presenter beats the grammar labelled with a
-  `subject_kind` (4.2); presenter, hook-card and finale beats only point at assets
-  other beats source, through `manifest.aliases`.
+  `subject_kind` (4.2); presenter and finale beats only point at assets other beats
+  source, through `manifest.aliases`.
+- The opening beats (055; 3.4 as amended): the first `beats.opening_beats_min` beats
+  of the plan carry the short's strongest images of its main subject, so their ladder
+  is owner reference (the planner names it, or its caption matches), then the
+  best-scored sourced image - every source in the order is searched and the highest
+  judge score wins, ties by source order (`best_search`) - then a generated image
+  past the `gen_max_per_short` cap (11.3: cost never degrades the opening). They never
+  fall to rung 3 or 4: with nothing found and nothing generated the step raises
+  `AssetError` naming the beat, so the job fails visibly rather than opening on a
+  re-dressed reuse or the gradient.
 - A planned asset id that an earlier beat already sourced is reused as planned
   (4.3). A beat naming a reference id, or whose `query` shares a significant word
   with a reference caption, takes the owner reference first (1.3, 5.1).
@@ -199,7 +208,7 @@ CACHE_DIR = "assets"
 DEFAULT_ORDER: tuple[SearchOrigin, ...] = get_args(SearchOrigin)
 CANDIDATES = 6  # 5.2: at most six candidates per beat reach the judge
 # 020: a `map` is drawn from the bundled geodata (9.3), so it sources no picture either.
-NOT_SOURCED = frozenset({"presenter_full", "presenter_pip", "hook_cards", "finale", "map"})
+NOT_SOURCED = frozenset({"presenter_full", "presenter_pip", "finale", "map"})
 # 018: the sources that want a free key, and the `.env` name that carries it.
 KEYED: Mapping[str, str] = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_KEY"}
 REUSING_KINDS = frozenset({"number", "quote"})
@@ -709,12 +718,60 @@ def source_assets(
                 return found, source.origin
         return None
 
-    def generated(beat: Beat) -> AssetRecord | None:
-        made = generating.make(beat, cache)
+    def best_search(beat: Beat, query: str) -> tuple[_Fetched, SearchOrigin] | None:
+        """055: every source's best candidate for `query`, the highest judge score
+        winning and ties going to the source order; an unjudged hit scores as 0 so a
+        judged one always beats it."""
+        if not query:
+            return None
+        named = depicts_of(beat) == "named_entity"
+        best: tuple[int, _Fetched, SearchOrigin] | None = None
+        for name, source in sources_for(beat):
+            found = _search_cached(
+                source, name, query, cache, clock, judging, searching,
+                subject_kind=beat.subject_kind or "", topic=topic, border_px=border,
+                names=name_words(beat) if named else frozenset(), log=log,
+            )  # fmt: skip
+            if found is None:
+                continue
+            score = found.verdict.score if found.verdict is not None else 0
+            if best is None or score > best[0]:
+                best = (score, found, source.origin)
+        return None if best is None else (best[1], best[2])
+
+    def generated(beat: Beat, *, force: bool = False) -> AssetRecord | None:
+        made = generating.make(beat, cache, force=force)
         if made is None:
             return None
         return walk.add(_new_id(beat), made.path, origin="generated",
                         fetched_at=clock().isoformat(), generated=made.generated)  # fmt: skip
+
+    opening = {b.id for b in picture.beats[: spec.beats.opening_beats_min]}
+
+    def source_opening(beat: Beat) -> None:
+        """The opening's ladder (055): the best-scored sourced image, then a generated
+        one past the cap; never a rung-3/4 rescue."""
+        for rung, query in ((0, beat.query), (1, beat.query_fallback)):
+            hit = best_search(beat, query)
+            if hit is None:
+                continue
+            fetched, origin = hit
+            record = walk.add(
+                _new_id(beat), fetched.path, origin=origin,
+                fetched_at=fetched.fetched_at, candidate=fetched.candidate,
+                judge=fetched.verdict,
+            )  # fmt: skip
+            walk.show(beat, record, rung, judge_skipped=fetched.judge_skipped)
+            return
+        record = generated(beat, force=True)
+        if record is not None:
+            walk.show(beat, record, 2)
+            return
+        raise AssetError(
+            f"opening beat {beat.id} has no image of {beat.query!r}: nothing was found and "
+            "nothing could be generated; the short opens on its subject's image, never on a "
+            "rescue (055)"
+        )
 
     for beat in picture.beats:
         if beat.kind in NOT_SOURCED or beat.subject_kind is None:
@@ -729,6 +786,9 @@ def source_assets(
         ref = matching_reference(beat.query, references)
         if ref is not None:
             walk.show(beat, walk.owner(_new_id(beat), ref), 0)
+            continue
+        if beat.id in opening:
+            source_opening(beat)
             continue
         if beat.subject_kind in REUSING_KINDS or beat.source_intent == "reuse":
             previous = walk.nearest()

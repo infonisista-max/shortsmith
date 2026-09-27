@@ -24,7 +24,6 @@ from shortsmith.contracts import (
     CutPlan,
     Event,
     Finale,
-    Hook,
     PicturePlan,
     ReferenceRecord,
     SoundStory,
@@ -34,7 +33,13 @@ from shortsmith.contracts import (
 from shortsmith.ledger import Ledger
 from tests.conftest import Media
 
-SPEC = styles.load_all(render.registry())["explainer"]
+EXPLAINER = styles.load_all(render.registry())["explainer"]
+# 055: the explainer's first two beats are the opening, with their own ladder (best
+# score across every source, generation past the cap, never a rescue). The ladder tests
+# below exercise the body's rungs on b01 and b02, so the shared spec switches the
+# opening off; the opening's own tests pass `spec=EXPLAINER`.
+SPEC = EXPLAINER.model_copy(deep=True)
+SPEC.beats.opening_beats_min = 0
 NOW = datetime(2026, 9, 22, 12, 0, tzinfo=UTC)
 
 
@@ -70,18 +75,12 @@ def _beat(i: int, subject: str | None, *, kind: str = "photo", query: str = "",
     )
 
 
-def _plan(beats: Sequence[Beat], *, hook_cards: Sequence[str] = ()) -> ValidatedPlan:
+def _plan(beats: Sequence[Beat]) -> ValidatedPlan:
     end = beats[-1].end
     picture = PicturePlan(
         prompt_version="t",
         cut=CutPlan(keep=[Span(start=0.0, end=end)]),
         beats=list(beats),
-        hook=Hook(
-            title="t",
-            cold_open_span=Span(start=0.0, end=1.0),
-            original_position="drop",
-            card_asset_ids=list(hook_cards),
-        ),
         finale=Finale(beat_id=beats[-1].id, text="t"),
         title="t",
         description="t",
@@ -109,16 +108,16 @@ def _run(
     policy: str = "any",
     generating: assets.Generating | None = None,
     job: Path | None = None,
-    hook_cards: Sequence[str] = (),
     judging: assets.Judging | None = None,
     topic: str = "",
     log: list[str] | None = None,
+    spec: styles.StyleSpec = SPEC,
 ) -> assets.AssetManifest:
     return assets.source_assets(
-        _plan(beats, hook_cards=hook_cards),
+        _plan(beats),
         list(references),
         policy,  # pyright: ignore[reportArgumentType]
-        spec=SPEC,
+        spec=spec,
         sources=sources if sources is not None else {"web": assets.FakeImageSource("web")},
         order=assets.DEFAULT_ORDER,
         job_dir=job or _job_dir(tmp_path),
@@ -544,15 +543,101 @@ def test_fifth_rescue_is_counted(tmp_path: Path) -> None:
 # --- source_intent and subject kinds (4.2, 5.1) ----------------------------------------
 
 
-def test_presenter_hook_and_finale_beats_are_not_sourced(tmp_path: Path) -> None:
+def test_presenter_and_finale_beats_are_not_sourced(tmp_path: Path) -> None:
     beats = [
         _beat(1, None, kind="presenter_full", mode="full"),
-        _beat(2, None, kind="hook_cards", mode="off", asset="a3"),
+        _beat(2, None, kind="presenter_pip", mode="pip"),
         _beat(3, "concept"),
         _beat(4, None, kind="finale", mode="off", asset="a3"),
     ]
-    manifest = _run(tmp_path, beats, hook_cards=["a3"])
+    manifest = _run(tmp_path, beats)
     assert [b.beat_id for b in manifest.beats] == ["b03"]
+
+
+# --- the opening beats (ticket 055; 3.4 as amended) ----------------------------------------
+#
+# Under the real explainer spec the first two beats are the opening: owner reference
+# first, then the best-scored image across every source, then a generated image past
+# the cap, never rung 3 or 4.
+
+
+def test_an_owner_reference_the_plan_names_opens_the_short(tmp_path: Path) -> None:
+    job = _job_dir(tmp_path)
+    ref = _reference(job, "r1", "my product", (1080, 1920))
+    web = assets.FakeImageSource("web")
+    beats = [_beat(1, "concept", asset="r1"), _beat(2, "entity"), _beat(3, "concept")]
+    manifest = _run(tmp_path, beats, sources={"web": web}, references=[ref], job=job,
+                    spec=EXPLAINER)  # fmt: skip
+    first = manifest.beats[0]
+    assert (first.asset_id, first.fallback_rung) == ("r1", 0)
+    assert manifest.assets[0].origin == "owner_supplied"
+    assert web.searches == 2  # b02 and b03; the reference beat searched nothing
+
+
+def test_an_opening_beat_takes_the_best_scored_candidate_across_every_source(
+    tmp_path: Path,
+) -> None:
+    """055: the opening is the short's strongest image, so every source in the order is
+    asked and the highest judge score wins (ties by source order); a body beat still
+    stops at the first source that answers."""
+    web = Scripted("web", _candidates(("web-pic", 1600, 1200)))
+    commons = Scripted("commons", _candidates(("commons-pic", 1600, 1200)))
+    judge = Scoring({"https://e.example/web-pic.png": 2, "https://e.example/commons-pic.png": 3})
+    beats = [_beat(1, "concept"), _beat(2, "concept"), _beat(3, "concept")]
+    manifest = _run(tmp_path, beats, sources={"web": web, "commons": commons},
+                    judging=assets.Judging(judge, 40), spec=EXPLAINER)  # fmt: skip
+    origins = {b.beat_id: manifest.asset(b.asset_id or "") for b in manifest.beats}
+    assert origins["b01"] is not None and origins["b01"].origin == "commons"  # 3 beats 2
+    assert origins["b02"] is not None and origins["b02"].origin == "commons"
+    assert origins["b03"] is not None and origins["b03"].origin == "web"  # first hit wins
+    assert [b.fallback_rung for b in manifest.beats] == [0, 0, 0]
+    assert (web.searches, commons.searches) == (3, 2)  # b03 stopped at web
+
+
+def test_an_opening_beat_is_generated_past_the_cap_and_never_rescued(tmp_path: Path) -> None:
+    """A concept topic (no named person) with nothing found: the opening beats are
+    generated even with `gen_max_per_short` spent (11.3: cost never degrades quality);
+    the body beat behind them falls to the ladder as before."""
+    empty = assets.FakeImageSource("web", nothing_found=True)
+    beats = [_beat(1, "concept", query="a wheel of cheese"),
+             _beat(2, "concept", query="a cheese cave"),
+             _beat(3, "concept", query="a cheese market")]  # fmt: skip
+    generating = _generating(cap=1)
+    manifest = _run(tmp_path, beats, sources={"web": empty}, generating=generating,
+                    spec=EXPLAINER)  # fmt: skip
+    assert [b.fallback_rung for b in manifest.beats] == [2, 2, 3]
+    assert generating.images == 2 and manifest.rescued == 1
+    made = [manifest.asset(b.asset_id or "") for b in manifest.beats[:2]]
+    assert all(a is not None and a.origin == "generated" and a.generated is not None
+               and a.generated.depicts == "scene" for a in made)  # fmt: skip
+
+
+def test_an_opening_beat_with_no_image_and_no_generator_fails_the_step_visibly(
+    tmp_path: Path,
+) -> None:
+    """055: never a rung-3/4 opening. With nothing found and no generator the step
+    raises naming the beat, rather than opening on a re-dress or the gradient."""
+    empty = assets.FakeImageSource("web", nothing_found=True)
+    beats = [_beat(1, "concept"), _beat(2, "concept")]
+    with pytest.raises(assets.AssetError, match="opening beat b01") as caught:
+        _run(tmp_path, beats, sources={"web": empty}, spec=EXPLAINER)
+    assert "055" in str(caught.value) and "query 1" in str(caught.value)
+
+
+def test_a_named_opening_subject_still_skips_the_stock_libraries(tmp_path: Path) -> None:
+    """053's rule holds inside the opening: a named person is never a stock stranger,
+    so with only Pexels answering the opening beat is illustrated, not found."""
+    pexels = assets.FakeImageSource("pexels")
+    web = assets.FakeImageSource("web", nothing_found=True)
+    generating = _generating()
+    beats = [_beat(1, "entity", query="Neem Karoli Baba portrait", depicts="named_entity"),
+             _beat(2, "concept")]  # fmt: skip
+    manifest = _run(tmp_path, beats, sources={"web": web, "pexels": pexels},
+                    generating=generating, spec=EXPLAINER)  # fmt: skip
+    assert pexels.searches == 1  # b02, a scene, may use it; b01 never did
+    first = manifest.asset(manifest.beats[0].asset_id or "")
+    assert first is not None and first.origin == "generated" and first.generated is not None
+    assert first.generated.render == "illustration"
 
 
 def test_planned_reuse_of_an_asset_id_fetches_once(tmp_path: Path) -> None:

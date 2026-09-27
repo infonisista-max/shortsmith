@@ -1,0 +1,1178 @@
+{
+  "language": "hi",
+  "duration_s": 59.927,
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 4.56,
+      "avg_logprob": -0.06798395,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 5.26,
+      "end": 8.56,
+      "avg_logprob": -0.06798395,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 8.88,
+      "end": 12.76,
+      "avg_logprob": -0.06798395,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 12.76,
+      "end": 15.54,
+      "avg_logprob": -0.04663694,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 15.54,
+      "end": 19.1,
+      "avg_logprob": -0.04663694,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 19.1,
+      "end": 22.76,
+      "avg_logprob": -0.04663694,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 22.76,
+      "end": 27.08,
+      "avg_logprob": -0.04663694,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 27.08,
+      "end": 29.26,
+      "avg_logprob": -0.04663694,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 29.26,
+      "end": 32.8,
+      "avg_logprob": -0.055308804,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 32.8,
+      "end": 36.36,
+      "avg_logprob": -0.055308804,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 36.36,
+      "end": 38.94,
+      "avg_logprob": -0.055308804,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 38.94,
+      "end": 43.94,
+      "avg_logprob": -0.094277024,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 44.46,
+      "end": 49.16,
+      "avg_logprob": -0.094277024,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 49.16,
+      "end": 51.52,
+      "avg_logprob": -0.094277024,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 51.52,
+      "end": 53.34,
+      "avg_logprob": -0.094277024,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 53.34,
+      "end": 55.46,
+      "avg_logprob": -0.07918748,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 55.46,
+      "end": 57.38,
+      "avg_logprob": -0.07918748,
+      "low_confidence": false,
+      "no_speech": false
+    },
+    {
+      "start": 57.38,
+      "end": 59.7,
+      "avg_logprob": -0.07918748,
+      "low_confidence": false,
+      "no_speech": false
+    }
+  ],
+  "words": [
+    {
+      "text": "आपको",
+      "start": 0.0,
+      "end": 0.3,
+      "segment": 0
+    },
+    {
+      "text": "पता",
+      "start": 0.3,
+      "end": 0.54,
+      "segment": 0
+    },
+    {
+      "text": "है",
+      "start": 0.54,
+      "end": 0.64,
+      "segment": 0
+    },
+    {
+      "text": "India",
+      "start": 0.64,
+      "end": 1.1,
+      "segment": 0
+    },
+    {
+      "text": "में",
+      "start": 1.1,
+      "end": 1.22,
+      "segment": 0
+    },
+    {
+      "text": "बहुत",
+      "start": 1.22,
+      "end": 1.78,
+      "segment": 0
+    },
+    {
+      "text": "famous",
+      "start": 1.78,
+      "end": 2.36,
+      "segment": 0
+    },
+    {
+      "text": "बाबा",
+      "start": 2.36,
+      "end": 2.72,
+      "segment": 0
+    },
+    {
+      "text": "हुआ",
+      "start": 2.72,
+      "end": 2.8,
+      "segment": 0
+    },
+    {
+      "text": "करते",
+      "start": 2.8,
+      "end": 3.16,
+      "segment": 0
+    },
+    {
+      "text": "थे",
+      "start": 3.16,
+      "end": 3.3,
+      "segment": 0
+    },
+    {
+      "text": "नीम",
+      "start": 3.3,
+      "end": 3.82,
+      "segment": 0
+    },
+    {
+      "text": "करोली",
+      "start": 3.82,
+      "end": 4.16,
+      "segment": 0
+    },
+    {
+      "text": "बाबा",
+      "start": 4.16,
+      "end": 5.0,
+      "segment": 0
+    },
+    {
+      "text": "अब",
+      "start": 5.3,
+      "end": 5.44,
+      "segment": 1
+    },
+    {
+      "text": "ना",
+      "start": 5.44,
+      "end": 5.68,
+      "segment": 1
+    },
+    {
+      "text": "तो",
+      "start": 5.68,
+      "end": 5.84,
+      "segment": 1
+    },
+    {
+      "text": "इन्होंने",
+      "start": 5.84,
+      "end": 6.12,
+      "segment": 1
+    },
+    {
+      "text": "कोई",
+      "start": 6.12,
+      "end": 6.36,
+      "segment": 1
+    },
+    {
+      "text": "जादू",
+      "start": 6.36,
+      "end": 6.86,
+      "segment": 1
+    },
+    {
+      "text": "टोने",
+      "start": 6.86,
+      "end": 7.32,
+      "segment": 1
+    },
+    {
+      "text": "या",
+      "start": 7.32,
+      "end": 7.44,
+      "segment": 1
+    },
+    {
+      "text": "मंत्र",
+      "start": 7.44,
+      "end": 7.9,
+      "segment": 1
+    },
+    {
+      "text": "वाली",
+      "start": 7.9,
+      "end": 8.06,
+      "segment": 1
+    },
+    {
+      "text": "बात",
+      "start": 8.06,
+      "end": 8.3,
+      "segment": 1
+    },
+    {
+      "text": "करी",
+      "start": 8.3,
+      "end": 9.04,
+      "segment": 1
+    },
+    {
+      "text": "ना",
+      "start": 9.26,
+      "end": 9.48,
+      "segment": 2
+    },
+    {
+      "text": "इन्होंने",
+      "start": 9.48,
+      "end": 9.74,
+      "segment": 2
+    },
+    {
+      "text": "कोई",
+      "start": 9.74,
+      "end": 9.96,
+      "segment": 2
+    },
+    {
+      "text": "ग्रंथ",
+      "start": 9.96,
+      "end": 10.28,
+      "segment": 2
+    },
+    {
+      "text": "लिखे",
+      "start": 10.28,
+      "end": 11.1,
+      "segment": 2
+    },
+    {
+      "text": "फिर",
+      "start": 11.1,
+      "end": 11.3,
+      "segment": 2
+    },
+    {
+      "text": "भी",
+      "start": 11.3,
+      "end": 11.46,
+      "segment": 2
+    },
+    {
+      "text": "ये",
+      "start": 11.46,
+      "end": 11.54,
+      "segment": 2
+    },
+    {
+      "text": "बहुत",
+      "start": 11.54,
+      "end": 11.94,
+      "segment": 2
+    },
+    {
+      "text": "ज़्यादा",
+      "start": 11.94,
+      "end": 12.16,
+      "segment": 2
+    },
+    {
+      "text": "famous",
+      "start": 12.16,
+      "end": 12.48,
+      "segment": 2
+    },
+    {
+      "text": "थे",
+      "start": 12.48,
+      "end": 12.72,
+      "segment": 2
+    },
+    {
+      "text": "इनके",
+      "start": 12.76,
+      "end": 13.56,
+      "segment": 3
+    },
+    {
+      "text": "कुछ",
+      "start": 13.56,
+      "end": 13.8,
+      "segment": 3
+    },
+    {
+      "text": "दो",
+      "start": 13.8,
+      "end": 14.1,
+      "segment": 3
+    },
+    {
+      "text": "चार",
+      "start": 14.1,
+      "end": 14.34,
+      "segment": 3
+    },
+    {
+      "text": "basic",
+      "start": 14.34,
+      "end": 14.7,
+      "segment": 3
+    },
+    {
+      "text": "principles",
+      "start": 14.7,
+      "end": 15.2,
+      "segment": 3
+    },
+    {
+      "text": "थे",
+      "start": 15.2,
+      "end": 15.5,
+      "segment": 3
+    },
+    {
+      "text": "कि",
+      "start": 16.04,
+      "end": 16.2,
+      "segment": 4
+    },
+    {
+      "text": "इंसानों",
+      "start": 16.2,
+      "end": 16.72,
+      "segment": 4
+    },
+    {
+      "text": "से",
+      "start": 16.72,
+      "end": 16.78,
+      "segment": 4
+    },
+    {
+      "text": "प्यार",
+      "start": 16.78,
+      "end": 17.02,
+      "segment": 4
+    },
+    {
+      "text": "करो",
+      "start": 17.02,
+      "end": 17.78,
+      "segment": 4
+    },
+    {
+      "text": "इंसानों",
+      "start": 17.78,
+      "end": 18.28,
+      "segment": 4
+    },
+    {
+      "text": "को",
+      "start": 18.28,
+      "end": 18.38,
+      "segment": 4
+    },
+    {
+      "text": "खाना",
+      "start": 18.38,
+      "end": 18.72,
+      "segment": 4
+    },
+    {
+      "text": "खिलाओ",
+      "start": 18.72,
+      "end": 19.06,
+      "segment": 4
+    },
+    {
+      "text": "बाकी",
+      "start": 19.8,
+      "end": 20.28,
+      "segment": 5
+    },
+    {
+      "text": "सब",
+      "start": 20.28,
+      "end": 20.5,
+      "segment": 5
+    },
+    {
+      "text": "भगवान",
+      "start": 20.5,
+      "end": 20.9,
+      "segment": 5
+    },
+    {
+      "text": "पे",
+      "start": 20.9,
+      "end": 21.06,
+      "segment": 5
+    },
+    {
+      "text": "छोड़",
+      "start": 21.06,
+      "end": 21.32,
+      "segment": 5
+    },
+    {
+      "text": "दो",
+      "start": 21.32,
+      "end": 21.36,
+      "segment": 5
+    },
+    {
+      "text": "और",
+      "start": 21.36,
+      "end": 21.54,
+      "segment": 5
+    },
+    {
+      "text": "हमेशा",
+      "start": 21.54,
+      "end": 21.82,
+      "segment": 5
+    },
+    {
+      "text": "भगवान",
+      "start": 21.82,
+      "end": 22.18,
+      "segment": 5
+    },
+    {
+      "text": "को",
+      "start": 22.18,
+      "end": 22.28,
+      "segment": 5
+    },
+    {
+      "text": "याद",
+      "start": 22.28,
+      "end": 22.44,
+      "segment": 5
+    },
+    {
+      "text": "करो",
+      "start": 22.44,
+      "end": 22.74,
+      "segment": 5
+    },
+    {
+      "text": "आप",
+      "start": 22.74,
+      "end": 23.12,
+      "segment": 5
+    },
+    {
+      "text": "यकीन",
+      "start": 23.12,
+      "end": 23.54,
+      "segment": 6
+    },
+    {
+      "text": "नहीं",
+      "start": 23.54,
+      "end": 23.7,
+      "segment": 6
+    },
+    {
+      "text": "मानोगे",
+      "start": 23.7,
+      "end": 24.1,
+      "segment": 6
+    },
+    {
+      "text": "Apple",
+      "start": 24.1,
+      "end": 24.56,
+      "segment": 6
+    },
+    {
+      "text": "जैसी",
+      "start": 24.56,
+      "end": 24.9,
+      "segment": 6
+    },
+    {
+      "text": "बड़ी",
+      "start": 24.9,
+      "end": 25.26,
+      "segment": 6
+    },
+    {
+      "text": "company",
+      "start": 25.26,
+      "end": 25.6,
+      "segment": 6
+    },
+    {
+      "text": "के",
+      "start": 25.6,
+      "end": 25.82,
+      "segment": 6
+    },
+    {
+      "text": "CEO",
+      "start": 25.82,
+      "end": 26.18,
+      "segment": 6
+    },
+    {
+      "text": "Steve",
+      "start": 26.18,
+      "end": 26.66,
+      "segment": 6
+    },
+    {
+      "text": "Jobs",
+      "start": 26.66,
+      "end": 27.0,
+      "segment": 6
+    },
+    {
+      "text": "इनके",
+      "start": 27.0,
+      "end": 27.78,
+      "segment": 7
+    },
+    {
+      "text": "बहुत",
+      "start": 27.78,
+      "end": 28.22,
+      "segment": 7
+    },
+    {
+      "text": "बड़े",
+      "start": 28.22,
+      "end": 28.42,
+      "segment": 7
+    },
+    {
+      "text": "fan",
+      "start": 28.42,
+      "end": 28.68,
+      "segment": 7
+    },
+    {
+      "text": "हुआ",
+      "start": 28.68,
+      "end": 28.8,
+      "segment": 7
+    },
+    {
+      "text": "करते",
+      "start": 28.8,
+      "end": 29.14,
+      "segment": 7
+    },
+    {
+      "text": "थे",
+      "start": 29.14,
+      "end": 29.24,
+      "segment": 7
+    },
+    {
+      "text": "In",
+      "start": 29.26,
+      "end": 29.64,
+      "segment": 8
+    },
+    {
+      "text": "fact",
+      "start": 29.64,
+      "end": 29.94,
+      "segment": 8
+    },
+    {
+      "text": "जब",
+      "start": 29.94,
+      "end": 30.12,
+      "segment": 8
+    },
+    {
+      "text": "Facebook",
+      "start": 30.12,
+      "end": 30.64,
+      "segment": 8
+    },
+    {
+      "text": "को",
+      "start": 30.64,
+      "end": 30.82,
+      "segment": 8
+    },
+    {
+      "text": "grow",
+      "start": 30.82,
+      "end": 31.04,
+      "segment": 8
+    },
+    {
+      "text": "करने",
+      "start": 31.04,
+      "end": 31.44,
+      "segment": 8
+    },
+    {
+      "text": "में",
+      "start": 31.44,
+      "end": 31.54,
+      "segment": 8
+    },
+    {
+      "text": "काफी",
+      "start": 31.54,
+      "end": 31.88,
+      "segment": 8
+    },
+    {
+      "text": "ज़्यादा",
+      "start": 31.88,
+      "end": 32.04,
+      "segment": 8
+    },
+    {
+      "text": "दिक्कत",
+      "start": 32.04,
+      "end": 32.36,
+      "segment": 8
+    },
+    {
+      "text": "आ",
+      "start": 32.36,
+      "end": 32.5,
+      "segment": 8
+    },
+    {
+      "text": "रही",
+      "start": 32.5,
+      "end": 32.62,
+      "segment": 8
+    },
+    {
+      "text": "थी",
+      "start": 32.62,
+      "end": 32.74,
+      "segment": 8
+    },
+    {
+      "text": "तो",
+      "start": 33.3,
+      "end": 33.42,
+      "segment": 9
+    },
+    {
+      "text": "उसके",
+      "start": 33.42,
+      "end": 33.86,
+      "segment": 9
+    },
+    {
+      "text": "फाउंडर",
+      "start": 33.86,
+      "end": 34.32,
+      "segment": 9
+    },
+    {
+      "text": "स्टीव",
+      "start": 34.32,
+      "end": 34.76,
+      "segment": 9
+    },
+    {
+      "text": "जॉब्स",
+      "start": 34.76,
+      "end": 35.12,
+      "segment": 9
+    },
+    {
+      "text": "भी",
+      "start": 35.12,
+      "end": 35.28,
+      "segment": 9
+    },
+    {
+      "text": "इनके",
+      "start": 35.28,
+      "end": 35.74,
+      "segment": 9
+    },
+    {
+      "text": "पास",
+      "start": 35.74,
+      "end": 35.98,
+      "segment": 9
+    },
+    {
+      "text": "आये",
+      "start": 35.98,
+      "end": 36.22,
+      "segment": 9
+    },
+    {
+      "text": "थे",
+      "start": 36.22,
+      "end": 36.34,
+      "segment": 9
+    },
+    {
+      "text": "और",
+      "start": 36.34,
+      "end": 36.9,
+      "segment": 10
+    },
+    {
+      "text": "अपनी",
+      "start": 36.9,
+      "end": 37.28,
+      "segment": 10
+    },
+    {
+      "text": "problem",
+      "start": 37.28,
+      "end": 37.8,
+      "segment": 10
+    },
+    {
+      "text": "solve",
+      "start": 37.8,
+      "end": 38.22,
+      "segment": 10
+    },
+    {
+      "text": "करवा",
+      "start": 38.22,
+      "end": 38.5,
+      "segment": 10
+    },
+    {
+      "text": "के",
+      "start": 38.5,
+      "end": 38.62,
+      "segment": 10
+    },
+    {
+      "text": "गये",
+      "start": 38.62,
+      "end": 38.74,
+      "segment": 10
+    },
+    {
+      "text": "थे",
+      "start": 38.74,
+      "end": 38.92,
+      "segment": 10
+    },
+    {
+      "text": "दुनिया",
+      "start": 38.94,
+      "end": 40.2,
+      "segment": 11
+    },
+    {
+      "text": "की",
+      "start": 40.2,
+      "end": 40.32,
+      "segment": 11
+    },
+    {
+      "text": "बड़ी",
+      "start": 40.32,
+      "end": 40.72,
+      "segment": 11
+    },
+    {
+      "text": "हस्तियां",
+      "start": 40.72,
+      "end": 41.42,
+      "segment": 11
+    },
+    {
+      "text": "जैसे",
+      "start": 41.42,
+      "end": 41.62,
+      "segment": 11
+    },
+    {
+      "text": "विराट",
+      "start": 41.62,
+      "end": 42.06,
+      "segment": 11
+    },
+    {
+      "text": "कोहली",
+      "start": 42.06,
+      "end": 42.34,
+      "segment": 11
+    },
+    {
+      "text": "इनके",
+      "start": 42.34,
+      "end": 42.78,
+      "segment": 11
+    },
+    {
+      "text": "बहुत",
+      "start": 42.78,
+      "end": 43.18,
+      "segment": 11
+    },
+    {
+      "text": "बड़े",
+      "start": 43.18,
+      "end": 43.44,
+      "segment": 11
+    },
+    {
+      "text": "fan",
+      "start": 43.44,
+      "end": 43.74,
+      "segment": 11
+    },
+    {
+      "text": "हैं",
+      "start": 43.74,
+      "end": 44.02,
+      "segment": 11
+    },
+    {
+      "text": "और",
+      "start": 44.52,
+      "end": 44.72,
+      "segment": 12
+    },
+    {
+      "text": "वीरेंद्र",
+      "start": 44.72,
+      "end": 45.24,
+      "segment": 12
+    },
+    {
+      "text": "सहवा",
+      "start": 45.24,
+      "end": 45.76,
+      "segment": 12
+    },
+    {
+      "text": "की",
+      "start": 45.76,
+      "end": 46.0,
+      "segment": 12
+    },
+    {
+      "text": "success",
+      "start": 46.0,
+      "end": 46.62,
+      "segment": 12
+    },
+    {
+      "text": "के",
+      "start": 46.62,
+      "end": 46.78,
+      "segment": 12
+    },
+    {
+      "text": "पीछे",
+      "start": 46.78,
+      "end": 47.24,
+      "segment": 12
+    },
+    {
+      "text": "भी",
+      "start": 47.24,
+      "end": 47.44,
+      "segment": 12
+    },
+    {
+      "text": "इनका",
+      "start": 47.44,
+      "end": 48.56,
+      "segment": 12
+    },
+    {
+      "text": "ही",
+      "start": 48.56,
+      "end": 48.68,
+      "segment": 12
+    },
+    {
+      "text": "हात",
+      "start": 48.68,
+      "end": 49.02,
+      "segment": 12
+    },
+    {
+      "text": "है",
+      "start": 49.02,
+      "end": 49.12,
+      "segment": 12
+    },
+    {
+      "text": "अब",
+      "start": 49.28,
+      "end": 49.52,
+      "segment": 13
+    },
+    {
+      "text": "मैं",
+      "start": 49.52,
+      "end": 49.62,
+      "segment": 13
+    },
+    {
+      "text": "बाबा",
+      "start": 49.62,
+      "end": 49.96,
+      "segment": 13
+    },
+    {
+      "text": "वगेरा",
+      "start": 49.96,
+      "end": 50.3,
+      "segment": 13
+    },
+    {
+      "text": "मैं",
+      "start": 50.3,
+      "end": 50.44,
+      "segment": 13
+    },
+    {
+      "text": "तो",
+      "start": 50.44,
+      "end": 50.56,
+      "segment": 13
+    },
+    {
+      "text": "बिलकुल",
+      "start": 50.56,
+      "end": 50.9,
+      "segment": 13
+    },
+    {
+      "text": "नहीं",
+      "start": 50.9,
+      "end": 51.06,
+      "segment": 13
+    },
+    {
+      "text": "मानता",
+      "start": 51.06,
+      "end": 51.4,
+      "segment": 13
+    },
+    {
+      "text": "हूँ",
+      "start": 51.4,
+      "end": 51.46,
+      "segment": 13
+    },
+    {
+      "text": "लेकिन",
+      "start": 51.74,
+      "end": 52.06,
+      "segment": 14
+    },
+    {
+      "text": "बस",
+      "start": 52.06,
+      "end": 52.24,
+      "segment": 14
+    },
+    {
+      "text": "एक",
+      "start": 52.24,
+      "end": 52.5,
+      "segment": 14
+    },
+    {
+      "text": "चीज़",
+      "start": 52.5,
+      "end": 52.64,
+      "segment": 14
+    },
+    {
+      "text": "समझ",
+      "start": 52.64,
+      "end": 52.92,
+      "segment": 14
+    },
+    {
+      "text": "नहीं",
+      "start": 52.92,
+      "end": 53.06,
+      "segment": 14
+    },
+    {
+      "text": "आती",
+      "start": 53.06,
+      "end": 53.32,
+      "segment": 14
+    },
+    {
+      "text": "कोई",
+      "start": 53.34,
+      "end": 53.88,
+      "segment": 15
+    },
+    {
+      "text": "जादू",
+      "start": 53.88,
+      "end": 54.32,
+      "segment": 15
+    },
+    {
+      "text": "टोना",
+      "start": 54.32,
+      "end": 54.68,
+      "segment": 15
+    },
+    {
+      "text": "दिखाए",
+      "start": 54.68,
+      "end": 55.1,
+      "segment": 15
+    },
+    {
+      "text": "बिना",
+      "start": 55.1,
+      "end": 55.4,
+      "segment": 15
+    },
+    {
+      "text": "नीम",
+      "start": 55.84,
+      "end": 56.16,
+      "segment": 16
+    },
+    {
+      "text": "करोली",
+      "start": 56.16,
+      "end": 56.54,
+      "segment": 16
+    },
+    {
+      "text": "जैसे",
+      "start": 56.54,
+      "end": 56.82,
+      "segment": 16
+    },
+    {
+      "text": "बाबा",
+      "start": 56.82,
+      "end": 57.18,
+      "segment": 16
+    },
+    {
+      "text": "की",
+      "start": 57.18,
+      "end": 57.34,
+      "segment": 16
+    },
+    {
+      "text": "इतनी",
+      "start": 57.34,
+      "end": 57.84,
+      "segment": 17
+    },
+    {
+      "text": "ज़्यादा",
+      "start": 57.84,
+      "end": 58.22,
+      "segment": 17
+    },
+    {
+      "text": "fan",
+      "start": 58.22,
+      "end": 58.54,
+      "segment": 17
+    },
+    {
+      "text": "following",
+      "start": 58.54,
+      "end": 58.88,
+      "segment": 17
+    },
+    {
+      "text": "है",
+      "start": 58.88,
+      "end": 59.28,
+      "segment": 17
+    },
+    {
+      "text": "क्यूं",
+      "start": 59.28,
+      "end": 59.64,
+      "segment": 17
+    }
+  ]
+}

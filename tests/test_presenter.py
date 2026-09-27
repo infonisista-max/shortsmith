@@ -1,5 +1,6 @@
 """presenter (ticket 005): the cut list on the output timeline from the plan's kept and
-dropped spans and the cold-open lift with `keep | drop` (decisions 3.4, 8.1).
+dropped spans (decisions 3.4 as amended by 055, 8.1): nothing is lifted, speech plays in
+the speaker's order, and `tighten` removes only silence.
 
 Ticket 013 (decision 3.3): the face measured once per job from eight stills at the
 research strip times with the Haar detector, the median box, the early failure under
@@ -20,11 +21,12 @@ from shortsmith.contracts import (
     Constraints,
     CutPlan,
     FaceBox,
-    Hook,
     PicturePlan,
     PlanRequest,
     PlanStyle,
     Span,
+    Transcript,
+    Word,
 )
 from shortsmith.planner import FakePlanner
 from shortsmith.transcriber import FakeTranscriber
@@ -48,24 +50,13 @@ def _fake_plan() -> PicturePlan:
 
 
 def _plan(
-    *,
-    keep: list[tuple[float, float]],
-    drop: list[tuple[float, float]] | None = None,
-    cold_open: tuple[float, float],
-    original_position: str,
+    *, keep: list[tuple[float, float]], drop: list[tuple[float, float]] | None = None
 ) -> PicturePlan:
-    base = _fake_plan()
-    return base.model_copy(
+    return _fake_plan().model_copy(
         update={
             "cut": CutPlan(
                 keep=[Span(start=a, end=b) for a, b in keep],
                 drop=[Span(start=a, end=b) for a, b in drop or []],
-            ),
-            "hook": Hook(
-                title=base.hook.title,
-                cold_open_span=Span(start=cold_open[0], end=cold_open[1]),
-                original_position=original_position,  # type: ignore[arg-type]
-                card_asset_ids=base.hook.card_asset_ids,
             ),
         }
     )
@@ -76,10 +67,10 @@ def _pairs(spans: list[Span]) -> list[tuple[float, float]]:
 
 
 def test_fake_plan_cut_list_is_the_whole_fixture_in_order() -> None:
-    """The fake lifts its cold open from the head and drops it there: a no-op reorder,
-    so the cut is the six seconds in source order and the smoke short stays 6 s."""
+    """055: nothing is lifted or dropped; the cut is the six seconds in source order and
+    the smoke short stays 6 s."""
     spans = presenter.cut_list(_fake_plan())
-    assert _pairs(spans) == [(0.0, 0.5), (0.5, 6.0)]
+    assert _pairs(spans) == [(0.0, 6.0)]
     assert presenter.total_duration(spans) == 6.0
 
 
@@ -95,58 +86,35 @@ def test_cut_list_round_trips_through_work_cut_json(tmp_path: Path) -> None:
     assert '"spans"' in path.read_text(encoding="utf-8")
 
 
-def test_cold_open_lifted_from_the_middle_with_drop_is_absent_at_its_place() -> None:
-    plan = _plan(keep=[(0.0, 6.0)], cold_open=(3.0, 3.5), original_position="drop")
-    assert _pairs(presenter.cut_list(plan)) == [(3.0, 3.5), (0.0, 3.0), (3.5, 6.0)]
-
-
-def test_cold_open_lifted_from_the_middle_with_keep_stays_at_its_place() -> None:
-    plan = _plan(keep=[(0.0, 6.0)], cold_open=(3.0, 3.5), original_position="keep")
-    spans = presenter.cut_list(plan)
-    assert _pairs(spans) == [(3.0, 3.5), (0.0, 6.0)]
-    assert presenter.total_duration(spans) == 6.5
-
-
 def test_dropped_spans_are_removed_from_the_kept_spans() -> None:
-    plan = _plan(
-        keep=[(0.0, 6.0)],
-        drop=[(1.0, 2.0), (4.5, 5.0)],
-        cold_open=(0.0, 0.5),
-        original_position="drop",
-    )
-    assert _pairs(presenter.cut_list(plan)) == [(0.0, 0.5), (0.5, 1.0), (2.0, 4.5), (5.0, 6.0)]
+    plan = _plan(keep=[(0.0, 6.0)], drop=[(1.0, 2.0), (4.5, 5.0)])
+    assert _pairs(presenter.cut_list(plan)) == [(0.0, 1.0), (2.0, 4.5), (5.0, 6.0)]
 
 
 def test_kept_spans_are_sorted_and_a_drop_that_swallows_a_span_removes_it() -> None:
-    plan = _plan(
-        keep=[(4.0, 6.0), (0.0, 2.0), (2.5, 3.0)],
-        drop=[(2.4, 3.1)],
-        cold_open=(0.0, 0.5),
-        original_position="drop",
-    )
-    assert _pairs(presenter.cut_list(plan)) == [(0.0, 0.5), (0.5, 2.0), (4.0, 6.0)]
+    plan = _plan(keep=[(4.0, 6.0), (0.0, 2.0), (2.5, 3.0)], drop=[(2.4, 3.1)])
+    assert _pairs(presenter.cut_list(plan)) == [(0.0, 2.0), (4.0, 6.0)]
 
 
 def test_output_time_maps_a_source_time_onto_the_cut_timeline() -> None:
-    plan = _plan(keep=[(0.0, 6.0)], cold_open=(3.0, 3.5), original_position="drop")
-    spans = presenter.cut_list(plan)  # [3.0-3.5] [0.0-3.0] [3.5-6.0]
-    assert presenter.output_time(spans, 3.2) == pytest.approx(0.2)
-    assert presenter.output_time(spans, 0.0) == pytest.approx(0.5)
-    assert presenter.output_time(spans, 4.0) == pytest.approx(4.0)
-    assert presenter.output_time(spans, 3.5) == pytest.approx(3.5)  # a boundary is the later span
+    spans = presenter.cut_list(_plan(keep=[(0.0, 6.0)], drop=[(3.0, 3.5)]))  # [0-3.0] [3.5-6.0]
+    assert presenter.output_time(spans, 0.2) == pytest.approx(0.2)
+    assert presenter.output_time(spans, 3.2) == pytest.approx(3.0)  # inside the drop: its end
+    assert presenter.output_time(spans, 4.0) == pytest.approx(3.5)
+    assert presenter.output_time(spans, 3.5) == pytest.approx(3.0)  # a boundary is the later span
+    assert presenter.output_time(spans, 6.0) == pytest.approx(5.5)  # the recording's end
 
 
 def test_source_time_is_the_inverse_of_output_time() -> None:
     """009: the grammar maps a beat boundary (output seconds) back to the recording
     before it looks for the nearest word end."""
-    plan = _plan(keep=[(0.0, 6.0)], cold_open=(3.0, 3.5), original_position="drop")
-    spans = presenter.cut_list(plan)  # [3.0-3.5] [0.0-3.0] [3.5-6.0]
-    assert presenter.source_time(spans, 0.2) == pytest.approx(3.2)
-    assert presenter.source_time(spans, 0.5) == pytest.approx(0.0)  # a boundary is the later span
-    assert presenter.source_time(spans, 4.0) == pytest.approx(4.0)
-    assert presenter.source_time(spans, 6.0) == pytest.approx(6.0)  # the runtime's end
+    spans = presenter.cut_list(_plan(keep=[(0.0, 6.0)], drop=[(3.0, 3.5)]))  # [0-3.0] [3.5-6.0]
+    assert presenter.source_time(spans, 0.2) == pytest.approx(0.2)
+    assert presenter.source_time(spans, 3.0) == pytest.approx(3.5)  # a boundary is the later span
+    assert presenter.source_time(spans, 4.0) == pytest.approx(4.5)
+    assert presenter.source_time(spans, 5.5) == pytest.approx(6.0)  # the runtime's end
     assert presenter.source_time(spans, 7.0) == pytest.approx(6.0)  # past the end clamps
-    for t in (0.0, 0.2, 0.5, 1.7, 3.5, 5.9):
+    for t in (0.0, 0.2, 0.5, 1.7, 3.0, 5.4):
         assert presenter.output_time(spans, presenter.source_time(spans, t)) == pytest.approx(t)
     assert presenter.source_time([], 1.5) == 1.5
 
@@ -298,3 +266,101 @@ def test_the_haar_detector_returns_none_on_a_flat_still(tmp_path: Path) -> None:
 
     still = make_image(tmp_path / "flat.jpg", width=640, height=640)
     assert presenter.HaarDetector().detect(still) is None
+
+
+# --- ticket 055: pause tightening (3.4 as amended) ---------------------------------------
+#
+# `tighten` removes only silence: the head before the first word down to `lead_s`, and
+# the middle of every pause between two kept words that runs past `max_pause_s`. No word
+# is shortened, the tail after the last word is left alone, and every removed span is
+# reported so the grammar can log it as a clamp.
+
+F1_TRANSCRIPT = Path(__file__).parent / "fixtures" / "f1" / "transcript.json"
+
+
+def _words(*spans: tuple[float, float]) -> list[Word]:
+    return [Word(text=f"w{i}", start=a, end=b, segment=0) for i, (a, b) in enumerate(spans)]
+
+
+def _gaps(spans: list[Span], words: list[Word]) -> list[float]:
+    """The silence between consecutive kept words on the output timeline."""
+    placed = [w for _, w in presenter.words_on_cut(spans, words)]
+    return [round(b.start - a.end, 3) for a, b in zip(placed, placed[1:], strict=False)]
+
+
+def test_a_pause_over_max_pause_s_loses_its_middle_and_keeps_half_on_each_side() -> None:
+    words = _words((0.0, 0.5), (0.7, 1.2), (2.6, 3.0), (3.3, 3.8))  # 0.2, 1.4 and 0.3 s gaps
+    spans, trims = presenter.tighten(
+        [Span(start=0.0, end=4.5)], words, max_pause_s=0.6, lead_s=0.15
+    )
+    assert _pairs(spans) == [(0.0, 1.5), (2.3, 4.5)]  # 1.2 + 0.3 ... 2.6 - 0.3
+    assert _gaps(spans, words) == [0.2, 0.6, 0.3]
+    (trim,) = trims
+    assert (trim.start, trim.end, trim.after, trim.gap_s) == (1.5, 2.3, "w1", 1.4)
+    assert presenter.total_duration(spans) == pytest.approx(4.5 - 0.8)
+
+
+def test_a_pause_exactly_at_max_pause_s_is_left_alone() -> None:
+    words = _words((0.0, 0.5), (1.1, 1.5))
+    spans, trims = presenter.tighten(
+        [Span(start=0.0, end=2.0)], words, max_pause_s=0.6, lead_s=0.15
+    )
+    assert _pairs(spans) == [(0.0, 2.0)] and trims == []
+
+
+def test_the_head_is_trimmed_to_the_lead_before_the_first_word() -> None:
+    words = _words((0.9, 1.3), (1.5, 2.0))
+    spans, trims = presenter.tighten(
+        [Span(start=0.0, end=2.5)], words, max_pause_s=0.6, lead_s=0.15
+    )
+    assert _pairs(spans) == [(0.75, 2.5)]
+    (trim,) = trims
+    assert (trim.start, trim.end, trim.after) == (0.0, 0.75, None)
+    # A head shorter than the lead stays, and so does the tail after the last word.
+    close, none = presenter.tighten(
+        [Span(start=0.8, end=2.5)], words, max_pause_s=0.6, lead_s=0.15
+    )
+    assert _pairs(close) == [(0.8, 2.5)] and none == []
+
+
+def test_no_word_is_shortened_and_a_pause_across_a_planned_drop_is_not_touched() -> None:
+    """A pause the planner already cut into (a drop between two kept spans) is the
+    planner's; only pauses inside one kept span are tightened."""
+    words = _words((0.0, 0.5), (0.7, 1.2), (3.0, 3.4), (3.6, 4.0))
+    kept = [Span(start=0.0, end=1.4), Span(start=2.8, end=4.5)]
+    spans, trims = presenter.tighten(kept, words, max_pause_s=0.6, lead_s=0.15)
+    assert _pairs(spans) == [(0.0, 1.4), (2.8, 4.5)] and trims == []
+    for word in words:
+        assert any(s.start <= word.start and word.end <= s.end for s in spans), word
+
+
+def test_the_f1_transcript_keeps_every_word_and_no_pause_over_the_explainer_maximum() -> None:
+    """The F1 recording (job 20260927-041728-656506) has one pause over 0.6 s, 0.74 s
+    after 'खिलाओ' at 19.06 s; tightening removes 0.14 s of silence and nothing else."""
+    transcript = Transcript.model_validate_json(F1_TRANSCRIPT.read_text(encoding="utf-8"))
+    words = transcript.words
+    whole = [Span(start=0.0, end=transcript.duration_s)]
+    spans, trims = presenter.tighten(
+        whole, words, max_pause_s=EXPLAINER.cut.max_pause_s, lead_s=EXPLAINER.beats.snap_window_s
+    )
+    assert EXPLAINER.cut.max_pause_s == 0.6
+    assert [(t.after, t.gap_s) for t in trims] == [("खिलाओ", 0.74)]
+    assert presenter.total_duration(spans) == pytest.approx(transcript.duration_s - 0.14, abs=1e-3)
+    assert max(_gaps(spans, words)) <= EXPLAINER.cut.max_pause_s + 1e-9
+    placed = presenter.words_on_cut(spans, words)
+    assert [i for i, _ in placed] == list(range(len(words)))  # every word, once, in order
+    for (_, on_cut), word in zip(placed, words, strict=True):
+        assert on_cut.end - on_cut.start == pytest.approx(word.end - word.start, abs=1e-3)
+    assert spans[0].start == 0.0  # F1's first word starts at 0.0 s: no head to trim
+
+
+def test_cut_list_is_the_kept_spans_minus_the_dropped_ones_in_recording_order() -> None:
+    """055: no cold open, no lift; the cut is the planner's kept spans sorted, minus
+    its drops. The fake plan's cut is the whole six seconds."""
+    fake = _fake_plan()
+    assert _pairs(presenter.cut_list(fake)) == [(0.0, 6.0)]
+    plan = fake.model_copy(update={"cut": CutPlan(
+        keep=[Span(start=4.0, end=6.0), Span(start=0.0, end=2.0), Span(start=2.5, end=3.0)],
+        drop=[Span(start=2.4, end=3.1), Span(start=1.0, end=1.2)],
+    )})  # fmt: skip
+    assert _pairs(presenter.cut_list(plan)) == [(0.0, 1.0), (1.2, 2.0), (4.0, 6.0)]

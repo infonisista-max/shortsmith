@@ -454,12 +454,13 @@ def test_build_inputs_assembles_the_texts_and_the_images_from_the_job(
     assert inputs.category == "science" and "no reference data for science" in inputs.notes
     summary = inputs.plan_summary
     assert "11 beats" in summary and "runtime 6.0 s" in summary
-    assert "full 8%" in summary and "pip 33%" in summary and "off 58%" in summary
+    assert "full 8%" in summary and "pip 42%" in summary and "off 50%" in summary  # 055
     assert "mean beat 0.55 s" in summary and "longest beat 1.00 s" in summary
     assert "1 clamp" in summary and "(6.1)" in summary
     assert "0 rescued" in summary
     assert "origins: " in summary and "web: " in summary and "generated: " in summary
-    assert "hook title: A Short About Nothing" in summary
+    assert "opening: b01 pip photo a1, b02 pip card a2, b03 full presenter_full" in summary
+    assert "hook title" not in summary
     assert "finale word: Made from nothing" in summary
     assert "category: science" in summary
     assert inputs.balance == critic.NO_BALANCE

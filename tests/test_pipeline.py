@@ -579,8 +579,8 @@ class _RetryPlanner(FakePlanner):
         self.picture_feedback.append(feedback)
         plan = super().plan_picture(request)
         if len(self.picture_feedback) <= self.bad_picture:
-            b03 = plan.beats[2].model_copy(update={"motion": None, "enter": "wipe"})
-            return plan.model_copy(update={"beats": [*plan.beats[:2], b03, *plan.beats[3:]]})
+            b04 = plan.beats[3].model_copy(update={"motion": None, "enter": "wipe"})
+            return plan.model_copy(update={"beats": [*plan.beats[:3], b04, *plan.beats[4:]]})
         return plan
 
     def plan_sound(
@@ -610,18 +610,18 @@ def test_a_rejected_picture_plan_is_resent_once_with_the_violations(
     assert _run(job, planner=planner).status == "delivered"
     first, second = planner.picture_feedback
     assert first is None and second is not None
-    assert PicturePlan.model_validate_json(second.previous).beats[2].motion is None
+    assert PicturePlan.model_validate_json(second.previous).beats[3].motion is None
     assert second.violations == [
-        "b03 (4.1): non-presenter beat (photo) has no motion; "
+        "b04 (4.1): non-presenter beat (photo) has no motion; "
         "every non-presenter beat has exactly one",
-        "b03 (9.4): enter 'wipe' is not in broll.enter_transitions "
+        "b04 (9.4): enter 'wipe' is not in broll.enter_transitions "
         "['cut', 'fade', 'whip', 'zoom', 'spring']",
     ]
     assert planner.sound_feedback == [None]
     plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
-    assert plan.beats[2].motion == "ken_burns_in"
+    assert plan.beats[3].motion == "ken_burns_in"
     log = job.log_path.read_text("utf-8")
-    assert "picture plan rejected" in log and "b03 (4.1)" in log
+    assert "picture plan rejected" in log and "b04 (4.1)" in log
 
 
 def test_a_rejected_sound_story_is_resent_once(tmp_path: Path, fixture_clip: Path) -> None:
@@ -652,7 +652,7 @@ def test_a_plan_rejected_twice_fails_the_job_at_planning_with_the_list(
     assert done.record.error.message == pipeline.ERROR_TEXT["planning"]
     if call == "picture":
         assert len(planner.picture_feedback) == 2 and planner.sound_feedback == []
-        assert done.record.error.violations[0].startswith("b03 (4.1)")
+        assert done.record.error.violations[0].startswith("b04 (4.1)")
     else:
         assert len(planner.picture_feedback) == 1 and len(planner.sound_feedback) == 2
         assert done.record.error.violations == [GHOST_CUE]
@@ -1140,10 +1140,10 @@ def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path)
     job = _uploaded(tmp_path, fixture_clip)
     result = pipeline.run_job(
         job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), renderer=FakeRenderer(),
-        gate=FakeGate(), specs=SPECS, detector=presenter.FakeFaceDetector(),
-        max_job_minutes=30, clock=clock,
-    )  # fmt: skip
-    assert result.status == "delivered"
+        gate=FakeGate(), sourcing=_sourcing(), specs=SPECS,
+        detector=presenter.FakeFaceDetector(), max_job_minutes=30, clock=clock,
+    )  # fmt: skip  # 055: the opening needs a source that answers, or the job fails there
+    assert result.status == "delivered", result.record.error
 
 
 class _OverBudgetPlanner(FakePlanner):

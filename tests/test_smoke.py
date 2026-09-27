@@ -90,7 +90,7 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     layout = next(b for b in spec.beats if b.kind == "map").map
     assert layout is not None and [m.source for m in layout.markers] == ["fake", "fake"]
     treatments = {b.beat_id: b.treatment for b in manifest.beats}
-    assert (treatments["b03"], treatments["b04"]) == ("photo", "card")
+    assert (treatments["b01"], treatments["b02"]) == ("photo", "card")  # 055: the opening
     rows = rights.load(job.path)
     assert rows is not None and rights.completeness(rows, manifest, plan) == []
     assert (job.out_dir / "credits.md").read_text("utf-8").startswith("Photo: fake ")
@@ -135,9 +135,13 @@ def test_main_prints_one_line_and_exits_zero(capsys: pytest.CaptureFixture[str])
 
 
 class _ShortTranscriber(Transcriber):
+    """Ten of the twelve words: the last burst is dropped whole, so the fake plan still
+    passes the grammar (a half-kept burst would snap b10 under `min_s` first, 055) and
+    the smoke fails on its own word count."""
+
     def transcribe(self, audio: Path) -> Transcript:
         full = FakeTranscriber().transcribe(audio)
-        return full.model_copy(update={"words": full.words[:3]})
+        return full.model_copy(update={"words": full.words[:10]})
 
 
 def test_failed_assertion_exits_non_zero(capsys: pytest.CaptureFixture[str]) -> None:

@@ -21,7 +21,6 @@ from shortsmith.contracts import (
     CaptionPage,
     CutPlan,
     Finale,
-    Hook,
     PicturePlan,
     Segment,
     Span,
@@ -302,16 +301,13 @@ def _transcript(texts: list[str], *, gap: float = 0.1) -> Transcript:
 
 
 def _plan(beats: list[tuple[str, float, float]], *, keep: list[Span],
-          drop: Sequence[Span] = (), cold_open: Span | None = None,
-          finale: str | None = None, keywords: Sequence[int] = (),
-          runs: Sequence[WordRun] = ()) -> PicturePlan:  # fmt: skip
-    """A plan on the output timeline; the default cold open is empty at the head."""
+          drop: Sequence[Span] = (), finale: str | None = None,
+          keywords: Sequence[int] = (), runs: Sequence[WordRun] = ()) -> PicturePlan:  # fmt: skip
+    """A validated plan: beats on the output timeline, the cut as the grammar left it."""
     return PicturePlan(
         prompt_version="t",
         cut=CutPlan(keep=keep, drop=list(drop)),
         beats=[Beat(id=i, start=s, end=e, mode="pip", kind="photo") for i, s, e in beats],
-        hook=Hook(title="t", cold_open_span=cold_open or Span(start=keep[0].start,
-                  end=keep[0].start), original_position="drop", card_asset_ids=[]),  # fmt: skip
         finale=Finale(beat_id=finale or beats[-1][0], text="t"),
         keywords=list(keywords),
         name_runs=list(runs),
@@ -336,17 +332,18 @@ def test_build_removes_cut_spans_and_moves_times_onto_the_cut_timeline() -> None
     assert boxes[2].start == pytest.approx(e.start - 0.6)
 
 
-def test_build_follows_the_cold_open_lift() -> None:
+def test_build_keeps_the_speakers_order_across_a_tightened_pause() -> None:
+    """055: the validated cut carries the tightened spans; the words stay in order and
+    the ones after the removed silence move earlier by what was removed."""
     transcript = _transcript(["one", "two", "three", "four", "five", "six"], gap=0.5)
-    # Words at 1.0, 1.7, 2.4, 3.1, 3.8, 4.5 (0.2 s each); lift "five six" to the front.
-    lift = Span(start=3.75, end=4.75)
-    plan = _plan([("b1", 0.0, 1.0), ("b2", 1.0, 4.0), ("b3", 4.0, 4.9)],
-                 keep=[Span(start=0.0, end=4.9)], cold_open=lift)  # fmt: skip
+    # Words at 1.0, 1.7, 2.4, 3.1, 3.8, 4.5 (0.2 s each); 0.4 s cut from the pause 3.3-3.8.
+    plan = _plan([("b1", 0.0, 1.0), ("b2", 1.0, 4.3), ("b3", 4.3, 4.5)],
+                 keep=[Span(start=0.0, end=3.35), Span(start=3.75, end=4.9)])  # fmt: skip
     out = captions.build(transcript, plan, SPEC)
     order = [t for p in out.pages for t in p.texts]
-    assert order[:2] == ["five", "six"]
-    first = out.pages[0].words[0]
-    assert first.start == pytest.approx(3.8 - 3.75)
+    assert order == ["one", "two", "three", "four", "five", "six"]
+    five = next(w for p in out.pages for w in p.words if w.text == "five")
+    assert five.start == pytest.approx(3.8 - 0.4)
 
 
 def test_build_hides_the_finale_and_maps_keywords_and_runs_to_the_cut() -> None:

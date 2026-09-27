@@ -139,14 +139,15 @@ class PlanRequest(StrictModel):
 # --- picture plan (decisions 3.1, 3.2, 3.4, 4.1, 4.2, 8.1, 9.2, 9.4) ----------------
 
 Mode = Literal["full", "pip", "off"]
-ReasonTag = Literal["cold_open", "emotional_line", "argument_turn"]
+# 055: `cold_open` left with the lift; a `full` beat is an emotional line or an argument turn.
+ReasonTag = Literal["emotional_line", "argument_turn"]
 
+# 055: `hook_cards` left the tier with the hook; the short opens in `pip` over images.
 Tier1Kind = Literal[
     "photo",
     "card",
     "stamp",
     "lower_third",
-    "hook_cards",
     "finale",
     "presenter_full",
     "presenter_pip",
@@ -214,9 +215,9 @@ class Event(StrictModel):
 class SetPieceItem(StrictModel):
     """One row, pane or cell of a `list`, `split` or `wall` beat (4.1, 5.2; ticket 027).
 
-    `asset_id` points at an asset another beat sources, the way the hook's cards do, so
-    an item adds nothing to the asset count and spends no reuse (4.3). A `list` row may
-    be text only; a `split` pane and a `wall` cell always name one."""
+    `asset_id` points at an asset another beat sources, so an item adds nothing to the
+    asset count and spends no reuse (4.3). A `list` row may be text only; a `split`
+    pane and a `wall` cell always name one."""
 
     text: str = ""
     asset_id: str | None = None
@@ -326,7 +327,11 @@ class Beat(StrictModel):
 
 
 class CutPlan(StrictModel):
-    """Kept and dropped spans of the recording (8.1); the cold-open lift is in `hook`."""
+    """Kept and dropped spans of the recording (8.1 as amended by 055): `drop` removes
+    only silence, breaths and dead air, so every spoken word stays, once, in the
+    speaker's order; the grammar rejects a cut that re-orders or drops speech. Pauses
+    over the style's `cut.max_pause_s` are tightened by code, and the validated plan's
+    `keep` is the tightened list."""
 
     keep: list[Span]
     drop: list[Span] = []
@@ -337,15 +342,6 @@ class CutList(StrictModel):
     `presenter.cut_list` derived them, so gate T10 reads the boundaries that were cut."""
 
     spans: list[Span]
-
-
-class Hook(StrictModel):
-    """The two-beat hook (3.4): cold open lifted from anywhere, then title + cards."""
-
-    title: str
-    cold_open_span: Span
-    original_position: Literal["keep", "drop"]
-    card_asset_ids: list[str]
 
 
 class Finale(StrictModel):
@@ -384,10 +380,15 @@ CATEGORIES: tuple[str, ...] = (
 
 
 class PicturePlan(StrictModel):
+    """The picture call's output (8.1). Beat times are seconds on the recording's
+    timeline as the planner wrote them; the grammar maps them onto the cut (055), so a
+    validated plan's beats are output seconds. The short opens with the speaker's first
+    words over the strongest images of the subject (3.4 as amended by 055): there is no
+    hook object, no lifted line and no title card."""
+
     prompt_version: str
     cut: CutPlan
     beats: list[Beat]
-    hook: Hook
     finale: Finale
     keywords: list[int] = []  # word indices, priority order (6.1)
     name_runs: list[WordRun] = []  # names and numbers never split across pages (6.1)
@@ -602,7 +603,7 @@ class CriticReport(StrictModel):
     flips it). `unavailable` is a critic that could not answer - an API failure, a reply
     that was not the report - with the reason in `notes`; delivery is never blocked by
     it while advisory. `category` is the plan's (10.3); `notes` also carries what the
-    inputs lacked (no reference data for the category, no hook strip)."""
+    inputs lacked (no reference data for the category, no opening strip)."""
 
     status: CriticStatus = "scored"
     lines: list[CriticLine] = []
@@ -733,8 +734,8 @@ class BeatAsset(StrictModel):
 
 class AssetManifest(StrictModel):
     """`work/assets.json`: every unique asset, every sourced beat, and the planned
-    asset ids resolved to the ids actually used (`aliases`; None = no asset) so hook
-    cards and the finale can find theirs. `rescued_max` is the style's
+    asset ids resolved to the ids actually used (`aliases`; None = no asset) so set
+    pieces and the finale can find theirs. `rescued_max` is the style's
     `rescued_max_per_60s` scaled to `runtime_s` (ceil, as the grammar scales maxima)."""
 
     assets: list[AssetRecord]
@@ -897,7 +898,7 @@ class CardBox(StrictModel):
     outer white box, the image that covers its window, the label strip under it, and
     the offset it springs in from. The image is `src` at its real `width`/`height`.
     `scale_from` -> `scale_to` is the Ken Burns inside the window: 1 to 1 (still) on
-    the hook's and the finale's cards, the style's photo motion on a wall cell (027)."""
+    the finale's cards, the style's photo motion on a wall cell (027)."""
 
     src: str
     width: int
@@ -920,24 +921,10 @@ class CardBox(StrictModel):
     scale_to: float = 1.0
 
 
-class HookCardsSpec(StrictModel):
-    """The hook's second beat (3.4): the title in the style's caption typography over
-    the cards of `hook.card_asset_ids` in priority order. Fewer than the style's card
-    count resolved leaves one centred card; none leaves the title alone, never a blank
-    frame."""
-
-    title_lines: list[str]
-    title_font_px: int
-    title_top: float
-    title_line_px: float
-    title_color: str
-    cards: list[CardBox]
-    spring_s: float
-
-
 class FinaleCardSpec(StrictModel):
     """The finale set piece (3.4): the presenter cut in the centre circle, the payoff
-    word under it and the hook's cards around it, over the style gradient."""
+    word under it and the short's first images (the opening's, 055) around it, over the
+    style gradient."""
 
     text: str
     text_font_px: int
@@ -1320,12 +1307,12 @@ class PunchIn(StrictModel):
 class BeatSpec(StrictModel):
     """A plan beat as frame range; `end_frame` is exclusive. A rung-4 rescue arrives
     here as `pip` with no visual (4.4). The set pieces and the two overlay kinds (026,
-    027, 021, 020) ride along resolved: at most one of `hook` / `finale` / `list` / `split` /
+    027, 021, 020) ride along resolved: at most one of `finale` / `list` / `split` /
     `wall` / `chart` / `infographic` / `map`, and at most one landed event (`stamp`,
     `lower_third` or, 029, `counter`; 3.1).
 
     `list` shadows the builtin inside this class body only; no annotation below it
-    needs `list[...]`, and the field name matches its kind as `hook` and `finale` do."""
+    needs `list[...]`, and the field name matches its kind as `finale` does."""
 
     id: str
     start_frame: int
@@ -1337,7 +1324,6 @@ class BeatSpec(StrictModel):
     punch_in: PunchIn | None = None
     stamp: StampSpec | None = None
     lower_third: LowerThirdSpec | None = None
-    hook: HookCardsSpec | None = None
     finale: FinaleCardSpec | None = None
     split: SplitSpec | None = None
     wall: WallSpec | None = None

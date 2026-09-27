@@ -326,8 +326,8 @@ def test_without_a_search_adapter_there_is_simply_no_bed(
 def test_floor_hits_from_the_plan_events(plan: PicturePlan, nums: styles.Sound) -> None:
     hits = {h.beat_id: h for h in sound.floor_hits(plan, nums)}
     assert hits["b02"].hit == "thump" and hits["b02"].trigger == "card_fly_in"
-    assert hits["b03"].hit == "bass" and hits["b03"].trigger == "stamp"
-    assert hits["b04"].hit == "thump"
+    assert "b03" not in hits  # 055: the full beat has no landed event
+    assert hits["b04"].hit == "bass" and hits["b04"].trigger == "stamp"
     assert hits["b06"].hit == "drum" and hits["b06"].trigger == "money_reveal"
     assert hits["b08"].hit == "bass" and hits["b08"].trigger in ("header", "reveal")
     assert hits["b10"].hit == "thump"
@@ -339,23 +339,23 @@ def test_floor_hits_from_the_plan_events(plan: PicturePlan, nums: styles.Sound) 
 def test_nothing_on_whips_punch_ins_rings_or_lower_thirds(
     plan: PicturePlan, nums: styles.Sound
 ) -> None:
-    """7.1: the four events that never earn a hit. b01 is a `full` punch-in, b05 a map
-    with no event; b04 enters on a whip and carries a lower-third, and earns its thump
+    """7.1: the four events that never earn a hit. b03 is a `full` punch-in, b05 a map
+    with no event; b02 enters on a whip and carries a lower-third, and earns its thump
     from the card it flies in, never from either of those."""
     hit_ids = {h.beat_id for h in sound.floor_hits(plan, nums)}
-    assert "b01" not in hit_ids and "b05" not in hit_ids
+    assert "b03" not in hit_ids and "b05" not in hit_ids
     bare = plan.model_copy(
         update={
             "beats": [
                 b.model_copy(update={"kind": "photo", "enter": "whip",
                                      "event": Event(kind="ring")})  # fmt: skip
-                if b.id == "b04"
+                if b.id == "b02"
                 else b
                 for b in plan.beats
             ]
         }
     )
-    assert "b04" not in {h.beat_id for h in sound.floor_hits(bare, nums)}
+    assert "b02" not in {h.beat_id for h in sound.floor_hits(bare, nums)}
 
 
 def test_no_transition_triggers_a_cue(
@@ -397,7 +397,7 @@ def test_the_floor_classes_come_from_the_style(plan: PicturePlan, nums: styles.S
         update={"floor_hits": {"drum": ["stamp"], "bass": ["money_reveal"], "thump": []}}
     )
     hits = {h.beat_id: h.hit for h in sound.floor_hits(plan, swapped)}
-    assert hits["b03"] == "drum" and hits["b06"] == "bass"
+    assert hits["b04"] == "drum" and hits["b06"] == "bass"
     assert "b02" not in hits, "card_fly_in earns nothing when the style drops it"
 
 
@@ -470,10 +470,10 @@ def test_one_cue_per_beat_and_the_planner_wins_the_slot(
     by_beat = {c.beat_id: c for c in placed.cues}
     # The five beats the fake story cues are the planner's; the rest come from the floor.
     assert {b: c.source for b, c in by_beat.items()} == {
-        "b01": "planner", "b02": "planner", "b03": "planner", "b04": "floor",
+        "b01": "planner", "b02": "planner", "b04": "planner",
         "b06": "planner", "b08": "floor", "b10": "floor", "b11": "planner",
     }  # fmt: skip
-    assert by_beat["b04"].entry_id == "sfx_thump", "a floor cue plays its class's sample"
+    assert by_beat["b10"].entry_id == "sfx_thump", "a floor cue plays its class's sample"
     assert by_beat["b01"].hit == "", "a planner cue on a beat the floor never claims"
 
 

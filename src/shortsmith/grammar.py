@@ -1,32 +1,45 @@
-"""The plan validator (PRD `grammar`; decisions 2.3, 3.1, 3.2, 3.4, 4.1, 4.2, 4.3, 6.1,
-7.3, 8.2, 9.4). Pure code over PicturePlan / SoundStory, Transcript and StyleSpec.
+"""The plan validator (PRD `grammar`; decisions 2.3, 3.1, 3.2, 3.4 as amended by 055,
+4.1, 4.2, 4.3, 6.1, 7.3, 8.2, 9.4). Pure code over PicturePlan / SoundStory,
+Transcript and StyleSpec.
 
 Three outcomes per 8.2. Clamps are fixes code makes without changing intent, each
-logged as a `Clamp` citing the decision whose number it applied: beat boundaries
-snapped to the nearest word end within `beats.snap_window_s` (3.1), keywords trimmed
-to `captions.emphasis_max_ratio` (6.1), planner cues dropped past the 7.3 caps, the
-mood curve clipped to `sound.swell_max_db` / `sound.drop_min_db` (7.3), hashtags to
-five and the title to a hundred characters (8.2). Rejections come back as a
-`Violations` list, every line carrying the beat id (or `plan`) and the decision
-number, which is what the planner is re-sent on its one retry. Warnings (no asset
-reused, a title that ignores a numeric hook wish) ride on the ValidatedPlan for the
+logged as a `Clamp` citing the decision whose number it applied: pauses between kept
+words tightened to `cut.max_pause_s` and the head before the first word trimmed to
+the snap window (3.4 / 055), beat boundaries snapped to the nearest word end within
+`beats.snap_window_s` (3.1), keywords trimmed to `captions.emphasis_max_ratio` (6.1),
+planner cues dropped past the 7.3 caps, the mood curve clipped to
+`sound.swell_max_db` / `sound.drop_min_db` (7.3), hashtags to five and the title to a
+hundred characters (8.2). Rejections come back as a `Violations` list, every line
+carrying the beat id (or `plan`) and the decision number, which is what the planner is
+re-sent on its one retry. Warnings (no asset reused) ride on the ValidatedPlan for the
 contact sheet.
 
 Every count and length comes from the style front matter (`styles.StyleSpec`), so a
 style changes the grammar without code (3.2). Per-60 s counts scale with the plan's
-runtime: floor for minimums, ceil for maximums. Beat times are output (cut-timeline)
-seconds; word times are recording seconds, so a boundary is mapped through the cut
-list (`presenter.cut_list`) before it meets the transcript.
+runtime: floor for minimums, ceil for maximums.
+
+Timelines (055). The planner writes beat times in recording seconds, the timeline the
+transcript is on; word times are recording seconds too. The validator first checks the
+cut (`_speech`): the kept spans in the speaker's order, every word kept once and never
+cut into - a plan that lifts a line to the front or drops a spoken word is rejected
+naming the span. It then derives the cut list (`presenter.cut_list`, tightened by
+`presenter.tighten`) and maps every beat boundary onto the output timeline
+(`_on_output`), so a validated plan's beats are output seconds and its `cut.keep` is
+the tightened list; every later rule reads output seconds and maps a boundary back
+through the cut (`presenter.source_time`) before it meets a word. `timeline="output"`
+tells the validator the plan it is given is already validated (T8 re-validates
+`plan.validated.json`), so nothing is mapped twice.
+
+The opening (3.4 as amended by 055): the first `beats.opening_beats_min` beats are
+`presenter.opening_mode` beats over a full-screen image (a `photo` or a `card` with an
+asset), the last of them ending by `beats.opening_max_s`; when the job has owner
+references the first beat shows one. No hook object, no lifted line, no title card.
 
 Two readings this module fixes where the decisions leave room. Density (3.1): visual
 events are beat starts and landed events; a landed event is taken to land mid-beat,
 so a beat with one event may run to twice `density_gap_max_s` and a beat with none to
-the gap itself. Set pieces (list, chart, split, wall, finale, hook cards), beats
-with overlays and the cold open (its punch-in, 3.4) change on their own and are not
-measured inside. Cold-open repeats (3.4): `presenter.cut_list` removes the lifted
-span from the body under `drop`, so a repeat can only be deliberate (`keep`), and
-`keep` on a span the cut drops is the contradiction this module rejects; a plan that
-forgot the repeat in its runtime fails the tiling rule with the reason spelled out.
+the gap itself. Set pieces (list, chart, split, wall, finale) and beats with overlays
+change on their own and are not measured inside.
 """
 
 from __future__ import annotations
@@ -35,6 +48,7 @@ import math
 import re
 from collections import Counter
 from collections.abc import Sequence
+from typing import Literal
 
 from shortsmith import presenter
 from shortsmith.contracts import (
@@ -43,6 +57,7 @@ from shortsmith.contracts import (
     Beat,
     Clamp,
     Cue,
+    CutPlan,
     MoodPoint,
     PicturePlan,
     PlanReference,
@@ -56,14 +71,18 @@ from shortsmith.contracts import (
 )
 from shortsmith.styles import StyleSpec
 
+Timeline = Literal["recording", "output"]
+
 EPS = 1e-6
+WORD_EDGE_TOL_S = 0.005  # a cut edge this close to a word's edge is on it, not inside it
 CONTIGUITY_TOL_S = 0.011  # one frame at 90 fps, the same slack T3 gives the render
 HASHTAGS_MAX = 5  # 8.2
 TITLE_MAX_CHARS = 100  # 8.2
 PRESENTER_KINDS = frozenset({"presenter_full", "presenter_pip"})
-FIXED_MOTION_KINDS = frozenset({"hook_cards", "finale"})  # motion comes from the spec table
+FIXED_MOTION_KINDS = frozenset({"finale"})  # motion comes from the spec table
 SET_PIECE_KINDS = frozenset({"list", "chart", "split", "wall", "finale"})  # 3.1
-DENSITY_EXEMPT_KINDS = SET_PIECE_KINDS | {"hook_cards"}
+DENSITY_EXEMPT_KINDS = SET_PIECE_KINDS
+OPENING_KINDS = frozenset({"photo", "card"})  # 055: a full-screen image behind the circle
 ITEM_KINDS = frozenset({"list", "split", "wall"})  # 027: the set pieces with own content
 TITLED_KINDS = frozenset({"list", "split"})  # a header (nkb_04) and a title strip (5.2)
 # 021: a chart carries its title strip in the same field, but needs no items.
@@ -75,10 +94,6 @@ MAP_OVERLAYS = frozenset({"pin_drop", "route_arrow", "object_path"})
 ROUTED_OVERLAYS = frozenset({"route_arrow", "object_path"})
 MAX_MAP_LAT = 85.0  # Mercator's edge; a bbox past it has nothing to draw
 TIER2_SUBSTITUTES: dict[str, str] = {"parallax": "photo", "vector_illustration": "card"}
-NUMBER_WORDS = {
-    "1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six",
-    "7": "seven", "8": "eight", "9": "nine", "10": "ten", "12": "twelve",
-}  # fmt: skip
 
 
 class Violations(StrictModel):
@@ -107,11 +122,16 @@ def validate(
     *,
     brief: str = "",
     must_use: Sequence[str] = (),
+    references: Sequence[str] = (),
+    timeline: Timeline = "recording",
 ) -> ValidatedPlan | Violations:
     """Both halves at once; the sound story is checked against the snapped picture
     when the picture passes, against the raw one otherwise so every violation is
     listed."""
-    pic = validate_picture(plan, transcript, spec, brief=brief, must_use=must_use)
+    pic = validate_picture(
+        plan, transcript, spec, brief=brief, must_use=must_use, references=references,
+        timeline=timeline,
+    )  # fmt: skip
     picture = pic.picture if isinstance(pic, PictureCheck) else plan
     snd = validate_sound(story, picture, spec)
     items: list[Violation] = []
@@ -140,24 +160,41 @@ def validate_picture(
     *,
     brief: str = "",
     must_use: Sequence[str] = (),
+    references: Sequence[str] = (),
+    timeline: Timeline = "recording",
 ) -> PictureCheck | Violations:
+    """`references` are the owner's reference ids (the opening shows one first, 055);
+    `timeline` says whether the beats are the planner's recording seconds or an
+    already validated plan's output seconds (see the module docstring)."""
     if not plan.beats:
         return Violations(items=[Violation(rule="3.1", message="the plan has no beats")])
     found: list[Violation] = []
     clamps: list[Clamp] = []
     warnings: list[str] = []
-    spans = presenter.cut_list(plan)
-    runtime = presenter.total_duration(spans)
     words = transcript.words
 
-    found += _tiling(plan, runtime)
-    beats, snap_clamps, snap_found = _snap(plan.beats, spans, words, spec.beats.snap_window_s)
+    found += _speech(plan.cut, words)
+    if found:
+        return Violations(items=found)  # the cut is not the recording's speech: stop here
+    spans, cut, cut_clamps = cut_spans(plan, words, spec)
+    clamps += cut_clamps
+    runtime = presenter.total_duration(spans)
+    if timeline == "recording":
+        beats, map_found = _on_output(plan.beats, spans, words)
+        if map_found:
+            return Violations(items=map_found)
+    else:
+        beats = list(plan.beats)
+    plan = plan.model_copy(update={"beats": beats, "cut": cut})
+
+    found += _tiling(beats, runtime)
+    beats, snap_clamps, snap_found = _snap(beats, spans, words, spec.beats.snap_window_s)
     clamps += snap_clamps
     found += snap_found
     found += _lengths(beats, spec)
     found += _density(beats, spec)
     found += _presenter(beats, plan, spec)
-    found += _hook(beats, plan, words, spec)
+    found += _opening(beats, spec, references)
     found += _kinds(beats, spec)
     found += _items(beats, spec)
     found += _charts(beats, spec)
@@ -168,9 +205,8 @@ def validate_picture(
     found += asset_found
     warnings += asset_warnings
     found += _transitions(beats, spec)
-    found += _must_use(beats, plan, must_use)
+    found += _must_use(beats, must_use)
     found += _category(plan)
-    warnings += _hook_wish(plan, brief)
 
     if found:
         return Violations(items=found)
@@ -186,9 +222,126 @@ def _len(beat: Beat) -> float:
     return round(beat.end - beat.start, 3)
 
 
-def _tiling(plan: PicturePlan, runtime: float) -> list[Violation]:
+# --- the cut: the speaker's order, silence only (3.4 as amended by 055) ---------------------
+
+
+def _span_text(span: Span) -> str:
+    return f"{span.start:g}-{span.end:g} s"
+
+
+def _cut_into(word: Word, cut: CutPlan) -> bool:
+    """Whether the cut removes or cuts into `word`: it lies outside every kept span or
+    overlaps a dropped one, beyond `WORD_EDGE_TOL_S` at either edge."""
+    tol = WORD_EDGE_TOL_S
+    kept = any(k.start <= word.start + tol and word.end <= k.end + tol for k in cut.keep)
+    dropped = any(d.start < word.end - tol and d.end > word.start + tol for d in cut.drop)
+    return not kept or dropped
+
+
+def _speech(cut: CutPlan, words: Sequence[Word]) -> list[Violation]:
+    """3.4 (055): the kept spans play in the speaker's order and every transcript word
+    is kept, whole, exactly once; `cut.drop` removes only silence. A plan that lifts a
+    line to the front lists its span before an earlier one, and is rejected naming it."""
+    found: list[Violation] = []
+    for a, b in zip(cut.keep, cut.keep[1:], strict=False):
+        if b.start < a.end - EPS:
+            found.append(
+                _v(
+                    "3.4",
+                    None,
+                    f"cut.keep is out of the speaker's order: {_span_text(b)} is listed after "
+                    f"{_span_text(a)}; nothing is lifted or re-ordered, the short opens with "
+                    "the first spoken word",
+                )
+            )
+            break
+    run: list[Word] = []
+
+    def flush() -> None:
+        if not run:
+            return
+        text = " ".join(w.text for w in run)
+        span = Span(start=run[0].start, end=run[-1].end)
+        found.append(
+            _v(
+                "3.4",
+                None,
+                f"the cut removes or cuts into spoken words {text!r} ({_span_text(span)}); "
+                "cut.drop removes only silence, breaths and dead air, and every word stays",
+            )
+        )
+        run.clear()
+
+    for word in words:
+        if _cut_into(word, cut):
+            run.append(word)
+        else:
+            flush()
+    flush()
+    return found
+
+
+def cut_spans(
+    plan: PicturePlan, words: Sequence[Word], spec: StyleSpec
+) -> tuple[list[Span], CutPlan, list[Clamp]]:
+    """The cut list of `plan` with its pauses tightened (055): the spans, the `cut` the
+    validated plan carries (the planner's own when nothing changed, else the tightened
+    spans as `keep`), and one clamp naming every trim. Re-running on a tightened cut
+    changes nothing."""
+    spans, trims = presenter.tighten(
+        presenter.cut_list(plan), words,
+        max_pause_s=spec.cut.max_pause_s, lead_s=spec.beats.snap_window_s,
+    )  # fmt: skip
+    if not trims:
+        return spans, plan.cut, []
+    removed = sum(t.end - t.start for t in trims)
+    parts = [
+        f"{t.gap_s:g} s of head before the first word cut to {spec.beats.snap_window_s:g} s"
+        if t.after is None
+        else f"{t.gap_s:g} s pause after {t.after!r} ({t.start:g} s) tightened to "
+        f"{spec.cut.max_pause_s:g} s"
+        for t in trims
+    ]
+    clamp = Clamp(
+        rule="3.4",
+        message=(
+            f"cut: {len(trims)} silence{'s' if len(trims) != 1 else ''} removed "
+            f"({removed:.3f} s; cut.max_pause_s {spec.cut.max_pause_s:g}): " + "; ".join(parts)
+        ),
+    )
+    return spans, CutPlan(keep=spans, drop=[]), [clamp]
+
+
+def _on_output(
+    beats: Sequence[Beat], spans: Sequence[Span], words: Sequence[Word]
+) -> tuple[list[Beat], list[Violation]]:
+    """Beat boundaries from recording seconds onto the cut (055). The first beat owns
+    the lead before the first word: a start at or before that word maps to 0. A beat
+    that lies wholly inside removed audio has no length on the cut and is rejected."""
+    out: list[Beat] = []
+    found: list[Violation] = []
+    first_word = words[0].start if words else None
+    for i, b in enumerate(beats):
+        start = presenter.output_time(spans, b.start)
+        if i == 0 and first_word is not None and b.start <= first_word + EPS:
+            start = 0.0
+        end = presenter.output_time(spans, b.end)
+        if end - start <= EPS:
+            found.append(
+                _v(
+                    "3.1",
+                    b.id,
+                    f"beat {b.start:g}-{b.end:g} s on the recording lies inside removed audio "
+                    "and has no length on the cut",
+                )
+            )
+            continue
+        out.append(b.model_copy(update={"start": round(start, 3), "end": round(end, 3)}))
+    return out, found
+
+
+def _tiling(beats: Sequence[Beat], runtime: float) -> list[Violation]:
     """3.1: beats tile the cut runtime with no gaps."""
-    beats = plan.beats
     found: list[Violation] = []
     if abs(beats[0].start) > EPS:
         found.append(
@@ -205,14 +358,11 @@ def _tiling(plan: PicturePlan, runtime: float) -> list[Violation]:
                 )
             )
     if abs(beats[-1].end - runtime) > CONTIGUITY_TOL_S:
-        why = ""
-        if plan.hook.original_position == "keep":
-            why = " (the cold open plays twice under hook.original_position 'keep')"
         found.append(
             _v(
                 "3.1",
                 None,
-                f"beats end at {beats[-1].end:g} s but the cut runs {runtime:.3f} s{why}",
+                f"beats end at {beats[-1].end:g} s but the cut runs {runtime:.3f} s",
             )
         )
     return found
@@ -311,9 +461,9 @@ def _density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
     at most `density_gap_max_s`; see the module docstring for the mid-beat reading."""
     gap_max = spec.beats.density_gap_max_s
     found: list[Violation] = []
-    for i, b in enumerate(beats):
-        if i == 0 or b.kind in DENSITY_EXEMPT_KINDS or b.overlays:
-            continue  # the cold open carries its punch-in (3.4)
+    for b in beats:
+        if b.kind in DENSITY_EXEMPT_KINDS or b.overlays:
+            continue
         length = _len(b)
         landed = b.event.kind != "none"
         gap = round(length / 2, 3) if landed else length
@@ -332,7 +482,7 @@ def _density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
 
 def _presenter(beats: Sequence[Beat], plan: PicturePlan, spec: StyleSpec) -> list[Violation]:
     """3.2: modes, reason tags, never-consecutive `full`, the full fraction, pip and
-    off run caps, the hook beat's mode and the finale's."""
+    off run caps, and the finale's mode."""
     pres = spec.presenter
     found: list[Violation] = []
     total = sum(_len(b) for b in beats)
@@ -393,14 +543,6 @@ def _presenter(beats: Sequence[Beat], plan: PicturePlan, spec: StyleSpec) -> lis
                     f"{run_len} consecutive {b.mode} beats, over presenter.{b.mode}_max_run {cap}",
                 )
             )
-    if beats[0].mode not in pres.hook_modes:
-        found.append(
-            _v(
-                "3.2",
-                beats[0].id,
-                f"hook beat is {beats[0].mode!r}; presenter.hook_modes {pres.hook_modes}",
-            )
-        )
     finale = next((b for b in beats if b.id == plan.finale.beat_id), None)
     if finale is None:
         found.append(_v("3.2", None, f"finale beat {plan.finale.beat_id!r} is not in the plan"))
@@ -419,91 +561,48 @@ def _presenter(beats: Sequence[Beat], plan: PicturePlan, spec: StyleSpec) -> lis
     return found
 
 
-def _hook(
-    beats: Sequence[Beat], plan: PicturePlan, words: Sequence[Word], spec: StyleSpec
-) -> list[Violation]:
-    """3.4: the two-beat shape, slot lengths, title word count, card ids, the lifted
-    span on word boundaries, `keep` consistent with the cut."""
+def _opening(beats: Sequence[Beat], spec: StyleSpec, references: Sequence[str]) -> list[Violation]:
+    """3.4 as amended by 055: the first `beats.opening_beats_min` beats are
+    `presenter.opening_mode` beats over a full-screen image (a `photo` or `card` with
+    an asset) of the main subject, the last of them ending by `beats.opening_max_s`;
+    with owner references, the first beat shows one of them."""
     nums = spec.beats
+    n = min(nums.opening_beats_min, len(beats))
+    mode = spec.presenter.opening_mode
     found: list[Violation] = []
-    cold = beats[0]
-    if cold.mode != "full" or cold.reason != "cold_open":
-        found.append(
-            _v(
-                "3.4",
-                cold.id,
-                "the first beat must be the full cold open tagged 'cold_open' "
-                f"(it is {cold.mode}/{cold.reason})",
-            )
-        )
-    length = _len(cold)
-    if length < nums.cold_open_min_s - EPS or length > nums.cold_open_max_s + EPS:
-        found.append(
-            _v(
-                "3.4",
-                cold.id,
-                f"cold open is {length:g} s, outside beats.cold_open_min_s-beats.cold_open_max_s "
-                f"{nums.cold_open_min_s:g}-{nums.cold_open_max_s:g} s",
-            )
-        )
-    if len(beats) < 2:
-        found.append(_v("3.4", None, "the plan needs an off hook-cards beat after the cold open"))
-        cards = cold
-    else:
-        cards = beats[1]
-        if cards.kind != "hook_cards" or cards.mode != "off":
+    for b in beats[:n]:
+        image = b.kind in OPENING_KINDS and bool(b.asset_id)
+        if b.mode != mode or not image:
+            what = f"{b.mode}/{b.kind}" + ("" if b.asset_id else " with no asset")
             found.append(
                 _v(
                     "3.4",
-                    cards.id,
-                    f"the second beat must be off hook cards (it is {cards.mode}/{cards.kind})",
+                    b.id,
+                    f"opening beat is {what}; the first {nums.opening_beats_min} beats are "
+                    f"{mode} over a full-screen image ({' or '.join(sorted(OPENING_KINDS))}) "
+                    "of the main subject, the speaker's own first words, no hook title or cards",
                 )
             )
-        length = _len(cards)
-        if length < nums.hook_cards_min_s - EPS or length > nums.hook_cards_max_s + EPS:
+    if n:
+        last = beats[n - 1]
+        if last.end > nums.opening_max_s + EPS:
             found.append(
                 _v(
                     "3.4",
-                    cards.id,
-                    f"hook cards run {length:g} s, outside "
-                    "beats.hook_cards_min_s-beats.hook_cards_max_s "
-                    f"{nums.hook_cards_min_s:g}-{nums.hook_cards_max_s:g} s",
+                    last.id,
+                    f"the opening's {n} beats run to {last.end:g} s, past beats.opening_max_s "
+                    f"{nums.opening_max_s:g} s; the opening is quick beats over the first "
+                    "sentence",
                 )
             )
-    title_words = len(plan.hook.title.split())
-    if title_words > nums.hook_title_max_words:
-        found.append(
-            _v(
-                "3.4",
-                cards.id,
-                f"hook title has {title_words} words, over beats.hook_title_max_words "
-                f"{nums.hook_title_max_words}",
-            )
-        )
-    assets = {b.asset_id for b in beats if b.asset_id}
-    missing = [i for i in plan.hook.card_asset_ids if i not in assets]
-    if missing:
-        found.append(_v("3.4", cards.id, f"hook card asset ids {missing} are not plan assets"))
-    span = plan.hook.cold_open_span
-    for edge, t in (("start", span.start), ("end", span.end)):
-        word = _inside(words, t)
-        if word is not None:
+        first = beats[0]
+        if references and first.asset_id not in references:
             found.append(
                 _v(
                     "3.4",
-                    cold.id,
-                    f"cold_open_span {edge} {t:g} s is inside the word {word.text!r} "
-                    f"({word.start:g}-{word.end:g} s)",
-                )
-            )
-    if plan.hook.original_position == "keep":
-        dropped = any(d.start <= span.start and span.end <= d.end for d in plan.cut.drop)
-        if dropped:
-            found.append(
-                _v(
-                    "3.4",
-                    cold.id,
-                    "hook.original_position is 'keep' but cut.drop removes the cold_open_span",
+                    first.id,
+                    f"the first beat shows {first.asset_id!r}, not one of the owner's references "
+                    f"({', '.join(references)}); the opening shows the owner's image first",
                 )
             )
     return found
@@ -803,13 +902,13 @@ def _assets(
     beats: Sequence[Beat], runtime: float, spec: StyleSpec
 ) -> tuple[list[Violation], list[str]]:
     """4.3: unique assets inside the per-60 s range, `reuse_max` showings per asset,
-    a warning when nothing is reused. Hook cards are a montage of plan assets and are
-    not showings."""
+    a warning when nothing is reused. Set-piece items are a montage of plan assets and
+    are not showings."""
     nums = spec.broll
     found: list[Violation] = []
     warnings: list[str] = []
     unique = {b.asset_id for b in beats if b.asset_id}
-    uses = Counter(b.asset_id for b in beats if b.asset_id and b.kind != "hook_cards")
+    uses = Counter(b.asset_id for b in beats if b.asset_id)
     scale = runtime / 60
     lo = math.floor(nums.unique_assets_min_per_60s * scale + EPS)
     hi = math.ceil(nums.unique_assets_max_per_60s * scale - EPS)
@@ -883,13 +982,13 @@ def _transitions(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
     return found
 
 
-def _must_use(
-    beats: Sequence[Beat], plan: PicturePlan, must_use: Sequence[str]
-) -> list[Violation]:
-    """2.3: every reference the brief marks must-use appears in the plan."""
-    used = {b.asset_id for b in beats if b.asset_id} | set(plan.hook.card_asset_ids)
+def _must_use(beats: Sequence[Beat], must_use: Sequence[str]) -> list[Violation]:
+    """2.3: every reference the brief marks must-use appears in the plan, on a beat or
+    as a set-piece item."""
+    used = {b.asset_id for b in beats if b.asset_id}
+    used |= {i.asset_id for b in beats for i in b.items if i.asset_id}
     return [
-        _v("2.3", None, f"must-use reference {ref!r} is not used by any beat or hook card")
+        _v("2.3", None, f"must-use reference {ref!r} is not used by any beat or set-piece item")
         for ref in must_use
         if ref not in used
     ]
@@ -907,20 +1006,6 @@ def _category(plan: PicturePlan) -> list[Violation]:
             f"category {plan.category!r} is not one of {', '.join(CATEGORIES)}",
         )
     ]
-
-
-def _hook_wish(plan: PicturePlan, brief: str) -> list[str]:
-    """3.4: a title that ignores a numeric hook wish is a warning, never a rejection."""
-    match = re.search(r"hook wish:\s*([^.\n]*)", brief, re.IGNORECASE)
-    if match is None:
-        return []
-    wish = match.group(1).strip()
-    title = plan.hook.title.lower()
-    for number in re.findall(r"\d+", wish):
-        if number in title or NUMBER_WORDS.get(number, "\0") in title:
-            continue
-        return [f"plan (3.4): the hook title ignores the numeric hook wish {wish!r}"]
-    return []
 
 
 def _clamp_fields(

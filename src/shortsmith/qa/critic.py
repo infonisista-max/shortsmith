@@ -102,10 +102,12 @@ PIP_LABEL = (
     "presenter circle shows them, with the detector's face box drawn on each."
 )
 HOOK_LABEL = "Hook strip: the first 2 s of the short at 4 fps, left to right."
+OPENING_SUMMARY_BEATS = 3  # the plan summary names the opening beats (055)
 
 RUBRIC = (
-    ("E1", "hook", "the first two seconds: a cold open that punches in on a face, then a "
-     "title and cards that earn the next ten seconds"),
+    ("E1", "hook", "the first two seconds: the speaker's own first words, in the circle, "
+     "over the strongest full-screen images of the subject; no title card, and the "
+     "images earn the next ten seconds"),
     ("E2", "broll_relevance", "every picture shows what its beat is about; cards and "
      "photos match the words, set pieces montage the short's own pictures"),
     ("E3", "mode_variation", "full, PIP and off alternate; no long run of one mode, the "
@@ -118,8 +120,8 @@ RUBRIC = (
      "lower third of it, never a tight face crop"),
     ("E7", "sound", "a quiet bed under the voice with short hits on stamps, reveals and "
      "the finale; no sweeps, no whooshes, nothing on cuts"),
-    ("E8", "payoff", "the finale answers the hook; a callback, a reused asset or a number "
-     "closes the loop the hook opened"),
+    ("E8", "payoff", "the finale answers the opening; a callback, a reused asset or a "
+     "number closes the loop the opening line opened"),
     ("E9", "integrity", "every asset credited or disclosed, no watermark, no meme, no "
      "text inside a generated picture, numbers drawn from real data"),
     ("E10", "embarrassment", "nothing the presenter would be embarrassed to have posted: "
@@ -274,8 +276,8 @@ def plan_summary(
     plan: PicturePlan, validated: ValidatedPlan | None, manifest: AssetManifest | None
 ) -> str:
     """The 10.3 plan summary in plain lines: beat count and lengths, mode fractions of
-    the runtime, density, kinds, overlays, events, transitions, the hook and the finale,
-    the clamps and warnings, the assets by origin and the rescued beats."""
+    the runtime, density, kinds, overlays, events, transitions, the opening beats and
+    the finale, the clamps and warnings, the assets by origin and the rescued beats."""
     beats = plan.beats
     lengths = [b.end - b.start for b in beats]
     runtime = sum(lengths)
@@ -304,8 +306,10 @@ def plan_summary(
         f"overlays: {_counts(overlays)}",
         f"landed events: {_counts(events)}",
         f"enter transitions: {_counts(enters)}",
-        f"hook title: {plan.hook.title} (cold open {plan.hook.cold_open_span.start:g}-"
-        f"{plan.hook.cold_open_span.end:g} s, original {plan.hook.original_position})",
+        "opening: " + ", ".join(
+            f"{b.id} {b.mode} {b.kind}" + (f" {b.asset_id}" if b.asset_id else "")
+            for b in beats[:OPENING_SUMMARY_BEATS]
+        ) + " (the speaker's first words, nothing lifted)",
         f"finale word: {plan.finale.text}",
     ]
     if validated is not None:

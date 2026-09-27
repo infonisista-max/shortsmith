@@ -54,10 +54,12 @@ def test_load_all_loads_the_four_specs_and_only_explainer_is_shipped(
         assert spec.aliases and name in spec.aliases
 
 
-def test_every_spec_carries_the_seven_key_groups_and_the_five_prose_sections(
+def test_every_spec_carries_the_eight_key_groups_and_the_five_prose_sections(
     specs: dict[str, StyleSpec],
 ) -> None:
-    assert KEY_GROUPS == ("aliases", "beats", "presenter", "broll", "captions", "sound", "finale")
+    assert KEY_GROUPS == (
+        "aliases", "beats", "presenter", "broll", "captions", "sound", "finale", "cut",
+    )  # fmt: skip
     assert PROSE_SECTIONS == ("Beat grammar", "B-roll", "Captions", "Sound", "Finale")
     for spec in specs.values():
         numbers = spec.numbers()
@@ -79,8 +81,43 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "2", spec.name  # the front matter changed (035)
+        assert spec.version == "3", spec.name  # the front matter changed again (055)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
+
+
+def test_every_style_opens_in_pip_over_images_and_no_style_has_hook_cards(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """055 (3.4 as amended): every style opens with the speaker's first words as two or
+    three quick pip beats over full-screen images; the hook fields, the hook-cards kind
+    and the `cold_open` reason are gone from every front matter; each style names the
+    pause it tightens to."""
+    for spec in specs.values():
+        assert (spec.beats.opening_beats_min, spec.beats.opening_beats_max) == (2, 3), spec.name
+        assert spec.beats.opening_max_s >= 5.0, spec.name
+        assert spec.presenter.opening_mode == "pip", spec.name
+        assert "cold_open" not in spec.presenter.full_reasons, spec.name
+        assert "hook_cards" not in spec.broll.kinds, spec.name
+        assert "hook_cards" not in spec.requires_components, spec.name
+        assert "hook_cards" not in spec.broll.motion, spec.name
+        assert spec.broll.motion["finale"]["cards"] == 3, spec.name
+        assert spec.cut.max_pause_s > spec.beats.snap_window_s, spec.name
+        numbers = spec.numbers()
+        for gone in ("cold_open_min_s", "hook_cards_min_s", "hook_title_max_words"):
+            assert gone not in numbers["beats"], (spec.name, gone)
+        assert "hook_modes" not in numbers["presenter"], spec.name
+    assert specs["explainer"].cut.max_pause_s == 0.6
+    assert specs["educational"].cut.max_pause_s == 0.8
+
+
+def test_a_spec_without_the_cut_group_or_the_opening_numbers_fails_to_load() -> None:
+    text = (styles.STYLES_DIR / "explainer.md").read_text(encoding="utf-8")
+    without_cut = text.replace("cut:\n  max_pause_s: 0.6", "")
+    with pytest.raises(StyleError, match="missing key group 'cut'"):
+        styles.parse(without_cut, name="explainer")
+    without_opening = text.replace("  opening_max_s: 5.0\n", "")
+    with pytest.raises(StyleError, match="opening_max_s"):
+        styles.parse(without_opening, name="explainer")
 
 
 def test_forbidden_lists_ban_sweeps_and_risers_and_no_longer_chimes_or_ticks(
@@ -99,7 +136,7 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.presenter.modes == ["full", "pip", "off"]  # 3.2
     assert ex.presenter.full_max_fraction == 0.25 and ex.presenter.full_never_consecutive
     assert (ex.presenter.pip_max_run, ex.presenter.off_max_run) == (6, 3)
-    assert ex.presenter.full_reasons == ["cold_open", "emotional_line", "argument_turn"]
+    assert ex.presenter.full_reasons == ["emotional_line", "argument_turn"]  # 055: no cold open
     assert (ex.pip.diameter, ex.pip.large_face_diameter, ex.pip.chin_anchor) == (300, 340, 0.82)
     assert ex.pip.large_face_ratio == 0.45  # 3.3
     assert ex.broll.enter_transitions == ["cut", "fade", "whip", "zoom", "spring"]  # 9.4
@@ -120,9 +157,10 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert (ex.finale.mode, ex.finale.min_s, ex.finale.max_s) == ("off", 0.8, 1.2)
     assert (ex.budget.judge_max_calls, ex.budget.search_max_queries) == (40, 60)  # 5.6
     assert ex.budget.gen_max_per_short == 8  # 5.5
-    # 030: the full tier-1 list, the two B-roll treatments and the six transitions (9.2, 9.4).
+    # 030: the full tier-1 list, the two B-roll treatments and the six transitions (9.2, 9.4);
+    # 055 removed `hook_cards`.
     assert ex.requires_components == [
-        "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
+        "captions", "pip", "photo", "card", "stamp", "lower_third", "finale",
         "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
         "pin_drop", "route_arrow", "object_path",
         "cut", "fade", "whip", "zoom", "spring", "wipe",
@@ -140,8 +178,10 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.palette.accent == "#FFD60A"
 
 
+# 055: `hook_cards` stays exported by the Node project (its component is still built) but
+# no style requires it, so it is not in the list a shipped spec must cover.
 TIER1_REGISTRY = [
-    "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
+    "captions", "pip", "photo", "card", "stamp", "lower_third", "finale",
     "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
     "pin_drop", "route_arrow", "object_path",
     "cut", "fade", "whip", "zoom", "spring", "wipe",
@@ -276,7 +316,7 @@ def test_drafts_may_require_components_the_registry_lacks(specs: dict[str, Style
 
 
 HITECH_COMPONENTS = [
-    "captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards", "finale",
+    "captions", "pip", "photo", "card", "stamp", "lower_third", "finale",
     "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
     "pin_drop", "route_arrow", "object_path",
     "cut", "fade", "wipe", "zoom",

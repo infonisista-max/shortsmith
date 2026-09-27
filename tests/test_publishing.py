@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from shortsmith import jobs, publishing, rights
-from shortsmith.contracts import CutPlan, Finale, Hook, PicturePlan, Span
+from shortsmith.contracts import CutPlan, Finale, PicturePlan, Span
 from shortsmith.grammar import HASHTAGS_MAX
 from tests.test_pipeline import _run, _uploaded  # pyright: ignore[reportPrivateUsage]
 
@@ -17,8 +17,6 @@ def _plan(**changes: object) -> PicturePlan:
         "prompt_version": "t",
         "cut": CutPlan(keep=[Span(start=0.0, end=5.0)]),
         "beats": [],
-        "hook": Hook(title="t", cold_open_span=Span(start=0.0, end=1.0),
-                     original_position="drop", card_asset_ids=[]),
         "finale": Finale(beat_id="b01", text="t"),
         "title": "Why the sky is blue",
         "description": "Rayleigh scattering in one breath.",

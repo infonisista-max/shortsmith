@@ -670,8 +670,8 @@ class _StillPlanner(FakePlanner):
         self, request: PlanRequest, *, feedback: PlanFeedback | None = None
     ) -> PicturePlan:
         plan = super().plan_picture(request)
-        b03 = plan.beats[2].model_copy(update={"motion": None})
-        return plan.model_copy(update={"beats": [*plan.beats[:2], b03, *plan.beats[3:]]})
+        b04 = plan.beats[3].model_copy(update={"motion": None})  # the stamp photo (055)
+        return plan.model_copy(update={"beats": [*plan.beats[:3], b04, *plan.beats[4:]]})
 
 
 def test_job_page_lists_the_violations_when_the_planner_was_rejected_twice(
@@ -693,7 +693,7 @@ def test_job_page_lists_the_violations_when_the_planner_was_rejected_twice(
         record = client.get(f"{location}.json").json()
         assert record["status"] == "failed" and record["error"]["step"] == "planning"
         (line,) = record["error"]["violations"]
-        assert line.startswith("b03 (4.1): ")
+        assert line.startswith("b04 (4.1): ")
         body = client.get(location).text
         assert "Failed at planning: We could not plan the short." in body
         assert '<ul class="violations">' in body

@@ -55,7 +55,6 @@ from shortsmith.contracts import (
     CutPlan,
     FaceBox,
     Finale,
-    Hook,
     PicturePlan,
     PipGeometry,
     PresenterMeasurement,
@@ -120,10 +119,6 @@ def _plan(beats: list[Beat], finale_id: str) -> PicturePlan:
         prompt_version="test",
         cut=CutPlan(keep=[Span(start=0.0, end=beats[-1].end)]),
         beats=beats,
-        hook=Hook(
-            title="t", cold_open_span=Span(start=0.0, end=0.5), original_position="drop",
-            card_asset_ids=["a1"],
-        ),  # fmt: skip
         finale=Finale(beat_id=finale_id, text="end"),
         title="t",
         description="d",
@@ -1212,10 +1207,10 @@ def test_run_fails_t8_on_a_plan_that_no_longer_validates(tmp_path: Path, gated_j
     job = _gated(tmp_path, gated_job)
     path = job.work_dir / "plan.validated.json"
     validated = ValidatedPlan.model_validate_json(path.read_text(encoding="utf-8"))
-    hook = validated.picture.hook.model_copy(update={"title": " ".join(["word"] * 12)})
-    broken = validated.model_copy(
-        update={"picture": validated.picture.model_copy(update={"hook": hook})}
-    )
+    first, *rest = validated.picture.beats
+    broken = validated.model_copy(update={"picture": validated.picture.model_copy(
+        update={"beats": [first.model_copy(update={"mode": "off"}), *rest]}
+    )})  # fmt: skip  # 055: an opening beat that is not pip over an image
     path.write_text(broken.model_dump_json(indent=2), encoding="utf-8")
     report = technical.run(job, specs=SPECS)
     assert [c.name for c in report.checks] == ALL_CHECKS[:8]

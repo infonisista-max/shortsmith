@@ -1,11 +1,18 @@
-"""The presenter cut list (PRD `presenter`, ticket 005; decisions 3.4, 8.1, 9.1).
+"""The presenter cut list (PRD `presenter`, ticket 005; decisions 3.4 as amended by 055,
+8.1, 9.1).
 
-`cut_list(plan)` turns the plan's kept and dropped spans plus the cold-open lift into
-the ordered list of source spans that make up the output timeline: the cold-open span
-first (the only editorial reordering in v1), then the kept spans minus the dropped
-ones, minus the cold-open span itself at its original place when the planner said
-`original_position: drop`. With `keep` the lifted line stays where it was and plays
-twice; the validator (009) is what rejects an accidental repeat.
+`cut_list(plan)` turns the plan's kept and dropped spans into the ordered list of
+source spans that make up the output timeline: the kept spans in recording order minus
+the dropped ones. Nothing is lifted or re-ordered (055: the short opens with the
+speaker's own first words); the validator (009) rejects a cut that drops or re-orders
+speech.
+
+`tighten(spans, words, max_pause_s, lead_s)` is the silence removal of 055: the head
+before the first kept word is cut down to `lead_s`, and the middle of every pause
+between two kept words in one span that runs past `max_pause_s` is removed so
+`max_pause_s` of it stays, half on each side; the tail after the last word and every
+pause the planner already cut into are left alone, and no word is ever shortened.
+Each removed span comes back as a `Trim` for the validator's clamp log.
 
 `output_time` maps a source time onto that timeline; `words_on_cut` applies the same
 spans to the word list, so the pager (010) pages exactly the words the audio keeps,
@@ -39,6 +46,7 @@ from __future__ import annotations
 import statistics
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -283,19 +291,62 @@ def _subtract(spans: Sequence[Span], holes: Sequence[Span]) -> list[Span]:
 
 
 def cut_list(plan: PicturePlan) -> list[Span]:
-    """Source spans in output order: cold open, then the kept spans with the dropped
-    spans (and, under `drop`, the cold open's original place) removed."""
-    cold_open = plan.hook.cold_open_span
-    holes = list(plan.cut.drop)
-    if plan.hook.original_position == "drop":
-        holes.append(cold_open)
+    """Source spans in output order: the kept spans in recording order with the
+    dropped spans removed (055: nothing lifted, nothing re-ordered)."""
     kept = sorted(plan.cut.keep, key=lambda s: s.start)
-    body = _subtract(kept, holes)
-    return [Span(start=cold_open.start, end=cold_open.end), *body]
+    return _subtract(kept, list(plan.cut.drop))
 
 
 def total_duration(spans: Sequence[Span]) -> float:
     return sum(s.end - s.start for s in spans)
+
+
+@dataclass(frozen=True)
+class Trim:
+    """One span of silence `tighten` removed (recording seconds): the word it follows
+    (None for the head before the first word) and how long the pause was."""
+
+    start: float
+    end: float
+    after: str | None
+    gap_s: float
+
+
+def _kept_words(span: Span, words: Sequence[Word]) -> list[Word]:
+    return [w for w in words if span.start <= (w.start + w.end) / 2 < span.end]
+
+
+def tighten(
+    spans: Sequence[Span], words: Sequence[Word], *, max_pause_s: float, lead_s: float
+) -> tuple[list[Span], list[Trim]]:
+    """The 055 silence removal on `spans` (see the module docstring). Times are rounded
+    to the millisecond; a span that becomes empty is dropped."""
+    if not spans or not words:
+        return list(spans), []
+    ordered = sorted(spans, key=lambda s: s.start)
+    trims: list[Trim] = []
+    first = ordered[0]
+    kept_first = _kept_words(first, words)
+    if kept_first:
+        head = kept_first[0].start - first.start
+        if head > lead_s + 1e-9:
+            trims.append(
+                Trim(start=first.start, end=round(kept_first[0].start - lead_s, 3),
+                     after=None, gap_s=round(head, 3))  # fmt: skip
+            )
+    for span in ordered:
+        kept = _kept_words(span, words)
+        for a, b in zip(kept, kept[1:], strict=False):
+            gap = b.start - a.end
+            if gap <= max_pause_s + 1e-9:
+                continue
+            half = max_pause_s / 2
+            trims.append(
+                Trim(start=round(a.end + half, 3), end=round(b.start - half, 3),
+                     after=a.text, gap_s=round(gap, 3))  # fmt: skip
+            )
+    holes = [Span(start=t.start, end=t.end) for t in trims]
+    return _subtract(ordered, holes), trims
 
 
 CUT_LIST_NAME = "cut.json"
@@ -335,9 +386,8 @@ def source_time(spans: Sequence[Span], output_t: float) -> float:
 def words_on_cut(spans: Sequence[Span], words: Sequence[Word]) -> list[tuple[int, Word]]:
     """The words the cut keeps, in output order, each with its index in `words` and its
     times moved onto the cut timeline (6.1): a word is kept by the span holding its
-    midpoint, so a dropped span loses its words and the cold-open lift moves them to
-    the front. Inside one span this is `output_time`; a lifted line kept at its
-    original place (`keep`) is placed in both spans, as it plays twice."""
+    midpoint, so a dropped span loses its words. Inside one span this is
+    `output_time`."""
     placed: list[tuple[int, Word]] = []
     offset = 0.0
     for span in spans:
