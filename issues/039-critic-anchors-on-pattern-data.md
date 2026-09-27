@@ -24,7 +24,8 @@ Covers PRD `qa.critic` (inputs from the library). Decisions 10.2, 10.3.
 ## Blocked by
 
 - Blocked by `issues/033-vision-critic.md`
-- Blocked by `issues/036-reference-tool-download-analyse.md`
+- Blocked by `issues/038-seed-reference-library.md` (parked with 037 and 038 on 27 Sep
+  2026: the critic calibrates on measured pattern data, which 037/038 produce)
 
 ## User stories addressed
 

@@ -40,7 +40,7 @@ The real short for "`reference add` on a real short" comes from `docs/references
 
 ## Blocked by
 
-- Blocked by `issues/036-reference-tool-download-analyse.md`
+- Blocked by `issues/036-reference-inventory.md`
 
 ## User stories addressed
 

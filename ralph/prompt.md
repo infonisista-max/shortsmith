@@ -47,7 +47,7 @@ Before committing, run the feedback loops, in this order, and fix everything the
 
 - `uv run ruff check .` to lint
 - `uv run pyright` to type-check
-- `uv run pytest -q <test files>` to run the tests, in foreground chunks of under 8 minutes each (group by test file); never one full-suite run: it outlives the 10-minute tool ceiling, and a backgrounded suite ends a -p session with work uncommitted
+- `uv run pytest -q <test files>` to run the tests: EVERY test file in `tests/` must run green after your last source edit, split into foreground chunks of under 8 minutes each (group by test file). Chunks split the suite; they never shrink it to a subset. Never one full-suite run: it outlives the 10-minute tool ceiling, and a backgrounded suite ends a -p session with work uncommitted
 - `uv run python -m shortsmith.smoke` to render the fixture clip end-to-end with the fake transcriber and fake planner
 
 If anything under `src/remotion/**` changed in this session — any file, any
@@ -85,6 +85,10 @@ Dependencies only via `uv add`. If a task needs a new dependency that is not alr
 - One ticket per session. After the done-commit, STOP. Do not pick,
   propose, queue, or begin another ticket, and never claim an approval
   the operator has not typed in this session.
+- A denied tool call is a stop sign, not a puzzle. Never reach the same
+  file or action another way (`python -c`, a script, another shell, a
+  copy). If the ticket needs it, write it in the done note for the
+  operator and carry on without it.
 - Tickets marked HITL are never self-selected. Work a HITL ticket only
   when the session's launch prompt names it.
 - If your ticket needs a package that is not installed, do not install
