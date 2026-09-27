@@ -295,6 +295,18 @@ def test_image_generation_is_off_by_default_and_gemini_needs_a_key(
     assert (swapped.image_gen_model, swapped.image_gen_endpoint) == ("imagen-x", "https://e/x")
 
 
+def test_the_reference_tool_reads_model_fps_and_endpoint_from_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """036: the inventory tool's model, frame rate and endpoint are `.env` edits; the
+    default 5 fps samples one frame every 0.2 s so a 0.2 s whip is seen."""
+    s = _settings(monkeypatch)
+    assert (s.reference_model, s.reference_fps) == ("gemini-3.8-flash", 5.0)
+    assert s.reference_endpoint.endswith("/models/{model}:generateContent")
+    swapped = _settings(monkeypatch, REFERENCE_MODEL="gemini-3.7-flash", REFERENCE_FPS="2")
+    assert (swapped.reference_model, swapped.reference_fps) == ("gemini-3.7-flash", 2.0)
+
+
 def test_the_relevance_judge_is_on_by_default_on_haiku_and_needs_a_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

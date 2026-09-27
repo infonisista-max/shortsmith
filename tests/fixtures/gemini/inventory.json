@@ -1,0 +1,29 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"duration_s\": 30.0, \"shots\": [{\"start_s\": 0.0, \"end_s\": 2.8, \"layout\": \"presenter_full\", \"background\": \"solid_or_gradient\", \"footage_kind\": null, \"clip_s\": null, \"treatment\": [], \"note\": \"presenter talking to camera, brain graphic pops in behind\"}, {\"start_s\": 2.8, \"end_s\": 12.0, \"layout\": \"full_footage\", \"background\": \"moving_footage\", \"footage_kind\": \"stock\", \"clip_s\": 4.6, \"treatment\": [\"slow_motion\", \"colour_grade\"], \"note\": \"two stock clips of neurons firing\"}, {\"start_s\": 12.0, \"end_s\": 20.0, \"layout\": \"card\", \"background\": \"still_photo\", \"footage_kind\": null, \"clip_s\": null, \"treatment\": [\"zoom\"], \"note\": \"archival photo in a white frame, slow push in\"}, {\"start_s\": 20.0, \"end_s\": 30.0, \"layout\": \"full_footage\", \"background\": \"moving_footage\", \"footage_kind\": \"ai_generated\", \"clip_s\": 5.0, \"treatment\": [\"speed_ramp\"], \"note\": \"generated flyover of a city at night\"}], \"effects\": [{\"at_s\": 3.1, \"duration_s\": 0.6, \"emphasis\": \"number\", \"name\": \"stamp\", \"description\": \"a yellow rotated stamp lands on the number\", \"component\": \"stamp\"}, {\"at_s\": 12.4, \"duration_s\": 0.8, \"emphasis\": \"word\", \"name\": \"glitch_text\", \"description\": \"the keyword glitches with RGB split for two frames\", \"component\": \"glitch\"}, {\"at_s\": 21.0, \"duration_s\": 1.2, \"emphasis\": \"image\", \"name\": \"screen_shake\", \"description\": \"the whole frame shakes on the hit\", \"component\": \"unregistered\"}], \"transitions\": [{\"at_s\": 2.8, \"duration_s\": 0.0, \"name\": \"cut\", \"description\": \"hard cut\", \"component\": \"cut\"}, {\"at_s\": 12.0, \"duration_s\": 0.2, \"name\": \"whip_pan\", \"description\": \"fast horizontal whip with motion blur\", \"component\": \"whip\"}, {\"at_s\": 20.0, \"duration_s\": 0.3, \"name\": \"flash_white\", \"description\": \"a white flash frame between shots\", \"component\": \"unregistered\"}], \"text\": {\"caption_position\": \"centre, just under the middle of the frame\", \"caption_size\": \"about a tenth of the frame height per line\", \"caption_colours\": \"white with a black outline, keyword yellow\", \"active_word\": \"scales up and turns yellow\", \"title_entry\": \"pops in with a spring and settles\", \"number_entry\": \"counts up fast then lands with a hit\"}, \"sound\": {\"bed\": true, \"bed_mood\": \"dark suspense pulse\", \"effects\": [{\"at_s\": 3.1, \"kind\": \"hit\", \"synced_to\": \"the stamp landing\"}, {\"at_s\": 12.0, \"kind\": \"whoosh\", \"synced_to\": \"the whip transition\"}, {\"at_s\": 21.0, \"kind\": \"hit\", \"synced_to\": \"the screen shake\"}]}, \"hook\": {\"on_screen\": \"presenter full frame, a brain graphic pops in behind his head\", \"heard\": \"the presenter's first question over a rising bed\"}}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 12000,
+    "candidatesTokenCount": 900,
+    "totalTokenCount": 12950,
+    "promptTokensDetails": [
+      { "modality": "VIDEO", "tokenCount": 10700 },
+      { "modality": "TEXT", "tokenCount": 1300 }
+    ],
+    "thoughtsTokenCount": 50,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-test-video",
+  "responseId": "recorded-shape-for-the-parser-tests"
+}

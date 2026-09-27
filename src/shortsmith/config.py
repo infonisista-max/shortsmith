@@ -110,6 +110,14 @@ class Settings(BaseSettings):
         "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     )
     gemini_api_key: SecretStr | None = None
+    # 036 / 10.3: the reference inventory tool reads a YouTube link through Gemini on the
+    # same key; nothing is downloaded. 5 fps puts one frame every 0.2 s, so a 0.2 s whip
+    # lands in at least one sampled frame (about 355 tokens per second of video).
+    reference_model: str = "gemini-3.8-flash"
+    reference_fps: float = 5.0
+    reference_endpoint: str = (
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    )
     shortsmith_data_dir: Path = Path("data")
     # 5.6 / 11.3: prices come from an operator-edited file, never from code. The per-job
     # caps are unset until the operator derives them from the first ten metered passing

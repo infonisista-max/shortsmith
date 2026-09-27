@@ -124,6 +124,64 @@ downloaded or stored, only JSON and Markdown are committed.
 
 - Nothing.
 
+## Done note (27 Sep 2026)
+
+**Tracer bullet.** Both live calls succeeded on the operator's key, first attempt, no
+retry: endpoint `v1beta/models/{model}:generateContent` (the same one the image adapter
+uses; `v1beta/interactions` was not needed), model `gemini-3.8-flash` (also listed on the
+key: `gemini-3.7-flash`, `gemini-3.5-flash`, `gemini-3.1-flash-lite`; swap with
+`REFERENCE_MODEL`), video by `fileData.fileUri` plus `videoMetadata.fps: 5`.
+`REFERENCE_FPS=5` because one frame every 0.2 s puts a 0.2 s whip in at least one sampled
+frame; the default 1 fps would miss four in five. Cost of the sampling: about 355 video
+tokens per second (the two shorts: 21.2k and 20.7k video tokens, 30.4k and 31.1k total
+with the answer and thinking). YouTube URL input is at no charge in the preview; the
+output tokens are the paid part. Every request prints its token line, so a price change
+is visible; there is no ledger row because the tool runs outside a job.
+
+**Prompt to read:** `src/shortsmith/reference/prompts/inventory_v1.md` (the registry
+names and their one-line meanings come from `docs/components.md`; the schema from
+`InventoryAnswer`).
+
+**The two spikes** (`docs/reference/inventory/S5j-2CWYYwM.json`, `zXK42RMPKUY.json`,
+report in `GAPS.md`; all ESTIMATED):
+
+- Dhruv (59.7 s): 24 shots, 4.0 per 10 s; layout full_footage 82%, presenter_full 18%
+  (no circle, no PIP: the presenter is full-frame on a generated sun backdrop);
+  background generated_or_animated 58%, moving_footage 37% (stock 28%, archival 10%),
+  solid 5%; median clip 2.5 s. Captions static white uppercase strips at about y 60%, no
+  active-word colour. Sound: bed, 7 effects, 1.2 per 10 s; a WHOOSH on every one of the
+  four yellow `color_flash` transitions back to the presenter (our 7.3 profile bans
+  whooshes: an operator call, recorded here, not changed). Unregistered:
+  `glowing_sun_prop` (a CGI prop between the presenter's hands in the hook) and
+  `color_flash` (0.3 s yellow flash used four times).
+- FactTechz (58.2 s): 41 shots, 7.0 per 10 s; layout presenter_full 42%, full_footage
+  34%, full_still 13%, split 10% (top image, bottom presenter), text_only 1%; background
+  moving_footage 37% (animation 21%, archival 9%, stock 6%), generated_or_animated 35%
+  (an animated graphic BEHIND the full-frame presenter, the pattern our `pip`-over-still
+  model does not have), still 27%, solid 1%; median clip 1.2 s. NO captions at all. Sound: bed,
+  7 effects, 1.2 per 10 s, hits on reveals, one ding on a lightbulb pop. Unregistered:
+  `brain_particles_overlay`, `medical_term_label`, `lightbulb_idea_pop`,
+  `bold_title_card`.
+
+**Full run:** `uv run python -m shortsmith.reference inventory --all` (13 links: the
+seven in `docs/references.md` and the six facts links; the long-form `id00R-3OmJ0` at
+5 fps is roughly 20 min x 355 = about 430k tokens in one request, so consider
+`REFERENCE_FPS=1` for that one or leaving it out) then
+`uv run python -m shortsmith.reference gaps`. Not run in this ticket, per the criteria.
+
+**For 10.3:** "the reference tool reads the YouTube link through Gemini; nothing is
+downloaded."
+
+**Deviation, operator action:** `docs/references.md` is on the agent's deny list
+(`.claude/settings.json`), so the facts section was NOT added there. It is in
+`docs/reference/references-facts.md`, word for word, and the tool reads both files by
+default; please paste that section into `docs/references.md` (and delete the companion
+or leave it, the tool de-duplicates by video id).
+
+**Tool verdicts** as written above stand; `FakeAnalyser` is the test double; a Qwen-VL
+adapter slots in behind `ReferenceAnalyser`. Nothing under `src/remotion` changed. Two
+throwaway spike scripts sit git-ignored under `work/` (`spike_reference_*.py`).
+
 ## User stories addressed
 
 - User story 49.
