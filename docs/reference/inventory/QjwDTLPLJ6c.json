@@ -1,0 +1,589 @@
+{
+  "duration_s": 178.7,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 1.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter speaking against red scanline background with green amount badge pop-up"
+    },
+    {
+      "start_s": 1.8,
+      "end_s": 6.6,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter on top; electricity meter with floating money animation below"
+    },
+    {
+      "start_s": 6.6,
+      "end_s": 13.8,
+      "layout": "card",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Outlook news article headline card with kinetic text highlighting"
+    },
+    {
+      "start_s": 13.8,
+      "end_s": 19.6,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter on top; Gautam Adani graphic with fanning dollar bills and crown, then Scroll.in logo"
+    },
+    {
+      "start_s": 19.6,
+      "end_s": 29.2,
+      "layout": "card",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Scroll.in article card with Adani and RRVUNL corporate logos pulsing"
+    },
+    {
+      "start_s": 29.2,
+      "end_s": 40.0,
+      "layout": "presenter_circle",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Scroll.in article quote with circular presenter PIP and word-by-word text highlight"
+    },
+    {
+      "start_s": 40.0,
+      "end_s": 45.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter speaking directly to camera on red textured background"
+    },
+    {
+      "start_s": 45.8,
+      "end_s": 52.8,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter on top; Scroll.in excerpt quoting extortion allegations below"
+    },
+    {
+      "start_s": 52.8,
+      "end_s": 62.8,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter on top; timeline sequence with 2007 tag, partner logos, and PKCL photo"
+    },
+    {
+      "start_s": 62.8,
+      "end_s": 66.8,
+      "layout": "chart",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Animated vertical bar chart comparing Adani Enterprises (74%) and RRVUNL (26%)"
+    },
+    {
+      "start_s": 66.8,
+      "end_s": 74.6,
+      "layout": "split",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 7.8,
+      "treatment": [],
+      "note": "Presenter on top; open-pit coal mine excavation and hauling b-roll below"
+    },
+    {
+      "start_s": 74.6,
+      "end_s": 84.8,
+      "layout": "presenter_circle",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Scroll.in contract clause excerpt with presenter in circular PIP"
+    },
+    {
+      "start_s": 84.8,
+      "end_s": 93.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explaining road transport versus railway construction failure"
+    },
+    {
+      "start_s": 93.4,
+      "end_s": 107.4,
+      "layout": "split",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 14.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter on top; dump truck hauling coal overlaid with rupee rain and entity badges"
+    },
+    {
+      "start_s": 107.4,
+      "end_s": 118.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter speaking to camera detailing the twist in court proceedings"
+    },
+    {
+      "start_s": 118.4,
+      "end_s": 123.0,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter on top; Scroll.in delayed reimbursement interest claim card below"
+    },
+    {
+      "start_s": 123.0,
+      "end_s": 128.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter speaking with circular glowing RRVUNL watermark badge overlay"
+    },
+    {
+      "start_s": 128.0,
+      "end_s": 131.8,
+      "layout": "card",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Scroll.in article card with green highlighter over 65 crore interest claim"
+    },
+    {
+      "start_s": 131.8,
+      "end_s": 142.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter breaking down the court's inspection of the contract clauses"
+    },
+    {
+      "start_s": 142.6,
+      "end_s": 157.6,
+      "layout": "presenter_circle",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Outlook article on 50 lakh fine and CAG audit order with circular PIP presenter"
+    },
+    {
+      "start_s": 157.6,
+      "end_s": 166.4,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter on top; village view and Adani with Modi photo montage below"
+    },
+    {
+      "start_s": 166.4,
+      "end_s": 170.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter talking with animated August 2025 calendar flip graphic"
+    },
+    {
+      "start_s": 170.6,
+      "end_s": 175.6,
+      "layout": "card",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "The Hindu article card over Hasdeo Arand forest image with text highlighting"
+    },
+    {
+      "start_s": 175.6,
+      "end_s": 178.7,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter concluding piece against dark red background"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 0.4,
+      "duration_s": 6.2,
+      "emphasis": "number",
+      "name": "badge_pop_up",
+      "description": "Green rectangular pill badge with '₹1,400 CRORE' pops into view",
+      "component": "card"
+    },
+    {
+      "at_s": 2.8,
+      "duration_s": 3.8,
+      "emphasis": "image",
+      "name": "currency_shower",
+      "description": "2D animated graphic of 500 rupee banknotes falling over electric meter",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 7.8,
+      "duration_s": 5.8,
+      "emphasis": "word",
+      "name": "headline_kinetic_highlight",
+      "description": "Black semi-transparent pill highlights advance word-by-word across news headline",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 14.6,
+      "duration_s": 3.4,
+      "emphasis": "image",
+      "name": "money_fan_and_crown",
+      "description": "Dollar bills fan out behind cutout photo of Gautam Adani and golden crown lands on head",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 23.4,
+      "duration_s": 5.6,
+      "emphasis": "image",
+      "name": "glowing_logo_reveal",
+      "description": "Circular green RRVUNL corporate seal glows and centers on screen",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 30.6,
+      "duration_s": 9.2,
+      "emphasis": "word",
+      "name": "article_text_scroller_highlight",
+      "description": "Dark grey highlight box moves across printed lines in synced rhythm with narration",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 63.0,
+      "duration_s": 3.6,
+      "emphasis": "number",
+      "name": "bar_chart_grow",
+      "description": "Vertical bars for 74% and 26% grow smoothly upward from horizontal axis",
+      "component": "chart"
+    },
+    {
+      "at_s": 128.8,
+      "duration_s": 2.8,
+      "emphasis": "word",
+      "name": "marker_highlighter",
+      "description": "Fluorescent yellow-green highlighter stroke animates across key sentence",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 140.4,
+      "duration_s": 6.8,
+      "emphasis": "image",
+      "name": "cash_cascade",
+      "description": "500-rupee bills tumble downward behind corporate title cards",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 169.2,
+      "duration_s": 1.4,
+      "emphasis": "number",
+      "name": "calendar_flip",
+      "description": "Date counter tag flips to reveal AUG 2025",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 171.8,
+      "duration_s": 3.8,
+      "emphasis": "word",
+      "name": "yellow_strip_highlighter",
+      "description": "Yellow highlight strips draw across text lines in The Hindu snippet",
+      "component": "unregistered"
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 1.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut from full presenter to vertical split layout",
+      "component": "cut"
+    },
+    {
+      "at_s": 6.6,
+      "duration_s": 0.4,
+      "name": "light_flare",
+      "description": "Bright orange-white exposure burn flash transition",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 13.8,
+      "duration_s": 0.3,
+      "name": "light_flare",
+      "description": "Magenta and yellow light blast into split view",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 19.6,
+      "duration_s": 0.4,
+      "name": "light_burst",
+      "description": "Warm yellow-white light flare transition into article card",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 29.2,
+      "duration_s": 0.3,
+      "name": "light_flare",
+      "description": "White glow flash into news text with circular PIP",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 40.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to presenter full shot",
+      "component": "cut"
+    },
+    {
+      "at_s": 45.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to split screen",
+      "component": "cut"
+    },
+    {
+      "at_s": 52.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut changing lower pane graphic to documents",
+      "component": "cut"
+    },
+    {
+      "at_s": 62.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to full screen bar chart",
+      "component": "cut"
+    },
+    {
+      "at_s": 66.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to split screen with b-roll footage",
+      "component": "cut"
+    },
+    {
+      "at_s": 74.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to full article with circular PIP presenter",
+      "component": "cut"
+    },
+    {
+      "at_s": 84.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to presenter full",
+      "component": "cut"
+    },
+    {
+      "at_s": 93.4,
+      "duration_s": 0.3,
+      "name": "light_flare",
+      "description": "Orange-yellow flash into split screen with truck b-roll",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 107.4,
+      "duration_s": 0.3,
+      "name": "light_flare",
+      "description": "Bright yellow flare transition to presenter full",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 118.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to split view with Scroll.in article",
+      "component": "cut"
+    },
+    {
+      "at_s": 123.0,
+      "duration_s": 0.3,
+      "name": "light_flare",
+      "description": "Warm glow flash back to presenter full",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 128.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to full news article graphic",
+      "component": "cut"
+    },
+    {
+      "at_s": 131.8,
+      "duration_s": 0.2,
+      "name": "light_flare",
+      "description": "Yellow light burn into presenter full shot",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 142.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to Outlook article with circular PIP",
+      "component": "cut"
+    },
+    {
+      "at_s": 157.6,
+      "duration_s": 0.3,
+      "name": "light_flare",
+      "description": "Warm flare into split screen photo montage",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 166.4,
+      "duration_s": 0.2,
+      "name": "light_flare",
+      "description": "Light burst to presenter full",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 170.6,
+      "duration_s": 0.3,
+      "name": "light_flare",
+      "description": "Flare into The Hindu article card over forest photo",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 175.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut to presenter full closing shot",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "bottom center inside article cards or lower-third badges",
+    "caption_size": "medium sans-serif body and headline typography",
+    "caption_colours": "white on green badges, dark grey and black text on cream paper backgrounds",
+    "active_word": "highlighted with sliding dark grey or yellow-green rectangular boxes",
+    "title_entry": "slides up or pops on screen with light flare transitions",
+    "number_entry": "grows smoothly upward in bar chart and flips on calendar badge"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "tense investigative pulsating synth bed",
+    "effects": [
+      {
+        "at_s": 0.4,
+        "kind": "ding",
+        "synced_to": "Green 1400 crore badge pop-up"
+      },
+      {
+        "at_s": 6.6,
+        "kind": "whoosh",
+        "synced_to": "Light flash into Outlook news article"
+      },
+      {
+        "at_s": 13.8,
+        "kind": "whoosh",
+        "synced_to": "Flare transition to Adani graphic"
+      },
+      {
+        "at_s": 19.6,
+        "kind": "whoosh",
+        "synced_to": "Flash into Scroll.in article card"
+      },
+      {
+        "at_s": 24.6,
+        "kind": "hit",
+        "synced_to": "RRVUNL logo pulse landing"
+      },
+      {
+        "at_s": 62.8,
+        "kind": "whoosh",
+        "synced_to": "Bar chart appearance"
+      },
+      {
+        "at_s": 93.4,
+        "kind": "whoosh",
+        "synced_to": "Flash into dump truck footage split"
+      },
+      {
+        "at_s": 128.0,
+        "kind": "hit",
+        "synced_to": "Yellow highlighter line snap"
+      },
+      {
+        "at_s": 170.6,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to The Hindu forest story"
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter in front of a red scanline backdrop reveals a green badge reading '₹1,400 CRORE' before transitioning into an electric meter with falling cash.",
+    "heard": "Presenter passionately states that 1,400 crore rupees were overcharged from citizens' electricity bills to benefit Adani."
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "QjwDTLPLJ6c",
+  "url": "https://www.youtube.com/watch?v=QjwDTLPLJ6c",
+  "category": "explainer",
+  "tier": "A",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v1",
+  "analysed_on": "2026-09-27",
+  "usage": {
+    "prompt_tokens": 66985,
+    "video_tokens": 63478,
+    "output_tokens": 5431,
+    "thoughts_tokens": 2870,
+    "total_tokens": 75286
+  },
+  "counts": {
+    "shots_per_10s": 1.3,
+    "effects_per_10s": 0.6,
+    "sfx_per_10s": 0.5
+  }
+}
