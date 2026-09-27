@@ -852,13 +852,54 @@ def test_t11_passes_when_every_strip_face_sits_inside_the_circle() -> None:
     assert "chin at 56% of the window (max 90%)" in check.detail
 
 
-def test_t11_fails_naming_the_frame_whose_box_leaves_the_circle() -> None:
+def test_t11_fails_naming_the_frame_whose_oval_leaves_the_circle() -> None:
+    """053: the oval inscribed in the box is the face; here it leaves the 150 px circle
+    by ~37 px, a quarter of the radius, well past the 10 % the ticket names."""
     faces: list[FaceBox | None] = [FIXTURE_FACE] * 8
-    faces[2] = FaceBox(left=0, top=163, width=440, height=440)  # hard against the left edge
+    faces[2] = FaceBox(left=0, top=0, width=440, height=440)  # hard into the top-left corner
     check = technical.t11(_measured(faces))
     assert not check.passed
-    assert check.detail.startswith("frame 3: face box leaves the circle by ")
+    assert check.detail.startswith("frame 3: face oval leaves the circle by ")
     assert "px" in check.detail
+    overshoot = float(check.detail.split("by ")[1].split(" px")[0])
+    assert overshoot >= 0.10 * 150
+
+
+def test_t11_checks_the_face_oval_not_the_box_corners() -> None:
+    """053: an 800 px square box in a 1080 px window is wider than window / sqrt 2, so
+    its corners can never sit inside the circle, yet the face inside it does."""
+    faces: list[FaceBox | None] = [FaceBox(left=140, top=140, width=800, height=800)] * 8
+    check = technical.t11(_measured(faces, pip=_pip(diameter=340)))
+    assert check.passed, check.detail
+    assert "every face oval inside the 340 px circle" in check.detail
+
+
+# F1 (job 20260927-041728-656506): the detector's squares run 744-823 px in a 1080 px
+# window scaled into a 340 px circle; the corner rule failed 7 of 8, the face never left.
+F1_PRESENTER: dict[str, Any] = {
+    "source_width": 1080, "source_height": 1920,
+    "times_s": [3.961, 6.775, 9.902, 17.719, 26.058, 37.523, 45.862, 55.243],
+    "faces": [
+        {"left": 208, "top": 601, "width": 744, "height": 744},
+        {"left": 163, "top": 643, "width": 752, "height": 752},
+        {"left": 152, "top": 589, "width": 768, "height": 768},
+        {"left": 186, "top": 565, "width": 760, "height": 760},
+        {"left": 189, "top": 534, "width": 759, "height": 759},
+        {"left": 171, "top": 593, "width": 782, "height": 782},
+        {"left": 145, "top": 606, "width": 823, "height": 823},
+        {"left": 172, "top": 562, "width": 782, "height": 782},
+    ],
+    "face": {"left": 172, "top": 591, "width": 764, "height": 764},
+    "pip": {"left": 60, "top": 920, "diameter": 340, "ring_px": 6, "ring_color": "#FFFFFF",
+            "window_left": 0, "window_top": 469, "window_size": 1080},
+}  # fmt: skip
+
+
+def test_t11_passes_f1s_presenter_numbers_on_all_eight_frames() -> None:
+    check = technical.t11(PresenterMeasurement.model_validate(F1_PRESENTER))
+    assert check.passed, check.detail
+    assert "face on 8 of 8 strip frames" in check.detail
+    assert "chin at 89% of the window (max 90%)" in check.detail
 
 
 @pytest.mark.parametrize(("chin_y", "ok"), [(972, True), (973, False)])

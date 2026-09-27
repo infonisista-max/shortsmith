@@ -51,8 +51,8 @@ class PexelsImageSource(HttpImageSource):
         self._api_key = api_key
         self.headers = {"Authorization": api_key.get_secret_value()}
 
-    def search(self, query: str, n: int) -> list[Candidate]:
-        body = self._json(API_URL, {"query": query, "per_page": str(n)})
+    def _search(self, query: str, n: int) -> list[Candidate]:
+        body = self._json(API_URL, {"query": query, "per_page": str(n)}, query=query)
         if body is None:
             return []
         candidates: list[Candidate] = []

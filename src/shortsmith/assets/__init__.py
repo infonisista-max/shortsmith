@@ -28,13 +28,30 @@ an `AssetManifest` (`work/assets.json`):
   a `card`; a planned `photo` that became a card records `treatment_downgraded`.
 
 - Which candidate a source's hits give the beat (5.2, ticket 017): the code-only hard
-  rejects drop what is too small, too wide or not an image (`base`), and the survivors
-  go to the relevance judge (`judge`), which scores each 0-3. Best >= 2 wins, ties by
-  the source's own order, everything under 2 means the next source and then the
-  ladder. A candidate whose download is refused or rejected is dropped and the next
-  accepted one is taken; the beat is never rejected for a candidate. With no judge
-  configured, its call ceiling spent, or a judge that could not answer, the first
-  candidate the hard rejects kept wins and the beat records `judge_skipped`.
+  rejects drop what is too small for the beat's slot, too wide, from a stock-preview
+  host or not an image (`base`), and the survivors go to the relevance judge
+  (`judge`), which scores each 0-3. Best >= 2 wins, ties by the source's own order,
+  everything under 2 means the next source and then the ladder. A candidate whose
+  download is refused or rejected is dropped and the next accepted one is taken; the
+  beat is never rejected for a candidate. With no judge configured, its call ceiling
+  spent, or a judge that could not answer, the first candidate the hard rejects kept
+  wins and the beat records `judge_skipped`.
+
+- Named people (053, amending 5.1 and 5.2 after F1 showed a Pexels stranger as Neem
+  Karoli Baba): for a beat whose subject is a named entity (`generate.depicts_of`) the
+  stock libraries (`STOCK_ORIGINS`: Pexels, Pixabay) are neither searched nor
+  accepted - the ladder is owner refs, web, Commons, Openverse with `query`, the same
+  with `query_fallback`, then rung 2's stylised illustration, then the usual rungs.
+  Name evidence ranks first: `name_words` are the capitalised words of the beat's own
+  query (then of `query_fallback`), and a candidate whose page URL or file name carries
+  at least half of them (`name_evidence`) ranks ahead of one that does not, judged or
+  not; the judge still filters what is under 2.
+- The size floor follows the slot (053 rule 4): every sourced beat's image must fill
+  the archival card at no more than the renderer's upscale, with the style's card
+  border (`card_border`) - a `photo` beat included, since what cannot be full-bleed is
+  a card by 5.3. `base.reject_size` holds the arithmetic on `render`'s numbers.
+- A source's notes about a search (053 rule 5: a 403, an empty answer, its status and
+  the query) are drained into the job log after every search as `sourcing:` lines.
 
 Search results and fetched files are cached per job under
 `work/assets/<sha256(query + source)>/` (5.6), so re-running the step (a plan retry,
@@ -71,15 +88,20 @@ from pydantic import TypeAdapter
 from shortsmith import ffmpeg, jobs, rights
 from shortsmith.assets.base import (
     BOOKENDS,
+    FRAME_H,
+    FRAME_W,
     MAX_ASPECT,
     MAX_BYTES,
-    MIN_SHORT_SIDE,
+    MAX_UPSCALE,
+    STOCK_HOSTS,
     FakeImageSource,
     ImageSource,
     SourceError,
+    covers_frame,
     media_type,
     parse_order,
     reject_body,
+    reject_host,
     reject_size,
     source_order,
 )
@@ -91,6 +113,7 @@ from shortsmith.assets.generate import (
     Generating,
     GeneratorError,
     ImageGenerator,
+    depicts_of,
     is_diagram_base,
 )
 from shortsmith.assets.judge import (
@@ -128,9 +151,13 @@ from shortsmith.styles import StyleSpec
 
 __all__ = [
     "BOOKENDS",
+    "FRAME_H",
+    "FRAME_W",
     "MAX_ASPECT",
     "MAX_BYTES",
-    "MIN_SHORT_SIDE",
+    "MAX_UPSCALE",
+    "STOCK_HOSTS",
+    "STOCK_ORIGINS",
     "AssetError",
     "CommonsImageSource",
     "FakeImageGenerator",
@@ -154,9 +181,14 @@ __all__ = [
     "Verdict",
     "VisionJudge",
     "WebImageSource",
+    "card_border",
+    "covers_frame",
     "media_type",
+    "name_evidence",
+    "name_words",
     "parse_order",
     "reject_body",
+    "reject_host",
     "reject_size",
     "source_assets",
     "source_order",
@@ -171,10 +203,8 @@ NOT_SOURCED = frozenset({"presenter_full", "presenter_pip", "hook_cards", "final
 # 018: the sources that want a free key, and the `.env` name that carries it.
 KEYED: Mapping[str, str] = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_KEY"}
 REUSING_KINDS = frozenset({"number", "quote"})
-
-# 5.3: the frame a full-bleed photo must cover and the largest upscale allowed.
-FRAME_W, FRAME_H = 1080, 1920
-MAX_UPSCALE = 1.5
+# 053 rule 1: the stock libraries, never searched for a named entity.
+STOCK_ORIGINS: frozenset[str] = frozenset({"pexels", "pixabay"})
 EPS = 1e-9
 
 # 4.4: a re-dress punches in a further step and moves the focus, so no framing repeats.
@@ -212,7 +242,7 @@ def full_bleed(width: int, height: int) -> bool:
     """Portrait, at least 1080 px wide, covering 1080x1920 within the 1.5x upscale."""
     if height <= width or width < FRAME_W:
         return False
-    return max(FRAME_W / width, FRAME_H / height) <= MAX_UPSCALE + EPS
+    return covers_frame(width, height)
 
 
 def classify(
@@ -227,6 +257,35 @@ def classify(
 
 def _planned(beat: Beat) -> Planned:
     return beat.kind if beat.kind in ("photo", "card") else "auto"  # pyright: ignore[reportReturnType]
+
+
+def card_border(spec: StyleSpec) -> int:
+    """The style's card border, the one style number the size floor needs (053)."""
+    return int(spec.broll.motion.get("card", {}).get("border_px", 0))
+
+
+# --- name evidence (053 rule 2) -------------------------------------------------------------
+
+
+def name_words(beat: Beat) -> frozenset[str]:
+    """The entity's name as the plan wrote it: the capitalised words of the beat's
+    query (its `query_fallback` when the query has none), lower-cased, stopwords out."""
+    for text in (beat.query, beat.query_fallback):
+        words = {w.lower() for w in _WORD.findall(text) if w[:1].isupper()}
+        words = {w for w in words if len(w) >= 3 and w not in _STOPWORDS}
+        if words:
+            return frozenset(words)
+    return frozenset()
+
+
+def name_evidence(words: frozenset[str], candidate: Candidate) -> bool:
+    """Whether the candidate's page URL or file name carries the name: at least half
+    of `words`, as whole words of the slugged URLs (so `virat-kohli` counts and
+    `ViratKohli` does not)."""
+    if not words:
+        return False
+    found = set(_WORD.findall(f"{candidate.page_url} {candidate.url}".lower()))
+    return len(words & found) >= math.ceil(len(words) / 2)
 
 
 # --- the cache (5.6) --------------------------------------------------------------------
@@ -284,13 +343,17 @@ class Searching:
 
 
 def keep(
-    candidates: Sequence[Candidate], log: Callable[[str], None] = lambda _: None
+    candidates: Sequence[Candidate],
+    log: Callable[[str], None] = lambda _: None,
+    border_px: int = 0,
 ) -> list[Candidate]:
     """5.2: the candidates the code-only hard rejects let through, before the judge
-    is asked for anything. A rejection is of the candidate, never of the beat."""
+    is asked for anything: the card slot's size floor, the aspect and (053) the
+    stock-host list. A rejection is of the candidate, never of the beat, one log line
+    each."""
     kept: list[Candidate] = []
     for candidate in candidates:
-        why = reject_size(candidate.width, candidate.height)
+        why = reject_host(candidate) or reject_size(candidate.width, candidate.height, border_px)
         if why is None:
             kept.append(candidate)
         else:
@@ -298,17 +361,29 @@ def keep(
     return kept
 
 
-def rank(candidates: Sequence[Candidate], verdicts: Sequence[Verdict] | None) -> list[_Ranked]:
+def rank(
+    candidates: Sequence[Candidate],
+    verdicts: Sequence[Verdict] | None,
+    names: frozenset[str] = frozenset(),
+) -> list[_Ranked]:
     """5.2: the judge's accepted candidates best-first, ties by the source's own order
-    (the sort is stable). Unjudged, the source's order is kept exactly as it is."""
+    (the sort is stable). Unjudged, the source's order is kept exactly as it is. With
+    `names` (053 rule 2), name-evidenced candidates rank ahead of the rest either way."""
     if verdicts is None:
-        return [_Ranked(c) for c in candidates]
-    scored = [
-        (verdict.score, _Ranked(candidate, verdict))
-        for candidate, verdict in zip(candidates, verdicts, strict=True)
-        if verdict.accepted
-    ]
-    return [ranked for _, ranked in sorted(scored, key=lambda pair: -pair[0])]
+        ranked = [_Ranked(c) for c in candidates]
+    else:
+        ranked = [
+            _Ranked(candidate, verdict)
+            for candidate, verdict in zip(candidates, verdicts, strict=True)
+            if verdict.accepted
+        ]
+    return sorted(
+        ranked,
+        key=lambda r: (
+            not name_evidence(names, r.candidate),
+            -(r.verdict.score if r.verdict is not None else 0),
+        ),
+    )
 
 
 def _verdict(model: str, verdict: Verdict | None) -> JudgeVerdict | None:
@@ -328,6 +403,8 @@ def _search_cached(
     *,
     subject_kind: str = "",
     topic: str = "",
+    border_px: int = 0,
+    names: frozenset[str] = frozenset(),
     log: Callable[[str], None] = lambda _: None,
 ) -> _Fetched | None:
     """The candidate `query` from `source` gives this beat (5.2), fetched once per job."""
@@ -348,7 +425,10 @@ def _search_cached(
         )
     folder.mkdir(parents=True, exist_ok=True)
     searching.count(name)
-    candidates = keep(source.search(query, CANDIDATES), log)
+    found = source.search(query, CANDIDATES)
+    for line in source.drain():
+        log(f"sourcing: {line}")
+    candidates = keep(found, log, border_px)
     verdicts = judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
     record: dict[str, object] = {
         "query": query,
@@ -362,13 +442,13 @@ def _search_cached(
         "fetched_at": None,
     }
     fetched: _Fetched | None = None
-    for ranked in rank(candidates, verdicts):
+    for ranked in rank(candidates, verdicts, names):
         try:
             path = source.fetch(ranked.candidate, folder / "image")
         except SourceError as exc:
             log(f"sourcing: {exc}")
             continue
-        why = _reject_fetched(path)
+        why = _reject_fetched(path, border_px)
         if why is not None:
             log(f"sourcing: {ranked.candidate.url} rejected: {why}")
             path.unlink(missing_ok=True)
@@ -391,7 +471,7 @@ def _search_cached(
     return fetched
 
 
-def _reject_fetched(path: Path) -> str | None:
+def _reject_fetched(path: Path, border_px: int) -> str | None:
     """The 5.2 hard rejects on the downloaded file: the only size a source cannot
     misreport, plus a body Pillow cannot open at all."""
     try:
@@ -399,7 +479,7 @@ def _reject_fetched(path: Path) -> str | None:
             width, height = image.size
     except OSError:
         return "the downloaded file is not a readable image"
-    return reject_size(width, height)
+    return reject_size(width, height, border_px)
 
 
 # --- owner references (1.3) ---------------------------------------------------------------
@@ -601,14 +681,29 @@ def source_assets(
     judging = judging if judging is not None else Judging()
     searching = searching if searching is not None else Searching()
     generating = generating if generating is not None else Generating()
+    border = card_border(spec)
+
+    def sources_for(beat: Beat) -> list[tuple[str, ImageSource]]:
+        """053 rule 1: a named entity never comes from the stock libraries."""
+        if depicts_of(beat) != "named_entity":
+            return searched
+        skipped = [name for name, _ in searched if name in STOCK_ORIGINS]
+        if skipped:
+            log(
+                f"sourcing: {beat.id}: {', '.join(skipped)} not searched: a named entity is "
+                "never shown as a stock stranger (053)"
+            )
+        return [(name, source) for name, source in searched if name not in STOCK_ORIGINS]
 
     def search(beat: Beat, query: str) -> tuple[_Fetched, SearchOrigin] | None:
         if not query:
             return None
-        for name, source in searched:
+        named = depicts_of(beat) == "named_entity"
+        for name, source in sources_for(beat):
             found = _search_cached(
                 source, name, query, cache, clock, judging, searching,
-                subject_kind=beat.subject_kind or "", topic=topic, log=log,
+                subject_kind=beat.subject_kind or "", topic=topic, border_px=border,
+                names=name_words(beat) if named else frozenset(), log=log,
             )  # fmt: skip
             if found is not None:
                 return found, source.origin

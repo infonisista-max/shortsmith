@@ -13,7 +13,7 @@ candidate: the hard rejects and the judge only ever see something fetchable.
 
 from __future__ import annotations
 
-from shortsmith.assets.http import HttpImageSource, field, items, number, text
+from shortsmith.assets.http import USER_AGENT, HttpImageSource, field, items, number, text
 from shortsmith.contracts import Candidate
 
 API_URL = "https://api.openverse.org/v1/images/"
@@ -38,9 +38,10 @@ def licence_text(code: str, version: str | None) -> str:
 
 class OpenverseImageSource(HttpImageSource):
     origin = "openverse"
+    headers = {"User-Agent": USER_AGENT}  # 053 rule 5: say who is asking
 
-    def search(self, query: str, n: int) -> list[Candidate]:
-        body = self._json(API_URL, {"q": query, "page_size": str(n)})
+    def _search(self, query: str, n: int) -> list[Candidate]:
+        body = self._json(API_URL, {"q": query, "page_size": str(n)}, query=query)
         if body is None:
             return []
         candidates: list[Candidate] = []

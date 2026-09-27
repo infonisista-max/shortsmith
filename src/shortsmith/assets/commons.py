@@ -18,7 +18,7 @@ from __future__ import annotations
 import html
 import re
 
-from shortsmith.assets.http import HttpImageSource, field, items, number, text
+from shortsmith.assets.http import USER_AGENT, HttpImageSource, field, items, number, text
 from shortsmith.contracts import Candidate
 
 API_URL = "https://commons.wikimedia.org/w/api.php"
@@ -43,8 +43,9 @@ def _meta(info: object, name: str) -> str:
 
 class CommonsImageSource(HttpImageSource):
     origin = "commons"
+    headers = {"User-Agent": USER_AGENT}  # 053 rule 5: Wikimedia's User-Agent policy
 
-    def search(self, query: str, n: int) -> list[Candidate]:
+    def _search(self, query: str, n: int) -> list[Candidate]:
         params = {
             "action": "query",
             "format": "json",
@@ -57,7 +58,7 @@ class CommonsImageSource(HttpImageSource):
             "iiprop": "url|size|extmetadata",
             "iiurlwidth": str(THUMB_WIDTH),
         }
-        body = self._json(API_URL, params)
+        body = self._json(API_URL, params, query=query)
         if body is None:
             return []
         pages = items(field(body, "query"), "pages")

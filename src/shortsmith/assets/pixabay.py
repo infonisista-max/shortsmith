@@ -52,7 +52,7 @@ class PixabayImageSource(HttpImageSource):
         super().__init__(client=client, timeout_s=timeout_s, max_bytes=max_bytes)
         self._api_key = api_key
 
-    def search(self, query: str, n: int) -> list[Candidate]:
+    def _search(self, query: str, n: int) -> list[Candidate]:
         params = {
             "key": self._api_key.get_secret_value(),
             "q": query,
@@ -60,7 +60,7 @@ class PixabayImageSource(HttpImageSource):
             "image_type": "photo",
             "safesearch": "true",
         }
-        body = self._json(API_URL, params)
+        body = self._json(API_URL, params, query=query)
         if body is None:
             return []
         candidates: list[Candidate] = []

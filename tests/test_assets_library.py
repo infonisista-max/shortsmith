@@ -20,8 +20,9 @@ import pytest
 from PIL import Image
 from pydantic import SecretStr
 
-from shortsmith.assets import base, commons, openverse, pexels, pixabay
+from shortsmith.assets import base, commons, http, openverse, pexels, pixabay
 from shortsmith.assets.base import ImageSource
+from shortsmith.assets.http import HttpImageSource
 from shortsmith.contracts import Candidate
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -96,6 +97,51 @@ def test_commons_drops_a_hit_with_no_image_url() -> None:
     found = commons.CommonsImageSource(client=tape.client()).search(QUERY, 6)
     assert len(found) == 3
     assert all(c.url for c in found)
+
+
+# --- 053: Commons and Openverse say who is asking and why they answered nothing ------------
+
+
+@pytest.mark.parametrize("make", [commons.CommonsImageSource, openverse.OpenverseImageSource])
+def test_commons_and_openverse_send_a_descriptive_user_agent(make: type[HttpImageSource]) -> None:
+    """053 / Wikimedia's User-Agent policy: the project name, its version and the repo
+    URL, never a browser string."""
+    tape = Recorded(None, status=200)
+    make(client=tape.client()).search(QUERY, 6)
+    agent = tape.requests[0].headers["user-agent"]
+    assert agent.startswith("shortsmith/")
+    assert http.REPO_URL in agent
+    assert "Mozilla" not in agent
+
+
+def test_a_refused_answer_leaves_one_note_naming_source_status_and_query() -> None:
+    source = commons.CommonsImageSource(client=Recorded(None, status=403).client())
+    assert source.search(QUERY, 6) == []
+    assert source.drain() == ["commons answered 403 for 'India Gate Delhi'"]
+    assert source.drain() == []  # drained once, logged once
+
+
+def test_an_empty_answer_leaves_one_note_with_the_status() -> None:
+    tape = Recorded({"results": []}, status=200)
+    source = openverse.OpenverseImageSource(client=tape.client())
+    assert source.search(QUERY, 6) == []
+    assert source.drain() == ["openverse answered 200 with no candidates for 'India Gate Delhi'"]
+
+
+def test_an_answer_with_candidates_leaves_no_note() -> None:
+    source = openverse.OpenverseImageSource(client=Recorded(_recorded("openverse")).client())
+    assert source.search(QUERY, 6)
+    assert source.drain() == []
+
+
+def test_an_unreachable_source_leaves_one_note() -> None:
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("no route", request=request)
+
+    source = commons.CommonsImageSource(client=httpx.Client(transport=httpx.MockTransport(down)))
+    assert source.search(QUERY, 6) == []
+    (note,) = source.drain()
+    assert note.startswith("commons could not be reached for 'India Gate Delhi': ConnectError")
 
 
 # --- Openverse --------------------------------------------------------------------------

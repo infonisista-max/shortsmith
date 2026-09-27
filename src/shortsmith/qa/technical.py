@@ -29,9 +29,10 @@ every listed check is present and `pass`: a report that stopped short never deli
         owner/generated origin, every generated row a prompt, no photoreal named entity
     T10 no cut boundary (work/cut.json, source timeline) lands mid-word: none sits more
         than 0.03 s inside a word of work/asr.json; a boundary in a pause is not mid-word
-    T11 PIP geometry (3.3): on every strip frame with a face, the box the detector found
-        sits fully inside the PIP circle once the window is scaled into it, and the chin
-        is above 90 % of the window; from job.json.presenter, never pixels
+    T11 PIP geometry (3.3, amended by 053): on every strip frame with a face, the oval
+        inscribed in the box the detector found (the face, not the box's corners) sits
+        fully inside the PIP circle once the window is scaled into it, and the chin is
+        above 90 % of the window; from job.json.presenter, never pixels
     T12 safe area (6.3): no caption word box, stamp, counter or lower-third of the render
         spec reaches the top 250, bottom 320 or right 140 px; from geometry, not pixels.
         The hook title and the finale word are set pieces read off the reference frames
@@ -565,23 +566,31 @@ def t10(spans: Sequence[Span] | None, words: Sequence[Word]) -> QaCheck:
 CHIN_MAX_FRACTION = 0.90
 
 
+OVAL_STEPS = 720  # the oval's edge sampled every half degree: under 0.01 px of error
+
+
 def _circle_overshoot(face: presenter.FaceBox, pip: presenter.PipGeometry) -> float:
-    """How far, in circle pixels, the box's farthest corner sits past the circle's edge
-    once the window is scaled into the circle (negative: inside by that much)."""
+    """How far, in circle pixels, the face's farthest point sits past the circle's edge
+    once the window is scaled into the circle (negative: inside by that much). The
+    face is the oval inscribed in the detector's box (053): the box's corners are not
+    face, and a square wider than window / sqrt 2 could never pass a corner rule while
+    the face inside it sat well within the circle (F1: 744-823 px boxes in 1080)."""
     scale = pip.diameter / pip.window_size
     radius = pip.diameter / 2
-    farthest = max(
-        math.hypot((x - pip.window_left) * scale - radius, (y - pip.window_top) * scale - radius)
-        for x in (face.left, face.left + face.width)
-        for y in (face.top, face.top + face.height)
-    )
+    centre_x = (face.left + face.width / 2 - pip.window_left) * scale - radius
+    centre_y = (face.top + face.height / 2 - pip.window_top) * scale - radius
+    theta = np.linspace(0.0, 2 * math.pi, OVAL_STEPS, endpoint=False)
+    edge_x = centre_x + (face.width / 2) * scale * np.cos(theta)
+    edge_y = centre_y + (face.height / 2) * scale * np.sin(theta)
+    farthest = float(np.max(np.hypot(edge_x, edge_y)))
     return farthest - radius
 
 
 def t11(measured: PresenterMeasurement | None) -> QaCheck:
-    """Every strip frame's face box inside the PIP circle and its chin above 90 % of
-    the window (3.3), from the measurement on job.json. A still the detector found no
-    face on is counted, not judged: the 3.3 floor already passed at `transcribing`."""
+    """Every strip frame's face oval (the one inscribed in the detector's box, 053)
+    inside the PIP circle and its chin above 90 % of the window (3.3), from the
+    measurement on job.json. A still the detector found no face on is counted, not
+    judged: the 3.3 floor already passed at `transcribing`."""
     if measured is None:
         return QaCheck(
             name="T11", passed=False, detail="job.json has no presenter measurement (3.3)"
@@ -596,7 +605,7 @@ def t11(measured: PresenterMeasurement | None) -> QaCheck:
         found += 1
         overshoot = _circle_overshoot(face, pip)
         if overshoot > 1e-6:
-            problems.append(f"frame {n}: face box leaves the circle by {overshoot:.0f} px")
+            problems.append(f"frame {n}: face oval leaves the circle by {overshoot:.0f} px")
         chin = (face.chin_y - pip.window_top) / pip.window_size
         lowest_chin = max(lowest_chin, chin)
         if chin > CHIN_MAX_FRACTION + 1e-9:
@@ -608,7 +617,7 @@ def t11(measured: PresenterMeasurement | None) -> QaCheck:
     if problems:
         return QaCheck(name="T11", passed=False, detail="; ".join(problems))
     detail = (
-        f"face on {found} of {len(measured.faces)} strip frames, every box inside the "
+        f"face on {found} of {len(measured.faces)} strip frames, every face oval inside the "
         f"{pip.diameter} px circle, chin at {lowest_chin:.0%} of the window "
         f"(max {CHIN_MAX_FRACTION:.0%})"
     )

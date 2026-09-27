@@ -762,6 +762,7 @@ class Scripted(assets.ImageSource):
     """A source answering fixed candidates, counting what was fetched and judged."""
 
     def __init__(self, origin: str, candidates: Sequence[Candidate]) -> None:
+        super().__init__()
         self.origin = origin  # pyright: ignore[reportAttributeAccessIssue]
         self.candidates = list(candidates)
         self.fetched: list[str] = []
@@ -816,7 +817,7 @@ def test_the_hard_rejects_run_before_the_judge_is_asked_anything(tmp_path: Path)
     """5.2: a candidate too small or too wide never reaches the judge, and rejecting
     it is never rejecting the beat."""
     source = Scripted("web", _candidates(
-        ("small", 640, 480), ("wide", 3600, 900), ("good", 1600, 1200),
+        ("small", 320, 240), ("wide", 3600, 900), ("good", 1600, 1200),
     ))  # fmt: skip
     book, judge = _judging({"good": 3})
     log: list[str] = []
@@ -826,7 +827,8 @@ def test_the_hard_rejects_run_before_the_judge_is_asked_anything(tmp_path: Path)
     assert source.fetched == ["https://e.example/good.png"]
     assert manifest.beats[0].fallback_rung == 0
     assert log[:2] == [
-        "sourcing: https://e.example/small.png rejected: short side 480 px < 800 px",
+        "sourcing: https://e.example/small.png rejected: 320x240 px cannot fill a 839 px "
+        "wide card at <= 1.5x",
         "sourcing: https://e.example/wide.png rejected: aspect 4.00:1 > 3:1",
     ]
 
@@ -910,7 +912,10 @@ def test_a_downloaded_file_smaller_than_it_claimed_is_dropped(tmp_path: Path) ->
     manifest = _run(tmp_path, [_beat(1, "entity")], sources={"web": source}, judging=book,
                     log=log)  # fmt: skip
     assert manifest.assets[0].source_url == "https://e.example/honest.png"
-    assert log == ["sourcing: https://e.example/lying.png rejected: short side 300 px < 800 px"]
+    assert log == [
+        "sourcing: https://e.example/lying.png rejected: 400x300 px cannot fill a 839 px "
+        "wide card at <= 1.5x"
+    ]
 
 
 def test_verdicts_are_cached_by_url_across_beats(tmp_path: Path) -> None:

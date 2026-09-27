@@ -9,6 +9,7 @@ non-image body. The hard rejects are pure functions, pinned at their boundaries.
 
 from __future__ import annotations
 
+import math
 from io import BytesIO
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import httpx
 import pytest
 from PIL import Image
 
+from shortsmith import render
 from shortsmith.assets import base, web
 from shortsmith.contracts import Candidate
 
@@ -63,27 +65,114 @@ def _source(fake: Fake) -> web.WebImageSource:
 # --- the hard rejects (5.2) ------------------------------------------------------------
 
 
+CARD = 14  # the explainer's card border
+
+
+def _card_floor(width: int, height: int) -> int:
+    """The smallest width that fills the card slot at the renderer's upscale (053):
+    derived from the render constants here too, never typed as a number."""
+    slot = min(render.CARD_MAX_W, render.CARD_BASE_H * width / height) - 2 * CARD
+    return math.ceil(slot / render.CARD_MAX_UPSCALE)
+
+
 @pytest.mark.parametrize(
     ("width", "height", "rejected"),
     [
-        (800, 800, False),  # exactly the floor passes
         (1200, 800, False),
-        (1200, 799, True),  # one pixel under it does not
-        (799, 1200, True),
+        (_card_floor(1600, 1000), 397, False),  # a landscape exactly filling the 980 px card
+        (_card_floor(1600, 1000) - 1, 396, True),  # one pixel under it does not
+        (_card_floor(1000, 1000), _card_floor(1000, 1000), False),  # a square fills 650 px
+        (_card_floor(1000, 1000) - 1, _card_floor(1000, 1000) - 1, True),
+        (600, 800, False),  # F1's lost portraits fill a card at <= 1.5x (053)
+        (768, 896, False),
         (2400, 800, False),  # exactly 3:1 passes
         (2409, 800, True),  # 3.01:1 does not
         (800, 2409, True),
         (0, 0, False),  # a source that reports no size is checked after the download
     ],
 )
-def test_hard_reject_boundaries(width: int, height: int, rejected: bool) -> None:
-    """5.2: short side < 800 px and aspect > 3:1, at the boundary."""
-    assert (base.reject_size(width, height) is not None) is rejected
+def test_card_slot_reject_boundaries(width: int, height: int, rejected: bool) -> None:
+    """5.2 / 053: the floor is the card slot the image will be shown in, at the
+    renderer's 1.5x upscale, plus aspect > 3:1, at the boundary."""
+    assert (base.reject_size(width, height, CARD) is not None) is rejected
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "covers"),
+    [
+        (720, 1280, True),  # covers 1080x1920 at exactly 1.5x
+        (719, 1280, False),
+        (720, 1279, False),
+        (1600, 1000, False),  # a landscape cannot cover the frame
+    ],
+)
+def test_the_5_3_cover_rule_decides_treatment_not_rejection(
+    width: int, height: int, covers: bool
+) -> None:
+    """053: an image that cannot cover the frame is a card (5.3), never a reject."""
+    assert base.covers_frame(width, height) is covers
+    assert base.reject_size(width, height, CARD) is None
 
 
 def test_a_rejected_candidate_says_why() -> None:
-    assert base.reject_size(1200, 400) == "short side 400 px < 800 px"
-    assert base.reject_size(3200, 800) == "aspect 4.00:1 > 3:1"
+    assert base.reject_size(320, 240, CARD) == (
+        "320x240 px cannot fill a 839 px wide card at <= 1.5x"
+    )
+    assert base.reject_size(3200, 800, CARD) == "aspect 4.00:1 > 3:1"
+
+
+def test_the_card_slot_is_the_renderers_card_geometry() -> None:
+    """053: one source of truth - the slot width is what `render.card_image_size` would
+    give an image big enough not to be capped by the upscale."""
+    assert base.card_slot_width(1600, 1000, 14) == render.card_image_size(1600, 1000, 14)[0]
+    assert base.card_slot_width(700, 1400, 14) == render.card_image_size(700, 1400, 14)[0]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://c8.alamy.com/comp/RBP0Y6/hindu-priest.jpg",
+        "https://img.freepik.com/premium-photo/sadhu.jpg",
+        "https://as2.ftcdn.net/jpg/15/11/75/65/1000_F_1511756593.jpg",
+        "https://stock.adobe.com/in/images/a-monk/1511756593",
+        "https://thumbs.dreamstime.com/b/hindu-sadhu.jpg",
+        "https://media.istockphoto.com/id/1335898533/photo/beads.jpg?s=612x612",
+        "https://media.gettyimages.com/id/2161923599/photo/devotees.jpg",
+        "https://www.shutterstock.com/image-photo/x.jpg",
+        "https://us.123rf.com/450wm/x.jpg",
+        "https://st.depositphotos.com/x.jpg",
+        "https://images.pond5.com/x.jpg",
+        "https://cdn.canstockphoto.com/x.jpg",
+    ],
+)
+def test_stock_preview_hosts_are_rejected_by_image_host(url: str) -> None:
+    """053: watermarked stock previews never reach the judge, whose thumbnail cannot
+    show the watermark."""
+    candidate = Candidate(url=url, page_url="https://blog.example.org/post", width=0, height=0)
+    why = base.reject_host(candidate)
+    assert why is not None and why.startswith("stock preview host ")
+
+
+def test_stock_preview_hosts_are_rejected_by_page_host_too() -> None:
+    candidate = Candidate(
+        url="https://cdn.example-images.net/x.jpg",
+        page_url="https://www.alamy.com/stock-photo/x.html",
+        width=0, height=0,
+    )  # fmt: skip
+    assert base.reject_host(candidate) == "stock preview host alamy.com"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://upload.wikimedia.org/wikipedia/commons/a/a1/x.jpg",
+        "https://images.pexels.com/photos/1/pexels-photo-1.jpeg",
+        "https://notalamy.com/x.jpg",  # a suffix match, not a substring one
+        "https://freepik.com.example.org/x.jpg",
+    ],
+)
+def test_other_hosts_pass_the_stock_check(url: str) -> None:
+    assert base.reject_host(Candidate(url=url, width=0, height=0)) is None
 
 
 def test_a_body_over_fifteen_megabytes_or_not_an_image_is_rejected() -> None:

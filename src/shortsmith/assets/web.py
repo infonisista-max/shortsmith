@@ -110,14 +110,11 @@ class WebImageSource(HttpImageSource):
         super().__init__(client=client, timeout_s=timeout_s, max_bytes=max_bytes)
         self._endpoint = endpoint
 
-    def search(self, query: str, n: int) -> list[Candidate]:
+    def _search(self, query: str, n: int) -> list[Candidate]:
         """The first `n` hits for `query`, page-followed when a hit names no image."""
-        self.searches += 1
         params = {"q": query, "form": "HDRSC2", "first": "1"}
-        try:
-            response = self._get(self._endpoint, params=params)
-            response.raise_for_status()
-        except httpx.HTTPError:
+        response = self._answer(self._endpoint, params, query)
+        if response is None:
             return []
         candidates: list[Candidate] = []
         for hit in parse_results(response.text):

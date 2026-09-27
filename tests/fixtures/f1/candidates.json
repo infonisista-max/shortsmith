@@ -1,0 +1,284 @@
+{
+  "pexels|Neem Karoli Baba portrait blanket": {
+    "candidates": [
+      {
+        "url": "https://images.pexels.com/photos/34684644/pexels-photo-34684644.jpeg",
+        "page_url": "https://www.pexels.com/photo/varanasi-sunset-portrait-of-a-hindu-sadhu-34684644/",
+        "width": 3615,
+        "height": 4820
+      },
+      {
+        "url": "https://images.pexels.com/photos/34684649/pexels-photo-34684649.jpeg",
+        "page_url": "https://www.pexels.com/photo/elderly-sadhu-in-varanasi-at-sunset-34684649/",
+        "width": 3550,
+        "height": 4734
+      },
+      {
+        "url": "https://images.pexels.com/photos/30756218/pexels-photo-30756218.jpeg",
+        "page_url": "https://www.pexels.com/photo/portrait-of-a-man-at-a-vibrant-flower-market-30756218/",
+        "width": 3864,
+        "height": 5152
+      },
+      {
+        "url": "https://images.pexels.com/photos/35536243/pexels-photo-35536243.jpeg",
+        "page_url": "https://www.pexels.com/photo/aerial-view-of-kainchi-dham-temple-in-uttarakhand-35536243/",
+        "width": 6000,
+        "height": 3376
+      },
+      {
+        "url": "https://images.pexels.com/photos/30555892/pexels-photo-30555892.jpeg",
+        "page_url": "https://www.pexels.com/photo/elderly-man-wrapped-in-a-colorful-blanket-in-delhi-30555892/",
+        "width": 3335,
+        "height": 5003
+      },
+      {
+        "url": "https://images.pexels.com/photos/32418082/pexels-photo-32418082.jpeg",
+        "page_url": "https://www.pexels.com/photo/luxurious-cozy-bedroom-in-tbilisi-hotel-32418082/",
+        "width": 6000,
+        "height": 4000
+      }
+    ],
+    "picked": "https://images.pexels.com/photos/30756218/pexels-photo-30756218.jpeg",
+    "judge": {
+      "model": "claude-haiku-4-5-20251001",
+      "score": 3,
+      "reasons": []
+    }
+  },
+  "pexels|Neem Karoli Baba sitting with devotees blanket": {
+    "candidates": [
+      {
+        "url": "https://images.pexels.com/photos/10619292/pexels-photo-10619292.jpeg",
+        "page_url": "https://www.pexels.com/photo/gray-haired-person-sitting-on-the-ground-10619292/",
+        "width": 4000,
+        "height": 6000
+      },
+      {
+        "url": "https://images.pexels.com/photos/35536244/pexels-photo-35536244.jpeg",
+        "page_url": "https://www.pexels.com/photo/vibrant-aerial-view-of-kainchi-dham-temple-complex-35536244/",
+        "width": 3936,
+        "height": 2216
+      },
+      {
+        "url": "https://images.pexels.com/photos/30756218/pexels-photo-30756218.jpeg",
+        "page_url": "https://www.pexels.com/photo/portrait-of-a-man-at-a-vibrant-flower-market-30756218/",
+        "width": 3864,
+        "height": 5152
+      },
+      {
+        "url": "https://images.pexels.com/photos/34684650/pexels-photo-34684650.jpeg",
+        "page_url": "https://www.pexels.com/photo/portrait-of-a-sadhu-with-religious-idol-34684650/",
+        "width": 2978,
+        "height": 3971
+      },
+      {
+        "url": "https://images.pexels.com/photos/2257896/pexels-photo-2257896.jpeg",
+        "page_url": "https://www.pexels.com/photo/man-sitting-indoors-2257896/",
+        "width": 2832,
+        "height": 4256
+      },
+      {
+        "url": "https://images.pexels.com/photos/11495971/pexels-photo-11495971.jpeg",
+        "page_url": "https://www.pexels.com/photo/elderly-man-looking-through-barred-window-11495971/",
+        "width": 4353,
+        "height": 3265
+      }
+    ],
+    "picked": "https://images.pexels.com/photos/30756218/pexels-photo-30756218.jpeg",
+    "judge": {
+      "model": "claude-haiku-4-5-20251001",
+      "score": 3,
+      "reasons": []
+    }
+  },
+  "web|Neem Karoli Baba portrait blanket": {
+    "candidates": [
+      {
+        "url": "https://thumbs.worthpoint.com/zoom/images1/1/0522/01/photo-neem-karoli-baba-maharajji-guru_1_2065cd0fb159c18160bf35e515a0144a.jpg",
+        "page_url": "https://www.worthpoint.com/worthopedia/photo-neem-karoli-baba-maharajji-guru-3936516877",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://images.fineartamerica.com/images/artworkimages/mediumlarge/3/neem-karoli-baba-portrait-neem-karoli-baba.jpg",
+        "page_url": "https://fineartamerica.com/featured/neem-karoli-baba-portrait-neem-karoli-baba.html",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://thumbs.worthpoint.com/zoom/images1/1/0824/21/photo-neem-karoli-baba-maharajji-guru_1_fa33ec5c0c3814432d2792ea5389c7c4.jpg",
+        "page_url": "https://www.worthpoint.com/worthopedia/photo-neem-karoli-baba-maharajji-guru-4752288893",
+        "width": 0,
+        "height": 0
+      }
+    ],
+    "picked": null,
+    "judge": null
+  },
+  "web|Virat Kohli Kainchi Dham visit": {
+    "candidates": [
+      {
+        "url": "https://www.iwmbuzz.com/wp-content/uploads/2022/11/anushka-sharma-and-virat-kohli-visit-kainchi-dham-in-uttarakhand-with-daughter-vamika-see-pics.jpg",
+        "page_url": "https://www.iwmbuzz.com/movies/celebrities-movies/anushka-sharma-and-virat-kohli-visit-kainchi-dham-in-uttarakhand-with-daughter-vamika-see-pics/2022/11/20",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://static.wixstatic.com/media/bd3bad_3974c2bf45244beea45eac58d5b69252~mv2.png/v1/fill/w_980,h_653,al_c,q_90,usm_0.66_1.00_0.01,enc_avif,quality_auto/bd3bad_3974c2bf45244beea45eac58d5b69252~mv2.png",
+        "page_url": "https://www.nomadznorth.com/post/9-lessons-we-can-learn-from-virat-kohli-s-kainchi-dham-visit",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://i.ytimg.com/vi/PqBdutL3emo/maxresdefault.jpg",
+        "page_url": "https://www.youtube.com/watch?v=PqBdutL3emo",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://static.langimg.com/nbt/thumb/114946476/neem-karoli-baba-who-inspired-virat-kohli-know-some-things-about-kainchi-dham-temple-too.jpg?imgsize=339500&width=1600&height=900&resizemode=75",
+        "page_url": "https://navbharattimes.indiatimes.com/travel/religious-trip/neem-karoli-baba-who-inspired-virat-kohli-know-some-things-about-kainchi-dham-temple-too/articleshow/114946476.cms",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://www.rajyasameeksha.com/Uploads/452fd244-23f7-497b-834f-eabb7cbb4664.jpg",
+        "page_url": "https://www.rajyasameeksha.com/uttarakhand/24422-virat-kohli-anushka-sharma-has-faith-in-kainchi-dham",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://devbhoomisamvad.com/wp-content/uploads/2022/11/Virat-Kohli-at-kainchi-dhaa.jpg",
+        "page_url": "https://devbhoomisamvad.com/virat-kohli-reached-uttarakhands-kainchi-dham-with-wife-anushka-sharma/",
+        "width": 0,
+        "height": 0
+      }
+    ],
+    "picked": "https://static.langimg.com/nbt/thumb/114946476/neem-karoli-baba-who-inspired-virat-kohli-know-some-things-about-kainchi-dham-temple-too.jpg?imgsize=339500&width=1600&height=900&resizemode=75",
+    "judge": {
+      "model": "claude-haiku-4-5-20251001",
+      "score": 2,
+      "reasons": [
+        "text_heavy"
+      ]
+    }
+  },
+  "web|tantric ritual fire sadhu night India": {
+    "candidates": [
+      {
+        "url": "https://img.freepik.com/premium-photo/happy-indian-sadhu-performing-traditional-fire-ritual-with-spiritual-devotees-night_1076263-6393.jpg?w=1380",
+        "page_url": "https://www.freepik.com/premium-ai-image/happy-indian-sadhu-performing-traditional-fire-ritual-with-spiritual-devotees-night_354414439.htm",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://img.freepik.com/premium-photo/indian-sadhu-performing-sacred-fire-ceremony-with-intense-devotion-traditional-aarti-ritual_1076263-6368.jpg?w=2000",
+        "page_url": "https://www.freepik.com/premium-ai-image/indian-sadhu-performing-sacred-fire-ceremony-with-intense-devotion-traditional-aarti-ritual_354414148.htm",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://c8.alamy.com/comp/2ST6G13/fire-bath-of-indian-sadhu-2ST6G13.jpg",
+        "page_url": "https://www.alamy.com/stock-photo/sadhu-sacred-fire.html",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://images.pexels.com/photos/34893446/pexels-photo-34893446/free-photo-of-mystical-ritual-in-kolkata-s-evening-glow.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+        "page_url": "https://www.pexels.com/photo/mystical-ritual-in-kolkata-s-evening-glow-34893446/",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://image.cdn2.seaart.me/2025-03-17/cvc1m2te878c73bmklb0-1/7ed5b060c1b7e8226fc2dc7a2fc4a821_high.webp",
+        "page_url": "https://www.seaart.ai/explore/detail/cvc1mcde878c73dvdbng",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://thumbs.dreamstime.com/b/hindu-sadhu-meditating-surrounded-fire-hindu-sadhu-meditating-surrounded-fire-high-quality-k-footage-ai-generated-353579058.jpg",
+        "page_url": "https://www.dreamstime.com/hindu-sadhu-meditating-surrounded-fire-hindu-sadhu-meditating-surrounded-fire-high-quality-k-footage-ai-generated-video353579058",
+        "width": 0,
+        "height": 0
+      }
+    ],
+    "picked": "https://img.freepik.com/premium-photo/happy-indian-sadhu-performing-traditional-fire-ritual-with-spiritual-devotees-night_1076263-6393.jpg?w=1380",
+    "judge": {
+      "model": "claude-haiku-4-5-20251001",
+      "score": 3,
+      "reasons": []
+    }
+  },
+  "web|Neem Karoli Baba sitting with devotees blanket": {
+    "candidates": [
+      {
+        "url": "https://bnkmp.in/cdn/shop/files/2_315ab4c5-bd85-469c-b5a7-d8d39f0aa1cd.png?v=1757352867&width=1445",
+        "page_url": "https://bnkmp.in/en/products/laminated-card-c2-maharaj-ji-sitting-covered-in-blanket-with-bonus-back-photo",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://lh3.googleusercontent.com/pw/AP1GczPCTQm1e6FlcXnOuA5CqLiDET3irACwdW5q8V6BjN0HqZnzxGyWnblkLVRnqdH-BWKRaWc9nVaXZj_rB4PQFVe-Cvlj0kdV4si_wZM4kJmYHv3q4NI6iviqzmTXBkVNT1Ckrf-78djFiW8Hf3ZFNRxe=w900-h600-s-no-gm?authuser=0",
+        "page_url": "https://www.yatrapur.com/neem-karoli-baba-saint-who-loves-serves-and-feeds-everyone/",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://hindi.cdn.zeenews.com/hindi/sites/default/files/2025/06/14/3984974-neem-karoli-4.jpg?im=FitAndFill=(800,600)",
+        "page_url": "https://zeenews.india.com/hindi/india/up-uttarakhand/nainital/photo-gallery-know-why-baba-neem-karoli-had-given-up-his-blanket-and-favorite-food-before-last-samadhi-in-vrindavan/2800810",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhlt_lCX1An4F1-Lx9YljxIELp3d-G4Dv0JWLng353B16sQgXe6uOP8Z2ATp-mttgLZ9JW18A2dz7kf65SOwThxJ1sLDc4YkR68j3Eu3aAZhovVKvPHUVmeNCSOmgHUtV1WvD1ru342lg4JpEyusoxU7tU5fjkDvghtTPo5J7CUSOVGfGUQgYVdOfPp/s825/c3abc5a3-6d64-4cde-b25b-73944704a451.jpg",
+        "page_url": "https://neverrising.blogspot.com/2023/04/the-mystery-of-neem-karoli-baba-temple.html",
+        "width": 0,
+        "height": 0
+      }
+    ],
+    "picked": null,
+    "judge": null
+  },
+  "web|Steve Jobs young 1970s India trip portrait": {
+    "candidates": [
+      {
+        "url": "https://www.globalindian.com/wp-content/uploads/2025/01/Steve-Jobs-right-during-his-India-visit-in-1974.webp",
+        "page_url": "https://www.globalindian.com/story/cover-story/the-unseen-kumbh-mela-connection-steve-jobs-and-the-spiritual-core-of-his-tech-vision/",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "http://www.oscension.com/wp-content/uploads/elementor/thumbs/Young_Steve_Jobs_India-1-qga348ipfy34v7g9x5wo5e8jf7vim6c7n3wzf3nedw.jpg",
+        "page_url": "http://www.oscension.com/",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://i.ytimg.com/vi/Xp0JR7o37SA/maxresdefault.jpg",
+        "page_url": "https://www.youtube.com/watch?v=Xp0JR7o37SA",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://cdn.grigora.co/projects/e2773390-6076-4d85-84b1-a1a34504c65f/images/2026/1/11/image6m02n3.avif",
+        "page_url": "https://www.zentrepreneur.co/the-zen-odyssey-of-steve-jobs-a-lifelong-transformation-sparking-a-revolution-in-design/",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://pbs.twimg.com/media/GHFWz6GW4AAnLPr.jpg",
+        "page_url": "https://en.rattibha.com/thread/1761288503034355807",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "url": "https://professornerdster.com/wp-content/uploads/2012/05/Steve-Jobs.jpeg",
+        "page_url": "https://professornerdster.com/from-steve-jobs-life-go-to-india/",
+        "width": 0,
+        "height": 0
+      }
+    ],
+    "picked": null,
+    "judge": null
+  }
+}
