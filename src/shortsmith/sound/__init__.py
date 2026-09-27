@@ -334,9 +334,14 @@ class AudioSearch(ABC):
         is what the adopted entry is tagged with."""
 
     @abstractmethod
-    def sfx(self, words: str, intent: str, library: Library) -> SearchOutcome:
+    def sfx(
+        self, words: str, intent: str, library: Library, *, whoosh_max_len_s: float | None = None
+    ) -> SearchOutcome:
         """Search `words` for a cue and adopt the first result that passes the sweep
-        detector, tagged with `intent`."""
+        detector, tagged with `intent`. 060 (5): for the `whoosh` intent alone,
+        `whoosh_max_len_s` is the style's `sound.whoosh.max_len_s` - a file no longer
+        than it is exempt from the detector, a longer one is refused; None means the
+        style allows no whoosh and the detector runs as for any cue."""
 
 
 class FakeAudioSearch(AudioSearch):
@@ -348,6 +353,7 @@ class FakeAudioSearch(AudioSearch):
         self.shelf = shelf
         self.calls: list[str] = []
         self.sfx_calls: list[str] = []
+        self.sfx_max_len_s: list[float | None] = []
 
     def _shelf(self, library: Library) -> Library:
         return self.shelf if self.shelf is not None else library
@@ -358,9 +364,13 @@ class FakeAudioSearch(AudioSearch):
         best = min(beds, key=lambda e: (abs(e.energy - query.energy), e.id)) if beds else None
         return SearchOutcome("fake", "bed", words, "200", len(beds), adopted=best)
 
-    def sfx(self, words: str, intent: str, library: Library) -> SearchOutcome:
+    def sfx(
+        self, words: str, intent: str, library: Library, *, whoosh_max_len_s: float | None = None
+    ) -> SearchOutcome:
         self.sfx_calls.append(words)
-        found = match_sfx(intent, self._shelf(library))
+        self.sfx_max_len_s.append(whoosh_max_len_s)
+        limit = whoosh_max_len_s if styles.is_whoosh(intent) else None
+        found = match_sfx(intent, self._shelf(library), max_duration_s=limit)
         return SearchOutcome("fake", "sfx", words, "200", int(found is not None), adopted=found)
 
 
@@ -553,11 +563,19 @@ class SfxShelf:
     it has nothing tagged with the intent, the search ladder `sfx_queries`, rung by rung,
     stopping at the first adoption. Every search is a note; an adopted entry joins the
     library here so the next intent, the stem and the rights rows all see it; a miss is
-    remembered so an intent is searched once."""
+    remembered so an intent is searched once.
 
-    def __init__(self, library: Library, search: AudioSearch | None) -> None:
+    060 (5): `whoosh_max_len_s` is the style's `sound.whoosh.max_len_s` when it allows
+    whooshes, else None. A `whoosh` intent is matched only to a file no longer than it,
+    in the library and in the search; under None it resolves to nothing (the caller has
+    already refused the cue as forbidden)."""
+
+    def __init__(
+        self, library: Library, search: AudioSearch | None, *, whoosh_max_len_s: float | None = None
+    ) -> None:
         self.library = library
         self._search = search
+        self._whoosh_max_len_s = whoosh_max_len_s
         self.notes: list[str] = []
         self._resolved: dict[str, AudioEntry | None] = {}
 
@@ -565,16 +583,28 @@ class SfxShelf:
         key = intent.strip().lower()
         if key in self._resolved:
             return self._resolved[key]
-        found = match_sfx(key, self.library)
+        whoosh = styles.is_whoosh(key)
+        if whoosh and self._whoosh_max_len_s is None:
+            self._resolved[key] = None
+            return None
+        limit = self._whoosh_max_len_s if whoosh else None
+        found = match_sfx(key, self.library, max_duration_s=limit)
         if found is None and self._search is not None and key:
-            found = self._searched(key)
+            found = self._searched(key, limit)
+        if found is None and whoosh and limit is not None and self._search is None:
+            self.notes.append(
+                f"no sfx for {key!r} no longer than sound.whoosh.max_len_s {limit:g} s in the "
+                f"catalogue and {NO_SEARCH_LINE}"
+            )
         self._resolved[key] = found
         return found
 
-    def _searched(self, intent: str) -> AudioEntry | None:
+    def _searched(self, intent: str, whoosh_max_len_s: float | None) -> AudioEntry | None:
         assert self._search is not None
         for words in sfx_queries(intent):
-            outcome = self._search.sfx(words, intent, self.library)
+            outcome = self._search.sfx(
+                words, intent, self.library, whoosh_max_len_s=whoosh_max_len_s
+            )
             self.notes += [outcome.line(), *outcome.notes]
             if outcome.adopted is not None:
                 if self.library.entry(outcome.adopted.id) is None:
@@ -582,8 +612,13 @@ class SfxShelf:
                         root=self.library.root, entries=(*self.library.entries, outcome.adopted)
                     )
                 return outcome.adopted
+        bound = (
+            f" no longer than sound.whoosh.max_len_s {whoosh_max_len_s:g} s"
+            if whoosh_max_len_s is not None
+            else ""
+        )
         self.notes.append(
-            f"no sfx for {intent!r}: nothing in the catalogue is tagged with it and "
+            f"no sfx for {intent!r}{bound}: nothing in the catalogue is tagged with it and "
             f"{SEARCH_EMPTY_LINE}"
         )
         return None
@@ -599,13 +634,21 @@ def cue_level_db(hit: str, nums: styles.Sound) -> float:
     return nums.cue_db_min + fraction * (nums.cue_db_max - nums.cue_db_min)
 
 
-def match_sfx(intent: str, library: Library) -> AudioEntry | None:
+def match_sfx(
+    intent: str, library: Library, *, max_duration_s: float | None = None
+) -> AudioEntry | None:
     """The SFX whose `intent` tags carry this intent (7.2), the shortest file first so a
-    hit is a hit and not a bed; None when nothing is tagged with it."""
+    hit is a hit and not a bed; None when nothing is tagged with it. `max_duration_s`
+    (060: a whoosh's `sound.whoosh.max_len_s`) leaves longer files out."""
     wanted = intent.strip().lower()
     if not wanted:
         return None
-    matched = [e for e in library.sfx() if wanted in {t.strip().lower() for t in e.tags.intent}]
+    matched = [
+        e
+        for e in library.sfx()
+        if wanted in {t.strip().lower() for t in e.tags.intent}
+        and (max_duration_s is None or e.duration_s <= max_duration_s + 1e-9)
+    ]
     return min(matched, key=lambda e: (e.duration_s, e.id)) if matched else None
 
 
@@ -636,7 +679,10 @@ def place_cues(
         )
     beats = {b.id: b for b in plan.beats}
     floor = {h.beat_id: h for h in floor_hits(plan, nums, counter_land_s=counter_land_s)}
-    shelf = SfxShelf(library, search)
+    allowance = nums.whoosh if styles.allows_whoosh(nums) else None  # 060
+    shelf = SfxShelf(
+        library, search, whoosh_max_len_s=allowance.max_len_s if allowance else None
+    )
     steps = changeover_times(story, nums, runtime_s=runtime_s)
     wanted: set[str] = {h.hit for h in floor.values()}
     if steps:
@@ -659,6 +705,14 @@ def place_cues(
             notes.append(
                 f"{cue.beat_id}: cue {cue.intent!r} dropped, sound.cues_per_beat_max "
                 f"{nums.cues_per_beat_max}"
+            )
+            continue
+        if styles.is_whoosh(cue.intent) and allowance is None:
+            # 060: the grammar has refused this already; the director never resolves or
+            # searches a whoosh the style forbids.
+            notes.append(
+                f"{cue.beat_id}: cue {cue.intent!r} dropped: whooshes are in sound.forbidden "
+                "for this style (060)"
             )
             continue
         hit = floor[cue.beat_id].hit if cue.beat_id in floor else ""

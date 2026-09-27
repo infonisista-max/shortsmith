@@ -74,7 +74,7 @@ from shortsmith.qa.technical import LipSync, QaCheck, QaReport
 from shortsmith.render import FakeRenderer
 from shortsmith.sound import sweep
 from shortsmith.transcriber import FakeTranscriber
-from tests.conftest import Media, Sounds, ring, stem, swell, write_wav
+from tests.conftest import Media, Sounds, flash_whoosh_style, ring, stem, swell, write_wav
 
 MP4 = "mov,mp4,m4a,3gp,3g2,mj2"
 FPS = 30
@@ -478,6 +478,123 @@ def test_t6_says_so_when_no_cue_sounds_before_a_hit() -> None:
     hit = sweep.Hit(rule="R1", at_s=0.1, detail="flat")
     check = technical.t6([hit], _sheet())
     assert not check.passed and "no cue sounds there" in check.detail
+
+
+# --- T6 and the whoosh allowance (ticket 060; 7.3 as amended) -------------------------------
+
+WHOOSHY = flash_whoosh_style(render.loaded_styles()["explainer"]).sound
+EXPLAINER_SOUND = render.loaded_styles()["explainer"].sound
+
+
+def _whoosh_sheet(*starts: float, length_s: float = 0.5) -> CueSheet:
+    return CueSheet(
+        cues=[
+            CueRecord(beat_id=f"f{i + 1}", intent="whoosh", entry_id="sfx_whoosh", start_s=s,
+                      end_s=s + length_s)  # fmt: skip
+            for i, s in enumerate(starts)
+        ]
+    )
+
+
+FLASHES = {f"f{i + 1}": "flash" for i in range(8)}
+
+
+def test_t6_passes_a_whoosh_on_a_flash_under_the_allowance_and_ignores_its_own_noise() -> None:
+    """060: a whoosh cue on a `flash` beat under a style that allows whooshes passes;
+    the detector's hits inside that cue are the whoosh itself and are not faults."""
+    hit = sweep.Hit(rule="R1", at_s=2.0, detail="spectral flatness held 0.50 s")
+    check = technical.t6([hit], _whoosh_sheet(2.0), enters=FLASHES, nums=WHOOSHY, runtime_s=60.0)
+    assert check.passed, check.detail
+    assert check.detail == "R1-R4 clean on the SFX stem (1 cue; 1 whoosh under sound.whoosh)"
+
+
+def test_t6_fails_a_whoosh_on_a_plain_cut_a_long_one_and_any_under_explainer() -> None:
+    sheet = _whoosh_sheet(2.0)
+    on_cut = technical.t6([], sheet, enters={"f1": "cut"}, nums=WHOOSHY, runtime_s=60.0)
+    assert not on_cut.passed
+    assert on_cut.detail == (
+        "whoosh cue sfx_whoosh on f1: on a 'cut' enter; sound.whoosh.on allows a whoosh only "
+        "on flash, pop"
+    )
+    long = technical.t6([], _whoosh_sheet(2.0, length_s=1.5), enters=FLASHES, nums=WHOOSHY,
+                        runtime_s=60.0)  # fmt: skip
+    assert not long.passed and "1.50 s long, over sound.whoosh.max_len_s 0.8" in long.detail
+    explainer = technical.t6([], sheet, enters=FLASHES, nums=EXPLAINER_SOUND, runtime_s=60.0)
+    assert not explainer.passed
+    assert explainer.detail == (
+        "whoosh cue sfx_whoosh on f1: whooshes are in sound.forbidden for this style"
+    )
+    # the noise of a whoosh that breaks the allowance is named too, hits first
+    hit = sweep.Hit(rule="R1", at_s=2.0, detail="flat")
+    both = technical.t6([hit], sheet, enters={"f1": "cut"}, nums=WHOOSHY, runtime_s=60.0)
+    assert both.detail.startswith(
+        "R1 at 2.00 s in cue sfx_whoosh on f1 ('whoosh'): flat; whoosh cue"
+    )
+
+
+def test_t6_caps_whooshes_per_60s_and_keeps_them_apart() -> None:
+    six = _whoosh_sheet(*[2.0 + 8.0 * i for i in range(6)])
+    assert technical.t6([], six, enters=FLASHES, nums=WHOOSHY, runtime_s=60.0).passed
+    seven = _whoosh_sheet(*[2.0 + 8.0 * i for i in range(7)])
+    check = technical.t6([], seven, enters=FLASHES, nums=WHOOSHY, runtime_s=60.0)
+    assert not check.passed
+    assert check.detail == (
+        "whoosh cue sfx_whoosh on f7: whoosh 7 of 7 over 60 s, sound.whoosh.max_per_60s 6 "
+        "allows 6"
+    )
+    close = technical.t6([], _whoosh_sheet(2.0, 4.0), enters=FLASHES, nums=WHOOSHY, runtime_s=60.0)
+    assert not close.passed
+    assert close.detail == (
+        "whoosh cue sfx_whoosh on f2: 2.00 s after the whoosh on f1, under sound.whoosh.min_gap_s 3"
+    )
+    # the cap scales to the runtime, rounding up: one whoosh in six seconds is fine
+    assert technical.t6([], _whoosh_sheet(1.0), enters=FLASHES, nums=WHOOSHY, runtime_s=6.0).passed
+
+
+def test_t6_still_fails_a_sweep_beside_an_allowed_whoosh() -> None:
+    sheet = CueSheet(
+        cues=[
+            *_whoosh_sheet(2.0).cues,
+            CueRecord(beat_id="b2", intent="reveal", entry_id="sfx_rise", start_s=10.0, end_s=12.0),
+        ]
+    )
+    hit = sweep.Hit(rule="R2", at_s=10.1, detail="crescendo of 9.0 dB over 0.23 s")
+    check = technical.t6([hit], sheet, enters={**FLASHES, "b2": "cut"}, nums=WHOOSHY,
+                         runtime_s=60.0)  # fmt: skip
+    assert not check.passed
+    assert check.detail == (
+        "R2 at 10.10 s in cue sfx_rise on b2 ('reveal'): crescendo of 9.0 dB over 0.23 s"
+    )
+
+
+def test_t6_without_a_style_scans_the_stem_as_before() -> None:
+    """The unit form (no `nums`) is the detector alone; the whoosh rules need the style."""
+    assert technical.t6([], _whoosh_sheet(2.0)).passed
+
+
+def test_run_judges_a_whoosh_by_the_jobs_style(
+    speaking_short: Path, sounds: Sounds, tmp_path: Path
+) -> None:
+    """End to end: the same stem (0.5 s of noise, an R1 hit, cued as a whoosh on a beat
+    entering with a flash) passes T6 under the test style and fails it under explainer,
+    named as forbidden rather than only as noise."""
+    plan = _good_plan()
+    plan = plan.model_copy(
+        update={"beats": [plan.beats[0].model_copy(update={"enter": "flash"}), *plan.beats[1:]]}
+    )
+    job = _speaking_job(tmp_path, speaking_short, plan)
+    sheet = CueSheet(
+        cues=[CueRecord(beat_id="b1", intent="whoosh", entry_id="sfx_whoosh", start_s=0.0,
+                        end_s=0.5)]  # fmt: skip
+    )
+    _with_sfx_stem(job, sounds("noise_500ms"), sheet)
+    allowed = technical.run(job, specs={"explainer": flash_whoosh_style(SPECS["explainer"])})
+    t6 = next(c for c in allowed.checks if c.name == "T6")
+    assert t6.passed and "1 whoosh under sound.whoosh" in t6.detail
+    report = technical.run(job)
+    assert report.failed is not None and report.failed.name == "T6"
+    assert report.failed.detail.startswith("R1 at 0.00 s in cue sfx_whoosh on b1 ('whoosh')")
+    assert "whooshes are in sound.forbidden" in report.failed.detail
 
 
 def _with_sfx_stem(job: jobs.Job, source: Path, sheet: CueSheet) -> None:

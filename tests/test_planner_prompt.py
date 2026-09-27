@@ -160,7 +160,33 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v8"
+    assert prompt.PROMPT_VERSION == "v9"
+
+
+def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:
+    """060: the picture file's flash rule (a turn back to the presenter or a section
+    change, under `broll.flash_max_per_60s`, never two in a row, only where the style
+    lists it) and the sound file's whoosh rule (only under `sound.whoosh`, only at the
+    start of a `flash` beat or a pop-in, within its caps)."""
+    picture = prompt.build_prompt(_request(), "picture")
+    for needle in (
+        "`flash`",
+        "turn back to the presenter or a section change",
+        "`broll.flash_max_per_60s`",
+        "never on two consecutive beats",
+        "A style without `flash` in the list\n  never gets one",
+    ):
+        assert needle in picture, needle
+    sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
+    for needle in (
+        "no whooshes unless section 1 carries a\n  `sound.whoosh` allowance",
+        "`intent: whoosh`",
+        "`enter` is `flash`",
+        "`sound.whoosh.max_per_60s`",
+        "`sound.whoosh.min_gap_s`",
+        "Code refuses a whoosh anywhere else",
+    ):
+        assert needle in sound, needle
 
 
 def test_the_picture_prompt_v8_asks_for_photo_on_the_opening_beats() -> None:

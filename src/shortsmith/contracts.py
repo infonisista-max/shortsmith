@@ -190,7 +190,9 @@ SubjectKind = Literal["entity", "concept", "number", "quote"]
 Depicts = Literal["named_entity", "scene"]
 Render = Literal["illustration", "photoreal"]  # 4.2: a named entity is never photoreal
 SourceIntent = Literal["search", "generate", "reuse"]
-Transition = Literal["cut", "fade", "whip", "zoom", "spring", "wipe"]
+# 9.4 as amended by 060: `flash` is the seventh enter, a full-frame colour flash peaking
+# on the cut (the picture layers only; the PIP circle and the captions never blink).
+Transition = Literal["cut", "fade", "whip", "zoom", "spring", "wipe", "flash"]
 EventKind = Literal["stamp", "ring", "lower_third", "none"]
 
 
@@ -1418,15 +1420,24 @@ class SpringNumbers(StrictModel):
     mass: float
 
 
+class FlashNumbers(Timed):
+    """060 (9.4 as amended): the flash's whole length, centred on the cut, and its
+    colour (a style's accent, or white)."""
+
+    color: str
+
+
 class Transitions(StrictModel):
     """9.4: the global enter vocabulary's numbers, one row per transition that has any
-    (`cut` has none), read from every style's `broll.transitions` front matter (030)."""
+    (`cut` has none), read from every style's `broll.transitions` front matter (030;
+    060 adds `flash`)."""
 
     fade: Timed
     whip: WhipNumbers
     zoom: ZoomNumbers
     spring: SpringNumbers
     wipe: Timed
+    flash: FlashNumbers
 
 
 class TransitionStyle(Transitions):

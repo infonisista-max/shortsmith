@@ -50,7 +50,7 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import Literal
 
-from shortsmith import assets, presenter
+from shortsmith import assets, presenter, styles
 from shortsmith.contracts import (
     CATEGORIES,
     TIER2_KINDS,
@@ -204,7 +204,7 @@ def validate_picture(
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
     warnings += asset_warnings
-    found += _transitions(beats, spec)
+    found += _transitions(beats, runtime, spec)
     found += _must_use(beats, must_use)
     found += _category(plan)
 
@@ -955,10 +955,19 @@ def _assets(
     return found, warnings
 
 
-def _transitions(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
-    """9.4: names inside the style list, `whip_max_per_3_beats`, never two whips in a row."""
+def flash_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """060: `broll.flash_max_per_60s` scaled to the runtime, rounded up like the other
+    per-60 s maxima (4.3), so a six-second fixture still allows one flash."""
+    return math.ceil(spec.broll.flash_max_per_60s * runtime / 60 - EPS)
+
+
+def _transitions(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Violation]:
+    """9.4: names inside the style list, `whip_max_per_3_beats`, never two whips in a
+    row; 060: at most `flash_cap` flashes over the runtime, never two in a row."""
     nums = spec.broll
     found: list[Violation] = []
+    flashes = 0
+    cap = flash_cap(spec, runtime=runtime)
     for i, b in enumerate(beats):
         if b.enter not in nums.enter_transitions:
             found.append(
@@ -969,6 +978,21 @@ def _transitions(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
                     f"{nums.enter_transitions}",
                 )
             )
+        if b.enter == "flash":
+            flashes += 1
+            if i > 0 and beats[i - 1].enter == "flash":
+                found.append(
+                    _v("9.4", b.id, f"two flashes in a row ({beats[i - 1].id} then {b.id}) (060)")
+                )
+            elif flashes > cap:
+                found.append(
+                    _v(
+                        "9.4",
+                        b.id,
+                        f"flash {flashes} over {runtime:g} s; broll.flash_max_per_60s "
+                        f"{nums.flash_max_per_60s} allows {cap} (060)",
+                    )
+                )
         if b.enter != "whip":
             continue
         if i > 0 and beats[i - 1].enter == "whip":
@@ -1063,6 +1087,7 @@ def validate_sound(
 
     cues: list[Cue] = []
     per_beat: Counter[str] = Counter()
+    allowance = nums.whoosh if styles.allows_whoosh(nums) else None
     for cue in story.cues:
         beat = beats.get(cue.beat_id)
         if beat is None:
@@ -1071,7 +1096,32 @@ def validate_sound(
             )
             continue
         bare = beat.event.kind == "none" and beat.counter is None  # 029: a counter lands
-        if cue.at == "event" and bare:
+        # 060 (7.3 as amended): a whoosh rides only a flash enter (or a pop-in, once
+        # 061-063 exist), and only where the style carries the allowance.
+        whoosh = styles.is_whoosh(cue.intent)
+        on_flash = cue.at == "start" and beat.enter == "flash"
+        whoosh_ok = whoosh and allowance is not None and "flash" in allowance.on and on_flash
+        if whoosh and allowance is None:
+            found.append(
+                _v(
+                    "7.3",
+                    beat.id,
+                    f"cue {cue.intent!r}: whooshes are in sound.forbidden for this style "
+                    f"(no sound.whoosh allowance; 060)",
+                )
+            )
+        elif whoosh and not whoosh_ok:
+            found.append(
+                _v(
+                    "7.3",
+                    beat.id,
+                    f"cue {cue.intent!r} at {cue.at!r} on a {beat.enter!r} enter: a whoosh is "
+                    f"allowed only at the start of a beat entering on {allowance.on} (060)"
+                    if allowance is not None
+                    else f"cue {cue.intent!r}: whooshes are forbidden (060)",
+                )
+            )
+        elif cue.at == "event" and bare:
             found.append(
                 _v(
                     "9.4",
@@ -1079,7 +1129,7 @@ def validate_sound(
                     f"cue {cue.intent!r} at the event of a beat with no landed event",
                 )
             )
-        elif cue.at == "start" and bare and beat.enter != "cut":
+        elif cue.at == "start" and bare and beat.enter != "cut" and not whoosh_ok:
             found.append(
                 _v(
                     "9.4",

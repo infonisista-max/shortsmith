@@ -330,7 +330,7 @@ def build_prompt(registry: Collection[str], *, components_md: Path = COMPONENTS_
     """The versioned instruction file with the registry names, their meanings from
     `docs/components.md`, the vocabulary and the schema generated from `InventoryAnswer`."""
     meanings = component_meanings(components_md)
-    transitions = {"cut", "fade", "whip", "zoom", "spring", "wipe"}
+    transitions = {"cut", "fade", "whip", "zoom", "spring", "wipe", "flash"}  # 060 adds flash
     names = sorted(registry)
     components = "\n".join(
         f"- `{name}`: {meanings.get(name) or 'a renderer component'}"

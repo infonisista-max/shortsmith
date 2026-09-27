@@ -1,5 +1,5 @@
 ---
-version: "5"
+version: "6"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -49,12 +49,14 @@ broll:
     finale: {kind: spring, duration_s: 0.4, cards: 3}
   enter_transitions: [cut, fade, whip, zoom, spring, wipe]
   whip_max_per_3_beats: 1
+  flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
     zoom: {duration_s: 0.3, scale_from: 1.6}
     spring: {damping: 14, stiffness: 160, mass: 0.7}
     wipe: {duration_s: 0.25}
+    flash: {duration_s: 0.3, color: "#FFFFFF"}  # 060: not enabled here
   unique_assets_min_per_60s: 12
   unique_assets_max_per_60s: 24
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
@@ -141,13 +143,13 @@ Motion-graphics heavy; illustrated B-roll dominates. DRAFT (grill decision 1.4):
 ## B-roll
 - Generated or vector illustrations with strong motion: parallax, pop-in, path animation; one consistent palette per short, and the accent may come from the user's references' dominant colour (1.3).
 - Sources and rights as in explainer (5.1); generation cap `gen_max_per_short` is higher because illustration is the point here.
-- All six enter transitions are enabled (9.4), still at most one whip per three beats.
+- The six 030 enter transitions are enabled (9.4), still at most one whip per three beats; `flash` (060) is not.
 
 ## Captions
 - Kinetic captions that pop per phrase: `words_per_page` words, heavier weight, the active word scales harder, two-colour emphasis with the accent. Same anchor, safe area and line limit as explainer (6.3).
 
 ## Sound
-- Upbeat bed `bed_db_under_voice` dB under the voice; pops and thumps on pop-ins are floor hits. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3).
+- Upbeat bed `bed_db_under_voice` dB under the voice; pops and thumps on pop-ins are floor hits. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3); whooshes stay forbidden here (060).
 
 ## Finale
 - Animated end card with a call to action, `min_s`–`max_s` s.

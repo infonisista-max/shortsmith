@@ -336,6 +336,38 @@ def test_a_clean_cue_is_adopted_with_its_intent_tag(
     assert sound.match_sfx("reveal_drop", sound.load_catalogue(own_library.catalogue)) == entry
 
 
+def test_a_whoosh_under_the_allowance_skips_the_detector_and_over_it_is_rejected(
+    own_library: sound.Library, sounds: Sounds
+) -> None:
+    """060 (5): for the whoosh intent alone, a file no longer than the style's
+    `sound.whoosh.max_len_s` is exempt from R1-R4 (a whoosh is a noise sweep by
+    nature); a longer one is rejected naming the length; without an allowance, or for
+    any other intent, the detector runs as before."""
+
+    def whoosh(id: str) -> AudioCandidate:
+        return _candidate(
+            id=id, kind="sfx", tags=["whoosh"], duration_s=1.0,
+            preview_url=f"https://cdn.freesound.org/previews/900/{id}-hq.mp3",
+        )  # fmt: skip
+
+    tape = Tape(audio=sounds("noise_500ms"))  # a 1.0 s file: 0.5 s of noise, an R1 hit
+    entry = _adapter(tape).adopt(
+        whoosh("900003"), library=own_library, intent="whoosh", whoosh_max_len_s=1.0
+    )
+    assert entry.tags.intent == ["whoosh"] and entry.duration_s == pytest.approx(1.0, abs=0.05)
+    with pytest.raises(freesound.Rejected, match=r"1\.00 s.*max_len_s 0\.8"):
+        _adapter(tape).adopt(
+            whoosh("900004"), library=own_library, intent="whoosh", whoosh_max_len_s=0.8
+        )
+    with pytest.raises(freesound.Rejected, match="R1"):
+        _adapter(tape).adopt(whoosh("900005"), library=own_library, intent="whoosh")
+    with pytest.raises(freesound.Rejected, match="R1"):
+        _adapter(tape).adopt(
+            whoosh("900006"), library=own_library, intent="reveal_drop", whoosh_max_len_s=1.0
+        )
+    assert not (own_library.root / freesound.FETCHED_DIR / "freesound_900004.mp3").exists()
+
+
 def _results(**overrides: object) -> dict[str, object]:
     """The recorded body with every hit's fields updated by `overrides`."""
     body: dict[str, object] = json.loads((FIXTURES / "search.json").read_text(encoding="utf-8"))

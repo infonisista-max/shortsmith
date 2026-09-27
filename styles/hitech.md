@@ -1,5 +1,5 @@
 ---
-version: "5"
+version: "6"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
@@ -63,12 +63,14 @@ broll:
           coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2}
   enter_transitions: [cut, fade, wipe, zoom]
   whip_max_per_3_beats: 0
+  flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
     zoom: {duration_s: 0.3, scale_from: 1.6}
     spring: {damping: 14, stiffness: 160, mass: 0.7}
     wipe: {duration_s: 0.25}
+    flash: {duration_s: 0.3, color: "#FFFFFF"}  # 060: not enabled here
   unique_assets_min_per_60s: 12
   unique_assets_max_per_60s: 24
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
@@ -154,13 +156,13 @@ Dark, glowing, product and tech facts. DRAFT (grill decision 1.4): aliases resol
 ## B-roll
 - Product images on the dark gradient, UI mock cards, spec stamps and number counters; sources and rights as in explainer (5.1). Generated named products stay illustration-style (`illustration_look`).
 - The set pieces, infographics and map are the explainer's components under hitech numbers: flat cards (`rotate_deg` 0, a 2 px border), deeper dims under lists and walls, the map's land in the gradient's blue with a cyan coast.
-- Transitions are `cut`, `fade`, `wipe` and `zoom` (9.4); no whips or springs.
+- Transitions are `cut`, `fade`, `wipe` and `zoom` (9.4); no whips or springs, no flash (060).
 
 ## Captions
 - Wider letter spacing for a monospace flavour, cyan/white emphasis, the same lower-third anchor and safe area as explainer (6.3); the plan may move a page to the upper third only once ticket 010 adds per-page zones.
 
 ## Sound
-- Sub-bass electronic bed `bed_db_under_voice` dB under the voice; a single low thump on reveals is the floor. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3).
+- Sub-bass electronic bed `bed_db_under_voice` dB under the voice; a single low thump on reveals is the floor. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3); whooshes stay forbidden here (060).
 
 ## Finale
 - Spec summary card with a call to action, `min_s`–`max_s` s.

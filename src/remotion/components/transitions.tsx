@@ -4,11 +4,14 @@
 // matter). `Transition` picks the beat's `enter` and refuses a name the style never
 // enabled - the grammar already rejects it, this is the renderer's own guard. Exit is
 // always a cut, except under `fade` and `wipe`, where the composition keeps the previous
-// beat drawn beneath for the motion's length (`holdsPrevious`, `holdFrames`).
+// beat drawn beneath for the motion's length (`holdsPrevious`, `holdFrames`). Ticket 060
+// adds `flash`: a cut for the picture, with the colour flash drawn by the composition
+// over both beats' picture layers (`flash.tsx`).
 import React from "react";
 import type { TransitionStyle } from "../types";
 import { Cut } from "./cut";
 import { Fade } from "./fade";
+import { Flash } from "./flash";
 import { Spring } from "./spring";
 import { Whip } from "./whip";
 import { Wipe } from "./wipe";
@@ -30,6 +33,7 @@ export const ENTERS: Record<string, React.FC<EnterProps>> = {
   zoom: Zoom,
   spring: Spring,
   wipe: Wipe,
+  flash: Flash,
 };
 
 // Under these the previous beat's exit is a fade (it stays beneath until the motion

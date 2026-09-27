@@ -41,16 +41,19 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v8 (ticket 057): the opening beats ask `photo` - full-screen whenever the image can
-# fill the frame at the style's `broll.full_bleed_max_upscale`, a card only when it
-# cannot - and the origin of an image no longer decides its treatment; the sound file is
-# unchanged. (v7, ticket 055: the short opens with the speaker's own first words over
-# the strongest images of the subject - no cold-open lift, no hook title, no hook cards;
-# the cut removes only silence, beats are written on the recording's timeline; v6,
-# ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4, ticket 029: the
-# `counter` overlay and `label_flyin`; v3, ticket 021: the chart and diagram data; v2,
-# ticket 027: the set-piece content rules.)
-PROMPT_VERSION = "v8"
+# v9 (ticket 060): the picture file says when to ask `flash` (a turn back to the
+# presenter or a section change, under `broll.flash_max_per_60s`, never two in a row,
+# only where the style lists it); the sound file says a whoosh is allowed only where
+# section 1 carries `sound.whoosh`, and then only at the start of a `flash` beat (or a
+# pop-in), within its caps. (v8, ticket 057: the opening beats ask `photo` - full-screen
+# whenever the image can fill the frame at the style's `broll.full_bleed_max_upscale`, a
+# card only when it cannot; v7, ticket 055: the short opens with the speaker's own first
+# words over the strongest images of the subject - no cold-open lift, no hook title, no
+# hook cards; the cut removes only silence, beats are written on the recording's
+# timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
+# ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
+# diagram data; v2, ticket 027: the set-piece content rules.)
+PROMPT_VERSION = "v9"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

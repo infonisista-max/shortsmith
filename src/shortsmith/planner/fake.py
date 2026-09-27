@@ -20,6 +20,12 @@ style does not enable for the nearest one it does (`ENTER_FALLBACKS`: a whip bec
 a wipe, a spring a zoom, and anything still outside the list a cut), reading the list
 from `request.style.numbers` so the plan uses every enabled transition once and never
 one the grammar would reject. A request carrying no numbers gets the explainer enters.
+
+Ticket 060: b03, the one `full` beat (the turn back to the presenter), asks `flash`,
+which becomes a `fade` under every style that does not enable it - the four shipped and
+draft styles today. Where the style also allows whooshes (`sound.whoosh` present and
+`whoosh` out of `sound.forbidden`), the sound story cues one `whoosh` at that beat's
+start, the one cue a bare transition may carry.
 """
 
 from __future__ import annotations
@@ -87,8 +93,10 @@ ENTER_FALLBACKS: Mapping[Transition, tuple[Transition, ...]] = {
     "spring": ("zoom", "wipe", "fade"),
     "wipe": ("fade",),
     "zoom": ("fade",),
+    "flash": ("fade",),  # 060: the turn back to the presenter fades where no style flashes
     "fade": (),
 }
+WHOOSH = "whoosh"
 
 
 def enabled_enters(style: PlanStyle) -> tuple[Transition, ...]:
@@ -101,6 +109,22 @@ def enabled_enters(style: PlanStyle) -> tuple[Transition, ...]:
     if not isinstance(listed, Sequence) or isinstance(listed, str):
         return EXPLAINER_ENTERS
     return tuple(cast(Transition, str(t)) for t in cast(Sequence[object], listed))
+
+
+def whoosh_allowed(style: PlanStyle) -> bool:
+    """060 (3): the style's `sound` numbers leave `whoosh` out of `forbidden` and carry
+    a `whoosh` allowance; a request with no numbers allows none (the explainer's rule)."""
+    sound = style.numbers.get("sound")
+    if not isinstance(sound, Mapping):
+        return False
+    numbers = cast(Mapping[str, object], sound)
+    forbidden = numbers.get("forbidden")
+    banned = (
+        WHOOSH in {str(f) for f in cast(Sequence[object], forbidden)}
+        if isinstance(forbidden, Sequence) and not isinstance(forbidden, str)
+        else True
+    )
+    return not banned and numbers.get(WHOOSH) is not None
 
 
 def enter_for(wanted: Transition, enabled: Sequence[Transition]) -> Transition:
@@ -140,8 +164,9 @@ class FakePlanner(Planner):
               subject_kind="entity", query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",
               enter=enter("whip"), event=Event(kind="lower_third", text="India Gate · Delhi")),
+            # 060: the turn back to the presenter flashes where the style enables it.
             B(id="b03", start=1.0, end=1.5, mode="full", reason="emotional_line",
-              kind="presenter_full", enter=enter("fade")),
+              kind="presenter_full", enter=enter("flash")),
             # 057: b04 is the plan's one planned `card` (every tier-1 kind is named once),
             # the opening's first image again, re-dressed as a card with the stamp.
             B(id="b04", start=1.5, end=2.0, mode="pip", kind="card", motion="push_in",
@@ -230,6 +255,10 @@ class FakePlanner(Planner):
             if b.event.kind == "stamp" or b.counter is not None
         ]
         cues.append(Cue(beat_id=last, intent="finale_hit", at="start"))
+        # 060: one whoosh on the first flash, where the style allows whooshes at all.
+        flashed = [b.id for b in picture.beats if b.enter == "flash"]
+        if flashed and whoosh_allowed(request.style):
+            cues.append(Cue(beat_id=flashed[0], intent=WHOOSH, at="start"))
         end = picture.beats[-1].end
         return SoundStory(
             prompt_version=self.PROMPT_VERSION,

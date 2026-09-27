@@ -53,7 +53,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import SecretStr
 
-from shortsmith import ffmpeg
+from shortsmith import ffmpeg, styles
 from shortsmith import sound as sound_module
 from shortsmith.config import Settings
 from shortsmith.contracts import AudioCandidate, AudioEntry, AudioKind, AudioTags, BedQuery
@@ -304,16 +304,31 @@ class FreesoundAudioSearch(AudioSearch):
         theme: Sequence[str] = (),
         mood: Sequence[str] = (),
         intent: str = "",
+        whoosh_max_len_s: float | None = None,
     ) -> AudioEntry:
         """Fetch `candidate` into `library`, measure it (023), run a cue through R1-R4,
         and append it to the library's catalogue tagged with the query words it
         answered. `Rejected` on a detector hit; `SoundError` when it cannot be fetched
-        or read. A rejected or unreadable file is removed."""
+        or read. A rejected or unreadable file is removed.
+
+        060 (5): a file fetched for the `whoosh` intent under an allowance
+        (`whoosh_max_len_s`, the style's `sound.whoosh.max_len_s`) is exempt from the
+        detector - a whoosh is a noise sweep by nature - when it is no longer than that;
+        a longer one is rejected naming its length. Any other intent, or no allowance,
+        runs the detector as before."""
         path = self.fetch(candidate, into=library.root)
         try:
             measured = seed.measure_file(path, kind=candidate.kind)
             if candidate.kind == "sfx":
-                hits = sweep.detect(path)
+                exempt = styles.is_whoosh(intent) and whoosh_max_len_s is not None
+                if whoosh_max_len_s is not None and exempt and (
+                    measured.duration_s > whoosh_max_len_s + 1e-3
+                ):
+                    raise Rejected(
+                        f"{candidate.name} ({candidate.page_url}): {measured.duration_s:.2f} s "
+                        f"long, over sound.whoosh.max_len_s {whoosh_max_len_s:g} (060)"
+                    )
+                hits = [] if exempt else sweep.detect(path)
                 if hits:
                     hit = hits[0]
                     raise Rejected(
@@ -355,10 +370,14 @@ class FreesoundAudioSearch(AudioSearch):
             words, "bed", library, theme=keywords(query.theme), mood=keywords(query.mood)
         )
 
-    def sfx(self, words: str, intent: str, library: Library) -> SearchOutcome:
+    def sfx(
+        self, words: str, intent: str, library: Library, *, whoosh_max_len_s: float | None = None
+    ) -> SearchOutcome:
         """The director's SFX call for one ladder rung (054 (3)): the first result that
-        passes R1-R4, tagged with `intent`."""
-        return self._first_adopted(words, "sfx", library, intent=intent)
+        passes R1-R4, tagged with `intent`; a whoosh under its allowance instead (060)."""
+        return self._first_adopted(
+            words, "sfx", library, intent=intent, whoosh_max_len_s=whoosh_max_len_s
+        )
 
     def _first_adopted(
         self,
@@ -369,6 +388,7 @@ class FreesoundAudioSearch(AudioSearch):
         theme: Sequence[str] = (),
         mood: Sequence[str] = (),
         intent: str = "",
+        whoosh_max_len_s: float | None = None,
     ) -> SearchOutcome:
         """Freesound's order is kept; a result already in the catalogue is reused without
         a download; a licence outside CC0 / CC BY, a candidate rejected earlier, a failed
@@ -390,8 +410,9 @@ class FreesoundAudioSearch(AudioSearch):
                 break
             try:
                 adopted = self.adopt(
-                    candidate, library=library, theme=theme, mood=mood, intent=intent
-                )
+                    candidate, library=library, theme=theme, mood=mood, intent=intent,
+                    whoosh_max_len_s=whoosh_max_len_s,
+                )  # fmt: skip
             except SoundError as exc:
                 self._rejected[candidate.id] = str(exc)
                 notes.append(f"{where} skipped: {exc}")

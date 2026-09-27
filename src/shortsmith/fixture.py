@@ -122,13 +122,15 @@ CATALOGUE_BEDS: tuple[BedRow, ...] = (
     ("bed_tech_tense", ("tech",), ("tense", "dark"), 4, (2.0,), 82),
     ("bed_history_calm", ("history",), ("calm",), 1, (), 65),
 )  # fmt: skip
-# id, intent tags, click Hz. The first three carry the 7.1 floor-hit classes.
+# id, intent tags, click Hz. The first three carry the 7.1 floor-hit classes; the last
+# is the `whoosh` a style may allow (060), a click like the rest and under `max_len_s`.
 CATALOGUE_SFX: tuple[tuple[str, tuple[str, ...], int], ...] = (
     ("sfx_bass_hit", ("bass", "opening_hit", "reveal"), 70),
     ("sfx_drum_hit", ("drum", "money", "finale_hit"), 95),
     ("sfx_thump", ("thump", "card_fly_in"), 130),
     ("sfx_tick", ("popup_tick", "tick"), 1400),
     ("sfx_changeover", ("changeover",), 620),
+    ("sfx_whoosh", ("whoosh",), 900),
 )
 CATALOGUE_BED_S = 8.0
 CATALOGUE_SFX_S = 0.4

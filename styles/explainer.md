@@ -1,5 +1,5 @@
 ---
-version: "5"
+version: "6"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
@@ -63,12 +63,14 @@ broll:
           coast: "#9DBBF5", border: "#0B1D3A", coast_px: 3, border_px: 2}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
+  flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
     zoom: {duration_s: 0.3, scale_from: 1.6}
     spring: {damping: 14, stiffness: 160, mass: 0.7}
     wipe: {duration_s: 0.25}
+    flash: {duration_s: 0.3, color: "#FFD60A"}  # 060: the accent; not enabled here
   unique_assets_min_per_60s: 12
   unique_assets_max_per_60s: 24
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
@@ -164,7 +166,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).
 - The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture, flying in one after another (`label_flyin`); a label that would land outside the phone's safe area fails the build.
 - A `map` beat is drawn from bundled map data, never sourced as a picture (9.3): it carries `map` with a `region` by name (a country, a state, "South Asia", or a city for a close-up) or a `bbox` of west, south, east, north degrees, 1 to `motion.map.markers_max` `markers` each `{name}` (write the place name; code looks the coordinate up and refuses a name it cannot find, so use the common English name), an optional `route` of two or more place names in order and an `object` (plane, ship or arrow) that travels it. The beat needs no `asset_id`. Its overlays are `pin_drop`, `route_arrow` (needs the route) and `object_path` (needs the route and the object).
-- Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
+- Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. Where a style enables `flash` (9.4 as amended by 060; this one does not), it is a full-frame colour flash peaking on the cut, for a turn back to the presenter or a section change: at most `flash_max_per_60s` per minute and never on two consecutive beats; the PIP circle and the captions stay on top of it. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
 
 ## Captions
 - Word-synced from the ASR word list only; the planner never touches word times (6.1). Pages hold `words_per_page` words, preferring `prefer`; never split a marked name or number run; break on segment punctuation and on inter-word gaps over `gap_break_s`.
@@ -175,7 +177,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - Sound is the sound director's job (grill decision 7.1), not a fixed hit table: return a `sound_story` with a theme, a mood curve with build and drop points, a bed query (`theme`, `mood`, `energy`) and a per-beat cue list with intent labels; read the script and choose. Music and SFX come only from the tagged free library; never name a track.
 - Bed target `bed_db_under_voice` dB under the voice, ducking at most `duck_max_db` dB, swells at most `swell_max_db` dB above target and drops at least `drop_min_db` dB below, every ramp at least `ramp_min_s` s. A drop is a step down at a beat boundary followed by a changeover cue, never a rise into a hit (7.3).
 - The floor hits in `floor_hits` are derived by code from plan events so a short is never flat; the planner's cues layer on top within `cues_max_per_60s` and `cues_per_beat_max`, each between `cue_db_min` and `cue_db_max` dB under the voice. A tick on a step change is an ordinary cue choice under those caps (7.1 lifted the old chime/tick ban).
-- Forbidden, checked in code on the SFX stem: `forbidden` (sweeps, risers, rumble crescendos, whooshes). Nothing on whip cuts, punch-ins, rings or lower-thirds.
+- Forbidden, checked in code on the SFX stem: `forbidden` (sweeps, risers, rumble crescendos, whooshes). Nothing on whip cuts, punch-ins, rings or lower-thirds. A style that allows whooshes (7.3 as amended by 060; this one does not) leaves `whoosh` out of `forbidden` and carries `sound.whoosh`: a `whoosh` cue then sits only on a `flash` enter or a pop-in, within `max_per_60s`, `min_gap_s` and `max_len_s`; sweeps, risers and rumble crescendos stay banned in every style.
 - When the library has no matching bed or SFX, code searches the free library with plain keywords from the bed query, then the mood alone, then `default_bed_query`, and adopts only CC0 / CC BY files that pass the sweep detector (7.2, 054); the planner still never names a track.
 - Voice −19 LUFS / −3 dBTP on the stem, master −14 LUFS / −1.5 dBTP (7.3).
 

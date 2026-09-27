@@ -88,12 +88,31 @@ test("the map animations read their timing and pixels from the layout, never a l
   assert.match(object, /rotate\(\$\{/, "object_path.tsx never turns the sprite");
 });
 
-const TRANSITIONS = ["cut", "fade", "whip", "zoom", "spring", "wipe"];
+const TRANSITIONS = ["cut", "fade", "whip", "zoom", "spring", "wipe", "flash"];
 
-test("the composition lists the six enter transitions after ticket 030", () => {
+test("the composition lists the six enter transitions after ticket 030 and flash after 060", () => {
   for (const name of TRANSITIONS) {
     assert.ok(registry.components.includes(name), `${name} is not registered`);
   }
+});
+
+test("the flash is drawn over the picture layers and under the pip, overlays and captions (060)", () => {
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const overlay = short.indexOf("<FlashOverlay");
+  assert.ok(overlay > 0, "Short.tsx never draws the FlashOverlay");
+  assert.ok(short.lastIndexOf("</Transition>") < overlay, "the flash is under the beat's picture");
+  for (const above of ["<Pip ", "<Stamp ", "<Counter ", "<LowerThird", "<Captions "]) {
+    assert.ok(short.indexOf(above) > overlay, `${above.trim()} is drawn under the flash`);
+  }
+  // Both sides of the boundary: the next beat's flash rises through this beat's last frames.
+  assert.match(short, /flashAt\(frame, spec\.fps, spec\.transitions, beat, next\)/);
+  const flash = readFileSync(join(root, "components", "flash.tsx"), "utf-8");
+  assert.match(flash, /next\.start_frame - frame/, "the rising half is never drawn");
+  assert.match(flash, /frame - beat\.start_frame/, "the falling half is never drawn");
+  assert.match(flash, /duration_s \* fps\) \/ 2/, "the flash does not peak on the boundary");
+  // A flash never holds the previous beat: its exit is a cut under the colour.
+  const enters = readFileSync(join(root, "components", "transitions.tsx"), "utf-8");
+  assert.doesNotMatch(enters, /enter === "flash"/, "flash must not hold the previous beat");
 });
 
 test("the registry holds the whole tier-1 set the explainer requires (030)", () => {
@@ -134,7 +153,8 @@ test("the transition dispatcher refuses an enter outside the style's list (9.4)"
 test("every transition reads its numbers from the spec, never a literal (9.4)", () => {
   const rows = { fade: ["duration_s"], whip: ["duration_s", "blur_px"],
                  zoom: ["duration_s", "scale_from"],
-                 spring: ["damping", "stiffness", "mass"], wipe: ["duration_s"] };
+                 spring: ["damping", "stiffness", "mass"], wipe: ["duration_s"],
+                 flash: ["duration_s", "color"] };
   for (const [name, fields] of Object.entries(rows)) {
     const source = readFileSync(join(root, "components", `${name}.tsx`), "utf-8");
     assert.ok(source.includes(`numbers.${name}`), `${name}.tsx never reads numbers.${name}`);

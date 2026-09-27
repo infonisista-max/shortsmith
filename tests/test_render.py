@@ -51,7 +51,9 @@ from shortsmith.contracts import (
     RenderSpec,
     SoundStory,
     Span,
+    TransitionStyle,
     ValidatedPlan,
+    WordBox,
 )
 from shortsmith.planner import FakePlanner
 from shortsmith.transcriber import FakeTranscriber
@@ -1513,6 +1515,91 @@ def test_the_photo_and_the_card_are_drawn_from_their_asset_files(
     assert _near(centre, colour("b02"))
     cover = _pixel(frames[3], 1000, 1800)
     assert sum(cover) < sum(centre)
+
+
+FLASH = (255, 214, 10)  # explainer's accent, its transitions.flash.color
+
+
+def _flashy_numbers() -> render.StyleNumbers:
+    """The explainer numbers with `flash` enabled: the renderer's own guard reads the
+    enabled list, so the test style is a copy, never the shipped spec."""
+    numbers = EXPLAINER_SPEC.broll.transitions.model_dump()
+    return dataclasses.replace(
+        EXPLAINER,
+        transitions=TransitionStyle(enabled=[*EXPLAINER.transitions.enabled, "flash"], **numbers),
+    )
+
+
+def _bright_text_pixels(frame: tuple[int, int, bytes], box: WordBox) -> int:
+    """Pixels inside a caption word's box that read as text: bright on every channel,
+    which the flash colour (blue 10) never is."""
+    width, _, data = frame
+    count = 0
+    for y in range(int(box.y), int(box.y + box.height)):
+        for x in range(int(box.x), int(box.x + box.width)):
+            i = 3 * (y * width + x)
+            if min(data[i], data[i + 1], data[i + 2]) >= 150:
+                count += 1
+    return count
+
+
+def test_a_flash_peaks_on_the_boundary_and_leaves_the_pip_and_captions_on_top(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """060 (9.4 as amended), end to end through Remotion: b02 enters on a `flash` at
+    0.5 s (frame 15). The boundary frame's picture is the flash colour; 0.3 s either
+    side (frames 6 and 24) the picture is the plain shot - b01's photo, b02's darkened
+    cover; the PIP circle's centre is the presenter on every one of those frames, never
+    the flash; and the caption text is still drawn on the boundary frame."""
+    plan = _plan()
+    plan = plan.model_copy(update={"beats": [
+        b.model_copy(update={"enter": "flash"}) if b.id == "b02" else b for b in plan.beats
+    ]})  # fmt: skip
+    job = _job_with(tmp_path, fixture_clip, plan)
+    manifest = assets.source_assets(
+        ValidatedPlan(picture=plan, sound=SoundStory(
+            prompt_version="t", theme="t", mood_curve=[],
+            bed_query=BedQuery(theme="t", mood="t", energy=3), cues=[])),
+        [], "any", spec=SPECS["explainer"], job_dir=job.path,
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY}),
+            "commons": assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)}),
+        },
+    )  # fmt: skip
+    assets.write_manifest(job.path, manifest)
+    render.cut_presenter(job)
+    spec = render.spec_for_job(job, numbers=_flashy_numbers())
+    assert [b.enter for b in spec.beats if b.id == "b02"] == ["flash"]
+    assert spec.transitions.flash.color == "#FFD60A" and spec.transitions.flash.duration_s == 0.3
+    picture = job.work_dir / "picture.mp4"
+    render.run_driver(
+        spec, spec_path=job.work_dir / "render_spec.json", out_path=picture,
+        log_path=job.work_dir / "render.log",
+    )  # fmt: skip
+    frames = ffmpeg.frames_rgb(picture, fps=30, width=1080, duration_s=1.0)
+    assert len(frames) == 30
+    boundary, before, after = frames[15], frames[6], frames[24]
+    # the picture: flash colour on the boundary, the plain shots 0.3 s either side
+    assert _near(_pixel(boundary, 900, 300), FLASH)
+    assert not _near(_pixel(before, 900, 300), FLASH)
+    assert not _near(_pixel(after, 900, 300), FLASH)
+    assert sum(_pixel(after, 1000, 1800)) < sum(FLASH) / 2, "b02's darkened cover, not the flash"
+    # the PIP circle never blinks: its centre is the presenter on every frame
+    cx = spec.pip.left + spec.pip.diameter // 2
+    cy = spec.pip.top + spec.pip.diameter // 2
+    for frame in (before, boundary, after):
+        assert not _near(_pixel(frame, cx, cy), FLASH)
+    assert _near(_pixel(boundary, cx, cy), _pixel(before, cx, cy))
+    # the captions stay on top: the page's first word ("hello", spoken by 0.34 s and past
+    # the component's 0.06 s active hold by frame 13, so drawn white, not the active
+    # yellow; not a keyword, so not a yellow box) shows its text pixels on the boundary
+    # frame as it does two frames before it
+    page = next(p for p in spec.captions if p.start <= 0.5 < p.end)
+    word = page.words[0]
+    assert word.text == "hello" and not word.keyword and word.end + 0.06 <= 13 / 30
+    area = int(word.width) * int(word.height)
+    for frame in (frames[13], boundary):
+        assert _bright_text_pixels(frame, word) > area * 0.02
 
 
 # --- maps (ticket 020; decisions 9.3, 12.1) ----------------------------------------------------

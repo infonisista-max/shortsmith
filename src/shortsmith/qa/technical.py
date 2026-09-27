@@ -19,7 +19,10 @@ every listed check is present and `pass`: a report that stopped short never deli
         cross-correlation, `lipsync_lag_s`)
     T6  no sweep: `sound.sweep` R1-R4 on work/stems/sfx.wav - R1/R2 on the whole stem,
         R3/R4 per cue slice of work/stems/cues.json (050), so a hit names the cue that
-        offends; no stem is a pass that says so, never a bare pass
+        offends; no stem is a pass that says so, never a bare pass. 060: a `whoosh` cue
+        is judged by the style's `sound.whoosh` allowance (on a flash enter, within
+        max_len_s, max_per_60s and min_gap_s) - one that keeps it is exempt from the
+        detector, one that breaks it or any whoosh under a style that forbids them fails
     T7  mean luma >= 12/255 on every frame (full range), no run of identical frames
         longer than 0.5 s before the finale (`ffmpeg.frame_stats`: signalstats + framehash)
     T8  plan clean: rescued beats (ladder rung 3-4) <= the style limit scaled to the
@@ -59,7 +62,18 @@ import numpy as np
 import numpy.typing as npt
 from pydantic import TypeAdapter, model_validator
 
-from shortsmith import assets, ffmpeg, grammar, jobs, ledger, presenter, render, rights, sound
+from shortsmith import (
+    assets,
+    ffmpeg,
+    grammar,
+    jobs,
+    ledger,
+    presenter,
+    render,
+    rights,
+    sound,
+    styles,
+)
 from shortsmith.contracts import (
     AssetManifest,
     CaptionPage,
@@ -83,6 +97,7 @@ from shortsmith.ffmpeg import FrameStat, Loudness
 from shortsmith.jobs import Job, JobRecord
 from shortsmith.sound import sweep
 from shortsmith.styles import Budget, StyleSpec
+from shortsmith.styles import Sound as StyleSound
 
 REPORT_NAME = "qa.json"
 
@@ -391,40 +406,144 @@ def cue_at(at_s: float, sheet: CueSheet | None) -> CueRecord | None:
     return max(earlier, key=lambda c: c.start_s) if earlier else None
 
 
-def _cue_of(hit: sweep.Hit, sheet: CueSheet | None) -> CueRecord | None:
-    """The cue a hit belongs to: the slice it was measured in (R3/R4 on a stem, 050),
-    else the cue sounding at its time (R1/R2)."""
-    if hit.slice is not None and sheet is not None and hit.slice < len(sheet.cues):
-        return sheet.cues[hit.slice]
-    return cue_at(hit.at_s, sheet)
+def _cue_index_of(hit: sweep.Hit, sheet: CueSheet | None) -> int | None:
+    """The index in `sheet` of the cue a hit belongs to: the slice it was measured in
+    (R3/R4 on a stem, 050), else the cue sounding at its time (R1/R2)."""
+    if sheet is None:
+        return None
+    if hit.slice is not None and hit.slice < len(sheet.cues):
+        return hit.slice
+    cue = cue_at(hit.at_s, sheet)
+    return None if cue is None else next(i for i, c in enumerate(sheet.cues) if c is cue)
 
 
-def t6(hits: Sequence[sweep.Hit] | None, sheet: CueSheet | None) -> QaCheck:
+def whoosh_cap(nums: StyleSound, *, runtime_s: float) -> int:
+    """060: `sound.whoosh.max_per_60s` scaled to the runtime, rounded up like the
+    grammar's flash cap, so a six-second fixture still allows one."""
+    if nums.whoosh is None:
+        return 0
+    return math.ceil(nums.whoosh.max_per_60s * runtime_s / 60.0 - 1e-6)
+
+
+def whoosh_faults(
+    sheet: CueSheet,
+    *,
+    enters: Mapping[str, str],
+    nums: StyleSound,
+    runtime_s: float,
+) -> dict[int, str]:
+    """060 (7.3 as amended): every `whoosh` cue of `sheet` that breaks the style's
+    allowance, by its index in the sheet, with the reason. Under a style that forbids
+    whooshes every whoosh cue is a fault. Under an allowance a whoosh must sit on a
+    beat entering with one of `sound.whoosh.on` (`flash` today; a pop-in once 061-063
+    exist), be no longer than `max_len_s`, and the whooshes together stay within
+    `max_per_60s` (scaled to the runtime, rounded up) and `min_gap_s` apart."""
+    whooshes = [(i, c) for i, c in enumerate(sheet.cues) if styles.is_whoosh(c.intent)]
+    if not whooshes:
+        return {}
+    faults: dict[int, str] = {}
+    allowance = nums.whoosh if styles.allows_whoosh(nums) else None
+    if allowance is None:
+        return {
+            i: f"whoosh cue {c.entry_id} on {c.beat_id}: whooshes are in sound.forbidden for "
+            "this style"
+            for i, c in whooshes
+        }
+    triggers = ", ".join(allowance.on)
+    cap = whoosh_cap(nums, runtime_s=runtime_s)
+    ordered = sorted(whooshes, key=lambda pair: (pair[1].start_s, pair[0]))
+    previous: CueRecord | None = None
+    for n, (i, cue) in enumerate(ordered, start=1):
+        where = f"whoosh cue {cue.entry_id} on {cue.beat_id}"
+        enter = enters.get(cue.beat_id, "cut")
+        length = cue.end_s - cue.start_s
+        if "flash" not in allowance.on or enter != "flash":
+            faults[i] = (
+                f"{where}: on a {enter!r} enter; sound.whoosh.on allows a whoosh only on "
+                f"{triggers}"
+            )
+        elif length > allowance.max_len_s + 1e-6:
+            faults[i] = (
+                f"{where}: {length:.2f} s long, over sound.whoosh.max_len_s "
+                f"{allowance.max_len_s:g}"
+            )
+        elif n > cap:
+            faults[i] = (
+                f"{where}: whoosh {n} of {len(ordered)} over {runtime_s:g} s, "
+                f"sound.whoosh.max_per_60s {allowance.max_per_60s} allows {cap}"
+            )
+        elif previous is not None and cue.start_s - previous.start_s < allowance.min_gap_s - 1e-6:
+            faults[i] = (
+                f"{where}: {cue.start_s - previous.start_s:.2f} s after the whoosh on "
+                f"{previous.beat_id}, under sound.whoosh.min_gap_s {allowance.min_gap_s:g}"
+            )
+        previous = cue
+    return faults
+
+
+def t6(
+    hits: Sequence[sweep.Hit] | None,
+    sheet: CueSheet | None,
+    *,
+    enters: Mapping[str, str] | None = None,
+    nums: StyleSound | None = None,
+    runtime_s: float | None = None,
+) -> QaCheck:
     """No sweep (7.3): R1-R4 on `work/stems/sfx.wav`, each hit named by its cue. `hits`
     is None when there is no SFX stem - a pass, with the reason written down. `sheet`
-    is the one the hits were sliced by (`_sfx_scan`), in that order."""
+    is the one the hits were sliced by (`_sfx_scan`), in that order.
+
+    060: with the job's style (`nums`), its beats' enters and the runtime, the whoosh
+    allowance is judged too (`whoosh_faults`): a whoosh cue that keeps the allowance is
+    the one cue whose own detector hits are not faults (its noise is the point); one
+    that breaks it, or any whoosh under a style that forbids them, fails naming the cue,
+    after the detector's own findings. Without `nums` the check is the detector alone."""
     if hits is None:
         return QaCheck(
             name="T6",
             passed=True,
             detail="no SFX stem: work/stems/sfx.wav is absent, so the short has no cues to scan",
         )
-    if not hits:
-        count = len(sheet.cues) if sheet is not None else 0
-        noun = "cue" if count == 1 else "cues"
-        return QaCheck(
-            name="T6", passed=True, detail=f"R1-R4 clean on the SFX stem ({count} {noun})"
+    faults: dict[int, str] = {}
+    exempt: set[int] = set()
+    if sheet is not None and nums is not None:
+        faults = whoosh_faults(
+            sheet, enters=enters or {}, nums=nums, runtime_s=runtime_s or sheet_runtime(sheet)
         )
+        exempt = {
+            i for i, c in enumerate(sheet.cues) if styles.is_whoosh(c.intent) and i not in faults
+        }
     problems: list[str] = []
     for hit in hits:
-        cue = _cue_of(hit, sheet)
+        index = _cue_index_of(hit, sheet)
+        if index is not None and index in exempt:
+            continue
+        cue = sheet.cues[index] if sheet is not None and index is not None else None
         where = (
             f"cue {cue.entry_id} on {cue.beat_id} ({cue.intent!r})"
             if cue is not None
             else "no cue sounds there"
         )
         problems.append(f"{hit.rule} at {hit.at_s:.2f} s in {where}: {hit.detail}")
-    return QaCheck(name="T6", passed=False, detail="; ".join(problems))
+    problems += [faults[i] for i in sorted(faults)]
+    if problems:
+        return QaCheck(name="T6", passed=False, detail="; ".join(problems))
+    count = len(sheet.cues) if sheet is not None else 0
+    noun = "cue" if count == 1 else "cues"
+    whooshes = len(exempt)
+    tail = (
+        f"; {whooshes} {'whoosh' if whooshes == 1 else 'whooshes'} under sound.whoosh"
+        if whooshes
+        else ""
+    )
+    return QaCheck(
+        name="T6", passed=True, detail=f"R1-R4 clean on the SFX stem ({count} {noun}{tail})"
+    )
+
+
+def sheet_runtime(sheet: CueSheet) -> float:
+    """The last cue's end: the runtime a sheet implies when the caller has no plan."""
+    return max((c.end_s for c in sheet.cues), default=0.0)
 
 
 # --- T7 luma and frozen frames (4.4, 3.1) --------------------------------------------------
@@ -886,7 +1005,12 @@ def run(job: Job, *, specs: Mapping[str, StyleSpec] | None = None) -> QaReport:
         lambda: t3(info, plan),
         lambda: t4(ffmpeg.measure_loudness(short)),
         lambda: _t5(job, plan),
-        lambda: t6(*_sfx_scan(job)),
+        lambda: t6(
+            *_sfx_scan(job),
+            enters={b.id: b.enter for b in plan.beats},
+            nums=spec.sound if spec else None,
+            runtime_s=plan.beats[-1].end if plan.beats else None,
+        ),
         lambda: _t7(job, plan, info),
         lambda: _t8(job, specs),
         lambda: t9(rights.load(job.path), assets.load_manifest(job.path), plan),

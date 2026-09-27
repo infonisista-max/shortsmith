@@ -13,10 +13,25 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
-from shortsmith import sound
+from shortsmith import sound, styles
 from shortsmith.fixture import make_catalogue, make_clip, make_fixture, make_image, make_wav
 
 Floats = npt.NDArray[np.float64]
+
+# 060: the ticket's whoosh allowance, the numbers the recipe styles of 059 will carry.
+WHOOSH_ALLOWANCE = {"max_per_60s": 6, "min_gap_s": 3.0, "max_len_s": 0.8, "on": ["flash", "pop"]}
+
+
+def flash_whoosh_style(spec: styles.StyleSpec) -> styles.StyleSpec:
+    """060's test style: a deep copy of `spec` with `flash` enabled and whooshes allowed
+    (`whoosh` out of `sound.forbidden`, `sound.whoosh` carrying `WHOOSH_ALLOWANCE`).
+    The four shipped and draft specs keep both off; this copy is what the grammar, the
+    director and the gate are judged under."""
+    styled = spec.model_copy(deep=True)
+    styled.broll.enter_transitions = [*styled.broll.enter_transitions, "flash"]
+    styled.sound.forbidden = [f for f in styled.sound.forbidden if f != "whoosh"]
+    styled.sound.whoosh = styles.Whoosh.model_validate(WHOOSH_ALLOWANCE)
+    return styled
 
 
 @pytest.fixture(scope="session")

@@ -125,7 +125,10 @@ class Broll(StrictModel):
     motion: dict[str, dict[str, float | int | bool | str]]
     enter_transitions: list[Transition]
     whip_max_per_3_beats: int
-    # 030: the 9.4 vocabulary's numbers. Every spec carries all five rows, enabled or
+    # 060 (9.4 as amended): at most this many `flash` enters per 60 s of runtime (the
+    # references use at most 4), and never on two consecutive beats.
+    flash_max_per_60s: int = Field(ge=0)
+    # 030: the 9.4 vocabulary's numbers. Every spec carries all six rows, enabled or
     # not, so the renderer reads one shape; `enter_transitions` is the subset it may use.
     transitions: Transitions
     unique_assets_min_per_60s: int
@@ -155,10 +158,28 @@ class Captions(CaptionStyle):
     gap_break_s: float
 
 
+WhooshTrigger = Literal["flash", "pop"]
+WHOOSH = "whoosh"
+
+
+class Whoosh(StrictModel):
+    """060 (7.3 as amended): a style's whoosh allowance. A whoosh cue is allowed only
+    on one of the `on` triggers (a `flash` enter, or a pop-in: the enters of 061-063),
+    at most `max_per_60s` of them, `min_gap_s` apart, each file no longer than
+    `max_len_s`. The row exists only in a style that has taken `whoosh` out of
+    `sound.forbidden`; sweeps, risers and rumble crescendos stay banned everywhere."""
+
+    max_per_60s: int = Field(ge=0)
+    min_gap_s: float = Field(ge=0.0)
+    max_len_s: float = Field(gt=0.0)
+    on: list[WhooshTrigger] = Field(min_length=1)
+
+
 class Sound(StrictModel):
     """7.3 bed, envelope and cue numbers; the 7.1 floor hits; the forbidden list; the
     7.2 bed-score line under which the audio search is asked (024) and the plain words
-    that search falls back to last (`default_bed_query`, 054)."""
+    that search falls back to last (`default_bed_query`, 054); the whoosh allowance a
+    style may carry (060)."""
 
     bed_score_threshold: float
     default_bed_query: str = Field(min_length=1)
@@ -178,6 +199,19 @@ class Sound(StrictModel):
     cue_db_min: float
     cue_db_max: float
     forbidden: list[str]
+    # 060: present only where `whoosh` is out of `forbidden` (`check` asserts both).
+    whoosh: Whoosh | None = None
+
+
+def allows_whoosh(nums: Sound) -> bool:
+    """060 (3): a style allows whooshes by leaving `whoosh` out of `sound.forbidden`
+    and carrying `sound.whoosh`; the loader refuses one without the other."""
+    return WHOOSH not in nums.forbidden and nums.whoosh is not None
+
+
+def is_whoosh(intent: str) -> bool:
+    """A cue intent that names a whoosh (060): the tag the library and the planner use."""
+    return intent.strip().lower() == WHOOSH
 
 
 class FinaleSpec(StrictModel):
@@ -298,7 +332,8 @@ def caption_block_top(captions: CaptionStyle) -> float:
 
 
 def check(spec: StyleSpec, registry: Sequence[str]) -> None:
-    """The cross-field asserts: 6.3 collision and 9.2 components for shipped specs."""
+    """The cross-field asserts: 6.3 collision, 9.2 components for shipped specs, and
+    the 060 whoosh allowance (the row and the forbidden list agree)."""
     block_top = caption_block_top(spec.captions)
     bottom = spec.pip.top + spec.pip.diameter
     if bottom > block_top:
@@ -306,6 +341,17 @@ def check(spec: StyleSpec, registry: Sequence[str]) -> None:
             f"{spec.name}: pip.top + pip.diameter = {bottom} passes the caption block top "
             f"{block_top:g} (6.3: pip.top + pip.diameter <= captions.anchor_y - "
             "captions.max_lines x line height)"
+        )
+    forbidden = WHOOSH in spec.sound.forbidden
+    if forbidden and spec.sound.whoosh is not None:
+        raise StyleError(
+            f"{spec.name}: sound.whoosh is set while {WHOOSH!r} is in sound.forbidden; a "
+            "style allows whooshes by leaving it out of the list (060)"
+        )
+    if not forbidden and spec.sound.whoosh is None:
+        raise StyleError(
+            f"{spec.name}: {WHOOSH!r} is out of sound.forbidden but there is no sound.whoosh "
+            "row (max_per_60s, min_gap_s, max_len_s, on) to bound it (060)"
         )
     if spec.status == "shipped":
         missing = [c for c in spec.requires_components if c not in registry]

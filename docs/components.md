@@ -38,6 +38,7 @@ it. A blank cell means the style does not enable that component.
 | `zoom` | transition | implemented | b09 | b08, b09 | 0.3 s from 1.6 |
 | `spring` | transition | implemented | b08 |  | hitech does not enable it; the fake swaps it for a zoom |
 | `wipe` | transition | implemented |  | b02 | 0.25 s; exercised only by the hitech render |
+| `flash` | transition | implemented |  |  | 060: a 0.3 s full-frame colour flash peaking on the cut, over the picture layers only (the PIP circle and captions never blink); no shipped or draft style enables it yet (059's recipe styles will), so no smoke draws it - `tests/test_render.py` renders a fixture beat pair through it |
 
 ## The hitech render (ticket 048)
 

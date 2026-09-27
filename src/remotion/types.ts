@@ -478,7 +478,8 @@ export type CaptionStyle = {
 };
 
 // 030: the 9.4 enter vocabulary - the style's enabled subset and every row's numbers,
-// read from the style front matter (`broll.transitions`); `cut` has no numbers.
+// read from the style front matter (`broll.transitions`); `cut` has no numbers. 060
+// adds `flash`: its whole length, centred on the cut, and its colour.
 export type TransitionStyle = {
   enabled: string[];
   fade: { duration_s: number };
@@ -486,6 +487,7 @@ export type TransitionStyle = {
   zoom: { duration_s: number; scale_from: number };
   spring: { damping: number; stiffness: number; mass: number };
   wipe: { duration_s: number };
+  flash: { duration_s: number; color: string };
 };
 
 export type RenderSpec = {
@@ -561,5 +563,6 @@ export const EMPTY_SPEC: RenderSpec = {
     zoom: { duration_s: 0.3, scale_from: 1.6 },
     spring: { damping: 14, stiffness: 160, mass: 0.7 },
     wipe: { duration_s: 0.25 },
+    flash: { duration_s: 0.3, color: "#FFD60A" },
   },
 };

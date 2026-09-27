@@ -18,6 +18,7 @@ import yaml
 
 from shortsmith import render, styles
 from shortsmith.styles import KEY_GROUPS, PROSE_SECTIONS, Resolution, StyleError, StyleSpec
+from tests.conftest import flash_whoosh_style
 
 REGISTRY = render.registry()  # ["captions", "pip"] today
 NAMES = ("explainer", "educational", "animated", "hitech")
@@ -81,7 +82,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "5", spec.name  # the front matter changed again (057)
+        assert spec.version == "6", spec.name  # the front matter changed again (060)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -279,6 +280,108 @@ def test_a_transition_row_missing_from_the_front_matter_fails_the_loader(
     where = _variant_dir(tmp_path, "educational", drop_whip)
     with pytest.raises(StyleError, match=r"educational.*broll\.transitions\.whip"):
         styles.load_all(REGISTRY, where)
+
+
+# --- flash and the whoosh allowance (ticket 060; 9.4 and 7.3 as amended) ------------------
+
+WHOOSH = {"max_per_60s": 6, "min_gap_s": 3.0, "max_len_s": 0.8, "on": ["flash", "pop"]}
+
+
+def _allow_whoosh(fm: dict[str, Any]) -> None:
+    fm["sound"]["forbidden"] = [f for f in fm["sound"]["forbidden"] if f != "whoosh"]
+    fm["sound"]["whoosh"] = dict(WHOOSH)
+
+
+def test_every_spec_carries_the_flash_row_and_cap_and_none_enables_it(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """060 (1, 2, 4): the flash is the sixth numbered row of the global vocabulary
+    (0.3 s in the style's colour: explainer's accent, white elsewhere) and
+    `broll.flash_max_per_60s` is 5 in every spec; none of the four existing styles
+    enables `flash`."""
+    for spec in specs.values():
+        assert spec.broll.transitions.flash.duration_s == 0.3, spec.name
+        assert spec.broll.flash_max_per_60s == 5, spec.name
+        assert "flash" not in spec.broll.enter_transitions, spec.name
+    explainer = specs["explainer"]
+    assert explainer.broll.transitions.flash.color == explainer.palette.accent == "#FFD60A"
+    for name in ("educational", "animated", "hitech"):
+        assert specs[name].broll.transitions.flash.color == "#FFFFFF", name
+
+
+def test_the_flash_row_missing_fails_the_loader_naming_the_spec(tmp_path: Path) -> None:
+    """060: a style listing `flash` without a `transitions.flash` row cannot load; the
+    row is required of every spec, enabled or not, like the other five (030)."""
+
+    def drop_flash(fm: dict[str, Any]) -> None:
+        fm["broll"]["enter_transitions"].append("flash")
+        del fm["broll"]["transitions"]["flash"]
+
+    where = _variant_dir(tmp_path, "explainer", drop_flash)
+    with pytest.raises(StyleError, match=r"explainer.*broll\.transitions\.flash"):
+        styles.load_all(REGISTRY, where)
+
+
+def test_a_shipped_style_may_enable_flash_when_the_registry_exports_it(tmp_path: Path) -> None:
+    def enable(fm: dict[str, Any]) -> None:
+        fm["broll"]["enter_transitions"].append("flash")
+        fm["requires_components"].append("flash")
+
+    loaded = styles.load_all(REGISTRY, _variant_dir(tmp_path, "explainer", enable))["explainer"]
+    assert loaded.broll.enter_transitions[-1] == "flash"
+    assert "flash" in REGISTRY
+
+
+def test_no_existing_style_allows_whooshes(specs: dict[str, StyleSpec]) -> None:
+    """060 (4): explainer, educational, animated and hitech keep `whoosh` forbidden and
+    carry no `sound.whoosh` row."""
+    for spec in specs.values():
+        assert "whoosh" in spec.sound.forbidden and spec.sound.whoosh is None, spec.name
+        assert not styles.allows_whoosh(spec.sound), spec.name
+
+
+def test_a_style_allows_whooshes_by_the_row_and_the_forbidden_list_together(
+    tmp_path: Path,
+) -> None:
+    """060 (3): whooshes are allowed by leaving `whoosh` out of `sound.forbidden` AND
+    carrying `sound.whoosh`; one without the other fails the loader naming the spec, and
+    a trigger outside `flash` / `pop` fails too."""
+    loaded = styles.load_all(REGISTRY, _variant_dir(tmp_path, "explainer", _allow_whoosh))
+    allowance = loaded["explainer"].sound.whoosh
+    assert styles.allows_whoosh(loaded["explainer"].sound)
+    assert allowance is not None
+    assert (allowance.max_per_60s, allowance.min_gap_s, allowance.max_len_s) == (6, 3.0, 0.8)
+    assert allowance.on == ["flash", "pop"]
+
+    def only_unforbidden(fm: dict[str, Any]) -> None:
+        fm["sound"]["forbidden"] = [f for f in fm["sound"]["forbidden"] if f != "whoosh"]
+
+    with pytest.raises(StyleError, match=r"hitech.*sound\.whoosh"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "a", "hitech", only_unforbidden))
+
+    def only_row(fm: dict[str, Any]) -> None:
+        fm["sound"]["whoosh"] = dict(WHOOSH)
+
+    with pytest.raises(StyleError, match=r"hitech.*whoosh.*forbidden"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", only_row))
+
+    def bad_trigger(fm: dict[str, Any]) -> None:
+        _allow_whoosh(fm)
+        fm["sound"]["whoosh"]["on"] = ["cut"]
+
+    with pytest.raises(StyleError, match=r"explainer.*whoosh.*on"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "c", "explainer", bad_trigger))
+
+
+def test_the_test_style_helper_enables_flash_and_allows_whooshes(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """The copy the grammar, sound and gate tests judge 060 under."""
+    styled = flash_whoosh_style(specs["explainer"])
+    assert styled.broll.enter_transitions[-1] == "flash"
+    assert styles.allows_whoosh(styled.sound) and styled.sound.whoosh is not None
+    assert "whoosh" not in styled.sound.forbidden
+    assert specs["explainer"].broll.enter_transitions[-1] != "flash", "the original is untouched"
 
 
 def test_explainer_pip_touches_the_caption_block_from_above(specs: dict[str, StyleSpec]) -> None:

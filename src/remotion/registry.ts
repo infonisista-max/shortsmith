@@ -1,7 +1,7 @@
 // The component registry (decision 9.2). registry.json is the checked-in list the
 // style loader (008) cross-checks and the Node test asserts against these files. The
 // six enter transitions (9.4, ticket 030) are registered like any component: each is a
-// file that wraps a beat's picture.
+// file that wraps a beat's picture; 060 adds the seventh, `flash`.
 import type React from "react";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
@@ -10,6 +10,7 @@ import { Counter } from "./components/counter";
 import { Cut } from "./components/cut";
 import { Fade } from "./components/fade";
 import { Finale } from "./components/finale";
+import { Flash } from "./components/flash";
 import { HookCards } from "./components/hook_cards";
 import { Infographic } from "./components/infographic";
 import { LabelFlyin } from "./components/label_flyin";
@@ -38,6 +39,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   cut: Cut,
   fade: Fade,
   finale: Finale,
+  flash: Flash,
   hook_cards: HookCards,
   infographic: Infographic,
   label_flyin: LabelFlyin,

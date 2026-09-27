@@ -28,6 +28,7 @@ from shortsmith.contracts import (
     SoundStory,
 )
 from shortsmith.planner import FakePlanner
+from tests.conftest import flash_whoosh_style
 
 
 @pytest.fixture(scope="session")
@@ -478,6 +479,85 @@ def test_an_unmatched_intent_falls_back_to_the_floor_hit(
     cue = next(c for c in placed.cues if c.beat_id == "b06")
     assert cue.hit == "drum" and cue.entry_id == "sfx_drum_hit"
     assert any("nothing_matches_this" in n for n in placed.notes)
+
+
+# --- whooshes (ticket 060; 7.3 as amended) -------------------------------------------------
+
+
+def _flashed(plan: PicturePlan, beat_id: str = "b03") -> PicturePlan:
+    return plan.model_copy(
+        update={
+            "beats": [
+                b.model_copy(update={"enter": "flash"}) if b.id == beat_id else b
+                for b in plan.beats
+            ]
+        }
+    )
+
+
+def _whoosh_story(beat_id: str = "b03") -> SoundStory:
+    return SoundStory(
+        prompt_version="t", theme="t", mood_curve=[MoodPoint(t=0.0, level=0.0)],
+        bed_query=BedQuery(theme="tech", mood="curious", energy=3),
+        cues=[Cue(beat_id=beat_id, intent="whoosh", at="start")],
+    )  # fmt: skip
+
+
+@pytest.fixture(scope="session")
+def whooshy() -> styles.Sound:
+    return flash_whoosh_style(render.loaded_styles()[styles.DEFAULT]).sound
+
+
+def test_the_fixture_catalogue_carries_a_short_whoosh(library: sound.Library) -> None:
+    """The synthesised catalogue has one SFX tagged `whoosh` under 060's `max_len_s`,
+    so the fake planner's whoosh resolves; `match_sfx` can refuse a longer file."""
+    entry = sound.match_sfx("whoosh", library)
+    assert entry is not None and entry.id == "sfx_whoosh" and entry.duration_s <= 0.8
+    assert sound.match_sfx("whoosh", library, max_duration_s=0.8) == entry
+    assert sound.match_sfx("whoosh", library, max_duration_s=0.3) is None
+
+
+def test_a_whoosh_cue_is_placed_on_a_flash_under_a_style_that_allows_it(
+    plan: PicturePlan, library: sound.Library, nums: styles.Sound, whooshy: styles.Sound
+) -> None:
+    """060 (3, 5): under the test style the planner's whoosh on the flash beat is placed
+    from the library's `whoosh` tag with no class (the planner level); under explainer
+    the same cue is dropped with a note, never resolved or searched."""
+    flashed = _flashed(plan)
+    placed = sound.place_cues(flashed, _whoosh_story(), library, whooshy, runtime_s=60.0)
+    whooshes = [c for c in placed.cues if c.intent == "whoosh"]
+    assert len(whooshes) == 1
+    cue = whooshes[0]
+    assert (cue.beat_id, cue.entry_id, cue.source, cue.hit) == ("b03", "sfx_whoosh", "planner", "")
+    assert cue.gain_db == sound.cue_level_db("", whooshy)
+    assert cue.at_s == next(b.start for b in flashed.beats if b.id == "b03")
+    search = sound.FakeAudioSearch(sound.Library(root=library.root))  # an empty shelf
+    kept = sound.place_cues(flashed, _whoosh_story(), library, nums, runtime_s=60.0, search=search)
+    assert not [c for c in kept.cues if c.intent == "whoosh"]
+    assert any("b03" in n and "whoosh" in n and "forbidden" in n for n in kept.notes)
+    assert search.sfx_calls == [], "a forbidden whoosh is never searched for"
+
+
+def test_a_library_whoosh_over_the_allowance_length_is_not_taken(
+    plan: PicturePlan, library: sound.Library, whooshy: styles.Sound
+) -> None:
+    short = library.entry("sfx_whoosh")
+    assert short is not None
+    long = short.model_copy(update={"id": "sfx_whoosh_long", "duration_s": 1.5})
+    only_long = sound.Library(
+        root=library.root,
+        entries=(*(e for e in library.entries if e.id != "sfx_whoosh"), long),
+    )
+    placed = sound.place_cues(_flashed(plan), _whoosh_story(), only_long, whooshy, runtime_s=60.0)
+    assert not [c for c in placed.cues if c.intent == "whoosh"]
+    assert any("whoosh" in n and "max_len_s" in n for n in placed.notes)
+    # the search, when there is one, is told the length it may adopt
+    search = sound.FakeAudioSearch(library)
+    found = sound.place_cues(
+        _flashed(plan), _whoosh_story(), only_long, whooshy, runtime_s=60.0, search=search
+    )
+    assert [c.entry_id for c in found.cues if c.intent == "whoosh"] == ["sfx_whoosh"]
+    assert search.sfx_max_len_s == [whooshy.whoosh.max_len_s if whooshy.whoosh else None]
 
 
 def test_one_cue_per_beat_and_the_planner_wins_the_slot(

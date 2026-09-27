@@ -1,5 +1,5 @@
 ---
-version: "5"
+version: "6"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -48,12 +48,14 @@ broll:
     finale: {kind: fade, duration_s: 0.5, cards: 3}
   enter_transitions: [cut, fade]
   whip_max_per_3_beats: 0
+  flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
     zoom: {duration_s: 0.3, scale_from: 1.6}
     spring: {damping: 14, stiffness: 160, mass: 0.7}
     wipe: {duration_s: 0.25}
+    flash: {duration_s: 0.3, color: "#FFFFFF"}  # 060: not enabled here
   unique_assets_min_per_60s: 8
   unique_assets_max_per_60s: 16
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
@@ -142,13 +144,13 @@ Calm, clear teaching. DRAFT (grill decision 1.4): aliases resolve to `explainer`
 - Diagrams, labelled images, step cards and simple process animations dominate; photos are calm Ken Burns, cards sit flat with no rotation.
 - Sources and rights as in explainer (5.1); generated illustration is the flat diagram look in `illustration_look`.
 - Fewer unique assets than explainer (`unique_assets_min_per_60s`–`unique_assets_max_per_60s`); reuse a diagram across the steps it explains.
-- Transitions are `cut` and `fade` only (9.4); no whips.
+- Transitions are `cut` and `fade` only (9.4); no whips, no flash (060).
 
 ## Captions
 - Full short sentences of `words_per_page` words, neutral typography, no active-word pop; the key term is boxed in the accent colour. Same anchor, safe area and two-line limit as explainer (6.3).
 
 ## Sound
-- Soft ambient bed `bed_db_under_voice` dB under the voice; a soft tick on step changes is a planner cue choice under the 7.3 caps (7.1 lifted the old tick ban). Forbidden: `forbidden`, checked on the SFX stem.
+- Soft ambient bed `bed_db_under_voice` dB under the voice; a soft tick on step changes is a planner cue choice under the 7.3 caps (7.1 lifted the old tick ban). Forbidden: `forbidden`, checked on the SFX stem; whooshes stay forbidden here (060).
 
 ## Finale
 - One-line recap card, `min_s`–`max_s` s, no call to action.

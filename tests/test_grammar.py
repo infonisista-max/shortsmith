@@ -49,6 +49,7 @@ from shortsmith.contracts import (
 from shortsmith.planner import FakePlanner
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import FakeTranscriber
+from tests.conftest import flash_whoosh_style
 
 BRIEF = "Topic: why the sky is blue. Angle: scattering in one breath. Hook wish: none."
 # Each beat's one word starts this far into it (the first beat's at its start), so the
@@ -945,6 +946,50 @@ def test_whip_spacing(spec: StyleSpec) -> None:
     assert ("b06", "9.4") in rules(picture(in_a_row, spec))
 
 
+@pytest.fixture(scope="module")
+def flashy(spec: StyleSpec) -> StyleSpec:
+    """060's test style: flash enabled, whooshes allowed."""
+    return flash_whoosh_style(spec)
+
+
+def _flashed(plan: PicturePlan, *beat_ids: str) -> PicturePlan:
+    for beat_id in beat_ids:
+        plan = replace(plan, beat_id, enter="flash")
+    return plan
+
+
+def test_flash_is_rejected_where_the_style_does_not_enable_it(spec: StyleSpec) -> None:
+    assert ("b05", "9.4") in rules(picture(_flashed(make_plan(), "b05"), spec))
+
+
+def test_flashes_are_capped_per_60s_and_never_consecutive(flashy: StyleSpec) -> None:
+    """060 (2): at most `broll.flash_max_per_60s` (5) flashes per 60 s of runtime and
+    never on two consecutive beats; the violation names the beat that breaks it."""
+    plan = make_plan(body_lengths=[2.7] * 20)  # 5 + 54 + 1 = 60.0 s
+    assert plan.beats[-1].end == 60.0
+    five = _flashed(plan, "b04", "b06", "b08", "b10", "b12")
+    checked(five, flashy)
+    six = _flashed(five, "b14")
+    found = rules(picture(six, flashy))
+    assert ("b14", "9.4") in found and ("b12", "9.4") not in found
+    in_a_row = _flashed(make_plan(), "b05", "b06")
+    assert ("b06", "9.4") in rules(picture(in_a_row, flashy))
+    assert ("b05", "9.4") not in rules(picture(in_a_row, flashy))
+
+
+def test_the_flash_cap_scales_to_the_runtime_rounding_up(flashy: StyleSpec) -> None:
+    """The cap is ceil(5 x runtime / 60): 56 s allows 5 and refuses 6; a six-second
+    fixture still allows one flash (the fake planner's, under 059's styles)."""
+    plan = make_plan()  # 56 s
+    assert plan.beats[-1].end == 56.0
+    checked(_flashed(plan, "b04", "b06", "b08", "b10", "b12"), flashy)
+    assert ("b14", "9.4") in rules(
+        picture(_flashed(plan, "b04", "b06", "b08", "b10", "b12", "b14"), flashy)
+    )
+    assert grammar.flash_cap(flashy, runtime=6.0) == 1
+    assert grammar.flash_cap(flashy, runtime=60.0) == 5
+
+
 # --- must-use references (2.3) -----------------------------------------------------------
 
 
@@ -1002,6 +1047,33 @@ def test_cue_at_a_transition_or_a_missing_event_is_rejected(spec: StyleSpec) -> 
     landed = replace(plan, "b05", enter="whip")  # keeps its stamp
     ok = cued(landed, spec, Cue(beat_id="b05", intent="tick", at="start"))
     assert isinstance(ok, grammar.SoundCheck)
+
+
+def test_a_whoosh_is_allowed_only_on_a_flash_under_a_style_that_allows_it(
+    spec: StyleSpec, flashy: StyleSpec
+) -> None:
+    """060 (3): a `whoosh` cue at the start of a bare `flash` beat passes the 9.4
+    bare-transition rule under the test style; the same cue on a plain cut, at the
+    beat's end, or on a whip is rejected naming the beat; under explainer any whoosh is
+    rejected as forbidden (7.3)."""
+    plan = replace(make_plan(), "b05", event=Event())  # b05 bare: no landed event
+    flashed = replace(plan, "b05", enter="flash")
+    whoosh = Cue(beat_id="b05", intent="whoosh", at="start")
+    ok = cued(flashed, flashy, whoosh)
+    assert isinstance(ok, grammar.SoundCheck) and ok.sound.cues == [whoosh]
+    # another intent on the bare flash is still a cue on a bare transition (9.4)
+    tick = Cue(beat_id="b05", intent="tick", at="start")
+    assert ("b05", "9.4") in rules(cued(flashed, flashy, tick))
+    # a whoosh anywhere else: plain cut, the beat's end, a whip with a stamp
+    assert ("b05", "7.3") in rules(cued(plan, flashy, whoosh))
+    at_end = Cue(beat_id="b05", intent="whoosh", at="end")
+    assert ("b05", "7.3") in rules(cued(flashed, flashy, at_end))
+    whipped = replace(make_plan(), "b05", enter="whip")
+    assert ("b05", "7.3") in rules(cued(whipped, flashy, whoosh))
+    # under explainer a whoosh is forbidden outright, however the beat enters
+    explainer_flashed = replace(make_plan(), "b05", event=Event())
+    found = rules(cued(explainer_flashed, spec, Cue(beat_id="b05", intent="Whoosh", at="start")))
+    assert ("b05", "7.3") in found
 
 
 def test_mood_curve_is_clipped_to_the_envelope(spec: StyleSpec) -> None:

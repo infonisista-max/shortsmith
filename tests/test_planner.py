@@ -196,6 +196,39 @@ def test_fake_enters_stay_inside_the_requested_style_and_cover_it(
     ]
 
 
+def test_under_a_style_that_flashes_the_fake_flashes_back_to_the_presenter_with_a_whoosh(
+    request_: PlanRequest,
+) -> None:
+    """060: b03 (the one `full` beat, the turn back to the presenter) enters with
+    `flash` where the style enables it, and the sound story carries one `whoosh` at its
+    start where the style allows whooshes; under explainer b03 fades and nothing
+    whooshes. The pair passes the grammar under the fixture-shaped copy of that style."""
+    from shortsmith import grammar, render, styles
+    from shortsmith.contracts import Cue, ValidatedPlan
+    from tests.conftest import flash_whoosh_style
+
+    flashy = flash_whoosh_style(styles.load_all(render.registry())["explainer"])
+    styled = request_.model_copy(
+        update={
+            "style": PlanStyle(
+                name="explainer", status="shipped", numbers=flashy.numbers(), prose=flashy.prose
+            )
+        }
+    )
+    plan = FakePlanner().plan_picture(styled)
+    assert [b.id for b in plan.beats if b.enter == "flash"] == ["b03"]
+    story = FakePlanner().plan_sound(styled, plan)
+    assert [c for c in story.cues if c.intent == "whoosh"] == [
+        Cue(beat_id="b03", intent="whoosh", at="start")
+    ]
+    plain = FakePlanner().plan_picture(request_)
+    assert {b.id: b.enter for b in plain.beats}["b03"] == "fade"
+    assert not [c for c in FakePlanner().plan_sound(request_, plain).cues if c.intent == "whoosh"]
+    judged = fixture.smoke_specs({"explainer": flashy})["explainer"]
+    result = grammar.validate(plan, story, request_.transcript, judged)
+    assert isinstance(result, ValidatedPlan), getattr(result, "items", result)
+
+
 def test_from_settings_selects_the_fake_only_for_planner_fake(
     request_: PlanRequest, tmp_path: Path
 ) -> None:

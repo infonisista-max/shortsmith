@@ -23,6 +23,12 @@
 // its own time). Under a `fade` or `wipe` the previous beat's layers stay drawn beneath
 // for the motion's length, so the exit is a dissolve or the uncovered picture; every
 // other exit is a cut.
+//
+// Ticket 060 (9.4 as amended): a `flash` enter is a cut for the picture with a colour
+// flash over it, peaking on the boundary frame and fading `transitions.flash.duration_s`
+// / 2 either side (`flashAt`): it rises through the previous beat's last frames and falls
+// through the new beat's first. The overlay sits above both beats' picture layers and
+// below the PIP circle, the landed overlays and the captions, which never blink.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Captions } from "./components/captions";
@@ -30,6 +36,7 @@ import { Card } from "./components/card";
 import { Chart } from "./components/chart";
 import { Counter } from "./components/counter";
 import { Finale } from "./components/finale";
+import { FlashOverlay, flashAt } from "./components/flash";
 import { HookCards } from "./components/hook_cards";
 import { Infographic } from "./components/infographic";
 import { LabelFlyin } from "./components/label_flyin";
@@ -138,12 +145,14 @@ export const Short: React.FC<RenderSpec> = (spec) => {
   const index = found >= 0 ? found : spec.beats.length - 1;
   const beat = spec.beats[index];
   const previous = index > 0 ? spec.beats[index - 1] : undefined;
+  const next = index + 1 < spec.beats.length ? spec.beats[index + 1] : undefined;
   const [from, to] = spec.palette.gradient;
   const since = beat ? frame - beat.start_frame : 0;
   const held =
     beat && previous && holdsPrevious(beat.enter)
       ? since < holdFrames(beat.enter, spec.transitions, spec.fps)
       : false;
+  const flash = flashAt(frame, spec.fps, spec.transitions, beat, next);
   return (
     <AbsoluteFill
       style={{ background: `linear-gradient(${spec.palette.angle_deg}deg, ${from}, ${to})` }}
@@ -161,6 +170,7 @@ export const Short: React.FC<RenderSpec> = (spec) => {
           <BeatLayers spec={spec} beat={beat} frame={frame} />
         </Transition>
       ) : null}
+      <FlashOverlay opacity={flash} numbers={spec.transitions} />
       {beat?.mode === "pip" ? <Pip spec={spec} /> : null}
       {beat?.stamp ? (
         <Stamp spec={beat.stamp} style={spec.caption_style} frame={since} fps={spec.fps} />
