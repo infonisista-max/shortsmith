@@ -475,9 +475,9 @@ class Catalogue(StrictModel):
 
 class AudioCandidate(StrictModel):
     """One hit of the runtime audio search (7.2; ticket 024) before it is fetched: what
-    the source says about it (5.4: recorded, never filtered on), the page it lives on,
-    the preview the adapter downloads and the original's download URL for the log.
-    `id` is the source's own id; the catalogue entry it becomes is keyed by it."""
+    the source says about it (5.4: recorded; 054: only CC0 / CC BY is adopted), the page
+    it lives on, the preview the adapter downloads and the original's download URL for
+    the log. `id` is the source's own id; the catalogue entry it becomes is keyed by it."""
 
     id: str
     name: str

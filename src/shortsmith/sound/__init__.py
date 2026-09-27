@@ -18,10 +18,24 @@ track.
 energy distance, so a tag hit always outranks a closer energy; ties go to the bed whose
 drop point lands nearest the first stamp. Below the style's `sound.bed_score_threshold`
 (the shipped 0.5 reads "no tag hit at all") `choose_bed` asks the `AudioSearch` adapter
-with the same query and the library it may grow: `sound.freesound` (024) searches,
-fetches, measures, checks and appends the result to the catalogue with its licence and
-author, so the rights row is an ordinary library row; `FakeAudioSearch` returns seeded
-catalogue entries only and records that it was asked, so no test reaches the network.
+and the library it may grow: `sound.freesound` (024) searches, fetches, measures, checks
+and appends the result to the catalogue with its licence and author, so the rights row
+is an ordinary library row; `FakeAudioSearch` answers from a shelf of catalogue entries
+and records every query, so no test reaches the network.
+
+**Search ladders (054).** F1 went out silent: the planner's whole theme and mood
+sentences were one query, and the empty shipped catalogue returned before the search
+was even asked. Now the search is asked with plain keywords, specific to broad
+(`bed_queries`: theme and mood words, fewer of them, the mood alone, one mood word,
+then the style's `sound.default_bed_query`; every rung at most `QUERY_MAX_WORDS`),
+stopping at the first adoption. SFX go the same way (`sfx_queries`, through `SfxShelf`
+inside `place_cues`) when the catalogue has nothing tagged with an intent or a floor
+class, the floor classes first; every fetched SFX passes the 7.3 sweep detector before
+it is adopted (`sound.freesound.adopt`). Only CC0 and CC BY files are adopted. Every
+search is one `SearchOutcome` - source, query, status, hit count, what was adopted and
+why the rest were skipped - and `build_mix` hands every line to the job log as it is
+made, then the placement decisions, then the summary; a short that goes out voice-only
+says why (`NO_SEARCH_LINE`, `SEARCH_EMPTY_LINE`) on the job page as well.
 
 **Floor hits (7.1).** The Dyson v2 mechanical hits are derived from plan events as the
 guaranteed floor so a short is never flat: `floor_hits` reads the style's
@@ -71,9 +85,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import statistics
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -85,6 +100,7 @@ from pydantic import ValidationError
 from shortsmith import ffmpeg, styles
 from shortsmith.contracts import (
     AudioEntry,
+    AudioKind,
     BalanceReport,
     Beat,
     BedQuery,
@@ -209,27 +225,125 @@ def select_bed(
     return best if bed_score(best, query) >= threshold else None
 
 
+# --- the search ladders (054) ------------------------------------------------------------
+
+# A text search over a sound library wants a few plain words, not the planner's sentence
+# (F1's "Himalayan spiritual documentary, tanpura drone with soft tabla pulse and low
+# synth" matched nothing). Each rung is at most this many words; the rungs go from
+# specific to broad and the style's `sound.default_bed_query` is always the last try.
+QUERY_MAX_WORDS = 6
+STOPWORDS = frozenset(
+    ["a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "is", "it", "its", "of",
+     "on", "or", "the", "to", "with", "over", "under", "that", "this", "these", "those",
+     "some", "very"]
+)  # fmt: skip
+_WORD = re.compile(r"[^\W_]+", re.UNICODE)
+NO_SEARCH_LINE = "no audio search configured"
+SEARCH_EMPTY_LINE = "every audio search came back empty"
+
+
+def keywords(text: str) -> list[str]:
+    """The plain lower-case words of `text`, stopwords and repeats gone, in order."""
+    out: list[str] = []
+    for word in _WORD.findall(text.lower()):
+        if word not in STOPWORDS and word not in out:
+            out.append(word)
+    return out
+
+
+def _rungs(*candidates: Sequence[str]) -> tuple[str, ...]:
+    out: list[str] = []
+    for words in candidates:
+        rung = " ".join(words[:QUERY_MAX_WORDS])
+        if rung and rung not in out:
+            out.append(rung)
+    return tuple(out)
+
+
+def bed_queries(query: BedQuery, default: str) -> tuple[str, ...]:
+    """The bed search's queries, specific to broad (054 (2)): keywords from the theme and
+    the mood, fewer of them, the mood alone, one mood word, then the style's default."""
+    theme, mood = keywords(query.theme), keywords(query.mood)
+    return _rungs(
+        theme[:3] + mood[:3],
+        theme[:2] + mood[:1],
+        mood[:3],
+        mood[:1],
+        keywords(default),
+    )
+
+
+def sfx_queries(intent: str) -> tuple[str, ...]:
+    """The SFX search's queries for one intent (054 (3)): a floor class asks for its hit
+    ("bass hit") and then the class word alone; a planner intent asks with its words,
+    and the director's own fall-back to the beat's floor class is the broader rung."""
+    if intent in CLASS_RANK:
+        return (f"{intent} hit", intent)
+    return _rungs(keywords(intent.replace("_", " ")))
+
+
+@dataclass(frozen=True)
+class SearchOutcome:
+    """One search of one source (054 (1)): what was asked, what the source answered
+    (an HTTP status or the error, and its hit count), what was adopted, and one note per
+    candidate that was skipped and why. `line()` is the job-log line."""
+
+    source: str
+    kind: AudioKind
+    query: str
+    status: str
+    hits: int
+    adopted: AudioEntry | None = None
+    notes: tuple[str, ...] = ()
+
+    def line(self) -> str:
+        taken = f", adopted {self.adopted.id}" if self.adopted is not None else ""
+        return (
+            f"audio search {self.source} {self.kind} {self.query!r}: status {self.status}, "
+            f"{self.hits} hits{taken}"
+        )
+
+
 class AudioSearch(ABC):
-    """The runtime audio search (7.2): asked with the same bed query when the library
-    scores under the threshold, and given the library so what it finds can be measured,
-    checked and appended to that catalogue (`sound.freesound`, 024)."""
+    """The runtime audio search (7.2): asked one ladder rung at a time when the library
+    has no bed over the threshold or no SFX for an intent, and given the library so what
+    it finds can be measured, checked and appended to that catalogue (`sound.freesound`,
+    024). Never raises into the mix: a source that fails is an outcome with its status."""
 
     @abstractmethod
-    def beds(self, query: BedQuery, library: Library) -> list[AudioEntry]:
-        """Measured, catalogued beds matching `query`, best first; empty when nothing
-        matched or the source could not be reached. Never raises into the mix."""
+    def bed(self, words: str, query: BedQuery, library: Library) -> SearchOutcome:
+        """Search `words` for a bed and adopt the first result that passes; the query
+        is what the adopted entry is tagged with."""
+
+    @abstractmethod
+    def sfx(self, words: str, intent: str, library: Library) -> SearchOutcome:
+        """Search `words` for a cue and adopt the first result that passes the sweep
+        detector, tagged with `intent`."""
 
 
 class FakeAudioSearch(AudioSearch):
-    """12.1: returns seeded catalogue entries only, so no test reaches the network, and
-    records every query it was asked so a test can assert whether the gate opened."""
+    """12.1: answers from a shelf of catalogue entries - the library it is asked with,
+    unless given one - so no test reaches the network, and records every query so a
+    test can assert the ladder. An empty shelf makes every search a miss."""
 
-    def __init__(self) -> None:
-        self.calls: list[BedQuery] = []
+    def __init__(self, shelf: Library | None = None) -> None:
+        self.shelf = shelf
+        self.calls: list[str] = []
+        self.sfx_calls: list[str] = []
 
-    def beds(self, query: BedQuery, library: Library) -> list[AudioEntry]:
-        self.calls.append(query)
-        return sorted(library.beds(), key=lambda e: (abs(e.energy - query.energy), e.id))
+    def _shelf(self, library: Library) -> Library:
+        return self.shelf if self.shelf is not None else library
+
+    def bed(self, words: str, query: BedQuery, library: Library) -> SearchOutcome:
+        self.calls.append(words)
+        beds = self._shelf(library).beds()
+        best = min(beds, key=lambda e: (abs(e.energy - query.energy), e.id)) if beds else None
+        return SearchOutcome("fake", "bed", words, "200", len(beds), adopted=best)
+
+    def sfx(self, words: str, intent: str, library: Library) -> SearchOutcome:
+        self.sfx_calls.append(words)
+        found = match_sfx(intent, self._shelf(library))
+        return SearchOutcome("fake", "sfx", words, "200", int(found is not None), adopted=found)
 
 
 def choose_bed(
@@ -239,21 +353,26 @@ def choose_bed(
     first_stamp_s: float,
     threshold: float,
     search: AudioSearch | None = None,
-) -> tuple[AudioEntry | None, str]:
-    """The bed and the note the job log gets: the library's best over `threshold`, else
-    the search adapter's best, else none (7.2)."""
+    default_query: str = "",
+) -> tuple[AudioEntry | None, tuple[str, ...]]:
+    """The bed and the lines the job log gets (054 (1)): the library's best over
+    `threshold`, else the search ladder `bed_queries` rung by rung - one line per search
+    - stopping at the first adoption, else none and why (7.2, 054 (2))."""
     chosen = select_bed(library, query, first_stamp_s=first_stamp_s, threshold=threshold)
     if chosen is not None:
-        return chosen, f"bed {chosen.id} from the library"
+        return chosen, (f"bed {chosen.id} from the library (score {bed_score(chosen, query):.2f})",)
+    asked = f"no bed for theme {query.theme!r} mood {query.mood!r}"
     if search is None:
-        return None, (
-            f"no bed for theme {query.theme!r} mood {query.mood!r}: nothing in the library "
-            "scored and no audio search is configured"
-        )
-    found = search.beds(query, library)
-    if not found:
-        return None, f"no bed for theme {query.theme!r} mood {query.mood!r}: the search found none"
-    return found[0], f"bed {found[0].id} from the audio search"
+        return None, (f"{asked}: nothing in the library scored and {NO_SEARCH_LINE}",)
+    lines: list[str] = []
+    for words in bed_queries(query, default_query):
+        outcome = search.bed(words, query, library)
+        lines += [outcome.line(), *outcome.notes]
+        if outcome.adopted is not None:
+            lines.append(f"bed {outcome.adopted.id} from the audio search (query {words!r})")
+            return outcome.adopted, tuple(lines)
+    lines.append(f"{asked}: nothing in the library scored and {SEARCH_EMPTY_LINE}")
+    return None, tuple(lines)
 
 
 # --- the floor hits (7.1) ---------------------------------------------------------------
@@ -373,8 +492,53 @@ class PlacedCue:
 
 @dataclass(frozen=True)
 class PlacedCues:
+    """The cues, the log lines, and the library as the search left it (054: an adopted
+    SFX is an entry the stem and the rights rows have to find)."""
+
+    library: Library
     cues: tuple[PlacedCue, ...] = ()
     notes: tuple[str, ...] = ()
+
+
+class SfxShelf:
+    """What `place_cues` matches intents against (054 (3)): the library first, and when
+    it has nothing tagged with the intent, the search ladder `sfx_queries`, rung by rung,
+    stopping at the first adoption. Every search is a note; an adopted entry joins the
+    library here so the next intent, the stem and the rights rows all see it; a miss is
+    remembered so an intent is searched once."""
+
+    def __init__(self, library: Library, search: AudioSearch | None) -> None:
+        self.library = library
+        self._search = search
+        self.notes: list[str] = []
+        self._resolved: dict[str, AudioEntry | None] = {}
+
+    def resolve(self, intent: str) -> AudioEntry | None:
+        key = intent.strip().lower()
+        if key in self._resolved:
+            return self._resolved[key]
+        found = match_sfx(key, self.library)
+        if found is None and self._search is not None and key:
+            found = self._searched(key)
+        self._resolved[key] = found
+        return found
+
+    def _searched(self, intent: str) -> AudioEntry | None:
+        assert self._search is not None
+        for words in sfx_queries(intent):
+            outcome = self._search.sfx(words, intent, self.library)
+            self.notes += [outcome.line(), *outcome.notes]
+            if outcome.adopted is not None:
+                if self.library.entry(outcome.adopted.id) is None:
+                    self.library = Library(
+                        root=self.library.root, entries=(*self.library.entries, outcome.adopted)
+                    )
+                return outcome.adopted
+        self.notes.append(
+            f"no sfx for {intent!r}: nothing in the catalogue is tagged with it and "
+            f"{SEARCH_EMPTY_LINE}"
+        )
+        return None
 
 
 def cue_cap(nums: styles.Sound, *, runtime_s: float) -> int:
@@ -405,24 +569,39 @@ def place_cues(
     *,
     runtime_s: float,
     counter_land_s: float | None = None,
+    search: AudioSearch | None = None,
 ) -> PlacedCues:
     """The short's cues, matched to files, levelled and capped (7.1, 7.3).
 
     In order: the planner's intents, then a changeover on every drop the envelope steps,
     then the floor hits the plan's events earn. A beat takes at most
     `sound.cues_per_beat_max` of them, so the earlier pass owns its slot. An `event` cue
-    and a floor hit sit where the beat's event lands (`landing_s`)."""
-    if not library.sfx():
-        return PlacedCues(notes=("no sfx in the audio catalogue: the short has no cues",))
+    and a floor hit sit where the beat's event lands (`landing_s`).
+
+    054 (3): an intent the catalogue has no file for is searched (`SfxShelf`); the floor
+    classes the plan earns are resolved first, drum before bass before thump, so the
+    guaranteed floor is what the search budget goes to first."""
+    if not library.sfx() and search is None:
+        return PlacedCues(
+            library=library,
+            notes=(f"no sfx in the audio catalogue and {NO_SEARCH_LINE}: the short has no cues",),
+        )
     beats = {b.id: b for b in plan.beats}
     floor = {h.beat_id: h for h in floor_hits(plan, nums, counter_land_s=counter_land_s)}
-    notes: list[str] = []
+    shelf = SfxShelf(library, search)
+    steps = changeover_times(story, nums, runtime_s=runtime_s)
+    wanted: set[str] = {h.hit for h in floor.values()}
+    if steps:
+        wanted.add(CHANGEOVER)
+    for hit_class in sorted(wanted, key=lambda h: (-CLASS_RANK.get(h, 0), h)):
+        shelf.resolve(hit_class)
     placed: list[PlacedCue] = []
     per_beat: dict[str, int] = {}
 
     def full(beat_id: str) -> bool:
         return per_beat.get(beat_id, 0) >= nums.cues_per_beat_max
 
+    notes = shelf.notes  # the search lines first, then the placement decisions
     for cue in story.cues:
         beat = beats.get(cue.beat_id)
         if beat is None:
@@ -435,9 +614,9 @@ def place_cues(
             )
             continue
         hit = floor[cue.beat_id].hit if cue.beat_id in floor else ""
-        entry = match_sfx(cue.intent, library)
+        entry = shelf.resolve(cue.intent)
         if entry is None:
-            entry = match_sfx(hit, library) if hit else None
+            entry = shelf.resolve(hit) if hit else None
             if entry is None:
                 notes.append(
                     f"{cue.beat_id}: cue {cue.intent!r} matched no sfx tag and its beat earns "
@@ -468,11 +647,11 @@ def place_cues(
     # 7.3: a drop is a step down at a beat boundary *followed by a changeover cue*, so
     # the director places one on the beat the step lands on unless the planner already
     # cued it. This runs before the floor so the changeover takes the beat's slot.
-    for t in changeover_times(story, nums, runtime_s=runtime_s):
+    for t in steps:
         beat = next((b for b in plan.beats if abs(b.start - t) <= BOUNDARY_TOL_S), None)
         if beat is None or full(beat.id):
             continue
-        entry = match_sfx(CHANGEOVER, library)
+        entry = shelf.resolve(CHANGEOVER)
         if entry is None:
             notes.append(f"{beat.id}: no sfx tagged {CHANGEOVER!r} for the drop at {t:g} s")
             continue
@@ -487,7 +666,7 @@ def place_cues(
     for hit in floor.values():
         if full(hit.beat_id):
             continue
-        entry = match_sfx(hit.hit, library)
+        entry = shelf.resolve(hit.hit)
         if entry is None:
             notes.append(f"{hit.beat_id}: no sfx tagged {hit.hit!r} for the floor hit")
             continue
@@ -514,7 +693,12 @@ def place_cues(
             )
         kept = kept[:cap]
     ordered = tuple(sorted(kept, key=lambda c: (c.at_s, c.beat_id)))
-    return PlacedCues(cues=ordered, notes=tuple(notes))
+    for cue in ordered:  # 054 (1): one line per cue placed
+        notes.append(
+            f"{cue.beat_id}: cue {cue.intent!r} placed at {cue.at_s:.2f} s "
+            f"({cue.entry_id}, {cue.hit or 'no class'}, {cue.source})"
+        )
+    return PlacedCues(library=shelf.library, cues=ordered, notes=tuple(notes))
 
 
 def cue_time(start: float, end: float, at: str) -> float:
@@ -690,11 +874,12 @@ class MixResult:
     cues: tuple[PlacedCue, ...]
     balance: BalanceReport
     notes: tuple[str, ...]
+    # 054: the library as the searches left it - what the rights rows are read from.
+    library: Library
 
     def summary(self) -> str:
-        """The one line the job log gets: what the director chose. The per-cue reasons
-        stay in `notes` for the caller that wants them, so the operator's trail is one
-        line per step, not one per dropped cue."""
+        """The closing line of the job log's sound trail: what the director chose. Every
+        search and every per-cue decision precedes it in `notes` (054 (1))."""
         bed = f"bed {self.bed.id}" if self.bed is not None else "no bed"
         planned = sum(1 for c in self.cues if c.source == "planner")
         dropped = sum(1 for n in self.notes if "dropped" in n)
@@ -736,28 +921,42 @@ def build_mix(
     runtime_s: float,
     search: AudioSearch | None = None,
     counter_land_s: float | None = None,
+    log: Callable[[str], None] | None = None,
 ) -> MixResult:
     """Build the music and SFX stems beside `voice` and the premix the master is cut
-    from, write `balance.json`, and fail the step when the mix misses the 7.3 band."""
+    from, write `balance.json`, and fail the step when the mix misses the 7.3 band.
+    `log` gets every note as it is made (054 (1): the searches and decisions reach
+    `job.log` even when the mix fails after them)."""
     stems.mkdir(parents=True, exist_ok=True)
     voice_db = ffmpeg.mean_volume_db(voice)
     if voice_db is None:
         raise SoundError(f"{voice.name} is silent: the mix has nothing to sit under")
     notes: list[str] = []
 
-    bed, note = choose_bed(
+    def note(lines: Iterable[str]) -> None:
+        for line in lines:
+            notes.append(line)
+            if log is not None:
+                log(line)
+
+    bed, bed_lines = choose_bed(
         library, story.bed_query, first_stamp_s=first_stamp_s(plan),
         threshold=nums.bed_score_threshold, search=search,
+        default_query=nums.default_bed_query,
     )  # fmt: skip
-    notes.append(note)
+    note(bed_lines)
+    if bed is not None and library.entry(bed.id) is None:
+        library = Library(root=library.root, entries=(*library.entries, bed))
     music = _music_stem(
         stems, bed=bed, library=library, story=story, nums=nums,
         voice_db=voice_db, runtime_s=runtime_s,
     )  # fmt: skip
     placed = place_cues(
-        plan, story, library, nums, runtime_s=runtime_s, counter_land_s=counter_land_s
-    )
-    notes += list(placed.notes)
+        plan, story, library, nums, runtime_s=runtime_s, counter_land_s=counter_land_s,
+        search=search,
+    )  # fmt: skip
+    note(placed.notes)
+    library = placed.library
     sfx = _sfx_stem(
         stems, cues=placed.cues, library=library, voice_db=voice_db, runtime_s=runtime_s
     )
@@ -774,7 +973,7 @@ def build_mix(
         raise SoundError("; ".join(balance.problems))
     return MixResult(
         premix=premix, music=music, sfx=sfx, bed=bed, cues=placed.cues,
-        balance=balance, notes=tuple(notes),
+        balance=balance, notes=tuple(notes), library=library,
     )  # fmt: skip
 
 
@@ -999,9 +1198,11 @@ def _audio_row(
     )
 
 
-def rights_rows(result: MixResult, library: Library) -> list[RightsRow]:
+def rights_rows(result: MixResult) -> list[RightsRow]:
     """One row per music and SFX file the mix used (5.4), the bed's beats being the
-    whole short and a cue's the beats it fired on."""
+    whole short and a cue's the beats it fired on, read from the library as the mix's
+    searches left it (054)."""
+    library = result.library
     rows: list[RightsRow] = []
     if result.bed is not None:
         rows.append(_audio_row(result.bed, library, kind="music", beat_ids=[]))

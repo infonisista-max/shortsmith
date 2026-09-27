@@ -89,10 +89,13 @@ def rows(manifest: AssetManifest, plan: PicturePlan) -> list[RightsRow]:
 
 
 def credit_line(r: RightsRow) -> str:
+    """A picture line names the author and the page; a music or sound line adds the
+    licence in brackets, so the credits carry what 054 (4) adopted it under."""
     via = r.page_url or r.source_url
     who = r.author or urlparse(r.source_url or r.page_url).netloc
     label = CREDIT_LABELS.get(r.kind, "Photo")
-    return f"{label}: {who} via {via}"
+    licence = f" ({r.licence})" if r.kind in AUDIO_KINDS and r.licence else ""
+    return f"{label}: {who} via {via}{licence}"
 
 
 def credits(rows: Sequence[RightsRow]) -> str:

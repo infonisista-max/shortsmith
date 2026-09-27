@@ -19,16 +19,25 @@ before it is added, and its licence text is recorded in its `licence` field. `du
 
 ## Grown at runtime: `fetched/` (ticket 024)
 
-When no catalogue bed clears the style's `sound.bed_score_threshold`, the sound director
-asks the Freesound adapter (`sound.freesound`, enabled by `FREESOUND_API_KEY` in `.env`;
-the key is free and the search is not metered) with the same theme and mood tags. The
-best result's HQ preview is downloaded into `fetched/` (git-ignored like every audio
-file), measured by the same script as a seeded entry, and appended to `catalog.yaml` with
-`source: freesound`, its licence text and its author, tagged with the query it answered;
-it is then an ordinary library entry with an ordinary rights row, and the next job finds
-it without a call. A fetched SFX goes through the sweep detector first and is rejected on
-any hit; beds do not (a bed is one sound longer than 5 s by definition). Without a key
-the director has no search, says so in the job log, and the short goes without a bed.
+When no catalogue bed clears the style's `sound.bed_score_threshold`, or no SFX is tagged
+with an intent or a floor class the short needs (ticket 054), the sound director asks the
+Freesound adapter (`sound.freesound`, enabled by `FREESOUND_API_KEY` in `.env`; the key
+is free and the search is not metered). It asks with a few plain words, specific to
+broad, never the planner's sentence: keywords from the bed query's theme and mood, fewer
+of them, the mood alone, one mood word, then the style's `sound.default_bed_query`; an
+SFX intent asks with its words and a floor class asks for "`<class> hit`" then the class
+word. The search stops at the first adoption. Only CC0 and CC BY results are adopted
+(the request carries the licence filter and the result is checked again). The adopted
+result's HQ preview is downloaded into `fetched/` (git-ignored like every audio file),
+measured by the same script as a seeded entry, and appended to `catalog.yaml` with
+`source: freesound`, its licence text and its author, tagged with the query words it
+answered; it is then an ordinary library entry with an ordinary rights row (the licence
+also appears on its `credits.md` line), and the next job finds it without a call. A
+fetched SFX goes through the sweep detector first and is rejected on any hit; beds do
+not (a bed is one sound longer than 5 s by definition). Every search is one line in
+`job.log` (source, query, HTTP status, hit count, what was adopted) and every cue placed,
+fallen back or dropped is another. Without a key the director has no search, says so in
+the job log, and a short that goes out voice-only says why on the job page too.
 
 ## Tests and the smoke
 

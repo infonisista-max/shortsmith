@@ -1776,13 +1776,20 @@ def sound_mix(
 ) -> sound.MixResult | None:
     """The 022 sound director over the job's plan and sound story: the music and SFX
     stems beside the voice, and the premix the master is cut from. None when there is
-    nothing to mix - an empty catalogue, or a job planned before the sound call (the
-    renderer's own tests) - and the short is then the voice alone, as it was before 022.
-    `search` is the 7.2 audio search the director asks under the bed-score threshold
-    (024); None means no search is configured."""
+    nothing to mix - a job planned before the sound call (the renderer's own tests), or
+    an empty catalogue with no search to fill it - and the short is then the voice
+    alone, as it was before 022. `search` is the 7.2 audio search the director asks
+    under the bed-score threshold and for every SFX the catalogue lacks (024, 054); None
+    means no search is configured.
+
+    054 (1, 5): every search and every sound decision is a `sound:` line in `job.log`,
+    and a short that goes out voice-only says why in one line on the job page."""
     library = library if library is not None else sound.load_catalogue()
     story = _load_story(job)
-    if not library.entries or story is None:
+    if story is None:
+        return None
+    if not library.entries and search is None:
+        _voice_only(job, sound.NO_SEARCH_LINE)
         return None
     plan = _load_plan(job)
     result = sound.build_mix(
@@ -1795,9 +1802,22 @@ def sound_mix(
         runtime_s=presenter.total_duration(presenter.cut_list(plan)),
         search=search,
         counter_land_s=counter_land_s(loaded_styles()[job.record.style]),
+        log=lambda line: jobs.note(job, f"sound: {line}"),
     )
     jobs.note(job, result.summary())
+    if result.bed is None and not result.cues:
+        _voice_only(job, sound.NO_SEARCH_LINE if search is None else sound.SEARCH_EMPTY_LINE)
     return result
+
+
+def _voice_only(job: Job, why: str) -> None:
+    """054 (5): the one line the job log and the job page both carry when the short goes
+    out with no bed and no cues; written once, so a retry does not repeat it."""
+    line = f"voice only: {why} (the audio catalogue has nothing for this short)"
+    jobs.note(job, f"sound: {line}")
+    current = jobs.load(job.path).record.warnings
+    if line not in current:
+        jobs.amend(job, warnings=[*current, line])
 
 
 def counter_land_s(spec: StyleSpec) -> float | None:
@@ -1807,11 +1827,11 @@ def counter_land_s(spec: StyleSpec) -> float | None:
     return float(land) if land is not None else None
 
 
-def _audio_rights(job: Job, result: sound.MixResult | None, library: sound.Library) -> None:
+def _audio_rights(job: Job, result: sound.MixResult | None) -> None:
     """5.4 / 016: the music and SFX rows are written where `rights.write` will pick them
     up, then the log is regenerated, so they sit beside the asset rows and survive a
     re-run of the asset step."""
-    rows = sound.rights_rows(result, library) if result is not None else []
+    rows = sound.rights_rows(result) if result is not None else []
     rights.write_audio(job.path, rows)
     manifest = assets.load_manifest(job.path)
     if manifest is not None:
@@ -1836,7 +1856,7 @@ def mux(
     result = sound_mix(job, library=library, search=search)
     mix = stems / "mix.wav"
     master(result.premix if result is not None else voice, mix)
-    _audio_rights(job, result, library)
+    _audio_rights(job, result)
     job.out_dir.mkdir(parents=True, exist_ok=True)
     out = job.out_dir / "short.mp4"
     ffmpeg.run(

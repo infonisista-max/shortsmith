@@ -152,16 +152,148 @@ def test_the_threshold_is_the_styles_number(library: sound.Library, nums: styles
 def test_below_the_threshold_the_search_adapter_is_asked(
     library: sound.Library, nums: styles.Sound
 ) -> None:
-    """7.2: below the score threshold the audio search runs with the same tags; the fake
-    returns seeded catalogue entries only and records that it was asked."""
+    """7.2: below the score threshold the audio search runs with the query's keywords;
+    the fake returns seeded catalogue entries only and records that it was asked."""
     search = sound.FakeAudioSearch()
     query = BedQuery(theme="cooking", mood="nostalgic", energy=1)
-    chosen, note = sound.choose_bed(
-        library, query, first_stamp_s=1.0, threshold=nums.bed_score_threshold, search=search
-    )
+    chosen, lines = sound.choose_bed(
+        library, query, first_stamp_s=1.0, threshold=nums.bed_score_threshold, search=search,
+        default_query=nums.default_bed_query,
+    )  # fmt: skip
     assert chosen is not None and chosen.id in {e.id for e in library.beds()}
-    assert "search" in note
-    assert search.calls == [query]
+    assert any("from the audio search" in line for line in lines)
+    assert search.calls == ["cooking nostalgic"], "the first rung adopted, so the ladder stopped"
+
+
+# --- 054: the bed search ladder, specific to broad -----------------------------------------
+
+F1_QUERY = BedQuery(
+    theme="Himalayan spiritual documentary, tanpura drone with soft tabla pulse and low synth",
+    mood="mysterious, contemplative, quietly insistent, investigative",
+    energy=3,
+)
+DEFAULT_BED = "cinematic ambient documentary"
+
+
+def test_bed_queries_run_specific_to_broad_and_end_with_the_style_default() -> None:
+    """054 (2): plain keywords from the theme and the mood, then the mood alone, then
+    the style's default words; every rung at most six words, never the full sentence."""
+    rungs = sound.bed_queries(F1_QUERY, DEFAULT_BED)
+    assert len(rungs) >= 3 and len(set(rungs)) == len(rungs)
+    assert all(1 <= len(r.split()) <= sound.QUERY_MAX_WORDS for r in rungs), rungs
+    assert rungs[0] == "himalayan spiritual documentary mysterious contemplative quietly"
+    assert "mysterious contemplative quietly" in rungs, "a mood-only rung"
+    assert rungs[-1] == DEFAULT_BED, "the style default is the last try"
+    assert rungs.index("mysterious contemplative quietly") < rungs.index(DEFAULT_BED)
+    lengths = [len(r.split()) for r in rungs[:-1]]  # the default is last whatever its length
+    assert lengths == sorted(lengths, reverse=True), "specific to broad: never longer again"
+    assert F1_QUERY.theme not in rungs and F1_QUERY.mood not in rungs
+    assert all("," not in r and r == r.lower() for r in rungs)
+
+
+def test_keywords_drop_stopwords_punctuation_and_repeats() -> None:
+    assert sound.keywords("The drone, with a Drone and the tabla!") == ["drone", "tabla"]
+    assert sound.keywords("") == []
+
+
+def test_choose_bed_walks_the_whole_ladder_when_nothing_is_adopted(
+    library: sound.Library, nums: styles.Sound
+) -> None:
+    """054 (1, 2): with an empty shelf the fake adopts nothing, so every rung is tried in
+    order and every search is one log line with its status and hit count."""
+    no_beds = sound.Library(root=library.root, entries=tuple(library.sfx()))
+    search = sound.FakeAudioSearch()
+    chosen, lines = sound.choose_bed(
+        no_beds, F1_QUERY, first_stamp_s=1.0, threshold=nums.bed_score_threshold,
+        search=search, default_query=DEFAULT_BED,
+    )  # fmt: skip
+    assert chosen is None
+    assert search.calls == list(sound.bed_queries(F1_QUERY, DEFAULT_BED))
+    searched = [line for line in lines if line.startswith("audio search ")]
+    assert len(searched) == len(search.calls)
+    for line, words in zip(searched, search.calls, strict=True):
+        assert repr(words) in line and "status 200" in line and "0 hits" in line
+    assert "every audio search came back empty" in lines[-1]
+
+
+def test_choose_bed_stops_at_the_first_adoption(
+    library: sound.Library, nums: styles.Sound
+) -> None:
+    search = sound.FakeAudioSearch(shelf=library)
+    no_beds = sound.Library(root=library.root, entries=tuple(library.sfx()))
+    chosen, lines = sound.choose_bed(
+        no_beds, F1_QUERY, first_stamp_s=1.0, threshold=nums.bed_score_threshold,
+        search=search, default_query=DEFAULT_BED,
+    )  # fmt: skip
+    assert chosen is not None and chosen.id in {e.id for e in library.beds()}
+    assert search.calls == [sound.bed_queries(F1_QUERY, DEFAULT_BED)[0]]
+    assert any(f"bed {chosen.id} from the audio search" in line for line in lines)
+
+
+def test_without_a_search_the_bed_note_says_no_audio_search_configured(
+    library: sound.Library, nums: styles.Sound
+) -> None:
+    chosen, lines = sound.choose_bed(
+        library, F1_QUERY, first_stamp_s=1.0, threshold=nums.bed_score_threshold,
+        default_query=DEFAULT_BED,
+    )  # fmt: skip
+    assert chosen is None and any("no audio search configured" in line for line in lines)
+
+
+# --- 054 (3): SFX from the search when the catalogue has no match --------------------------
+
+
+def test_sfx_queries_are_the_intent_words_and_a_floor_class_tries_hit_first() -> None:
+    assert sound.sfx_queries("reveal_drop") == ("reveal drop",)
+    assert sound.sfx_queries("bass") == ("bass hit", "bass")
+    assert sound.sfx_queries("drum") == ("drum hit", "drum")
+    assert sound.sfx_queries("thump") == ("thump hit", "thump")
+    assert sound.sfx_queries("") == ()
+    long = sound.sfx_queries("a_b_c_d_e_f_g_h")
+    assert long and all(len(r.split()) <= sound.QUERY_MAX_WORDS for r in long)
+
+
+def test_an_empty_sfx_catalogue_with_a_search_still_places_the_floor_and_the_cues(
+    plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
+) -> None:
+    """054 (3): the floor classes are searched first (drum, bass, thump), then the
+    planner's intents; what the search adopts is placed, and the grown library comes
+    back with the cues so the stem and the rights rows can find the files."""
+    empty = sound.Library(root=library.root, entries=())
+    search = sound.FakeAudioSearch(shelf=library)
+    placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0, search=search)
+    assert placed.cues, "the search filled the empty catalogue"
+    with_search = sound.place_cues(plan, story, library, nums, runtime_s=60.0)
+    assert [(c.beat_id, c.entry_id, c.hit) for c in placed.cues] == [
+        (c.beat_id, c.entry_id, c.hit) for c in with_search.cues
+    ], "the same cues as a seeded catalogue places"
+    assert search.sfx_calls[:3] == ["drum hit", "bass hit", "thump hit"], "the floor first"
+    assert all(placed.library.entry(c.entry_id) is not None for c in placed.cues)
+    assert any("adopted" in n for n in placed.notes)
+    placed_lines = [n for n in placed.notes if "placed at" in n]
+    assert len(placed_lines) == len(placed.cues), "one line per placed cue (054 (1))"
+
+
+def test_an_empty_sfx_catalogue_and_no_search_places_nothing_and_says_so(
+    plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
+) -> None:
+    empty = sound.Library(root=library.root, entries=())
+    placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0)
+    assert placed.cues == ()
+    assert any(
+        "no sfx in the audio catalogue" in n and "no audio search" in n for n in placed.notes
+    )
+
+
+def test_a_search_that_finds_no_sfx_leaves_a_line_per_miss(
+    plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
+) -> None:
+    empty = sound.Library(root=library.root, entries=())
+    search = sound.FakeAudioSearch()  # an empty shelf: every search is a miss
+    placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0, search=search)
+    assert placed.cues == ()
+    assert "bass" in search.sfx_calls and "drum" in search.sfx_calls
+    assert any("no sfx for 'bass'" in n for n in placed.notes)
 
 
 def test_above_the_threshold_the_search_adapter_is_never_asked(
@@ -181,11 +313,11 @@ def test_above_the_threshold_the_search_adapter_is_never_asked(
 def test_without_a_search_adapter_there_is_simply_no_bed(
     library: sound.Library, nums: styles.Sound
 ) -> None:
-    chosen, note = sound.choose_bed(
+    chosen, lines = sound.choose_bed(
         library, BedQuery(theme="cooking", mood="nostalgic", energy=1), first_stamp_s=1.0,
         threshold=nums.bed_score_threshold,
     )  # fmt: skip
-    assert chosen is None and "no bed" in note
+    assert chosen is None and any("no bed" in line for line in lines)
 
 
 # --- the floor hits (7.1) ---------------------------------------------------------------
@@ -611,7 +743,7 @@ def test_the_rights_rows_name_the_files_the_mix_used(
         stems=stems, voice=voice, plan=plan, story=story, nums=nums,
         library=library, runtime_s=fixture.DURATION_S,
     )  # fmt: skip
-    rows = sound.rights_rows(result, library)
+    rows = sound.rights_rows(result)
     kinds = {r.kind for r in rows}
     assert kinds == {"music", "sfx"}
     assert all(r.origin == "library" and r.source_url and r.sha256 for r in rows)

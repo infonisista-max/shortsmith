@@ -1,5 +1,5 @@
 ---
-version: "1"
+version: "2"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -96,6 +96,7 @@ captions:
   gap_break_s: 0.35
 sound:
   bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
+  default_bed_query: upbeat playful ambient  # the bed search's last try (054)
   bed_db_under_voice: -10
   bed_accept_db: [-12, -9]
   speech_band_hz: [250, 4000]

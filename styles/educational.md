@@ -1,5 +1,5 @@
 ---
-version: "1"
+version: "2"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -95,6 +95,7 @@ captions:
   gap_break_s: 0.35
 sound:
   bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
+  default_bed_query: calm ambient piano  # the bed search's last try (054)
   bed_db_under_voice: -14
   bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]

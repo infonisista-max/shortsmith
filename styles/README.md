@@ -12,7 +12,7 @@ Front matter must carry the seven key groups plus six more keys:
 | `presenter` | grammar validator (3.2) |
 | `broll` | grammar validator, asset step, renderer (4.1, 4.3, 9.2, 9.4); `enter_transitions` is the style's subset of the global vocabulary and `transitions` carries every row of its numbers (fade, whip, zoom, spring, wipe; `cut` has none), enabled or not |
 | `captions` | pager and renderer (6.1, 6.2, 6.3) |
-| `sound` | sound director and gate (7.1, 7.3) |
+| `sound` | sound director and gate (7.1, 7.3); `default_bed_query` is the plain-words last rung of the runtime bed search (7.2, 054) |
 | `finale` | grammar validator and gate |
 | `status` | `shipped` or `draft` (1.4): only shipped styles are offered and used; a draft's alias resolves to `explainer` with a notice |
 | `requires_components` | cross-checked against the renderer registry; a shipped spec may not require a missing one (9.2) |

@@ -141,9 +141,11 @@ class Captions(CaptionStyle):
 
 class Sound(StrictModel):
     """7.3 bed, envelope and cue numbers; the 7.1 floor hits; the forbidden list; the
-    7.2 bed-score line under which the audio search is asked (024)."""
+    7.2 bed-score line under which the audio search is asked (024) and the plain words
+    that search falls back to last (`default_bed_query`, 054)."""
 
     bed_score_threshold: float
+    default_bed_query: str = Field(min_length=1)
     bed_db_under_voice: float
     bed_accept_db: tuple[float, float]
     speech_band_hz: tuple[int, int]

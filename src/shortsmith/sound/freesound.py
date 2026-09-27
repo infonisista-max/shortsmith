@@ -1,13 +1,15 @@
 """The Freesound audio search: the runtime rung under the local catalogue (decisions
 7.1, 7.2, 5.4, 12.1, 13.1; ticket 024).
 
-7.2: when no catalogue bed clears the style's `sound.bed_score_threshold`, the director
-asks this adapter with the same tags. It searches Freesound's text endpoint (one GET,
-the free API key as a `Token` header, never in the URL), downloads the best result,
-measures it with the 023 script, runs a cue through the R1-R4 detector, scores it like
-a local entry and appends it to `catalog.yaml` with `source: freesound`, its licence text
-and its author. The result is an ordinary library entry, so its rights row (5.4) is the
-row every library file gets, and the next job finds it in the catalogue without a call.
+7.2: when no catalogue bed clears the style's `sound.bed_score_threshold`, or no SFX is
+tagged with an intent the short needs (054), the director asks this adapter one ladder
+rung at a time - a few plain words, never the planner's sentence (`sound.bed_queries`,
+`sound.sfx_queries`). It searches Freesound's text endpoint (one GET, the free API key as
+a `Token` header, never in the URL), downloads the best result, measures it with the 023
+script, runs a cue through the R1-R4 detector, and appends it to `catalog.yaml` with
+`source: freesound`, its licence text and its author. The result is an ordinary library
+entry, so its rights row (5.4) is the row every library file gets, and the next job
+finds it in the catalogue without a call.
 
 **What is fetched.** Freesound's original files need an OAuth2 grant; the previews need
 only the token, so the HQ mp3 preview (else the HQ ogg) is what lands under
@@ -22,18 +24,27 @@ come from `seed.measure_file`; `loop_ok` is read from Freesound's own tags (`loo
 `loopable`, `seamless`), since nothing measures a seam yet; drop points stay empty.
 
 **What it costs.** Nothing: the key is free and the search is not metered, so no ledger
-row is written (the same footing as Pexels and Pixabay, 018). Rights (5.4): the licence
-is recorded as text with its URL, never filtered on (v1 has no licence filter).
+row is written (the same footing as Pexels and Pixabay, 018).
 
-**Failure.** A source that cannot be reached, a body that is not audio, a file ffmpeg
-cannot decode or a detector hit each cost one candidate, never the job: `beds` tries
-the results in Freesound's order and returns the first that is adopted, or nothing.
+**Rights (5.4; 054 (4)).** Only CC0 and CC BY are adopted, beds and SFX alike: the
+request carries `LICENCE_FILTER`, and every result's licence is checked again
+(`licence_allowed`) before anything is downloaded - a CC BY-NC track the API hands back
+anyway is skipped with a note. The licence text and the author travel on the entry into
+the rights row and `credits.md`.
+
+**Failure (054 (1)).** A source that cannot be reached is a `SearchPage` with its HTTP
+status or `timeout` and no hits, never an exception into the mix; the director logs it.
+A body that is not audio, a file ffmpeg cannot decode or a detector hit each cost one
+candidate: `bed` and `sfx` try the results in Freesound's order and return the first
+that is adopted in their `SearchOutcome`, with one note per candidate skipped and why. A
+candidate rejected once is remembered by id and never downloaded again in this process.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -46,8 +57,9 @@ from shortsmith.contracts import AudioCandidate, AudioEntry, AudioKind, AudioTag
 from shortsmith.sound import (
     AudioSearch,
     Library,
+    SearchOutcome,
     SoundError,
-    bed_score,
+    keywords,
     load_catalogue,
     parse_catalogue,
     seed,
@@ -71,6 +83,10 @@ DURATION_FILTER: Mapping[AudioKind, str] = {
     "bed": "duration:[20 TO 600]",
     "sfx": "duration:[0 TO 5]",
 }
+# 054 (4): Freesound's own licence names for CC0 and CC BY; the filter is in the request
+# and the result is checked again by `licence_allowed`.
+LICENCE_FILTER = 'license:("Attribution" OR "Creative Commons 0")'
+ALLOWED_LICENCES: tuple[str, ...] = ("CC0", "CC BY")
 LOOP_TAGS = frozenset({"loop", "loopable", "seamless"})
 # The licence URLs Freesound hands out, as the text the rights row carries (5.4).
 LICENCE_NAMES: Mapping[str, str] = {
@@ -103,8 +119,24 @@ def licence_text(url: str) -> str:
     return url.strip()
 
 
+def licence_allowed(text: str) -> bool:
+    """054 (4): `CC0 1.0` and `CC BY 4.0` are adopted; `CC BY-NC`, `CC BY-SA`, an
+    unknown URL or no licence at all are not."""
+    return any(text == name or text.startswith(f"{name} ") for name in ALLOWED_LICENCES)
+
+
 def entry_id(candidate: AudioCandidate) -> str:
     return f"{ID_PREFIX}{candidate.id}"
+
+
+@dataclass(frozen=True)
+class SearchPage:
+    """One search's answer (054 (1)): the candidates in Freesound's order, the HTTP
+    status (or `timeout` / the error class) and Freesound's own hit count."""
+
+    candidates: tuple[AudioCandidate, ...]
+    status: str
+    hits: int
 
 
 def _field(value: object, name: str) -> object:
@@ -179,6 +211,7 @@ class FreesoundAudioSearch(AudioSearch):
         self._page_size = page_size
         self._max_bytes = max_bytes
         self.searches = 0
+        self._rejected: dict[str, str] = {}  # candidate id -> why, so no second download
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Token {self._api_key.get_secret_value()}"}
@@ -192,32 +225,42 @@ class FreesoundAudioSearch(AudioSearch):
 
     # -- the two HTTP calls --
 
-    def search(self, tags: Sequence[str], kind: AudioKind) -> list[AudioCandidate]:
-        """Freesound's hits for `tags`, in its order, mapped to candidates; empty when the
-        source could not be read (a source that fails is a source with no hits)."""
+    def search(self, query: str, kind: AudioKind) -> SearchPage:
+        """Freesound's hits for the plain words `query`, in its order, mapped to
+        candidates, with the status and the hit count for the log; a source that fails
+        is a page with its status and no hits, never an exception."""
         self.searches += 1
         params = {
-            "query": " ".join(t.strip() for t in tags if t.strip()),
-            "filter": DURATION_FILTER[kind],
+            "query": " ".join(query.split()),
+            "filter": f"{DURATION_FILTER[kind]} {LICENCE_FILTER}",
             "fields": FIELDS,
             "page_size": str(self._page_size),
         }
         try:
             response = self._get(API_URL, params=params)
-            response.raise_for_status()
+        except httpx.TimeoutException:
+            return SearchPage((), "timeout", 0)
+        except httpx.HTTPError as exc:
+            return SearchPage((), f"error {type(exc).__name__}", 0)
+        status = str(response.status_code)
+        if response.is_error:
+            return SearchPage((), status, 0)
+        try:
             body: object = response.json()
-        except (httpx.HTTPError, ValueError):
-            return []
+        except ValueError:
+            return SearchPage((), f"{status} unreadable body", 0)
         results = _field(body, "results")
         if not isinstance(results, list):
-            return []
+            return SearchPage((), status, 0)
         hits: list[object] = list(results)  # pyright: ignore[reportUnknownArgumentType]
+        count = _field(body, "count")
+        total = count if isinstance(count, int) and not isinstance(count, bool) else len(hits)
         found: list[AudioCandidate] = []
         for hit in hits:
             candidate = candidate_from(hit, kind)
             if candidate is not None:
                 found.append(candidate)
-        return found
+        return SearchPage(tuple(found), status, total)
 
     def fetch(self, candidate: AudioCandidate, *, into: Path) -> Path:
         """Download the candidate's preview to `<into>/fetched/<entry id><suffix>`; a
@@ -255,14 +298,14 @@ class FreesoundAudioSearch(AudioSearch):
         candidate: AudioCandidate,
         *,
         library: Library,
-        theme: str = "",
-        mood: str = "",
+        theme: Sequence[str] = (),
+        mood: Sequence[str] = (),
         intent: str = "",
     ) -> AudioEntry:
         """Fetch `candidate` into `library`, measure it (023), run a cue through R1-R4,
-        and append it to the library's catalogue tagged with the query it answered.
-        `Rejected` on a detector hit; `SoundError` when it cannot be fetched or read. A
-        rejected or unreadable file is removed."""
+        and append it to the library's catalogue tagged with the query words it
+        answered. `Rejected` on a detector hit; `SoundError` when it cannot be fetched
+        or read. A rejected or unreadable file is removed."""
         path = self.fetch(candidate, into=library.root)
         try:
             measured = seed.measure_file(path, kind=candidate.kind)
@@ -293,11 +336,7 @@ class FreesoundAudioSearch(AudioSearch):
             duration_s=measured.duration_s,
             bpm=measured.bpm,
             key=measured.key,
-            tags=AudioTags(
-                theme=[theme] if theme else [],
-                mood=[mood] if mood else [],
-                intent=[intent] if intent else [],
-            ),
+            tags=AudioTags(theme=list(theme), mood=list(mood), intent=[intent] if intent else []),
             drop_points_s=[],
             loop_ok=candidate.kind == "bed" and bool(LOOP_TAGS & {t.lower() for t in candidate.tags}),  # noqa: E501
             energy=measured.energy,
@@ -305,22 +344,61 @@ class FreesoundAudioSearch(AudioSearch):
         append_entry(library.catalogue, entry)
         return entry
 
-    def beds(self, query: BedQuery, library: Library) -> list[AudioEntry]:
-        """The director's call (7.2): the first result that is adopted, as a one-entry
-        list scored like a local bed; a result already in the catalogue is reused
-        without a download. Never raises: each failure costs one candidate."""
-        for candidate in self.search([query.theme, query.mood], "bed"):
+    def bed(self, words: str, query: BedQuery, library: Library) -> SearchOutcome:
+        """The director's bed call for one ladder rung (7.2, 054 (2)): the first result
+        that is adopted, tagged with the query's theme and mood words."""
+        return self._first_adopted(
+            words, "bed", library, theme=keywords(query.theme), mood=keywords(query.mood)
+        )
+
+    def sfx(self, words: str, intent: str, library: Library) -> SearchOutcome:
+        """The director's SFX call for one ladder rung (054 (3)): the first result that
+        passes R1-R4, tagged with `intent`."""
+        return self._first_adopted(words, "sfx", library, intent=intent)
+
+    def _first_adopted(
+        self,
+        words: str,
+        kind: AudioKind,
+        library: Library,
+        *,
+        theme: Sequence[str] = (),
+        mood: Sequence[str] = (),
+        intent: str = "",
+    ) -> SearchOutcome:
+        """Freesound's order is kept; a result already in the catalogue is reused without
+        a download; a licence outside CC0 / CC BY, a candidate rejected earlier, a failed
+        fetch or a detector hit each cost one candidate and leave one note."""
+        page = self.search(words, kind)
+        notes: list[str] = []
+        adopted: AudioEntry | None = None
+        for candidate in page.candidates:
+            where = f"{SOURCE}: {candidate.name} ({candidate.page_url})"
+            if not licence_allowed(candidate.licence):
+                notes.append(f"{where} skipped: licence {candidate.licence} is not CC0 or CC BY")
+                continue
+            if candidate.id in self._rejected:
+                notes.append(f"{where} rejected earlier: {self._rejected[candidate.id]}")
+                continue
             known = load_catalogue(library.catalogue).entry(entry_id(candidate))
             if known is not None:
-                return [known]
+                adopted = known
+                break
             try:
-                entry = self.adopt(candidate, library=library, theme=query.theme, mood=query.mood)
+                adopted = self.adopt(
+                    candidate, library=library, theme=theme, mood=mood, intent=intent
+                )
             except SoundError as exc:
+                self._rejected[candidate.id] = str(exc)
+                notes.append(f"{where} skipped: {exc}")
                 log.warning("freesound: %s skipped: %s", candidate.name, exc)
                 continue
-            log.info("freesound: %s adopted, bed score %.2f", entry.id, bed_score(entry, query))
-            return [entry]
-        return []
+            log.info("freesound: %s adopted for %s %r", adopted.id, kind, words)
+            break
+        return SearchOutcome(
+            source=SOURCE, kind=kind, query=words, status=page.status, hits=page.hits,
+            adopted=adopted, notes=tuple(notes),
+        )  # fmt: skip
 
 
 def append_entry(catalogue: Path, entry: AudioEntry) -> None:
@@ -336,7 +414,8 @@ def append_entry(catalogue: Path, entry: AudioEntry) -> None:
 
 def from_settings(settings: Settings) -> AudioSearch | None:
     """The configured runtime audio search: Freesound with `FREESOUND_API_KEY`, none
-    without (the director then has no search and says so in the job log)."""
+    without (the director then has no search and says so in the job log and, when the
+    short goes out voice-only, on the job page; 054 (5))."""
     if settings.freesound_api_key is None:
         return None
     return FreesoundAudioSearch(api_key=settings.freesound_api_key)

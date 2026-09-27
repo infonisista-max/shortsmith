@@ -71,6 +71,18 @@ def test_every_spec_carries_the_seven_key_groups_and_the_five_prose_sections(
             assert f"## {heading}" in spec.prose
 
 
+def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """054: the last rung of the bed search ladder is the style's own plain words, so a
+    short is never silent because the planner's theme sentence matched nothing."""
+    for spec in specs.values():
+        words = spec.sound.default_bed_query.split()
+        assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
+        assert spec.version == "2", spec.name  # the front matter changed (035)
+    assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
+
+
 def test_forbidden_lists_ban_sweeps_and_risers_and_no_longer_chimes_or_ticks(
     specs: dict[str, StyleSpec],
 ) -> None:

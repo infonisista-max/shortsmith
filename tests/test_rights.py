@@ -158,9 +158,9 @@ def test_the_renderers_audio_rows_survive_a_re_run_of_the_asset_step(tmp_path: P
     assert credits == (
         "Photo: Jane Doe via https://www.example.org/wiki/a1\n"
         "\n"
-        "Music: Some Artist via https://audio.example.org/bed_x\n"
-        "Sound: Some Artist via https://audio.example.org/sfx_y\n"
-    )
+        "Music: Some Artist via https://audio.example.org/bed_x (CC0-1.0)\n"
+        "Sound: Some Artist via https://audio.example.org/sfx_y (CC0-1.0)\n"
+    ), "054 (4): the licence stays beside the author on every audio line"
 
 
 def test_audio_rows_are_empty_before_the_renderer_runs(tmp_path: Path) -> None:

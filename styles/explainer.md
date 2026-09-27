@@ -1,5 +1,5 @@
 ---
-version: "1"
+version: "2"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
@@ -110,6 +110,7 @@ captions:
   gap_break_s: 0.35
 sound:
   bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
+  default_bed_query: cinematic ambient documentary  # the bed search's last try (054)
   bed_db_under_voice: -11
   bed_accept_db: [-12, -9]
   speech_band_hz: [250, 4000]
@@ -174,6 +175,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - Bed target `bed_db_under_voice` dB under the voice, ducking at most `duck_max_db` dB, swells at most `swell_max_db` dB above target and drops at least `drop_min_db` dB below, every ramp at least `ramp_min_s` s. A drop is a step down at a beat boundary followed by a changeover cue, never a rise into a hit (7.3).
 - The floor hits in `floor_hits` are derived by code from plan events so a short is never flat; the planner's cues layer on top within `cues_max_per_60s` and `cues_per_beat_max`, each between `cue_db_min` and `cue_db_max` dB under the voice. A tick on a step change is an ordinary cue choice under those caps (7.1 lifted the old chime/tick ban).
 - Forbidden, checked in code on the SFX stem: `forbidden` (sweeps, risers, rumble crescendos, whooshes). Nothing on whip cuts, punch-ins, rings or lower-thirds.
+- When the library has no matching bed or SFX, code searches the free library with plain keywords from the bed query, then the mood alone, then `default_bed_query`, and adopts only CC0 / CC BY files that pass the sweep detector (7.2, 054); the planner still never names a track.
 - Voice −19 LUFS / −3 dBTP on the stem, master −14 LUFS / −1.5 dBTP (7.3).
 
 ## Finale

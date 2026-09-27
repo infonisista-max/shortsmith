@@ -1202,15 +1202,54 @@ def test_without_a_catalogue_the_mix_is_the_voice_alone(
 ) -> None:
     """The shipped catalogue is empty until the operator seeds it (025), and a job
     planned before the sound call has no story: both leave the short as it was before
-    022, never a failure."""
+    022, never a failure. 054 (5): with a story and no search, the job log and the job
+    page both say "no audio search configured"."""
     job = _job_with(tmp_path, fixture_clip)
     _synthetic_picture(job, media)
     render.voice_stem(job)
+    assert render.sound_mix(job, library=sound.Library(root=tmp_path)) is None
+    assert "no audio search" not in job.log_path.read_text(encoding="utf-8"), "no story: no note"
+    story = FakePlanner().plan_sound(_plan_request(), _plan())
+    (job.work_dir / "sound.json").write_text(story.model_dump_json(indent=2), encoding="utf-8")
     assert render.sound_mix(job, library=sound.Library(root=tmp_path)) is None
     render.mux(job, library=sound.Library(root=tmp_path))
     stems = job.work_dir / "stems"
     assert not (stems / "music.wav").exists() and not (stems / "sfx.wav").exists()
     assert (stems / "mix.wav").is_file()
+    log = job.log_path.read_text(encoding="utf-8")
+    assert "sound: voice only" in log and "no audio search configured" in log
+    reloaded = jobs.load(job.path)
+    notices = [w for w in reloaded.record.warnings if "no audio search configured" in w]
+    assert len(notices) == 1, "one line on the page, not one per run"
+    from shortsmith import app
+
+    assert "no audio search configured" in app.render_job_page(reloaded)
+
+
+def test_an_empty_catalogue_with_a_search_still_mixes_a_bed_and_cues(
+    tmp_path: Path, fixture_clip: Path, media: Media, library: sound.Library
+) -> None:
+    """054: F1 went out silent because the empty shipped catalogue returned before the
+    search was asked. With a search the director runs, adopts a bed and the SFX, and
+    every search and decision is a line in job.log."""
+    job = _job_with(tmp_path, fixture_clip)
+    _synthetic_picture(job, media)
+    story = FakePlanner().plan_sound(_plan_request(), _plan())
+    (job.work_dir / "sound.json").write_text(story.model_dump_json(indent=2), encoding="utf-8")
+    render.voice_stem(job)
+    search = sound.FakeAudioSearch(shelf=library)
+    empty = sound.Library(root=library.root)  # the shelf's files land under this root
+    render.mux(job, library=empty, search=search)
+    stems = job.work_dir / "stems"
+    for name in ("voice.wav", "music.wav", "sfx.wav", "mix.wav"):
+        assert (stems / name).is_file(), name
+    assert search.calls and search.sfx_calls
+    log = job.log_path.read_text(encoding="utf-8")
+    assert "sound: audio search fake bed " in log and "sound: audio search fake sfx " in log
+    assert "from the audio search" in log and "placed at" in log
+    rows = rights.audio_rows(job.path)
+    assert {r.kind for r in rows} == {"music", "sfx"}, "the fetched files have rights rows"
+    assert not [w for w in jobs.load(job.path).record.warnings if "voice only" in w]
 
 
 def test_the_mix_carries_the_bed_and_the_cues_and_their_rights_rows(

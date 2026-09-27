@@ -111,10 +111,14 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
         "rendering -> qa",
         "qa -> delivered",
     ]
-    (sound_note,) = [line for line in noted if line.startswith("sound: bed ")]
-    assert noted.index("sourcing -> rendering") < noted.index(sound_note) < noted.index(
-        "rendering -> qa"
-    )
+    # 054 (1): the bed decision ("from the library") precedes the summary line, both
+    # inside `rendering`, and the placed cues are one line each.
+    (decision,) = [line for line in noted if line.startswith("sound: bed ") and "library" in line]
+    (sound_note,) = [line for line in noted if line.startswith("sound: bed ") and " cues (" in line]
+    assert "from the library (score" in decision
+    assert noted.index("sourcing -> rendering") < noted.index(decision) < noted.index(sound_note)
+    assert noted.index(sound_note) < noted.index("rendering -> qa")
+    assert any(line.startswith("sound: ") and "placed at" in line for line in noted)
     assert "ok" in result.summary and job.id in result.summary
     assert "180 frames" in result.summary and "short" in result.summary
     assert "T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 pass" in result.summary

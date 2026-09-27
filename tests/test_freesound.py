@@ -40,11 +40,13 @@ class Tape:
         body: object | None = None,
         *,
         status: int = 200,
+        timeout: bool = False,
         audio: Path | None = None,
         audio_by_url: dict[str, Path] | None = None,
     ) -> None:
         self.body = body
         self.status = status
+        self.timeout = timeout
         self.audio = audio
         self.audio_by_url = audio_by_url or {}
         self.requests: list[httpx.Request] = []
@@ -53,6 +55,8 @@ class Tape:
         self.requests.append(request)
         url = str(request.url)
         if url.startswith(freesound.API_URL):
+            if self.timeout:
+                raise httpx.ReadTimeout("the tape timed out", request=request)
             if self.body is None:
                 return httpx.Response(self.status)
             return httpx.Response(self.status, json=self.body)
@@ -94,7 +98,7 @@ def _bed_file(library: sound.Library) -> Path:
 
 def test_search_asks_the_text_endpoint_with_the_tags_and_the_token_header() -> None:
     tape = Tape(_recorded("search.json"))
-    _adapter(tape).search(["tech", "curious"], "bed")
+    _adapter(tape).search("tech curious", "bed")
     request = tape.requests[0]
     recorded = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
     assert str(request.url).split("?")[0] == recorded["url"]
@@ -109,17 +113,41 @@ def test_search_asks_the_text_endpoint_with_the_tags_and_the_token_header() -> N
 def test_search_for_a_cue_filters_on_cue_length() -> None:
     """7.3 R3: a cue is a hit, not a bed, so an SFX search asks for files under 5 s."""
     tape = Tape(_recorded("search.json"))
-    _adapter(tape).search(["reveal_drop"], "sfx")
+    _adapter(tape).search("reveal drop", "sfx")
     recorded = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
     assert tape.url.params["filter"] == recorded["sfx_filter"]
-    assert tape.url.params["query"] == "reveal_drop"
+    assert tape.url.params["query"] == "reveal drop"
 
 
-# --- the parsing (5.4: recorded, never filtered) ----------------------------------------
+def test_every_search_carries_the_cc0_or_cc_by_licence_filter() -> None:
+    """054 (4): only CC0 and CC BY are asked for, beds and SFX alike."""
+    for kind in ("bed", "sfx"):
+        tape = Tape(_recorded("search.json"))
+        _adapter(tape).search("tech", kind)  # pyright: ignore[reportArgumentType]
+        assert freesound.LICENCE_FILTER in tape.url.params["filter"], kind
+        assert tape.url.params["filter"] == f"{freesound.DURATION_FILTER[kind]} {freesound.LICENCE_FILTER}"  # pyright: ignore[reportArgumentType]  # noqa: E501
+    assert freesound.LICENCE_FILTER == 'license:("Attribution" OR "Creative Commons 0")'
+
+
+def test_search_reports_the_status_and_the_hit_count() -> None:
+    """054 (1): the page says what came back so the job log can carry one line per
+    search; a 403 or a timeout is a status, never a silent empty list."""
+    page = _adapter(Tape(_recorded("search.json"))).search("tech curious", "bed")
+    assert (page.status, page.hits) == ("200", 3), "Freesound's own count, not the page"
+    assert len(page.candidates) == 2
+    forbidden = _adapter(Tape(None, status=403)).search("tech", "bed")
+    assert (forbidden.status, forbidden.hits, forbidden.candidates) == ("403", 0, ())
+    timed_out = _adapter(Tape(None, timeout=True)).search("tech", "bed")
+    assert (timed_out.status, timed_out.hits) == ("timeout", 0)
+    garbage = _adapter(Tape({"unexpected": True})).search("tech", "bed")
+    assert (garbage.status, garbage.hits) == ("200", 0)
+
+
+# --- the parsing (5.4: recorded; 054: filtered to CC0 / CC BY) ---------------------------
 
 
 def test_search_maps_licence_author_and_every_url_and_drops_a_hit_with_no_preview() -> None:
-    found = _adapter(Tape(_recorded("search.json"))).search(["tech", "curious"], "bed")
+    found = _adapter(Tape(_recorded("search.json"))).search("tech curious", "bed").candidates
     assert [c.id for c in found] == ["512345", "377001"], "the hit with no preview is dropped"
     first = found[0]
     assert first.kind == "bed"
@@ -157,8 +185,20 @@ def test_licence_text_names_the_creative_commons_licence(url: str, text: str) ->
 
 def test_a_search_that_fails_finds_nothing_and_never_raises() -> None:
     """A source that fails is a source with no hits: the mix goes on without a bed."""
-    assert _adapter(Tape(None, status=503)).search(["tech"], "bed") == []
-    assert _adapter(Tape({"unexpected": True})).search(["tech"], "bed") == []
+    assert _adapter(Tape(None, status=503)).search("tech", "bed").candidates == ()
+    assert _adapter(Tape({"unexpected": True})).search("tech", "bed").candidates == ()
+
+
+@pytest.mark.parametrize(
+    ("text", "allowed"),
+    [
+        ("CC0 1.0", True), ("CC0", True), ("CC BY 4.0", True), ("CC BY 3.0", True),
+        ("CC BY-NC 3.0", False), ("CC BY-SA 4.0", False), ("CC BY-ND 4.0", False),
+        ("CC Sampling+ 1.0", False), ("unknown", False), ("https://example.test/x", False),
+    ],
+)  # fmt: skip
+def test_only_cc0_and_cc_by_are_licences_the_adapter_adopts(text: str, allowed: bool) -> None:
+    assert freesound.licence_allowed(text) is allowed
 
 
 def test_the_key_is_never_printed_by_the_adapter() -> None:
@@ -211,14 +251,25 @@ def test_fetch_refuses_an_empty_or_failed_download(tmp_path: Path) -> None:
 # --- adopt: measure, check, score, append (7.2) -------------------------------------------
 
 
+COOKING = BedQuery(theme="cooking", mood="nostalgic", energy=2)
+
+
+def _bed(adapter: freesound.FreesoundAudioSearch, library: sound.Library) -> sound.SearchOutcome:
+    return adapter.bed("cooking nostalgic", COOKING, library)
+
+
 def test_a_fetched_bed_is_measured_scored_and_appended_to_the_catalogue(
     own_library: sound.Library,
 ) -> None:
     tape = Tape(_recorded("search.json"), audio=_bed_file(own_library))
-    query = BedQuery(theme="cooking", mood="nostalgic", energy=2)
-    found = _adapter(tape).beds(query, own_library)
-    assert len(found) == 1
-    entry = found[0]
+    query = COOKING
+    outcome = _bed(_adapter(tape), own_library)
+    assert (outcome.source, outcome.kind) == ("freesound", "bed")
+    assert outcome.query == "cooking nostalgic"
+    assert (outcome.status, outcome.hits) == ("200", 3)
+    assert "adopted freesound_512345" in outcome.line()
+    entry = outcome.adopted
+    assert entry is not None
     assert entry.id == "freesound_512345" and entry.kind == "bed"
     assert entry.file == "fetched/freesound_512345.mp3"
     assert entry.source == freesound.SOURCE
@@ -246,10 +297,9 @@ def test_a_bed_already_adopted_is_reused_without_a_download(
 ) -> None:
     tape = Tape(_recorded("search.json"), audio=_bed_file(own_library))
     adapter = _adapter(tape)
-    query = BedQuery(theme="cooking", mood="nostalgic", energy=2)
-    first = adapter.beds(query, own_library)
-    again = adapter.beds(query, sound.load_catalogue(own_library.catalogue))
-    assert first == again
+    first = _bed(adapter, own_library).adopted
+    again = _bed(adapter, sound.load_catalogue(own_library.catalogue)).adopted
+    assert first is not None and first == again
     assert len(tape.fetches()) == 1
     assert len(sound.load_catalogue(own_library.catalogue).entries) == len(own_library.entries) + 1
 
@@ -286,27 +336,79 @@ def test_a_clean_cue_is_adopted_with_its_intent_tag(
     assert sound.match_sfx("reveal_drop", sound.load_catalogue(own_library.catalogue)) == entry
 
 
-def test_when_the_best_result_is_rejected_the_next_is_taken(
-    own_library: sound.Library, sounds: Sounds
-) -> None:
-    """The search's order is kept; a rejected file costs one download, not the bed."""
+def _results(**overrides: object) -> dict[str, object]:
+    """The recorded body with every hit's fields updated by `overrides`."""
     body: dict[str, object] = json.loads((FIXTURES / "search.json").read_text(encoding="utf-8"))
     results: list[dict[str, object]] = body["results"]  # pyright: ignore[reportAssignmentType]
     for hit in results:
-        hit["duration"] = 2.0
+        hit.update(overrides)
+    return body
+
+
+CC0 = "http://creativecommons.org/publicdomain/zero/1.0/"
+FIRST_PREVIEW = "https://cdn.freesound.org/previews/512/512345_7654321-hq.mp3"
+THIRD_PREVIEW = "https://cdn.freesound.org/previews/377/377001_1111111-hq.ogg"
+
+
+def test_when_the_best_result_is_rejected_the_next_is_taken(
+    own_library: sound.Library, sounds: Sounds
+) -> None:
+    """The search's order is kept; a rejected file costs one download, not the bed, and
+    the outcome's notes say what was skipped and why."""
     unreadable = own_library.root / "not-audio.bin"
     unreadable.write_bytes(b"this is not audio at all, ffmpeg cannot decode it" * 10)
     tape = Tape(
-        body,
-        audio_by_url={
-            "https://cdn.freesound.org/previews/512/512345_7654321-hq.mp3": unreadable,
-            "https://cdn.freesound.org/previews/377/377001_1111111-hq.ogg": _bed_file(own_library),
-        },
+        _results(duration=2.0, license=CC0),
+        audio_by_url={FIRST_PREVIEW: unreadable, THIRD_PREVIEW: _bed_file(own_library)},
     )
-    found = _adapter(tape).beds(BedQuery(theme="lab", mood="curious", energy=3), own_library)
-    assert [e.id for e in found] == ["freesound_377001"]
+    outcome = _adapter(tape).bed("lab curious", BedQuery(theme="lab", mood="curious", energy=3),
+                                 own_library)  # fmt: skip
+    assert outcome.adopted is not None and outcome.adopted.id == "freesound_377001"
     assert len(tape.fetches()) == 2
     assert not (own_library.root / freesound.FETCHED_DIR / "freesound_512345.mp3").exists()
+    assert len(outcome.notes) == 1 and "Curious Tech Loop" in outcome.notes[0]
+    assert "not readable audio" in outcome.notes[0]
+
+
+def test_a_result_outside_cc0_and_cc_by_is_never_adopted_even_when_returned(
+    own_library: sound.Library,
+) -> None:
+    """054 (4): the licence is checked again on the result; a CC BY-NC hit the API hands
+    back anyway is skipped with a note, and never downloaded."""
+    # In the recording 512345 (CC BY) comes first and is adopted before the CC BY-NC hit
+    # is reached; reversed, the BY-NC hit is the best result and must be skipped.
+    body: dict[str, object] = json.loads((FIXTURES / "search.json").read_text(encoding="utf-8"))
+    results: list[object] = body["results"]  # pyright: ignore[reportAssignmentType]
+    body["results"] = list(reversed(results))
+    tape = Tape(body, audio=_bed_file(own_library))
+    outcome = _adapter(tape).bed("lab curious", BedQuery(theme="lab", mood="curious", energy=3),
+                                 own_library)  # fmt: skip
+    assert outcome.adopted is not None and outcome.adopted.id == "freesound_512345"
+    assert tape.fetches() == [FIRST_PREVIEW], "the BY-NC preview was never downloaded"
+    assert any("Lab Pulse" in n and "CC BY-NC 3.0" in n and "not CC0 or CC BY" in n
+               for n in outcome.notes)  # fmt: skip
+    only_nc = _results(license="http://creativecommons.org/licenses/by-nc/4.0/")
+    tape = Tape(only_nc, audio=_bed_file(own_library))
+    outcome = _adapter(tape).bed("lab curious", BedQuery(theme="lab", mood="curious", energy=3),
+                                 own_library)  # fmt: skip
+    assert outcome.adopted is None and tape.fetches() == []
+    assert outcome.hits == 3 and len(outcome.notes) == 2, "one note per licence-skipped hit"
+
+
+def test_a_rejected_candidate_is_remembered_and_not_downloaded_twice(
+    own_library: sound.Library, sounds: Sounds
+) -> None:
+    """An SFX that tripped the detector once is skipped by id on the next search."""
+    body = _results(duration=1.0, license=CC0)
+    tape = Tape(body, audio=sounds("noise_500ms"))
+    adapter = _adapter(tape)
+    first = adapter.sfx("reveal drop", "reveal_drop", own_library)
+    assert first.adopted is None
+    downloads = len(tape.fetches())
+    assert downloads == 2, "both previewed hits were fetched and rejected"
+    again = adapter.sfx("reveal", "reveal_drop", own_library)
+    assert again.adopted is None and len(tape.fetches()) == downloads
+    assert all("rejected earlier" in n for n in again.notes) and len(again.notes) == 2
 
 
 def test_a_fetched_bed_gets_a_rights_row_with_its_source(
@@ -315,14 +417,15 @@ def test_a_fetched_bed_gets_a_rights_row_with_its_source(
     """5.4: the row names the Freesound page, the licence text and the author, with the
     origin `library` - it is a library entry now - and the fetched file's hash."""
     tape = Tape(_recorded("search.json"), audio=_bed_file(own_library))
-    entry = _adapter(tape).beds(BedQuery(theme="cooking", mood="nostalgic", energy=2),
-                                own_library)[0]  # fmt: skip
+    entry = _bed(_adapter(tape), own_library).adopted
+    assert entry is not None
     result = sound.MixResult(
         premix=own_library.root, music=None, sfx=None, bed=entry, cues=(), notes=(),
         balance=BalanceReport(voice_db=-20.0, bed_accept_db=(-12.0, -9.0),
                               speech_band_margin_min_db=20.0, duck_max_db=4.0),
+        library=sound.load_catalogue(own_library.catalogue),
     )  # fmt: skip
-    rows = sound.rights_rows(result, own_library)
+    rows = sound.rights_rows(result)
     assert len(rows) == 1
     row = rows[0]
     assert (row.id, row.kind, row.origin) == ("freesound_512345", "music", "library")
@@ -337,20 +440,65 @@ def test_choose_bed_takes_the_adopted_bed_below_the_threshold(
     """The whole 7.2 path: nothing local scores, the adapter searches with the same
     tags, and the fetched, measured bed is the one chosen."""
     tape = Tape(_recorded("search.json"), audio=_bed_file(own_library))
-    query = BedQuery(theme="cooking", mood="nostalgic", energy=2)
-    chosen, note = sound.choose_bed(
-        own_library, query, first_stamp_s=1.0, threshold=THRESHOLD, search=_adapter(tape)
-    )
-    assert chosen is not None and chosen.id == "freesound_512345"
-    assert "search" in note
-
-
-def test_a_search_failure_leaves_the_mix_without_a_bed(own_library: sound.Library) -> None:
-    chosen, note = sound.choose_bed(
-        own_library, BedQuery(theme="cooking", mood="nostalgic", energy=2),
-        first_stamp_s=1.0, threshold=THRESHOLD, search=_adapter(Tape(None, status=503)),
+    chosen, lines = sound.choose_bed(
+        own_library, COOKING, first_stamp_s=1.0, threshold=THRESHOLD, search=_adapter(tape),
+        default_query="cinematic ambient documentary",
     )  # fmt: skip
-    assert chosen is None and "found none" in note
+    assert chosen is not None and chosen.id == "freesound_512345"
+    assert any("from the audio search" in line for line in lines)
+    assert lines[0].startswith("audio search freesound bed 'cooking nostalgic': status 200, 3 hits")
+
+
+def test_a_search_failure_is_logged_per_rung_and_leaves_the_mix_without_a_bed(
+    own_library: sound.Library,
+) -> None:
+    """054 (1): a 403 is one line per rung, with the query, the status and 0 hits."""
+    tape = Tape(None, status=403)
+    chosen, lines = sound.choose_bed(
+        own_library, COOKING, first_stamp_s=1.0, threshold=THRESHOLD, search=_adapter(tape),
+        default_query="cinematic ambient documentary",
+    )  # fmt: skip
+    assert chosen is None
+    rungs = sound.bed_queries(COOKING, "cinematic ambient documentary")
+    searched = [line for line in lines if line.startswith("audio search freesound bed ")]
+    assert len(searched) == len(rungs) == len(tape.requests)
+    assert all("status 403, 0 hits" in line for line in searched)
+    assert "every audio search came back empty" in lines[-1]
+
+
+def test_an_empty_sfx_catalogue_is_filled_from_the_search_through_the_sweep_detector(
+    tmp_path: Path, sounds: Sounds
+) -> None:
+    """054 (3): no SFX in the catalogue and a working search still yields the floor hits
+    and the cues; a hit that trips R1 is rejected and the next candidate is taken."""
+    from shortsmith import fixture, render, styles
+    from shortsmith.contracts import Constraints, PlanRequest, PlanStyle, Transcript
+    from shortsmith.planner import FakePlanner
+
+    request = PlanRequest(
+        brief="", style=PlanStyle(name="explainer", status="shipped", numbers={}, prose=""),
+        style_note="", transcript=Transcript(duration_s=fixture.DURATION_S, segments=[], words=[]),
+        references=[], constraints=Constraints(max_duration_s=60.0, target_duration_s=6.0),
+        asset_policy="any",
+    )  # fmt: skip
+    plan = FakePlanner().plan_picture(request)
+    story = FakePlanner().plan_sound(request, plan)
+    nums = render.loaded_styles()[styles.DEFAULT].sound
+    empty = sound.Library(root=tmp_path / "audio")  # no catalogue file at all
+    body = _results(duration=1.0, license=CC0)
+    served = {FIRST_PREVIEW: sounds("noise_500ms"), THIRD_PREVIEW: sounds("clicks")}
+    tape = Tape(body, audio_by_url=served)
+    placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0, search=_adapter(tape))
+    assert placed.cues, "the floor hits and the cues were placed from the search"
+    assert {c.entry_id for c in placed.cues} == {"freesound_377001"}, "the R1 hit was never taken"
+    assert any("R1" in n and "Curious Tech Loop" in n for n in placed.notes)
+    floor_ids = {c.beat_id for c in placed.cues if c.source == "floor"}
+    assert floor_ids, "the floor hits are there"
+    assert placed.library.entry("freesound_377001") is not None
+    grown = sound.load_catalogue(placed.library.catalogue)
+    assert [e.id for e in grown.sfx()] == ["freesound_377001"], "adopted once, tagged for reuse"
+    assert grown.sfx()[0].licence == "CC0 1.0"
+    assert len(tape.fetches()) == 2, "one rejected, one adopted; every later intent reused it"
 
 
 # --- config -------------------------------------------------------------------------------
@@ -374,11 +522,11 @@ def test_an_empty_freesound_key_means_no_search(
     monkeypatch.setenv("FREESOUND_API_KEY", "")
     search = freesound.from_settings(config.load(env_file=None))
     assert search is None
-    chosen, note = sound.choose_bed(
+    chosen, lines = sound.choose_bed(
         own_library, BedQuery(theme="cooking", mood="nostalgic", energy=2),
         first_stamp_s=1.0, threshold=THRESHOLD, search=search,
     )  # fmt: skip
-    assert chosen is None and "no audio search is configured" in note
+    assert chosen is None and any("no audio search configured" in line for line in lines)
 
 
 def test_the_freesound_key_is_a_secret() -> None:

@@ -1,5 +1,5 @@
 ---
-version: "1"
+version: "2"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, stamp, lower_third, hook_cards, finale, list,
@@ -110,6 +110,7 @@ captions:
   gap_break_s: 0.35
 sound:
   bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
+  default_bed_query: electronic ambient technology  # the bed search's last try (054)
   bed_db_under_voice: -10
   bed_accept_db: [-12, -9]
   speech_band_hz: [250, 4000]
