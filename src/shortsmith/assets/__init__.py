@@ -30,11 +30,14 @@ an `AssetManifest` (`work/assets.json`):
   (rung 3), then the presenter PIP over the style gradient (rung 4). Rungs 3 and 4
   carry a stamp word. Never a blank beat. The manifest carries `rescued_max`, the
   style's `rescued_max_per_60s` scaled to the runtime; the gate fails above it.
-- Classification by the fetched file's real dimensions (5.3): `photo` only when the
-  planner asked for one, the image is portrait, at least 1080 px wide, and covers
-  1080x1920 with at most a 1.5x upscale (so a 1079 px portrait is a card), and it is
-  not a web image (web images are always re-dressed as cards, 5.1). Anything else is
-  a `card`; a planned `photo` that became a card records `treatment_downgraded`.
+- Classification by the fetched file's real dimensions (5.3 as amended by 057):
+  `photo` when the planner asked `photo` (or left it open), the image is portrait or
+  square (height >= width) and it covers 1080x1920 at no more than the style's
+  `broll.full_bleed_max_upscale` (2.0), the width judged after the upscale. The
+  origin plays no part (5.1 as amended: the Ken Burns and the overlays are the
+  re-dressing, web images included). Anything else - a landscape, an image that
+  cannot cover the frame at that upscale, a planned `card` - is a `card`; a planned
+  `photo` that became a card records `treatment_downgraded`.
 
 - Which candidate a source's hits give the beat (5.2, ticket 017): the code-only hard
   rejects drop what is too small for the beat's slot, too wide, from a stock-preview
@@ -272,19 +275,24 @@ class AssetError(RuntimeError):
 # --- classification (5.3) -------------------------------------------------------------------
 
 
-def full_bleed(width: int, height: int) -> bool:
-    """Portrait, at least 1080 px wide, covering 1080x1920 within the 1.5x upscale."""
-    if height <= width or width < FRAME_W:
+def full_bleed(width: int, height: int, *, max_upscale: float) -> bool:
+    """057: portrait or square (height >= width), covering 1080x1920 within
+    `max_upscale` (the style's `broll.full_bleed_max_upscale`); the width is judged
+    after the upscale, never before."""
+    if height < width:
         return False
-    return covers_frame(width, height)
+    return covers_frame(width, height, max_upscale)
 
 
 def classify(
-    width: int, height: int, *, planned: Planned, origin: Origin
+    width: int, height: int, *, planned: Planned, max_upscale: float
 ) -> tuple[Treatment, bool]:
-    """(treatment, downgraded) for an asset of the real `width` x `height`."""
+    """(treatment, downgraded) for an asset of the real `width` x `height`: `photo`
+    when the planner asked `photo` or `auto` and the image can fill the frame, else a
+    card; a planned `photo` drawn as a card is the downgrade. The origin plays no part
+    (057)."""
     wants_photo = planned in ("photo", "auto")
-    if wants_photo and origin != "web" and full_bleed(width, height):
+    if wants_photo and full_bleed(width, height, max_upscale=max_upscale):
         return "photo", False
     return "card", planned == "photo"
 
@@ -719,6 +727,7 @@ class _Walk:
     clock: Clock
     references: Sequence[ReferenceRecord]
     reuse_max: int = 0
+    full_bleed_max_upscale: float = 1.0  # 057: the style's; 1.0 only in a bare test walk
     records: dict[str, AssetRecord] = field(default_factory=lambda: {})
     beats: list[BeatAsset] = field(default_factory=lambda: [])
     subjects: dict[str, str] = field(default_factory=lambda: {})  # beat id -> subject kind
@@ -797,8 +806,9 @@ class _Walk:
     def show(self, beat: Beat, record: AssetRecord, rung: int, *,
              redressed: bool = False, judge_skipped: bool = False) -> None:  # fmt: skip
         treatment, downgraded = classify(
-            record.width, record.height, planned=_planned(beat), origin=record.origin
-        )
+            record.width, record.height, planned=_planned(beat),
+            max_upscale=self.full_bleed_max_upscale,
+        )  # fmt: skip
         crop = Crop()
         if redressed:
             times = self.redresses.get(record.id, 0) + 1
@@ -876,7 +886,8 @@ def source_assets(
     searched = [(name, sources[name]) for name in source_order(order, policy) if name in sources]
     by_id = {ref.id: ref for ref in references}
     walk = _Walk(job_dir=job_dir, cache=cache, clock=clock, references=references,
-                 reuse_max=spec.broll.reuse_max)  # fmt: skip
+                 reuse_max=spec.broll.reuse_max,
+                 full_bleed_max_upscale=spec.broll.full_bleed_max_upscale)  # fmt: skip
     judging = judging if judging is not None else Judging()
     searching = searching if searching is not None else Searching()
     generating = generating if generating is not None else Generating()

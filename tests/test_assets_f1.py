@@ -217,9 +217,9 @@ def test_a_small_real_photo_is_kept_where_it_is_shown_as_a_card(tmp_path: Path, 
 
 
 def test_a_photo_that_covers_the_frame_is_still_full_bleed(tmp_path: Path) -> None:
-    """The 5.3 treatment rule is untouched: what covers 1080x1920 at <= 1.5x is a
-    full-bleed photo, what does not is a card."""
-    source = Scripted("commons", _candidates(("tall", 1080, 1920)))  # web is always a card
+    """The 5.3 treatment rule is untouched: what covers 1080x1920 within the style's
+    upscale is a full-bleed photo, what does not is a card."""
+    source = Scripted("commons", _candidates(("tall", 1080, 1920)))
     manifest = _run(tmp_path, [_beat(1, "entity", kind="photo")], sources={"commons": source})
     assert (manifest.beats[0].treatment, manifest.beats[0].treatment_downgraded) == ("photo", False)
 

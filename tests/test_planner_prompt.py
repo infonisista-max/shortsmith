@@ -160,7 +160,17 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v7"
+    assert prompt.PROMPT_VERSION == "v8"
+
+
+def test_the_picture_prompt_v8_asks_for_photo_on_the_opening_beats() -> None:
+    """057 (4): the opening beats ask `photo` (full-screen whenever the image allows;
+    code draws a card only when it cannot fill the frame); v7's "`photo` or a `card`"
+    is gone."""
+    text = prompt.build_prompt(_request(), "picture")
+    assert "each a `photo` with an" in text
+    assert "`photo` or a\n  `card`" not in text and "`photo` or a `card`" not in text
+    assert "cannot fill the frame at `broll.full_bleed_max_upscale`" in text
 
 
 def test_the_picture_prompt_names_the_categories_the_planner_may_choose_from() -> None:

@@ -4,8 +4,9 @@ type and return the same model classes.
 `FakePlanner`'s canned plan is shaped
 for the 6 s fixture: eleven beats tiling 0-6 s (ten of 0.5 s and a 1.0 s finale, so
 T3's finale rule holds; ticket 006) with every boundary on a word end or in silence,
-the 055 opening (two `pip` beats over a photo and a card - the owner's first reference
-on the first when the request has one), one `full` beat, more `pip` beats, and every
+the 055 opening (two `pip` beats asking `photo` (057) - the owner's first reference on
+the first when the request has one; the second is drawn as a card when the fixture's
+image is a landscape), one `full` beat, more `pip` beats, and every
 tier-1 kind (4.1 as amended by 9.2) named at least once across beat kinds, overlays,
 events and presenter modes. Kinds the renderer cannot draw yet are still valid plan
 data. The `map` beat (020) sources no picture. The plan passes the grammar under
@@ -125,21 +126,25 @@ class FakePlanner(Planner):
 
         # 055: the short opens with the speaker's first words in `pip` over the strongest
         # images - the owner's reference first when the job has one, else the searched
-        # sky (a1) - then the card, then the one `full` beat (an emotional line) that
-        # keeps `presenter_full` in the plan.
+        # sky (a1) - then the second image, then the one `full` beat (an emotional line)
+        # that keeps `presenter_full` in the plan. 057 (4): both opening beats ask
+        # `photo`; the smoke's second image is a landscape, so code draws it as a card
+        # (with the lower-third on the card strip) and the card path stays rendered.
         first_asset = request.references[0].id if request.references else "a1"
         beats = [
             B(id="b01", start=0.0, end=0.5, mode="pip", kind="photo", motion="ken_burns_in",
               subject_kind="concept", depicts="scene", query="slow colour gradient sky",
               query_fallback="abstract gradient", source_intent="search",
               asset_id=first_asset),
-            B(id="b02", start=0.5, end=1.0, mode="pip", kind="card", motion="push_in",
+            B(id="b02", start=0.5, end=1.0, mode="pip", kind="photo", motion="ken_burns_in",
               subject_kind="entity", query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",
               enter=enter("whip"), event=Event(kind="lower_third", text="India Gate · Delhi")),
             B(id="b03", start=1.0, end=1.5, mode="full", reason="emotional_line",
               kind="presenter_full", enter=enter("fade")),
-            B(id="b04", start=1.5, end=2.0, mode="pip", kind="photo", motion="ken_burns_in",
+            # 057: b04 is the plan's one planned `card` (every tier-1 kind is named once),
+            # the opening's first image again, re-dressed as a card with the stamp.
+            B(id="b04", start=1.5, end=2.0, mode="pip", kind="card", motion="push_in",
               subject_kind="concept", depicts="scene", query="slow colour gradient sky",
               query_fallback="abstract gradient", source_intent="search", asset_id="a1",
               event=Event(kind="stamp", text="NOTHING")),

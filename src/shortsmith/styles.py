@@ -132,6 +132,10 @@ class Broll(StrictModel):
     unique_assets_max_per_60s: int
     reuse_max: int
     rescued_max_per_60s: int
+    # 057 (5.3 as amended): a portrait or square image the planner asked `photo` or
+    # `auto` for is drawn full-bleed when it covers 1080x1920 at no more than this
+    # upscale, whatever its origin; anything else is a card.
+    full_bleed_max_upscale: float = Field(gt=0.0)
     card_max_bottom_y: int
     stamp_max_y_fraction: float
     photo_look: str

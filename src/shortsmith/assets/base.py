@@ -55,7 +55,9 @@ MAX_ASPECT = 3.0
 MAX_BYTES = 15 * 1024 * 1024
 EPS = 1e-9
 
-# 5.3: the frame a full-bleed photo must cover and the largest upscale allowed.
+# 5.3: the frame a full-bleed photo must cover, and the card slot's largest upscale
+# (`reject_size`). The full-bleed upscale is the style's `broll.full_bleed_max_upscale`
+# (057), passed to `covers_frame` by the caller, never a constant here.
 FRAME_W, FRAME_H = 1080, 1920
 MAX_UPSCALE = 1.5
 
@@ -76,9 +78,10 @@ STOCK_HOSTS: tuple[str, ...] = (
     "canstockphoto.com",
 )
 
-def covers_frame(width: int, height: int) -> bool:
-    """5.3: the image covers 1080x1920 within the 1.5x upscale."""
-    return max(FRAME_W / width, FRAME_H / height) <= MAX_UPSCALE + EPS
+def covers_frame(width: int, height: int, max_upscale: float) -> bool:
+    """5.3 as amended by 057: the image covers 1080x1920 within `max_upscale` (the
+    style's `broll.full_bleed_max_upscale`); the width is judged after the upscale."""
+    return max(FRAME_W / width, FRAME_H / height) <= max_upscale + EPS
 
 
 def card_slot_width(width: int, height: int, border_px: int) -> float:

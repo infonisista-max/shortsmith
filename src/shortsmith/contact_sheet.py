@@ -363,10 +363,15 @@ def judge_line(manifest: AssetManifest | None) -> str:
 
 
 def counts_line(validated: ValidatedPlan | None, manifest: AssetManifest | None) -> str:
-    """The panel's counts (10.4): the validator's clamps (8.2) and the rescued beats (4.4)."""
+    """The panel's counts (10.4): the validator's clamps (8.2), the rescued beats (4.4)
+    and the full-screen / card mix (057 (5): how many image beats fill the frame and
+    how many are drawn as cards; the gradient is neither)."""
     clamps = len(validated.clamps) if validated is not None else 0
-    rescued = sum(1 for b in manifest.beats if b.rescued) if manifest is not None else 0
-    return f"clamps {clamps} · rescued {rescued}"
+    beats = manifest.beats if manifest is not None else []
+    rescued = sum(1 for b in beats if b.rescued)
+    photos = sum(1 for b in beats if b.treatment == "photo")
+    cards = sum(1 for b in beats if b.treatment == "card")
+    return f"clamps {clamps} · rescued {rescued} · full-screen {photos} / card {cards}"
 
 
 def clamped_beats(validated: ValidatedPlan | None) -> frozenset[str]:

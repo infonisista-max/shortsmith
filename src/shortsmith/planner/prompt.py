@@ -41,16 +41,16 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v7 (ticket 055): the short opens with the speaker's own first words over the strongest
-# images of the subject - no cold-open lift, no hook title, no hook cards; the cut
-# removes only silence (code tightens pauses over `cut.max_pause_s`), beats are written
-# on the recording's timeline and code maps them onto the cut; the sound file is
-# unchanged. (v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe,
-# region or bbox, markers by name, route, object, and the rule that a map is drawn from
-# bundled geodata, never sourced; v4, ticket 029: the `counter` overlay's numbers and the
-# `label_flyin` overlay on a diagram, the counter's landing as a sound event; v3, ticket
-# 021: the chart and diagram data; v2, ticket 027: the set-piece content rules.)
-PROMPT_VERSION = "v7"
+# v8 (ticket 057): the opening beats ask `photo` - full-screen whenever the image can
+# fill the frame at the style's `broll.full_bleed_max_upscale`, a card only when it
+# cannot - and the origin of an image no longer decides its treatment; the sound file is
+# unchanged. (v7, ticket 055: the short opens with the speaker's own first words over
+# the strongest images of the subject - no cold-open lift, no hook title, no hook cards;
+# the cut removes only silence, beats are written on the recording's timeline; v6,
+# ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4, ticket 029: the
+# `counter` overlay and `label_flyin`; v3, ticket 021: the chart and diagram data; v2,
+# ticket 027: the set-piece content rules.)
+PROMPT_VERSION = "v8"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

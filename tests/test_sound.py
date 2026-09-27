@@ -328,9 +328,13 @@ def test_without_a_search_adapter_there_is_simply_no_bed(
 
 def test_floor_hits_from_the_plan_events(plan: PicturePlan, nums: styles.Sound) -> None:
     hits = {h.beat_id: h for h in sound.floor_hits(plan, nums)}
-    assert hits["b02"].hit == "thump" and hits["b02"].trigger == "card_fly_in"
+    # 057: b02 is a `photo` on a whip with a lower-third - none of those earns a hit.
+    assert "b02" not in hits
     assert "b03" not in hits  # 055: the full beat has no landed event
+    # 057: b04 is the plan's card, so it flies in, but its stamp is the more specific
+    # trigger and the one hit a beat gets.
     assert hits["b04"].hit == "bass" and hits["b04"].trigger == "stamp"
+    assert sound.beat_triggers(plan)["b04"] == ("stamp", "card_fly_in")
     assert hits["b06"].hit == "drum" and hits["b06"].trigger == "money_reveal"
     assert hits["b08"].hit == "bass" and hits["b08"].trigger in ("header", "reveal")
     assert hits["b10"].hit == "thump"
@@ -343,18 +347,31 @@ def test_nothing_on_whips_punch_ins_rings_or_lower_thirds(
     plan: PicturePlan, nums: styles.Sound
 ) -> None:
     """7.1: the four events that never earn a hit. b03 is a `full` punch-in, b05 a map
-    with no event; b02 enters on a whip and carries a lower-third, and earns its thump
-    from the card it flies in, never from either of those."""
+    with no event; b02 enters on a whip and carries a lower-third (057: a `photo`, so
+    nothing to earn a hit from); a card that enters on a whip with a ring earns its
+    thump from the card it flies in, never from either of those."""
     hit_ids = {h.beat_id for h in sound.floor_hits(plan, nums)}
-    assert "b03" not in hit_ids and "b05" not in hit_ids
-    bare = plan.model_copy(
+    assert "b02" not in hit_ids and "b03" not in hit_ids and "b05" not in hit_ids
+    ringed = plan.model_copy(
         update={
             "beats": [
-                b.model_copy(update={"kind": "photo", "enter": "whip",
+                b.model_copy(update={"kind": "card", "motion": "push_in", "enter": "whip",
                                      "event": Event(kind="ring")})  # fmt: skip
                 if b.id == "b02"
                 else b
                 for b in plan.beats
+            ]
+        }
+    )
+    hits = {h.beat_id: h for h in sound.floor_hits(ringed, nums)}
+    assert hits["b02"].hit == "thump" and hits["b02"].trigger == "card_fly_in"
+    bare = ringed.model_copy(
+        update={
+            "beats": [
+                b.model_copy(update={"kind": "photo", "motion": "ken_burns_in"})
+                if b.id == "b02"
+                else b
+                for b in ringed.beats
             ]
         }
     )
@@ -401,7 +418,7 @@ def test_the_floor_classes_come_from_the_style(plan: PicturePlan, nums: styles.S
     )
     hits = {h.beat_id: h.hit for h in sound.floor_hits(plan, swapped)}
     assert hits["b04"] == "drum" and hits["b06"] == "bass"
-    assert "b02" not in hits, "card_fly_in earns nothing when the style drops it"
+    assert "b10" not in hits, "card_fly_in (the wall) earns nothing when the style drops it"
 
 
 LAND_S = 0.16  # the stamp's land time, which the counter lands in (029)

@@ -81,8 +81,26 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "4", spec.name  # the front matter changed again (056)
+        assert spec.version == "5", spec.name  # the front matter changed again (057)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
+
+
+def test_every_style_lets_a_portrait_fill_the_frame_at_two_x(specs: dict[str, StyleSpec]) -> None:
+    """057 (amending 5.1 and 5.3): the full-bleed limit is a style number, 2.0 in every
+    shipped and draft style, and no spec's prose says web images are always cards."""
+    for spec in specs.values():
+        assert spec.broll.full_bleed_max_upscale == 2.0, spec.name
+        assert "always re-dressed as cards" not in spec.sections["B-roll"], spec.name
+        assert "always cards" not in spec.sections["B-roll"], spec.name
+    assert "full_bleed_max_upscale" in specs["explainer"].sections["B-roll"]
+
+
+def test_a_spec_without_the_full_bleed_limit_fails_to_load(tmp_path: Path) -> None:
+    def drop(front: dict[str, Any]) -> None:
+        del front["broll"]["full_bleed_max_upscale"]
+
+    with pytest.raises(StyleError, match="full_bleed_max_upscale"):
+        styles.load_all(REGISTRY, styles_dir=_variant_dir(tmp_path, "explainer", drop))
 
 
 def test_every_style_puts_the_bed_14_db_under_the_voice_and_reuses_an_image_twice(

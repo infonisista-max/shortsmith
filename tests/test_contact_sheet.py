@@ -541,8 +541,11 @@ def test_counts_line_names_the_clamps_and_the_rescued_beats() -> None:
                 Clamp(rule="3.1", beat_id="b02", message="snapped")],
     )  # fmt: skip
     manifest = _strip_manifest()
-    assert contact_sheet.counts_line(validated, manifest) == "clamps 2 · rescued 1"
-    assert contact_sheet.counts_line(None, None) == "clamps 0 · rescued 0"
+    # 057 (5): the full-screen / card mix is on every sheet; the gradient is neither.
+    assert contact_sheet.counts_line(validated, manifest) == (
+        "clamps 2 · rescued 1 · full-screen 1 / card 1"
+    )
+    assert contact_sheet.counts_line(None, None) == "clamps 0 · rescued 0 · full-screen 0 / card 0"
     assert contact_sheet.clamped_beats(validated) == frozenset({"b02"})
     assert contact_sheet.clamped_beats(None) == frozenset()
 

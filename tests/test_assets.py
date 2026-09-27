@@ -377,26 +377,104 @@ def test_fake_nothing_found_modes() -> None:
 # --- classification from real dimensions (5.3) ----------------------------------------
 
 
+FULL_BLEED_MAX = EXPLAINER.broll.full_bleed_max_upscale  # 057: 2.0, read from the style
+
+
 @pytest.mark.parametrize(
     ("size", "planned", "expected"),
     [
         ((1080, 1920), "photo", ("photo", False)),
-        ((1079, 1920), "photo", ("card", True)),  # a 1079 px portrait becomes a card
-        ((1080, 1279), "photo", ("card", True)),  # covering 1920 would upscale > 1.5x
-        ((1080, 1280), "photo", ("photo", False)),  # exactly 1.5x
+        ((1079, 1920), "photo", ("photo", False)),  # 057: width is judged after the upscale
+        ((1080, 1279), "photo", ("photo", False)),  # 1.50x on the height, under 2.0
+        ((1080, 1280), "photo", ("photo", False)),
+        ((1000, 1406), "photo", ("photo", False)),  # run03's owner photo: 1.37x
+        ((819, 1024), "photo", ("photo", False)),  # run03's main portrait: 1.875x
+        ((540, 960), "photo", ("photo", False)),  # exactly 2.0x
+        ((540, 959), "photo", ("card", True)),  # one pixel over 2.0x on the height
+        ((500, 900), "photo", ("card", True)),  # needs 2.16x
         ((2000, 3000), "photo", ("photo", False)),
-        ((1920, 1080), "photo", ("card", True)),  # landscape
-        ((1500, 1500), "photo", ("card", True)),  # square is not portrait
+        ((1920, 1080), "photo", ("card", True)),  # landscape stays a card
+        ((1600, 1169), "photo", ("card", True)),  # run03's b19
+        ((1024, 632), "photo", ("card", True)),  # run03's b22
+        ((1500, 1500), "photo", ("photo", False)),  # 057: square counts as portrait
         ((1080, 1920), "card", ("card", False)),  # the planner asked for a card
         ((640, 480), "card", ("card", False)),
+        ((1080, 1920), "auto", ("photo", False)),
+        ((640, 480), "auto", ("card", False)),  # `auto` never records a downgrade
     ],
 )
 def test_classify(size: tuple[int, int], planned: str, expected: tuple[str, bool]) -> None:
-    assert assets.classify(*size, planned=planned, origin="commons") == expected  # pyright: ignore[reportArgumentType]
+    assert assets.classify(*size, planned=planned, max_upscale=FULL_BLEED_MAX) == expected  # pyright: ignore[reportArgumentType]
 
 
-def test_web_images_are_always_cards() -> None:
-    assert assets.classify(1080, 1920, planned="photo", origin="web") == ("card", True)
+def test_the_full_bleed_limit_is_the_styles_not_a_constant() -> None:
+    """057: the 2.0 lives in `broll.full_bleed_max_upscale`; a stricter style (1.5, the
+    old 5.3 line) turns the 1.875x portrait back into a card."""
+    assert FULL_BLEED_MAX == 2.0
+    assert assets.full_bleed(819, 1024, max_upscale=FULL_BLEED_MAX)
+    assert not assets.full_bleed(819, 1024, max_upscale=1.5)
+    assert assets.classify(819, 1024, planned="photo", max_upscale=1.5) == ("card", True)
+
+
+def test_a_web_image_goes_full_bleed_like_any_other_origin(tmp_path: Path) -> None:
+    """057 (2), amending 5.1: the origin no longer matters - a 1000x1406 web image
+    covers the frame at 1.37x and is drawn full-bleed under the Ken Burns; a landscape
+    web image stays a card, exactly as before."""
+    web = assets.FakeImageSource(
+        "web", sizes={"query 1": (1000, 1406), "query 2": (1600, 1000)}
+    )
+    manifest = _run(tmp_path, [_beat(1, "entity"), _beat(2, "entity")], sources={"web": web})
+    first, second = manifest.beats
+    assert manifest.assets[0].origin == "web"
+    assert (first.treatment, first.treatment_downgraded) == ("photo", False)
+    assert (second.treatment, second.treatment_downgraded) == ("card", True)
+
+
+def test_source_assets_reads_the_full_bleed_limit_from_the_spec(tmp_path: Path) -> None:
+    """057: the same 819x1024 portrait is a photo under the explainer's 2.0 and a card
+    under a spec copy that says 1.5."""
+    strict = SPEC.model_copy(deep=True)
+    strict.broll.full_bleed_max_upscale = 1.5
+    web = assets.FakeImageSource("web", size=(819, 1024))
+    roomy = _run(tmp_path / "roomy", [_beat(1, "entity")], sources={"web": web})
+    tight = _run(tmp_path / "tight", [_beat(1, "entity")], sources={"web": web}, spec=strict)
+    assert roomy.beats[0].treatment == "photo"
+    assert (tight.beats[0].treatment, tight.beats[0].treatment_downgraded) == ("card", True)
+
+
+# 057: run03 (job 20260927-140915-bbad1c) beat by beat - the planned kind, the fetched
+# file's origin and real size, and what the beat must be drawn as under the amended 5.3.
+# Transcribed from its `work/plan.json` and `work/assets.json`.
+RUN03 = [
+    ("b01", "photo", "owner_supplied", (819, 1024), "photo"),  # ref1, 1.875x
+    ("b02", "card", "owner_supplied", (696, 1000), "card"),  # planned card stays a card
+    ("b03", "card", "web", (1466, 1920), "card"),
+    ("b04", "card", "web", (1120, 1496), "card"),
+    ("b05", "photo", "owner_supplied", (819, 1024), "photo"),
+    ("b06", "card", "owner_supplied", (819, 1024), "card"),
+    ("b07", "photo", "commons", (2275, 2324), "photo"),  # stays a photo
+    ("b08", "photo", "owner_supplied", (819, 1024), "photo"),
+    ("b10", "photo", "owner_supplied", (819, 1024), "photo"),
+    ("b13", "photo", "owner_supplied", (819, 1024), "photo"),
+    ("b14", "photo", "web", (908, 1024), "photo"),  # a web image, 1.875x
+    ("b15", "card", "owner_supplied", (819, 1024), "card"),
+    ("b18", "card", "owner_supplied", (870, 614), "card"),
+    ("b19", "photo", "web", (1600, 1169), "card"),  # landscape
+    ("b22", "photo", "web", (1024, 632), "card"),  # landscape
+    ("b24", "card", "owner_supplied", (1000, 1406), "card"),
+]
+
+
+@pytest.mark.parametrize(("beat_id", "planned", "origin", "size", "treatment"), RUN03)
+def test_run03_beats_under_the_amended_5_3(
+    beat_id: str, planned: str, origin: str, size: tuple[int, int], treatment: str
+) -> None:
+    """057: b01, b05, b08, b10, b13 (819x1024, planned photo) and b14 (web, 908x1024)
+    become photos; b19 and b22 (landscape) and every planned card stay cards; b07 stays
+    a photo. The origin plays no part."""
+    got, downgraded = assets.classify(*size, planned=planned, max_upscale=FULL_BLEED_MAX)  # pyright: ignore[reportArgumentType]
+    assert got == treatment, (beat_id, origin)
+    assert downgraded is (planned == "photo" and treatment == "card"), beat_id
 
 
 def test_classification_reads_the_fetched_file_not_the_reported_size(tmp_path: Path) -> None:

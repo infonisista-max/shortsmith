@@ -109,8 +109,26 @@ def test_card_slot_reject_boundaries(width: int, height: int, rejected: bool) ->
 def test_the_5_3_cover_rule_decides_treatment_not_rejection(
     width: int, height: int, covers: bool
 ) -> None:
-    """053: an image that cannot cover the frame is a card (5.3), never a reject."""
-    assert base.covers_frame(width, height) is covers
+    """053: an image that cannot cover the frame is a card (5.3), never a reject. 057:
+    the upscale the cover is judged at is the caller's (the style's number)."""
+    assert base.covers_frame(width, height, 1.5) is covers
+    assert base.reject_size(width, height, CARD) is None
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "covers"),
+    [
+        (540, 960, True),  # exactly 2.0x
+        (539, 960, False),
+        (540, 959, False),
+        (819, 1024, True),  # run03's owner portrait, 1.875x
+        (500, 900, False),  # needs 2.16x
+    ],
+)
+def test_the_cover_rule_at_the_styles_two_x(width: int, height: int, covers: bool) -> None:
+    """057: `broll.full_bleed_max_upscale` (2.0) is the limit the treatment is judged
+    at; the card slot's 1.5x is untouched."""
+    assert base.covers_frame(width, height, 2.0) is covers
     assert base.reject_size(width, height, CARD) is None
 
 

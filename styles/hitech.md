@@ -1,5 +1,5 @@
 ---
-version: "4"
+version: "5"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
@@ -73,6 +73,7 @@ broll:
   unique_assets_max_per_60s: 24
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
   rescued_max_per_60s: 4
+  full_bleed_max_upscale: 2.0  # 057: a portrait covering the frame at <= this is full-screen, any origin
   card_max_bottom_y: 1240
   stamp_max_y_fraction: 0.6
   photo_look: "product photograph on a dark gradient, rim light, high contrast"

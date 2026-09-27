@@ -113,9 +113,9 @@ SMOKE_BRIEF = (
 )
 SMOKE_STYLE_LINE = "explainer, energetic"
 SMOKE_LIMITS = Limits(min_duration_s=fixture.DURATION_S)
-# 016: the fake plan's photo beats (b01, the opening's first image, and b04) ask for
-# this; Commons answers it with a full-bleed portrait, web (which is always a card, 5.1)
-# answers everything else.
+# 016: the fake plan's b01 (the opening's first image) and b04 (its card reuse) ask for
+# this; Commons answers it with a full-bleed portrait. Web answers everything else with
+# a 1600x1000 landscape, so b02 (asked `photo`, 057) is drawn as a card.
 PHOTO_QUERY = "slow colour gradient sky"
 
 
@@ -381,7 +381,7 @@ def check_assets(job: jobs.Job, plan: PicturePlan, style: str) -> assets.AssetMa
     check(
         (treatments.get("b01"), treatments.get("b02")) == ("photo", "card"),
         f"b01/b02 drawn as {treatments.get('b01')}/{treatments.get('b02')}, not photo/card "
-        "(055: the opening's two images)",
+        "(055: the opening's two images; 057: b02's landscape cannot fill the frame)",
     )
     # 017: the fake judge scored every candidate, so every searched asset carries a
     # verdict, no beat was sourced unjudged, and the style's ceiling was not reached.
@@ -423,10 +423,11 @@ def check_assets(job: jobs.Job, plan: PicturePlan, style: str) -> assets.AssetMa
         (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
     )
     # 027: b08 (list) and b10 (wall) also carry a visual - their dimmed base still;
-    # 055: b01 and b02 are the opening's photo and card, b04 the stamped photo (a1 again).
+    # 055 / 057: b01 and b02 are the opening's two `photo` beats (b02's landscape is
+    # drawn as a card), b04 the planned card (a1 again) that carries the stamp.
     drawn = {b.id: b.visual.treatment for b in spec.beats if b.visual is not None}
     check(
-        drawn == {"b01": "photo", "b02": "card", "b04": "photo", "b08": "photo", "b10": "photo"},
+        drawn == {"b01": "photo", "b02": "card", "b04": "card", "b08": "photo", "b10": "photo"},
         f"render spec draws {drawn}",
     )
     check_set_pieces(spec, plan, style)

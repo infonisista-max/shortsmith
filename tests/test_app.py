@@ -670,7 +670,7 @@ class _StillPlanner(FakePlanner):
         self, request: PlanRequest, *, feedback: PlanFeedback | None = None
     ) -> PicturePlan:
         plan = super().plan_picture(request)
-        b04 = plan.beats[3].model_copy(update={"motion": None})  # the stamp photo (055)
+        b04 = plan.beats[3].model_copy(update={"motion": None})  # the stamped card (057)
         return plan.model_copy(update={"beats": [*plan.beats[:3], b04, *plan.beats[4:]]})
 
 

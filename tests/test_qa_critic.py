@@ -459,7 +459,7 @@ def test_build_inputs_assembles_the_texts_and_the_images_from_the_job(
     assert "1 clamp" in summary and "(6.1)" in summary
     assert "0 rescued" in summary
     assert "origins: " in summary and "web: " in summary and "generated: " in summary
-    assert "opening: b01 pip photo a1, b02 pip card a2, b03 full presenter_full" in summary
+    assert "opening: b01 pip photo a1, b02 pip photo a2, b03 full presenter_full" in summary
     assert "hook title" not in summary
     assert "finale word: Made from nothing" in summary
     assert "category: science" in summary

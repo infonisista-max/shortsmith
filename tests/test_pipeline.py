@@ -612,14 +612,14 @@ def test_a_rejected_picture_plan_is_resent_once_with_the_violations(
     assert first is None and second is not None
     assert PicturePlan.model_validate_json(second.previous).beats[3].motion is None
     assert second.violations == [
-        "b04 (4.1): non-presenter beat (photo) has no motion; "
+        "b04 (4.1): non-presenter beat (card) has no motion; "
         "every non-presenter beat has exactly one",
         "b04 (9.4): enter 'wipe' is not in broll.enter_transitions "
         "['cut', 'fade', 'whip', 'zoom', 'spring']",
     ]
     assert planner.sound_feedback == [None]
     plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
-    assert plan.beats[3].motion == "ken_burns_in"
+    assert plan.beats[3].motion == "push_in"  # 057: b04 is the fake plan's card
     log = job.log_path.read_text("utf-8")
     assert "picture plan rejected" in log and "b04 (4.1)" in log
 
