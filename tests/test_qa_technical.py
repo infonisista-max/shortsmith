@@ -373,6 +373,42 @@ def test_t8_names_every_problem_with_the_rescues_first() -> None:
     assert "plan.validated.json" in check.detail and "render.log" in check.detail
 
 
+def _showing_plan(n: int, *, subject: str = "concept") -> PicturePlan:
+    beats = [
+        Beat.model_validate({
+            "id": f"b{i:02d}", "start": float(i - 1), "end": float(i), "mode": "pip",
+            "kind": "card", "motion": "push_in", "subject_kind": subject, "query": f"q{i}",
+            "query_fallback": f"f{i}", "source_intent": "search", "asset_id": "a1",
+        })  # fmt: skip
+        for i in range(1, n + 1)
+    ]
+    return PicturePlan(
+        prompt_version="t", cut=CutPlan(keep=[Span(start=0.0, end=float(n))]), beats=beats,
+        finale=Finale(beat_id=beats[-1].id, text="t"), title="t", description="t",
+    )  # fmt: skip
+
+
+def test_t8_fails_an_image_shown_more_than_reuse_max_times_counted_by_file() -> None:
+    """056 (3): three ids for one file, three showings, `reuse_max` 2 -> one image on
+    repeat, named by its ids and beats."""
+    twin = _owner("a1").model_copy(update={"id": "twin"})
+    beats = [
+        BeatAsset(beat_id="b01", asset_id="a1", treatment="card", fallback_rung=0),
+        BeatAsset(beat_id="b02", asset_id="a1", treatment="card", fallback_rung=0),
+        BeatAsset(beat_id="b03", asset_id="twin", treatment="card", fallback_rung=0),
+    ]
+    manifest = _manifest([_owner("a1"), twin], beats).model_copy(update={"reuse_max": 2})
+    check = technical.t8(manifest, [], CLEAN_LOG, _showing_plan(3))
+    assert not check.passed
+    assert "image on repeat" in check.detail and "3 times" in check.detail
+    assert "a1, twin" in check.detail and "b01, b02, b03" in check.detail
+    # Two showings pass; so does a manifest written before the rule (reuse_max 0).
+    two = manifest.model_copy(update={"beats": beats[:2]})
+    assert technical.t8(two, [], CLEAN_LOG, _showing_plan(2)).passed
+    before_the_rule = _manifest([_owner("a1"), twin], beats)  # reuse_max 0
+    assert technical.t8(before_the_rule, [], CLEAN_LOG, _showing_plan(3)).passed
+
+
 # --- T9 rights completeness (5.4) ----------------------------------------------------------
 
 

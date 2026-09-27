@@ -88,7 +88,7 @@ import math
 import re
 import statistics
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -115,6 +115,9 @@ from shortsmith.contracts import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOGUE_NAME = "catalog.yaml"
 CATALOGUE_PATH = REPO_ROOT / "assets" / "audio" / CATALOGUE_NAME
+# 056 (6): what the runtime search fetches lives beside the files it describes, in the
+# git-ignored `fetched/` folder, so a job never changes the tracked catalogue.
+FETCHED_DIR = "fetched"
 SAMPLE_RATE = ffmpeg.SAMPLE_RATE
 MIX_TIMEOUT_S = 1800.0
 MONO = f"aformat=channel_layouts=mono:sample_rates={SAMPLE_RATE}"
@@ -136,9 +139,16 @@ class Library:
 
     @property
     def catalogue(self) -> Path:
-        """The text file under `root` the entries came from, and that the audio search
-        appends to (024)."""
+        """The tracked text file under `root`: the operator's hand-seeded catalogue
+        (7.2), which `seed` writes and no job ever changes (056 (6))."""
         return self.root / CATALOGUE_NAME
+
+    @property
+    def fetched_catalogue(self) -> Path:
+        """The runtime catalogue the audio search appends to (024; 056 (6)): under the
+        git-ignored `fetched/` folder beside the files it describes, read after the
+        tracked one by `load_catalogue`. Its `file` paths stay relative to `root`."""
+        return self.root / FETCHED_DIR / CATALOGUE_NAME
 
     def beds(self) -> tuple[AudioEntry, ...]:
         return tuple(e for e in self.entries if e.kind == "bed")
@@ -177,12 +187,20 @@ def parse_catalogue(text: str, *, name: str) -> Catalogue:
 
 
 def load_catalogue(path: Path = CATALOGUE_PATH) -> Library:
-    """The library at `path`; a file that is not there is an empty library (7.2: the
-    shipped catalogue is empty until the operator seeds it by hand, ticket 025)."""
-    if not path.is_file():
-        return Library(root=path.parent)
-    catalogue = parse_catalogue(path.read_text(encoding="utf-8"), name=path.name)
-    return Library(root=path.parent, entries=tuple(catalogue.entries))
+    """The library at `path`: the tracked catalogue, then (056 (6)) the runtime
+    adoptions in `fetched/catalog.yaml` beside it, a fetched id the tracked file already
+    holds left out. A file that is not there is an empty library (7.2: the shipped
+    catalogue is empty until the operator seeds it by hand, ticket 025)."""
+    entries: list[AudioEntry] = []
+    if path.is_file():
+        entries += parse_catalogue(path.read_text(encoding="utf-8"), name=path.name).entries
+    fetched = path.parent / FETCHED_DIR / CATALOGUE_NAME
+    if fetched.is_file():
+        known = {e.id for e in entries}
+        name = f"{FETCHED_DIR}/{fetched.name}"
+        adopted = parse_catalogue(fetched.read_text(encoding="utf-8"), name=name).entries
+        entries += [e for e in adopted if e.id not in known]
+    return Library(root=path.parent, entries=tuple(entries))
 
 
 # --- bed selection (7.2) ----------------------------------------------------------------
@@ -346,6 +364,42 @@ class FakeAudioSearch(AudioSearch):
         return SearchOutcome("fake", "sfx", words, "200", int(found is not None), adopted=found)
 
 
+def bed_candidates(
+    library: Library,
+    query: BedQuery,
+    *,
+    first_stamp_s: float,
+    threshold: float,
+    search: AudioSearch | None = None,
+    default_query: str = "",
+) -> Iterator[tuple[AudioEntry | None, tuple[str, ...]]]:
+    """The beds to try, best first, each with the lines the job log gets (054 (1)):
+    every library bed over `threshold` in `select_bed`'s order, then the search ladder
+    `bed_queries` rung by rung (7.2, 054 (2)), one item per adoption. The last item is
+    `(None, why)` when the ladder runs out. 056 (1) walks on to the next candidate when
+    a bed fails the 7.3 balance after every repair; `choose_bed` stops at the first."""
+    beds = sorted(
+        library.beds(), key=lambda e: (-bed_score(e, query), drop_fit(e, first_stamp_s), e.id)
+    )
+    for entry in beds:
+        score = bed_score(entry, query)
+        if score >= threshold:
+            yield entry, (f"bed {entry.id} from the library (score {score:.2f})",)
+    asked = f"no bed for theme {query.theme!r} mood {query.mood!r}"
+    if search is None:
+        yield None, (f"{asked}: nothing in the library scored and {NO_SEARCH_LINE}",)
+        return
+    for words in bed_queries(query, default_query):
+        outcome = search.bed(words, query, library)
+        lines = [outcome.line(), *outcome.notes]
+        if outcome.adopted is not None:
+            lines.append(f"bed {outcome.adopted.id} from the audio search (query {words!r})")
+            yield outcome.adopted, tuple(lines)
+        else:
+            yield None, tuple(lines)
+    yield None, (f"{asked}: nothing in the library scored and {SEARCH_EMPTY_LINE}",)
+
+
 def choose_bed(
     library: Library,
     query: BedQuery,
@@ -355,23 +409,17 @@ def choose_bed(
     search: AudioSearch | None = None,
     default_query: str = "",
 ) -> tuple[AudioEntry | None, tuple[str, ...]]:
-    """The bed and the lines the job log gets (054 (1)): the library's best over
-    `threshold`, else the search ladder `bed_queries` rung by rung - one line per search
-    - stopping at the first adoption, else none and why (7.2, 054 (2))."""
-    chosen = select_bed(library, query, first_stamp_s=first_stamp_s, threshold=threshold)
-    if chosen is not None:
-        return chosen, (f"bed {chosen.id} from the library (score {bed_score(chosen, query):.2f})",)
-    asked = f"no bed for theme {query.theme!r} mood {query.mood!r}"
-    if search is None:
-        return None, (f"{asked}: nothing in the library scored and {NO_SEARCH_LINE}",)
+    """The first bed of `bed_candidates` and every line up to it: the library's best
+    over `threshold`, else the search ladder stopping at the first adoption, else none
+    and why."""
     lines: list[str] = []
-    for words in bed_queries(query, default_query):
-        outcome = search.bed(words, query, library)
-        lines += [outcome.line(), *outcome.notes]
-        if outcome.adopted is not None:
-            lines.append(f"bed {outcome.adopted.id} from the audio search (query {words!r})")
-            return outcome.adopted, tuple(lines)
-    lines.append(f"{asked}: nothing in the library scored and {SEARCH_EMPTY_LINE}")
+    for entry, more in bed_candidates(
+        library, query, first_stamp_s=first_stamp_s, threshold=threshold, search=search,
+        default_query=default_query,
+    ):  # fmt: skip
+        lines += more
+        if entry is not None:
+            return entry, tuple(lines)
     return None, tuple(lines)
 
 
@@ -819,14 +867,31 @@ def duck_filter() -> str:
     )
 
 
+def dip_filter(nums: styles.Sound, depth_db: float) -> str:
+    """056 (1), the first repair: a peaking EQ cut over the style's speech band, centred
+    on its geometric middle and as wide as the band in octaves, `depth_db` deep."""
+    low, high = nums.speech_band_hz
+    centre = math.sqrt(low * high)
+    octaves = math.log2(high / low)
+    return f"equalizer=f={centre:g}:width_type=o:width={octaves:g}:g={-depth_db:g}"
+
+
 def music_filter(
-    *, gain_db: float, points: Sequence[EnvelopePoint], runtime_s: float, nums: styles.Sound
+    *,
+    gain_db: float,
+    points: Sequence[EnvelopePoint],
+    runtime_s: float,
+    nums: styles.Sound,
+    dip_db: float = 0.0,
 ) -> str:
     """The music stem: level-matched to the bed target, the envelope on top, the style's
-    fades at both ends, exactly `runtime_s` long."""
+    fades at both ends, exactly `runtime_s` long; with `dip_db` the speech-band dip of
+    056 (1) before the level match, so the median still lands on the target."""
     fade_out_at = max(0.0, runtime_s - nums.fade_out_s)
+    dip = f"{dip_filter(nums, dip_db)}," if dip_db > 0 else ""
     return (
         f"{MONO},apad,atrim=0:{runtime_s:g},asetpts=N/SR/TB,"
+        f"{dip}"
         f"volume={gain_db:.2f}dB,"
         f"volume='{volume_expr(points)}':eval=frame,"
         f"afade=t=in:st=0:d={nums.fade_in_s:g},"
@@ -910,6 +975,40 @@ def _bed_source_args(entry: AudioEntry, runtime_s: float, path: Path) -> list[st
     return [ffmpeg.FFMPEG, "-v", "error", "-y", *loop, "-t", f"{runtime_s:.3f}", "-i", str(path)]
 
 
+# 056 (1): a music check never fails the job. When the balance misses a line the mix
+# repairs itself, in the operator's order: a speech-band dip on the bed (the depth
+# escalates from the shortfall until the line is reached or `MAX_DIP_DB`), then the bed
+# lowered to the floor of the acceptance window, then the next bed candidate (at most
+# `BED_CANDIDATES_MAX` beds are mixed), and only then the voice and the hits alone.
+MAX_DIP_DB = 24.0
+BED_CANDIDATES_MAX = 3
+VOICE_AND_HITS_LINE = "voice and hits only: no bed passed the 7.3 balance after every repair"
+
+
+def dip_depths(shortfall_db: float) -> tuple[float, ...]:
+    """The dip depths to try for a margin `shortfall_db` short of the line: the
+    shortfall plus a decibel of headroom, then doubling, never past `MAX_DIP_DB`. The
+    level match undoes part of every dip (the bed is put back on its target), so one
+    depth is rarely enough and the next is measured, never modelled."""
+    depths: list[float] = []
+    depth = float(math.ceil(max(shortfall_db, 0.0)) + 1)
+    while depth <= MAX_DIP_DB:
+        depths.append(depth)
+        depth *= 2
+    return tuple(depths)
+
+
+@dataclass(frozen=True)
+class _BedMix:
+    """One bed mixed and measured: its stems, its balance, and the repairs it took."""
+
+    music: Path | None
+    ducked: Path | None
+    balance: BalanceReport
+    repairs: tuple[str, ...] = ()
+    dip_db: float = 0.0
+
+
 def build_mix(
     *,
     stems: Path,
@@ -924,9 +1023,11 @@ def build_mix(
     log: Callable[[str], None] | None = None,
 ) -> MixResult:
     """Build the music and SFX stems beside `voice` and the premix the master is cut
-    from, write `balance.json`, and fail the step when the mix misses the 7.3 band.
-    `log` gets every note as it is made (054 (1): the searches and decisions reach
-    `job.log` even when the mix fails after them)."""
+    from, and write `balance.json`. A mix that misses the 7.3 band is repaired, never
+    failed (056 (1)): the dip, the lower bed, the next bed, and last the voice and the
+    hits alone with `VOICE_AND_HITS_LINE` in the notes and `bed_dropped` in the report.
+    `log` gets every note as it is made (054 (1): the searches, the decisions and
+    every repair reach `job.log`)."""
     stems.mkdir(parents=True, exist_ok=True)
     voice_db = ffmpeg.mean_volume_db(voice)
     if voice_db is None:
@@ -939,18 +1040,6 @@ def build_mix(
             if log is not None:
                 log(line)
 
-    bed, bed_lines = choose_bed(
-        library, story.bed_query, first_stamp_s=first_stamp_s(plan),
-        threshold=nums.bed_score_threshold, search=search,
-        default_query=nums.default_bed_query,
-    )  # fmt: skip
-    note(bed_lines)
-    if bed is not None and library.entry(bed.id) is None:
-        library = Library(root=library.root, entries=(*library.entries, bed))
-    music = _music_stem(
-        stems, bed=bed, library=library, story=story, nums=nums,
-        voice_db=voice_db, runtime_s=runtime_s,
-    )  # fmt: skip
     placed = place_cues(
         plan, story, library, nums, runtime_s=runtime_s, counter_land_s=counter_land_s,
         search=search,
@@ -962,19 +1051,147 @@ def build_mix(
     )
     sheet = cue_records(placed.cues, library, runtime_s=runtime_s)
     (stems / CUES_NAME).write_text(sheet.model_dump_json(indent=2), encoding="utf-8")
-    ducked = _ducked(stems, voice=voice, music=music)
-    premix = _premix(stems, voice=voice, ducked=ducked, sfx=sfx)
-    balance = _balance(
-        stems, voice=voice, music=music, ducked=ducked, nums=nums,
-        voice_db=voice_db, cues=len(placed.cues),
-    )  # fmt: skip
+
+    bed: AudioEntry | None = None
+    mixed: _BedMix | None = None
+    repairs: list[str] = []
+    dropped: str | None = None
+    tried: set[str] = set()
+    for candidate, lines in bed_candidates(
+        library, story.bed_query, first_stamp_s=first_stamp_s(plan),
+        threshold=nums.bed_score_threshold, search=search,
+        default_query=nums.default_bed_query,
+    ):  # fmt: skip
+        note(lines)
+        if candidate is None or candidate.id in tried:
+            continue
+        tried.add(candidate.id)
+        if library.entry(candidate.id) is None:
+            library = Library(root=library.root, entries=(*library.entries, candidate))
+        attempt = _repaired_bed(
+            stems, bed=candidate, library=library, story=story, nums=nums, voice=voice,
+            voice_db=voice_db, runtime_s=runtime_s, cues=len(placed.cues), note=note,
+        )  # fmt: skip
+        repairs += attempt.repairs
+        if not attempt.balance.problems:
+            bed, mixed = candidate, attempt
+            break
+        dropped = f"{candidate.id}: {'; '.join(attempt.balance.problems)}"
+        if len(tried) >= BED_CANDIDATES_MAX:
+            note((f"{BED_CANDIDATES_MAX} beds mixed and dropped; no further candidate is tried",))
+            break
+        note((f"bed {candidate.id} dropped after every repair; trying the next bed",))
+    if mixed is None:
+        for name in ("music.wav", "music.ducked.wav"):
+            (stems / name).unlink(missing_ok=True)
+        balance = _balance(
+            stems, voice=voice, music=None, ducked=None, nums=nums, voice_db=voice_db,
+            cues=len(placed.cues),
+        )  # fmt: skip
+        mixed = _BedMix(music=None, ducked=None, balance=balance)
+        if dropped is not None:
+            note((f"{VOICE_AND_HITS_LINE} (last bed {dropped})",))
+    balance = mixed.balance.model_copy(
+        update={"repairs": repairs, "dip_db": mixed.dip_db or None, "bed_dropped": dropped}
+    )
+    premix = _premix(stems, voice=voice, ducked=mixed.ducked, sfx=sfx)
     (stems / BALANCE_NAME).write_text(balance.model_dump_json(indent=2), encoding="utf-8")
-    if balance.problems:
-        raise SoundError("; ".join(balance.problems))
     return MixResult(
-        premix=premix, music=music, sfx=sfx, bed=bed, cues=placed.cues,
+        premix=premix, music=mixed.music, sfx=sfx, bed=bed, cues=placed.cues,
         balance=balance, notes=tuple(notes), library=library,
     )  # fmt: skip
+
+
+def _mix_bed(
+    stems: Path,
+    *,
+    bed: AudioEntry,
+    library: Library,
+    story: SoundStory,
+    nums: styles.Sound,
+    voice: Path,
+    voice_db: float,
+    runtime_s: float,
+    cues: int,
+    dip_db: float,
+    under_db: float | None,
+) -> _BedMix:
+    """One bed rendered, ducked and measured, with the given dip and target."""
+    music = _music_stem(
+        stems, bed=bed, library=library, story=story, nums=nums, voice_db=voice_db,
+        runtime_s=runtime_s, dip_db=dip_db, under_db=under_db,
+    )  # fmt: skip
+    ducked = _ducked(stems, voice=voice, music=music)
+    balance = _balance(
+        stems, voice=voice, music=music, ducked=ducked, nums=nums, voice_db=voice_db, cues=cues
+    )
+    return _BedMix(music=music, ducked=ducked, balance=balance, dip_db=dip_db)
+
+
+def _repaired_bed(
+    stems: Path,
+    *,
+    bed: AudioEntry,
+    library: Library,
+    story: SoundStory,
+    nums: styles.Sound,
+    voice: Path,
+    voice_db: float,
+    runtime_s: float,
+    cues: int,
+    note: Callable[[Iterable[str]], None],
+) -> _BedMix:
+    """The bed mixed as planned and, when it misses the 7.3 band, repaired rung by rung
+    (056 (1)): the speech-band dip at escalating depths while the margin is the problem,
+    then the bed lowered to the floor of `bed_accept_db`. Every repair is one line in
+    `repairs` and in the log, the dip with its depth in dB and the margin it reached.
+    The result carries the last balance measured; the caller reads `problems`."""
+    plain = _mix_bed(
+        stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+        voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=0.0, under_db=None,
+    )  # fmt: skip
+    if not plain.balance.problems:
+        return plain
+    note((f"bed {bed.id} misses the 7.3 band: {'; '.join(plain.balance.problems)}",))
+    low_hz, high_hz = nums.speech_band_hz
+    repairs: list[str] = []
+    current = plain
+    margin = plain.balance.speech_band_margin_db
+    if margin is not None and margin < nums.speech_band_margin_db:
+        for depth in dip_depths(nums.speech_band_margin_db - margin):
+            current = _mix_bed(
+                stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+                voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=depth, under_db=None,
+            )  # fmt: skip
+            reached = current.balance.speech_band_margin_db
+            line = (
+                f"bed {bed.id}: speech band {low_hz}-{high_hz} Hz dipped by {depth:g} dB "
+                f"(margin {margin:.1f} -> {reached if reached is None else round(reached, 1)} dB, "
+                f"line {nums.speech_band_margin_db:g})"
+            )
+            repairs.append(line)
+            note((line,))
+            if not current.balance.problems:
+                return _BedMix(current.music, current.ducked, current.balance,
+                               tuple(repairs), depth)  # fmt: skip
+            if reached is not None and reached >= nums.speech_band_margin_db:
+                break  # the margin is fixed; whatever is left is not the dip's
+    # The lowest target that still converges inside the window: the floor plus the
+    # tolerance the level match stops at.
+    low = nums.bed_accept_db[0] + BED_TOLERANCE_DB
+    current = _mix_bed(
+        stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+        voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=current.dip_db, under_db=low,
+    )  # fmt: skip
+    reached = current.balance.speech_band_margin_db
+    line = (
+        f"bed {bed.id}: lowered to {low:g} dB under the voice, the floor of "
+        f"sound.bed_accept_db {nums.bed_accept_db[0]:g} dB (margin now "
+        f"{reached if reached is None else round(reached, 1)} dB)"
+    )
+    repairs.append(line)
+    note((line,))
+    return _BedMix(current.music, current.ducked, current.balance, tuple(repairs), current.dip_db)
 
 
 BED_TOLERANCE_DB = 0.3
@@ -990,6 +1207,8 @@ def _music_stem(
     nums: styles.Sound,
     voice_db: float,
     runtime_s: float,
+    dip_db: float = 0.0,
+    under_db: float | None = None,
 ) -> Path | None:
     """The music stem, converged on the target.
 
@@ -997,7 +1216,9 @@ def _music_stem(
     envelope and the fades both move the median away from the flat gain that would hit
     it. So the stem is rendered, its median measured and the gain corrected, at most
     `BED_PASSES` times - the loop `render.master` uses for the master's loudness, for the
-    same reason: the target is a property of the rendered file, not of the filter."""
+    same reason: the target is a property of the rendered file, not of the filter.
+    056 (1): `dip_db` is the speech-band dip, `under_db` a target other than the
+    style's (the repaired, lower bed)."""
     if bed is None:
         return None
     source = library.file(bed)
@@ -1006,7 +1227,7 @@ def _music_stem(
     bed_db = ffmpeg.mean_volume_db(source)
     if bed_db is None:
         raise SoundError(f"the bed {bed.id} ({bed.file}) is silent")
-    target = voice_db + nums.bed_db_under_voice
+    target = voice_db + (nums.bed_db_under_voice if under_db is None else under_db)
     gain_db = target - bed_db
     points = envelope(story, nums, runtime_s=runtime_s)
     out = stems / "music.wav"
@@ -1015,7 +1236,8 @@ def _music_stem(
             [
                 *_bed_source_args(bed, runtime_s, source),
                 "-af",
-                music_filter(gain_db=gain_db, points=points, runtime_s=runtime_s, nums=nums),
+                music_filter(gain_db=gain_db, points=points, runtime_s=runtime_s, nums=nums,
+                             dip_db=dip_db),
                 "-c:a", "pcm_f32le", str(out),
             ]  # fmt: skip
         )

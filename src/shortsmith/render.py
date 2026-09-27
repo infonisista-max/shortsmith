@@ -71,7 +71,11 @@ Set pieces and overlays (ticket 026; decisions 3.2, 3.4, 4.1, 4.2, 6.1, 6.3): ev
   There is no hook-cards beat any more (055): the short opens in `pip` over images.
 - `stamp` wherever a beat lands one, or carries a rescue word (4.4): the text measured
   at 92 px, shrunk until it fits, and clamped into the style's top
-  `broll.stamp_max_y_fraction` of the frame, clear of the platform's right rail.
+  `broll.stamp_max_y_fraction` of the frame, clear of the platform's right rail. Over
+  an image with a detected face (056 (4); the 3.3 detector on the image itself) the
+  stamp or counter moves to the largest face-free band of the image - its upper third,
+  its lower third, or below it (`stamp_clear_of`) - and stays where it was when there
+  is no face or no free band; one `stamp:` line in job.log either way.
 - `lower_third` on a beat whose event is one, unless a two-line caption page shows
   over it (6.3) or the beat's own card strip already carries the same text.
 - `punch_in` on every `full` beat: the research section 2 push with its grade.
@@ -130,6 +134,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+from typing import cast
 
 from shortsmith import (
     assets,
@@ -159,6 +164,7 @@ from shortsmith.contracts import (
     CounterSpec,
     Crop,
     DiagramLayout,
+    FaceBox,
     FinaleCardSpec,
     ListRow,
     ListSpec,
@@ -767,6 +773,159 @@ def stamp_spec(text: str, *, numbers: StyleNumbers, max_font_px: int = STAMP_FON
     )  # fmt: skip
 
 
+# --- stamps never cover a face (056 (4)) --------------------------------------------------
+#
+# run03 stamped the king's face on seven beats. When a stamp or counter sits over an
+# image, the 3.3 face detector runs on that image, the face is mapped into composition
+# pixels through the visual's geometry, and the stamp moves to the largest face-free
+# band: the image's upper third, its lower third, or below it. No face, or no free band,
+# leaves today's placement. The 6.3 top zone is the gate's number (qa.technical).
+
+SAFE_TOP_PX = 250.0
+STAMP_BELOW_GAP_PX = 24.0
+
+
+@dataclass(frozen=True)
+class Box:
+    left: float
+    top: float
+    width: float
+    height: float
+
+    @property
+    def right(self) -> float:
+        return self.left + self.width
+
+    @property
+    def bottom(self) -> float:
+        return self.top + self.height
+
+    def overlaps(self, other: Box) -> bool:
+        return (
+            self.left < other.right and other.left < self.right
+            and self.top < other.bottom and other.top < self.bottom
+        )  # fmt: skip
+
+    def clearance(self, other: Box) -> float:
+        """The vertical gap between the boxes; 0 when they overlap or touch."""
+        if self.overlaps(other):
+            return 0.0
+        return max(0.0, max(other.top - self.bottom, self.top - other.bottom))
+
+
+def _cover_offsets(
+    box_w: float, box_h: float, img_w: int, img_h: int, zoom: float, fx: float, fy: float
+) -> tuple[float, float, float]:
+    """`object-fit: cover` at `object-position` (fx, fy) then `scale(zoom)` around the
+    same point (the `Framed` component): the drawn scale and the image's top-left."""
+    scale = max(box_w / img_w, box_h / img_h)
+    drawn_w, drawn_h = img_w * scale, img_h * scale
+    left, top = (box_w - drawn_w) * fx, (box_h - drawn_h) * fy
+    # scale(zoom) with the transform origin at the focus point of the box
+    ox, oy = fx * box_w, fy * box_h
+    left, top = ox + (left - ox) * zoom, oy + (top - oy) * zoom
+    return scale * zoom, left, top
+
+
+def _scaled_about(box: Box, ox: float, oy: float, scale: float) -> Box:
+    return Box(
+        left=ox + (box.left - ox) * scale, top=oy + (box.top - oy) * scale,
+        width=box.width * scale, height=box.height * scale,
+    )  # fmt: skip
+
+
+def _union(a: Box, b: Box) -> Box:
+    left, top = min(a.left, b.left), min(a.top, b.top)
+    return Box(left=left, top=top, width=max(a.right, b.right) - left,
+               height=max(a.bottom, b.bottom) - top)  # fmt: skip
+
+
+def image_box_on(visual: VisualSpec) -> Box:
+    """Where the visual draws its image: the whole frame for a photo, the card's image
+    window (border inside) for a card, both before any push."""
+    card = visual.card
+    if card is None:
+        return Box(0.0, 0.0, float(WIDTH), float(HEIGHT))
+    return Box(card.left + card.border_px, card.top + card.border_px,
+               card.image_width, card.image_height)  # fmt: skip
+
+
+def face_box_on(visual: VisualSpec, face: FaceBox) -> Box:
+    """The face, detected in the image's own pixels, in composition pixels over the
+    whole beat: the box at the beat's first and last frame (the photo's Ken Burns or the
+    card's push, both around the focus / the card centre) taken together. The card's
+    tilt (a degree or two) is left out."""
+    window = image_box_on(visual)
+    scale, left, top = _cover_offsets(
+        window.width, window.height, visual.width, visual.height, visual.zoom,
+        visual.focus_x, visual.focus_y,
+    )  # fmt: skip
+    at_rest = Box(
+        left=window.left + left + face.left * scale, top=window.top + top + face.top * scale,
+        width=face.width * scale, height=face.height * scale,
+    )  # fmt: skip
+    card = visual.card
+    if card is None:
+        ox, oy = visual.focus_x * WIDTH, visual.focus_y * HEIGHT
+        boxes = [_scaled_about(at_rest, ox, oy, s) for s in (visual.scale_from, visual.scale_to)]
+        # the drift across the margin, either way
+        pan = abs(visual.pan_px) / 2
+        boxes = [Box(b.left - pan, b.top, b.width + 2 * pan, b.height) for b in boxes]
+    else:
+        ox, oy = card.left + card.width / 2, card.top + card.height / 2
+        boxes = [_scaled_about(at_rest, ox, oy, s) for s in (visual.scale_from, visual.scale_to)]
+    return _union(boxes[0], boxes[1])
+
+
+def stamp_box(stamp: StampSpec) -> Box:
+    """The stamp's box with its tilt, as T12 and the face rule read it."""
+    half = _tilt_extent(stamp.width, stamp.height, stamp.rotate_deg)
+    centre = stamp.top + stamp.height / 2
+    return Box(stamp.left, centre - half, stamp.width, 2 * half)
+
+
+def _stamp_at(stamp: StampSpec, centre: float, *, numbers: StyleNumbers) -> StampSpec | None:
+    """The stamp with its centre at `centre`, clamped into the style's top band and out
+    of the 6.3 top zone; None when the band cannot hold it at all."""
+    half = _tilt_extent(stamp.width, stamp.height, stamp.rotate_deg)
+    limit = numbers.broll.stamp_max_y_fraction * HEIGHT
+    lowest, highest = SAFE_TOP_PX + half, limit - half
+    if lowest > highest:
+        return None
+    centre = min(max(centre, lowest), highest)
+    return stamp.model_copy(update={"top": centre - stamp.height / 2})
+
+
+def stamp_clear_of(
+    stamp: StampSpec, face: Box, image: Box, *, numbers: StyleNumbers
+) -> tuple[StampSpec, str | None]:
+    """The stamp moved to the largest face-free band (056 (4)) and the band's name, or
+    the stamp as it was and None: unchanged when it does not touch the face, and when
+    no band is free of it."""
+    if not stamp_box(stamp).overlaps(face):
+        return stamp, None
+    half = _tilt_extent(stamp.width, stamp.height, stamp.rotate_deg)
+    bands = (
+        ("upper third", image.top + image.height / 6),
+        ("lower third", image.top + image.height * 5 / 6),
+        ("below the image", image.bottom + STAMP_BELOW_GAP_PX + half),
+    )
+    best: tuple[float, str, StampSpec] | None = None
+    for name, centre in bands:
+        moved = _stamp_at(stamp, centre, numbers=numbers)
+        if moved is None:
+            continue
+        box = stamp_box(moved)
+        if box.overlaps(face):
+            continue
+        clearance = box.clearance(face)
+        if best is None or clearance > best[0]:
+            best = (clearance, name, moved)
+    if best is None:
+        return stamp, None
+    return best[2], best[1]
+
+
 def counter_spec(
     counter: CounterPlan, *, frames: int, fps: int, numbers: StyleNumbers
 ) -> CounterSpec:
@@ -1260,12 +1419,17 @@ def build_spec(
     job_dir: Path | None = None,
     pip: PipGeometry | None = None,
     geocoder: geo.Geocoder | None = None,
+    detector: presenter.FaceDetector | None = None,
+    log: Callable[[str], None] | None = None,
 ) -> RenderSpec:
     """`pip` is the measured geometry from `job.json.presenter` (013); None falls back
     to `fixed_pip`. Whichever it is, it is derived first: the cards and the split
     composite are placed against the top of the circle the spec draws, not the style's
     fixed `pip.top` (051). `geocoder` places the map markers (020); None is the bundled
-    gazetteer, and whichever it is, it is bound to the job's directory for its cache."""
+    gazetteer, and whichever it is, it is bound to the job's directory for its cache.
+    `detector` is the 3.3 face detector the stamps and counters are kept off faces with
+    (056 (4)); None runs no detection and keeps today's placement. `log` gets one line
+    per stamp moved, or left in place with no free band."""
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     geometry = pip or fixed_pip(source_size, numbers)
@@ -1276,6 +1440,36 @@ def build_spec(
     finale_beat = _check_finale(plan, captions, numbers)
     sources = card_sources(plan, manifest, job_dir, count=numbers.broll.finale_cards)
     two_lines = set(captions.beats_with_two_lines)
+    faces: dict[str, FaceBox | None] = {}
+
+    def face_on(visual: VisualSpec | None) -> Box | None:
+        """The face on the beat's image in composition pixels, detected once per file."""
+        if detector is None or visual is None:
+            return None
+        if visual.src not in faces:
+            try:
+                faces[visual.src] = detector.detect(Path(visual.src))
+            except RuntimeError as exc:
+                faces[visual.src] = None
+                if log is not None:
+                    log(f"stamp: face detection skipped on {Path(visual.src).name}: {exc}")
+        face = faces[visual.src]
+        return face_box_on(visual, face) if face is not None else None
+
+    def off_face[S: StampSpec](beat_id: str, placed: S, visual: VisualSpec | None) -> S:
+        face = face_on(visual)
+        if face is None or visual is None:
+            return placed
+        moved, band = stamp_clear_of(placed, face, image_box_on(visual), numbers=numbers)
+        if log is not None:
+            if band is not None:
+                log(f"stamp: {beat_id}: {placed.text!r} moved off the face to the image's "
+                    f"{band} (056)")  # fmt: skip
+            elif moved is placed and stamp_box(placed).overlaps(face):
+                log(f"stamp: {beat_id}: {placed.text!r} left in place, no face-free band on "
+                    "the image (056)")  # fmt: skip
+        return cast("S", moved)
+
     beats: list[BeatSpec] = []
     for b in plan.beats:
         if b.enter not in numbers.transitions.enabled:
@@ -1301,7 +1495,9 @@ def build_spec(
                 enter=b.enter,
                 visual=visual,
                 punch_in=PUNCH_IN if mode == "full" else None,
-                stamp=stamp_spec(stamp, numbers=numbers) if stamp else None,
+                stamp=(
+                    off_face(b.id, stamp_spec(stamp, numbers=numbers), visual) if stamp else None
+                ),
                 lower_third=(
                     lower_third_spec(label, numbers=numbers)
                     if label and not labelled and b.id not in two_lines
@@ -1319,8 +1515,12 @@ def build_spec(
                 infographic=diagram,
                 map=map_layout(b, numbers=numbers, geocoder=geocoder),
                 counter=(
-                    counter_spec(b.counter, frames=end_frame - start_frame, fps=fps,
-                                 numbers=numbers)  # fmt: skip
+                    off_face(
+                        b.id,
+                        counter_spec(b.counter, frames=end_frame - start_frame, fps=fps,
+                                     numbers=numbers),  # fmt: skip
+                        visual,
+                    )
                     if b.counter is not None
                     else None
                 ),
@@ -1471,12 +1671,17 @@ def measured_pip(job: Job) -> PipGeometry | None:
 
 
 def spec_for_job(
-    job: Job, *, numbers: StyleNumbers | None = None, geocoder: geo.Geocoder | None = None
+    job: Job,
+    *,
+    numbers: StyleNumbers | None = None,
+    geocoder: geo.Geocoder | None = None,
+    detector: presenter.FaceDetector | None = None,
 ) -> RenderSpec:
     """The RenderSpec from the job's files: plan.json, captions.json, the presenter cut
     (`work/cut.mp4`, 005) and the measured PIP geometry (`job.json.presenter`, 013),
     with the numbers of the job's resolved style (`job.json.style`, 008). The short is
-    as long as the cut list. `geocoder` places the map markers (020)."""
+    as long as the cut list. `geocoder` places the map markers (020); `detector` keeps
+    the stamps off faces (056 (4)), its lines going to `job.log`."""
     numbers = numbers or style_numbers(job.record.style)
     plan = _load_plan(job)
     captions = load_captions(job)
@@ -1494,6 +1699,8 @@ def spec_for_job(
         job_dir=job.path,
         pip=measured_pip(job),
         geocoder=geocoder,
+        detector=detector,
+        log=lambda line: jobs.note(job, line),
     )
 
 
@@ -1502,9 +1709,10 @@ def render_picture(
     *,
     on_progress: Callable[[int], None] | None = None,
     geocoder: geo.Geocoder | None = None,
+    detector: presenter.FaceDetector | None = None,
 ) -> Path:
     """The `rendering` step's picture half: `work/picture.mp4`, silent H.264."""
-    spec = spec_for_job(job, geocoder=geocoder)
+    spec = spec_for_job(job, geocoder=geocoder, detector=detector)
     out = job.work_dir / "picture.mp4"
     run_driver(
         spec,
@@ -1718,7 +1926,13 @@ def sound_mix(
         log=lambda line: jobs.note(job, f"sound: {line}"),
     )
     jobs.note(job, result.summary())
-    if result.bed is None and not result.cues:
+    if result.balance.bed_dropped is not None:
+        # 056 (1): every repair failed on every candidate; the short goes out with the
+        # voice and the hits, and the page says so in one line.
+        _page_warning(
+            job, f"{sound.VOICE_AND_HITS_LINE} (last bed {result.balance.bed_dropped})"
+        )
+    elif result.bed is None and not result.cues:
         _voice_only(job, sound.NO_SEARCH_LINE if search is None else sound.SEARCH_EMPTY_LINE)
     return result
 
@@ -1726,7 +1940,12 @@ def sound_mix(
 def _voice_only(job: Job, why: str) -> None:
     """054 (5): the one line the job log and the job page both carry when the short goes
     out with no bed and no cues; written once, so a retry does not repeat it."""
-    line = f"voice only: {why} (the audio catalogue has nothing for this short)"
+    _page_warning(job, f"voice only: {why} (the audio catalogue has nothing for this short)")
+
+
+def _page_warning(job: Job, line: str) -> None:
+    """One `sound:` line in job.log and the same line among the job page's warnings,
+    written once, so a retry does not repeat it."""
     jobs.note(job, f"sound: {line}")
     current = jobs.load(job.path).record.warnings
     if line not in current:
@@ -1790,11 +2009,12 @@ def render_short(
     library: sound.Library | None = None,
     search: sound.AudioSearch | None = None,
     geocoder: geo.Geocoder | None = None,
+    detector: presenter.FaceDetector | None = None,
 ) -> Path:
     """The whole `rendering` step (9.1): cut, voice stem, picture, sound and mux."""
     cut_presenter(job)
     voice_stem(job)
-    render_picture(job, on_progress=on_progress, geocoder=geocoder)
+    render_picture(job, on_progress=on_progress, geocoder=geocoder, detector=detector)
     return mux(job, library=library, search=search)
 
 
@@ -1827,13 +2047,25 @@ class RemotionRenderer(Renderer):
     renderer owns it the way the asset step owns its sources, so the pipeline's `render`
     call stays the same with or without one. `geocoder` places the map markers (020):
     the bundled gazetteer alone by default, with Nominatim behind it when the operator
-    enables the fallback (`geo.from_settings`)."""
+    enables the fallback (`geo.from_settings`). `detector` is the 3.3 face detector the
+    stamps are kept off faces with (056 (4)); None is the Haar cascade, built on first
+    use."""
 
     def __init__(
-        self, *, search: sound.AudioSearch | None = None, geocoder: geo.Geocoder | None = None
+        self,
+        *,
+        search: sound.AudioSearch | None = None,
+        geocoder: geo.Geocoder | None = None,
+        detector: presenter.FaceDetector | None = None,
     ) -> None:
         self._search = search
         self.geocoder = geocoder or geo.GazetteerGeocoder()
+        self._detector = detector
+
+    def detector(self) -> presenter.FaceDetector:
+        if self._detector is None:
+            self._detector = presenter.HaarDetector()
+        return self._detector
 
     def render(
         self,
@@ -1844,7 +2076,7 @@ class RemotionRenderer(Renderer):
     ) -> Path:
         return render_short(
             job, on_progress=on_progress, library=library, search=self._search,
-            geocoder=self.geocoder,
+            geocoder=self.geocoder, detector=self.detector(),
         )  # fmt: skip
 
 

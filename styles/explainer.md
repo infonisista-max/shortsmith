@@ -1,5 +1,5 @@
 ---
-version: "3"
+version: "4"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
@@ -71,7 +71,7 @@ broll:
     wipe: {duration_s: 0.25}
   unique_assets_min_per_60s: 12
   unique_assets_max_per_60s: 24
-  reuse_max: 4
+  reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
   rescued_max_per_60s: 4
   card_max_bottom_y: 1240
   stamp_max_y_fraction: 0.6
@@ -110,8 +110,8 @@ captions:
 sound:
   bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
   default_bed_query: cinematic ambient documentary  # the bed search's last try (054)
-  bed_db_under_voice: -11
-  bed_accept_db: [-12, -9]
+  bed_db_under_voice: -14  # 056: run03 phone verdict "a bit loud, reduce by 30 %" = -3.1 dB
+  bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]
   speech_band_margin_db: 20
   duck_max_db: 4

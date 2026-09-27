@@ -89,7 +89,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
 from PIL import Image
 from pydantic import TypeAdapter
@@ -149,6 +149,7 @@ from shortsmith.contracts import (
     Generated,
     JudgeVerdict,
     Origin,
+    PicturePlan,
     ReferenceRecord,
     SearchOrigin,
     Treatment,
@@ -167,6 +168,8 @@ __all__ = [
     "MAX_UPSCALE",
     "STOCK_HOSTS",
     "STOCK_ORIGINS",
+    "STOPWORDS",
+    "TITLE_WORDS",
     "AssetError",
     "CommonsImageSource",
     "FakeImageGenerator",
@@ -192,6 +195,10 @@ __all__ = [
     "WebImageSource",
     "card_border",
     "covers_frame",
+    "image_reuse_problems",
+    "image_showings",
+    "is_showing",
+    "matching_reference",
     "media_type",
     "name_evidence",
     "name_words",
@@ -201,6 +208,7 @@ __all__ = [
     "reject_size",
     "source_assets",
     "source_order",
+    "subject_words",
 ]
 
 MANIFEST_NAME = "assets.json"
@@ -222,14 +230,31 @@ REDRESS_FOCI: tuple[tuple[float, float], ...] = (
     (0.5, 0.5), (0.35, 0.4), (0.65, 0.6), (0.4, 0.65), (0.6, 0.35),
 )  # fmt: skip
 
-# Words too generic to tie a query to a reference caption.
-_STOPWORDS = frozenset(
+# Words too generic to tie a query to a reference caption (056 (2): "image", "photo",
+# "with" never create a match).
+STOPWORDS = frozenset(
     [
         "the", "and", "for", "with", "from", "into", "over", "this", "that", "photo",
-        "image", "picture", "archival", "shot", "view", "close", "closeup", "old", "new",
-        "our", "your",
+        "image", "picture", "portrait", "archival", "shot", "view", "close", "closeup",
+        "old", "new", "our", "your", "his", "her", "their", "who", "which", "young",
+        "family", "official",
     ]
 )  # fmt: skip
+# 056 (2): titles and honorifics are not a subject's name; "king saud image" names Saud,
+# not every king in the plan. A capitalised title is therefore never a name word either.
+# Honorifics that are part of how a person is named (Neem Karoli Baba, Guru Nanak,
+# Swami Vivekananda) are not titles here: they stay name words.
+TITLE_WORDS = frozenset(
+    [
+        "king", "queen", "prince", "princess", "emperor", "empress", "sultan", "sheikh",
+        "shah", "nawab", "nizam", "maharaja", "raja", "rani", "president", "prime",
+        "minister", "chancellor", "premier", "governor", "general", "colonel", "captain",
+        "admiral", "marshal", "lord", "lady", "sir", "dame", "duke", "duchess", "count",
+        "baron", "chief", "ceo", "founder", "chairman", "doctor", "professor", "saint",
+        "pope", "bishop", "shri", "sri", "smt", "mr", "mrs", "ms", "dr",
+    ]
+)  # fmt: skip
+_STOPWORDS = STOPWORDS | TITLE_WORDS
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
 
 Clock = Callable[[], datetime]
@@ -315,6 +340,38 @@ class _Fetched:
     generated: Generated | None = None
     verdict: JudgeVerdict | None = None
     judge_skipped: bool = False
+
+    def sha256(self) -> str:
+        return hashlib.sha256(self.path.read_bytes()).hexdigest()
+
+
+def _fetched_dict(fetched: _Fetched) -> dict[str, object]:
+    assert fetched.candidate is not None
+    return {
+        "candidate": fetched.candidate.model_dump(mode="json"),
+        "judge": fetched.verdict.model_dump(mode="json") if fetched.verdict else None,
+        "file": fetched.path.name,
+        "fetched_at": fetched.fetched_at,
+    }
+
+
+def _alternates(record: Mapping[str, object]) -> list[Mapping[str, object]]:
+    """The `alternates` of a cache record: the files fetched after the first (056 (3))."""
+    listed = record.get("alternates")
+    if not isinstance(listed, list):
+        return []
+    return [alt for alt in cast("list[object]", listed) if isinstance(alt, Mapping)]  # pyright: ignore[reportUnknownVariableType]
+
+
+def _fetched_from(data: Mapping[str, object], folder: Path, judge_skipped: bool) -> _Fetched:
+    verdict = data.get("judge")
+    return _Fetched(
+        folder / str(data["file"]),
+        Candidate.model_validate(data["candidate"]),
+        str(data["fetched_at"]),
+        verdict=JudgeVerdict.model_validate(verdict) if verdict else None,
+        judge_skipped=judge_skipped,
+    )
 
 
 @dataclass(frozen=True)
@@ -415,45 +472,66 @@ def _search_cached(
     border_px: int = 0,
     names: frozenset[str] = frozenset(),
     log: Callable[[str], None] = lambda _: None,
+    saturated: Callable[[str], str | None] = lambda _: None,
 ) -> _Fetched | None:
-    """The candidate `query` from `source` gives this beat (5.2), fetched once per job."""
+    """The candidate `query` from `source` gives this beat (5.2), fetched once per job.
+
+    056 (3): `saturated(sha256)` says why a file may not be shown again (its showings
+    are spent), or None. A candidate whose file is saturated is skipped with that line
+    and the next ranked one is fetched - into the same cache folder as `alternates`, so
+    a later beat asking the same query finds every file already fetched and downloads
+    only what is new. The search itself is never repeated."""
     folder = cache / cache_key(query, name)
     result = folder / "result.json"
     if result.is_file():
         data = json.loads(result.read_text(encoding="utf-8"))
         if data["file"] is None:
             return None
-        candidate = Candidate.model_validate(data["candidate"])
-        verdict = data.get("judge")
-        return _Fetched(
-            folder / data["file"],
-            candidate,
-            data["fetched_at"],
-            verdict=JudgeVerdict.model_validate(verdict) if verdict else None,
-            judge_skipped=bool(data.get("judge_skipped", False)),
+        skipped = bool(data.get("judge_skipped", False))
+        fetched_all = [_fetched_from(data, folder, skipped)] + [
+            _fetched_from(alt, folder, skipped) for alt in _alternates(data)
+        ]
+        for fetched in fetched_all:
+            why = saturated(fetched.sha256())
+            if why is None:
+                return fetched
+            log(f"sourcing: {fetched.candidate.url if fetched.candidate else '?'} skipped: {why}")  # noqa: E501
+        candidates = _CANDIDATES.validate_python(data["candidates"])
+        verdicts = (
+            judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
+            if data.get("judged")
+            else None
         )
-    folder.mkdir(parents=True, exist_ok=True)
-    searching.count(name)
-    found = source.search(query, CANDIDATES)
-    for line in source.drain():
-        log(f"sourcing: {line}")
-    candidates = keep(found, log, border_px)
-    verdicts = judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
-    record: dict[str, object] = {
-        "query": query,
-        "source": name,
-        "candidates": _CANDIDATES.dump_python(candidates, mode="json"),
-        "judged": verdicts is not None,
-        "candidate": None,
-        "judge": None,
-        "judge_skipped": verdicts is None,
-        "file": None,
-        "fetched_at": None,
-    }
+        record: dict[str, object] = dict(data)
+    else:
+        folder.mkdir(parents=True, exist_ok=True)
+        searching.count(name)
+        found = source.search(query, CANDIDATES)
+        for line in source.drain():
+            log(f"sourcing: {line}")
+        candidates = keep(found, log, border_px)
+        verdicts = judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
+        fetched_all = []
+        record = {
+            "query": query,
+            "source": name,
+            "candidates": _CANDIDATES.dump_python(candidates, mode="json"),
+            "judged": verdicts is not None,
+            "candidate": None,
+            "judge": None,
+            "judge_skipped": verdicts is None,
+            "file": None,
+            "fetched_at": None,
+            "alternates": [],
+        }
+    seen = {f.candidate.url for f in fetched_all if f.candidate is not None}
     fetched: _Fetched | None = None
     for ranked in rank(candidates, verdicts, names):
+        if ranked.candidate.url in seen:
+            continue
+        dest = folder / ("image" if not fetched_all else f"image-{len(fetched_all) + 1}")
         try:
-            path = source.fetch(ranked.candidate, folder / "image")
+            path = source.fetch(ranked.candidate, dest)
         except SourceError as exc:
             log(f"sourcing: {exc}")
             continue
@@ -462,19 +540,23 @@ def _search_cached(
             log(f"sourcing: {ranked.candidate.url} rejected: {why}")
             path.unlink(missing_ok=True)
             continue
-        fetched = _Fetched(
+        got = _Fetched(
             path,
             ranked.candidate,
             clock().isoformat(),
             verdict=_verdict(judging.model, ranked.verdict),
             judge_skipped=verdicts is None,
         )
-        record |= {
-            "candidate": ranked.candidate.model_dump(mode="json"),
-            "judge": fetched.verdict.model_dump(mode="json") if fetched.verdict else None,
-            "file": path.name,
-            "fetched_at": fetched.fetched_at,
-        }
+        if not fetched_all:
+            record |= _fetched_dict(got)
+        else:
+            record["alternates"] = [*_alternates(record), _fetched_dict(got)]
+        fetched_all.append(got)
+        why = saturated(got.sha256())
+        if why is not None:
+            log(f"sourcing: {ranked.candidate.url} skipped: {why}")
+            continue
+        fetched = got
         break
     result.write_text(json.dumps(record, indent=2), encoding="utf-8")
     return fetched
@@ -498,12 +580,23 @@ def _words(text: str) -> set[str]:
     return {w for w in _WORD.findall(text.lower()) if len(w) >= 3 and w not in _STOPWORDS}
 
 
+def subject_words(beat: Beat) -> frozenset[str]:
+    """What the beat is about, as words (056 (2)): the name the plan wrote (`name_words`,
+    the capitalised words of the query with titles and generic words out), else every
+    significant word of the query."""
+    names = name_words(beat)
+    return names if names else frozenset(_words(beat.query))
+
+
 def matching_reference(
-    query: str, references: Sequence[ReferenceRecord]
+    beat: Beat, references: Sequence[ReferenceRecord]
 ) -> ReferenceRecord | None:
-    """The reference whose caption shares the most significant words with `query`
-    (first on a tie), or None when none shares a word."""
-    wanted = _words(query)
+    """The owner reference whose caption names the beat's subject (056 (2)): the caption
+    must share a subject word with the beat - a title or a generic word (king, image,
+    with) never counts, and a caption left with no significant word is too vague to
+    match anything, so it goes only where the planner named it. The caption sharing the
+    most words wins, the first on a tie; None when no caption names the subject."""
+    wanted = subject_words(beat)
     best: ReferenceRecord | None = None
     best_score = 0
     for ref in references:
@@ -571,17 +664,105 @@ def rescued_max(spec: StyleSpec, runtime_s: float) -> int:
     return math.ceil(spec.broll.rescued_max_per_60s * runtime_s / 60 - EPS)
 
 
+# 056 (3): a showing is a beat that puts the picture on screen as its own. A `number` or
+# `quote` beat over the previous beat's picture carries that showing on (4.2, and the
+# renderer continues the motion), and the wall's base and the finale's cards are set
+# pieces; neither spends a showing.
+SET_PIECE_KINDS = frozenset({"wall", "finale"})
+
+
+def is_showing(beat: Beat, asset_id: str, previous_asset_id: str | None) -> bool:
+    if beat.kind in SET_PIECE_KINDS:
+        return False
+    return not (beat.subject_kind in REUSING_KINDS and asset_id == previous_asset_id)
+
+
+def image_showings(manifest: AssetManifest, plan: PicturePlan) -> dict[str, list[str]]:
+    """Per image (`sha256`, however many ids point at it), the beats that show it (056
+    (3)): carry-on beats and set pieces left out, as `source_assets` counts them."""
+    beats = {b.id: b for b in plan.beats}
+    out: dict[str, list[str]] = {}
+    previous: str | None = None
+    for shown in manifest.beats:
+        if shown.asset_id is None:
+            previous = None
+            continue
+        beat, record = beats.get(shown.beat_id), manifest.asset(shown.asset_id)
+        if beat is not None and record is not None and is_showing(beat, record.id, previous):
+            out.setdefault(record.sha256, []).append(shown.beat_id)
+        previous = shown.asset_id
+    return out
+
+
+def image_reuse_problems(manifest: AssetManifest, plan: PicturePlan) -> list[str]:
+    """The 4.3 rule counted by image (056 (3)), for gate T8: every image shown more than
+    `manifest.reuse_max` times, named by its ids and its beats. Empty on a manifest
+    written before the rule (`reuse_max` 0)."""
+    if manifest.reuse_max <= 0:
+        return []
+    problems: list[str] = []
+    for digest, beat_ids in image_showings(manifest, plan).items():
+        if len(beat_ids) <= manifest.reuse_max:
+            continue
+        ids = sorted(a.id for a in manifest.assets if a.sha256 == digest)
+        problems.append(
+            f"image {digest[:8]} ({', '.join(ids)}) is shown {len(beat_ids)} times "
+            f"({', '.join(beat_ids)}), over broll.reuse_max {manifest.reuse_max}"
+        )
+    return problems
+
+
 @dataclass
 class _Walk:
     job_dir: Path
     cache: Path
     clock: Clock
     references: Sequence[ReferenceRecord]
+    reuse_max: int = 0
     records: dict[str, AssetRecord] = field(default_factory=lambda: {})
     beats: list[BeatAsset] = field(default_factory=lambda: [])
     subjects: dict[str, str] = field(default_factory=lambda: {})  # beat id -> subject kind
     aliases: dict[str, str | None] = field(default_factory=lambda: {})
     redresses: dict[str, int] = field(default_factory=lambda: {})
+    # 056 (3): showings per image (sha256), and the last asset shown, for the carry-on.
+    showings: dict[str, int] = field(default_factory=lambda: {})
+    last_asset: str | None = None
+
+    def blocked_sha(self, beat: Beat, digest: str) -> str | None:
+        """Why the image `digest` may not be shown on `beat` (056 (3)), or None: its
+        `reuse_max` showings are spent and this beat would be one more."""
+        if beat.kind in SET_PIECE_KINDS or self.reuse_max <= 0:
+            return None
+        shown = self.showings.get(digest, 0)
+        if shown < self.reuse_max:
+            return None
+        ids = sorted(r.id for r in self.records.values() if r.sha256 == digest)
+        return (
+            f"image {digest[:8]} ({', '.join(ids) or 'not catalogued yet'}) already shown "
+            f"{shown} times (broll.reuse_max {self.reuse_max})"
+        )
+
+    def blocked(self, beat: Beat, record: AssetRecord) -> str | None:
+        """`blocked_sha` for a catalogued asset; a carry-on beat is never blocked."""
+        if not is_showing(beat, record.id, self.last_asset):
+            return None
+        return self.blocked_sha(beat, record.sha256)
+
+    def blocked_ref(self, beat: Beat, ref: ReferenceRecord) -> str | None:
+        """`blocked` for an owner reference, read off the record that already carries
+        its file; a reference no beat has shown yet is never blocked."""
+        rel = f"input/{ref.file}" if ref.kind == "image" else None
+        existing = next((r for r in self.records.values() if r.file == rel), None)
+        return self.blocked(beat, existing) if existing is not None else None
+
+    def new_id(self, beat: Beat) -> str:
+        """The record id for a beat's newly sourced asset: the planned id, unless an
+        earlier beat already bound it to another file (056 (3): the third beat wanting
+        a spent image gets its own record)."""
+        planned = beat.asset_id
+        if planned is not None and planned not in self.records:
+            return planned
+        return f"{beat.id}-asset"
 
     def add(self, asset_id: str, path: Path, *, origin: Origin, fetched_at: str,
             kind: Literal["image", "clip_frame"] = "image", candidate: Candidate | None = None,
@@ -623,6 +804,9 @@ class _Walk:
             times = self.redresses.get(record.id, 0) + 1
             self.redresses[record.id] = times
             crop = redress_crop(times)
+        if is_showing(beat, record.id, self.last_asset):
+            self.showings[record.sha256] = self.showings.get(record.sha256, 0) + 1
+        self.last_asset = record.id
         self.beats.append(
             BeatAsset(
                 beat_id=beat.id,
@@ -647,21 +831,26 @@ class _Walk:
                       stamp=stamp_word(beat))
         )  # fmt: skip
         self.subjects[beat.id] = beat.subject_kind or ""
+        self.last_asset = None
         if beat.asset_id is not None:
             self.aliases.setdefault(beat.asset_id, None)
 
-    def nearest(self, subject: str | None = None) -> AssetRecord | None:
-        """The asset of the nearest earlier beat that shows one (of `subject` kind)."""
+    def nearest(
+        self, subject: str | None = None, *, free_for: Beat | None = None
+    ) -> AssetRecord | None:
+        """The asset of the nearest earlier beat that shows one (of `subject` kind);
+        with `free_for`, only one that still has a showing left for that beat (056 (3):
+        a rescue never re-dresses a spent image)."""
         for shown in reversed(self.beats):
             if shown.asset_id is None:
                 continue
-            if subject is None or self.subjects.get(shown.beat_id) == subject:
-                return self.records[shown.asset_id]
+            if subject is not None and self.subjects.get(shown.beat_id) != subject:
+                continue
+            record = self.records[shown.asset_id]
+            if free_for is not None and self.blocked(free_for, record) is not None:
+                continue
+            return record
         return None
-
-
-def _new_id(beat: Beat) -> str:
-    return beat.asset_id or f"{beat.id}-asset"
 
 
 def source_assets(
@@ -686,7 +875,8 @@ def source_assets(
     cache.mkdir(parents=True, exist_ok=True)
     searched = [(name, sources[name]) for name in source_order(order, policy) if name in sources]
     by_id = {ref.id: ref for ref in references}
-    walk = _Walk(job_dir=job_dir, cache=cache, clock=clock, references=references)
+    walk = _Walk(job_dir=job_dir, cache=cache, clock=clock, references=references,
+                 reuse_max=spec.broll.reuse_max)  # fmt: skip
     judging = judging if judging is not None else Judging()
     searching = searching if searching is not None else Searching()
     generating = generating if generating is not None else Generating()
@@ -704,16 +894,20 @@ def source_assets(
             )
         return [(name, source) for name, source in searched if name not in STOCK_ORIGINS]
 
+    def cached(beat: Beat, name: str, source: ImageSource, query: str) -> _Fetched | None:
+        named = depicts_of(beat) == "named_entity"
+        return _search_cached(
+            source, name, query, cache, clock, judging, searching,
+            subject_kind=beat.subject_kind or "", topic=topic, border_px=border,
+            names=name_words(beat) if named else frozenset(), log=log,
+            saturated=lambda digest: walk.blocked_sha(beat, digest),
+        )  # fmt: skip
+
     def search(beat: Beat, query: str) -> tuple[_Fetched, SearchOrigin] | None:
         if not query:
             return None
-        named = depicts_of(beat) == "named_entity"
         for name, source in sources_for(beat):
-            found = _search_cached(
-                source, name, query, cache, clock, judging, searching,
-                subject_kind=beat.subject_kind or "", topic=topic, border_px=border,
-                names=name_words(beat) if named else frozenset(), log=log,
-            )  # fmt: skip
+            found = cached(beat, name, source, query)
             if found is not None:
                 return found, source.origin
         return None
@@ -724,14 +918,9 @@ def source_assets(
         judged one always beats it."""
         if not query:
             return None
-        named = depicts_of(beat) == "named_entity"
         best: tuple[int, _Fetched, SearchOrigin] | None = None
         for name, source in sources_for(beat):
-            found = _search_cached(
-                source, name, query, cache, clock, judging, searching,
-                subject_kind=beat.subject_kind or "", topic=topic, border_px=border,
-                names=name_words(beat) if named else frozenset(), log=log,
-            )  # fmt: skip
+            found = cached(beat, name, source, query)
             if found is None:
                 continue
             score = found.verdict.score if found.verdict is not None else 0
@@ -743,8 +932,11 @@ def source_assets(
         made = generating.make(beat, cache, force=force)
         if made is None:
             return None
-        return walk.add(_new_id(beat), made.path, origin="generated",
+        return walk.add(walk.new_id(beat), made.path, origin="generated",
                         fetched_at=clock().isoformat(), generated=made.generated)  # fmt: skip
+
+    def skipped(beat: Beat, why: str) -> None:
+        log(f"sourcing: {beat.id}: {why}; the next candidate is tried (056)")
 
     opening = {b.id for b in picture.beats[: spec.beats.opening_beats_min]}
 
@@ -757,7 +949,7 @@ def source_assets(
                 continue
             fetched, origin = hit
             record = walk.add(
-                _new_id(beat), fetched.path, origin=origin,
+                walk.new_id(beat), fetched.path, origin=origin,
                 fetched_at=fetched.fetched_at, candidate=fetched.candidate,
                 judge=fetched.verdict,
             )  # fmt: skip
@@ -777,22 +969,33 @@ def source_assets(
         if beat.kind in NOT_SOURCED or beat.subject_kind is None:
             continue
         planned = beat.asset_id
+        # 056 (3): a planned reuse, an owner reference or a caption match is taken only
+        # while the image has a showing left; past that the beat is sourced afresh.
         if planned is not None and planned in walk.records:
-            walk.show(beat, walk.records[planned], 0)
-            continue
-        if planned is not None and planned in by_id:
-            walk.show(beat, walk.owner(planned, by_id[planned]), 0)
-            continue
-        ref = matching_reference(beat.query, references)
+            why = walk.blocked(beat, walk.records[planned])
+            if why is None:
+                walk.show(beat, walk.records[planned], 0)
+                continue
+            skipped(beat, why)
+        elif planned is not None and planned in by_id:
+            why = walk.blocked_ref(beat, by_id[planned])
+            if why is None:
+                walk.show(beat, walk.owner(planned, by_id[planned]), 0)
+                continue
+            skipped(beat, why)
+        ref = matching_reference(beat, references)
         if ref is not None:
-            walk.show(beat, walk.owner(_new_id(beat), ref), 0)
-            continue
+            why = walk.blocked_ref(beat, ref)
+            if why is None:
+                walk.show(beat, walk.owner(walk.new_id(beat), ref), 0)
+                continue
+            skipped(beat, why)
         if beat.id in opening:
             source_opening(beat)
             continue
         if beat.subject_kind in REUSING_KINDS or beat.source_intent == "reuse":
             previous = walk.nearest()
-            if previous is not None:
+            if previous is not None and walk.blocked(beat, previous) is None:
                 walk.show(beat, previous, 0)
                 continue
             if beat.subject_kind in REUSING_KINDS:
@@ -814,7 +1017,7 @@ def source_assets(
         if found is not None:
             rung, (fetched, origin) = found
             record = walk.add(
-                _new_id(beat), fetched.path, origin=origin,
+                walk.new_id(beat), fetched.path, origin=origin,
                 fetched_at=fetched.fetched_at, candidate=fetched.candidate,
                 judge=fetched.verdict,
             )  # fmt: skip
@@ -824,7 +1027,7 @@ def source_assets(
         if record is not None:
             walk.show(beat, record, 2)
             continue
-        earlier = walk.nearest(beat.subject_kind)
+        earlier = walk.nearest(beat.subject_kind, free_for=beat)
         if earlier is not None:
             walk.show(beat, earlier, 3, redressed=True)
             continue
@@ -839,6 +1042,7 @@ def source_assets(
         aliases=walk.aliases,
         runtime_s=runtime,
         rescued_max=rescued_max(spec, runtime),
+        reuse_max=spec.broll.reuse_max,
         judge_calls=judging.calls,
         judge_max=judging.max_calls,
         search_queries=searching.queries,

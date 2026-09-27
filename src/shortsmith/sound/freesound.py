@@ -6,10 +6,12 @@ tagged with an intent the short needs (054), the director asks this adapter one 
 rung at a time - a few plain words, never the planner's sentence (`sound.bed_queries`,
 `sound.sfx_queries`). It searches Freesound's text endpoint (one GET, the free API key as
 a `Token` header, never in the URL), downloads the best result, measures it with the 023
-script, runs a cue through the R1-R4 detector, and appends it to `catalog.yaml` with
-`source: freesound`, its licence text and its author. The result is an ordinary library
-entry, so its rights row (5.4) is the row every library file gets, and the next job
-finds it in the catalogue without a call.
+script, runs a cue through the R1-R4 detector, and appends it to the runtime catalogue
+`fetched/catalog.yaml` (056 (6): beside the fetched files, git-ignored; the tracked
+`catalog.yaml` is the operator's and no job changes it) with `source: freesound`, its
+licence text and its author. `sound.load_catalogue` reads the tracked file and then the
+fetched one, so the result is an ordinary library entry: its rights row (5.4) is the row
+every library file gets, and the next job finds it in the library without a call.
 
 **What is fetched.** Freesound's original files need an OAuth2 grant; the previews need
 only the token, so the HQ mp3 preview (else the HQ ogg) is what lands under
@@ -52,6 +54,7 @@ import httpx
 from pydantic import SecretStr
 
 from shortsmith import ffmpeg
+from shortsmith import sound as sound_module
 from shortsmith.config import Settings
 from shortsmith.contracts import AudioCandidate, AudioEntry, AudioKind, AudioTags, BedQuery
 from shortsmith.sound import (
@@ -74,7 +77,7 @@ PAGE_SIZE = 5
 TIMEOUT_S = 30.0
 MAX_BYTES = 30 * 1024 * 1024
 SOURCE = "freesound"
-FETCHED_DIR = "fetched"
+FETCHED_DIR = sound_module.FETCHED_DIR
 ID_PREFIX = "freesound_"
 # The previews, best first: the HQ mp3 is what a bed is fetched as; ogg when there is none.
 PREVIEWS: tuple[str, ...] = ("preview-hq-mp3", "preview-hq-ogg", "preview-lq-mp3", "preview-lq-ogg")
@@ -341,7 +344,8 @@ class FreesoundAudioSearch(AudioSearch):
             loop_ok=candidate.kind == "bed" and bool(LOOP_TAGS & {t.lower() for t in candidate.tags}),  # noqa: E501
             energy=measured.energy,
         )
-        append_entry(library.catalogue, entry)
+        # 056 (6): the runtime catalogue, never the tracked one.
+        append_entry(library.fetched_catalogue, entry)
         return entry
 
     def bed(self, words: str, query: BedQuery, library: Library) -> SearchOutcome:

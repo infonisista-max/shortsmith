@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -420,9 +421,11 @@ def test_classification_reads_the_fetched_file_not_the_reported_size(tmp_path: P
 # --- the ladder (4.4) -------------------------------------------------------------------
 
 
-def _write_png(path: Path, size: tuple[int, int] = (1080, 1920)) -> Path:
+def _write_png(
+    path: Path, size: tuple[int, int] = (1080, 1920), color: tuple[int, int, int] = (90, 40, 20)
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", size, (90, 40, 20)).save(path, format="PNG")
+    Image.new("RGB", size, color).save(path, format="PNG")
     return path
 
 
@@ -487,10 +490,14 @@ def test_rung_3_redresses_the_nearest_earlier_same_kind_asset(tmp_path: Path) ->
 
 
 def test_each_redress_of_one_asset_gets_a_new_crop(tmp_path: Path) -> None:
+    """Three showings of one image need a style that allows three (056 (3): the shipped
+    `reuse_max` is 2, so the shared spec would send the third beat to rung 4)."""
     missing = {"query 2", "fallback 2", "query 3", "fallback 3"}
     web = assets.FakeImageSource("web", nothing_for=missing)
     beats = [_beat(1, "concept"), _beat(2, "concept"), _beat(3, "concept")]
-    crops = [b.crop for b in _run(tmp_path, beats, sources={"web": web}).beats]
+    roomy = SPEC.model_copy(deep=True)
+    roomy.broll.reuse_max = 3
+    crops = [b.crop for b in _run(tmp_path, beats, sources={"web": web}, spec=roomy).beats]
     assert len({c.model_dump_json() for c in crops}) == 3
 
 
@@ -701,7 +708,9 @@ def test_the_generation_cap_sends_the_beat_on_to_the_ladder(tmp_path: Path) -> N
     log: list[str] = []
     generating = _generating(cap=1)
     manifest = _run(tmp_path, beats, sources={"web": empty}, generating=generating, log=log)
-    assert [b.fallback_rung for b in manifest.beats] == [2, 3, 3]
+    # 056 (3): the one generated image is re-dressed once (its second showing) and never
+    # a third time, so the last beat is the gradient.
+    assert [b.fallback_rung for b in manifest.beats] == [2, 3, 4]
     assert (manifest.generated_images, manifest.gen_max) == (1, 1)
     assert [line for line in log if "gen_max_per_short (1) is spent" in line]
 
@@ -866,7 +875,9 @@ class Scripted(assets.ImageSource):
         self.fetched.append(candidate.url)
         size = (candidate.width or 1600, candidate.height or 1200)
         path = dest.with_suffix(".png")
-        _write_png(path, size)
+        # 056 (3): images are counted by file, so each candidate is its own picture.
+        digest = hashlib.sha256(candidate.url.encode("utf-8")).digest()
+        _write_png(path, size, color=(digest[0], digest[1], digest[2]))
         return path
 
 
@@ -1078,3 +1089,162 @@ def test_the_topic_line_is_the_briefs_first_line(tmp_path: Path) -> None:
         "\n# Topic: why India Gate was built\n\nMust-say: 1931.\n", encoding="utf-8"
     )
     assert assets.topic_line(job) == "Topic: why India Gate was built"
+
+
+# --- 056: an owner photo goes only to beats about what its caption names ------------------
+#
+# run03 (job 20260927-140915-bbad1c): the caption "king saud image" shared "king" with
+# nearly every query, so one portrait filled eleven beats, one of them about King Faisal.
+
+RUN03_CAPTIONS = (
+    ("ref1", "king saud image"),
+    ("ref2", "king saud with stepbrother who abducted his throne"),
+    ("ref3", "with daughter"),
+    ("ref4", "with nizab hyderabad"),
+)
+
+
+def _run03_refs(job: Path) -> list[ReferenceRecord]:
+    return [_reference(job, ref_id, caption, (819, 1024)) for ref_id, caption in RUN03_CAPTIONS]
+
+
+def test_a_title_word_never_creates_a_match(tmp_path: Path) -> None:
+    """056 (2): "king" is a title, so "king saud image" does not match the Faisal beat."""
+    job = _job_dir(tmp_path)
+    refs = _run03_refs(job)
+    beat = _beat(1, "entity", kind="card", query="King Faisal bin Abdulaziz 1964 portrait",
+                 fallback="King Faisal Saudi Arabia", asset="faisal")  # fmt: skip
+    assert assets.matching_reference(beat, refs) is None
+    manifest = _run(tmp_path, [beat], references=refs, job=job)
+    assert manifest.assets[0].origin == "web"
+
+
+def test_a_caption_that_names_the_beats_subject_still_matches(tmp_path: Path) -> None:
+    job = _job_dir(tmp_path)
+    refs = _run03_refs(job)
+    old = _beat(1, "entity", kind="card", query="King Saud old age 1960s photo", asset="saud_old")
+    found = assets.matching_reference(old, refs)
+    assert found is not None and found.id == "ref1"
+    brother = _beat(2, "entity", kind="card", query="King Saud with King Faisal stepbrother")
+    found = assets.matching_reference(brother, refs)
+    assert found is not None and found.id in ("ref1", "ref2")
+
+
+def test_a_vague_caption_goes_only_where_the_planner_named_it(tmp_path: Path) -> None:
+    """056 (2): "with daughter" names nobody, so it matches no query; the beat that names
+    the reference id still gets it."""
+    job = _job_dir(tmp_path)
+    refs = _run03_refs(job)
+    daughter = _beat(1, "entity", kind="card", query="Princess Dalal with her daughter", asset="x1")
+    assert assets.matching_reference(daughter, refs) is None
+    saud = _beat(1, "entity", kind="card", query="King Saud with daughter", asset="x1")
+    found = assets.matching_reference(saud, refs)
+    assert found is not None and found.id == "ref1", "Saud is named; 'with daughter' is not"
+    named = _beat(1, "entity", kind="card", query="King Saud with daughter", asset="ref3")
+    manifest = _run(tmp_path, [named], references=refs, job=job)
+    assert (manifest.beats[0].asset_id, manifest.assets[0].origin) == ("ref3", "owner_supplied")
+
+
+def test_generic_words_are_not_subject_words() -> None:
+    for word in ("king", "prince", "president", "image", "photo", "with", "portrait"):
+        assert word in assets.TITLE_WORDS or word in assets.STOPWORDS, word
+
+
+# --- 056: no image on repeat, counted by file --------------------------------------------
+
+
+def _shas(manifest: assets.AssetManifest) -> dict[str, str]:
+    return {a.id: a.sha256 for a in manifest.assets}
+
+
+def test_the_manifest_carries_the_styles_reuse_max(tmp_path: Path) -> None:
+    manifest = _run(tmp_path, [_beat(1, "concept")])
+    assert manifest.reuse_max == SPEC.broll.reuse_max == 2
+
+
+def test_a_third_beat_wanting_the_same_image_gets_the_next_candidate(tmp_path: Path) -> None:
+    """056 (3): one image at most twice per short; the third beat that plans the same
+    asset id takes the next candidate of its own search, never the same file."""
+    web = assets.FakeImageSource("web")
+    log: list[str] = []
+    beats = [_beat(1, "concept", asset="a1", query="same"),
+             _beat(2, "concept", asset="a1", query="same"),
+             _beat(3, "concept", asset="a1", query="same")]  # fmt: skip
+    manifest = _run(tmp_path, beats, sources={"web": web}, log=log)
+    shown = [b.asset_id for b in manifest.beats]
+    assert shown[0] == shown[1] == "a1" and shown[2] not in (None, "a1")
+    shas = _shas(manifest)
+    assert shas[shown[2]] != shas["a1"], "the third beat shows another picture"
+    assert manifest.beats[2].fallback_rung == 0 and not manifest.beats[2].rescued
+    assert web.searches == 1, "the cached search's next candidate, not a new search"
+    assert any("already shown 2 times" in line and "b03" in line for line in log), log
+
+
+def test_several_ids_for_one_file_count_as_one_image(tmp_path: Path) -> None:
+    """run03: `saud_1953`, `saud_young`, `royal_court`, `saud_old` and `faisal` were
+    five ids for `ref1`'s file. Counted by sha256 they are one image."""
+    job = _job_dir(tmp_path)
+    ref = _reference(job, "ref1", "king saud image", (819, 1024))
+    beats = [
+        _beat(1, "entity", kind="card", query="King Saud portrait", asset="ref1"),
+        _beat(2, "entity", kind="card", query="King Saud accession 1953", asset="saud_1953"),
+        _beat(3, "entity", kind="card", query="young Prince Saud 1920s", asset="saud_young"),
+        _beat(4, "entity", kind="card", query="King Saud old age", asset="saud_old"),
+    ]
+    manifest = _run(tmp_path, beats, references=[ref], job=job)
+    origins: list[str] = []
+    for shown in manifest.beats:
+        record = manifest.asset(shown.asset_id or "")
+        assert record is not None
+        origins.append(record.origin)
+    assert origins == ["owner_supplied", "owner_supplied", "web", "web"]
+    counts = Counter(_shas(manifest)[b.asset_id] for b in manifest.beats if b.asset_id)
+    assert max(counts.values()) <= 2
+
+
+def test_a_carry_on_beat_is_part_of_the_same_showing(tmp_path: Path) -> None:
+    """056 (3): a number or quote beat over the previous picture does not spend a
+    showing, so the picture may still come back once more later."""
+    web = assets.FakeImageSource("web")
+    beats = [_beat(1, "concept", asset="a1"), _beat(2, "number", asset="a1"),
+             _beat(3, "quote", asset="a1"), _beat(4, "entity"),
+             _beat(5, "concept", asset="a1"), _beat(6, "concept", asset="a1")]  # fmt: skip
+    manifest = _run(tmp_path, beats, sources={"web": web})
+    shown = [b.asset_id for b in manifest.beats]
+    assert shown[:5] == ["a1", "a1", "a1", "a4", "a1"]
+    assert shown[5] not in ("a1", None) and _shas(manifest)[shown[5]] != _shas(manifest)["a1"]
+
+
+def test_a_set_piece_base_is_not_a_showing(tmp_path: Path) -> None:
+    web = assets.FakeImageSource("web")
+    beats = [_beat(1, "concept", asset="a1"), _beat(2, "concept", kind="wall", asset="a1"),
+             _beat(3, "concept", asset="a1")]  # fmt: skip
+    manifest = _run(tmp_path, beats, sources={"web": web})
+    assert [b.asset_id for b in manifest.beats] == ["a1", "a1", "a1"]
+
+
+def test_a_rescue_never_redresses_a_saturated_image(tmp_path: Path) -> None:
+    """056 (3): rung 3 re-dresses only an image with a showing left; with none left the
+    beat goes to rung 4, never the same picture a third time."""
+    web = assets.FakeImageSource("web", nothing_for={"query 3", "fallback 3"})
+    beats = [_beat(1, "concept", asset="a1"), _beat(2, "concept", asset="a1"),
+             _beat(3, "concept")]  # fmt: skip
+    manifest = _run(tmp_path, beats, sources={"web": web})
+    assert (manifest.beats[2].asset_id, manifest.beats[2].fallback_rung) == (None, 4)
+
+
+def test_image_reuse_problems_name_the_image_over_the_cap(tmp_path: Path) -> None:
+    """The T8 view of the rule: a manifest whose ids hide one file shown three times."""
+    web = assets.FakeImageSource("web")
+    beats = [_beat(1, "concept", asset="a1"), _beat(2, "concept", asset="a1")]
+    manifest = _run(tmp_path, beats, sources={"web": web})
+    record = manifest.assets[0]
+    twin = record.model_copy(update={"id": "twin"})
+    extra = manifest.beats[1].model_copy(update={"beat_id": "b03", "asset_id": "twin"})
+    tripled = manifest.model_copy(
+        update={"assets": [record, twin], "beats": [*manifest.beats, extra]}
+    )
+    plan = _plan([*beats, _beat(3, "concept", asset="twin")]).picture
+    assert assets.image_reuse_problems(manifest, plan) == []
+    (problem,) = assets.image_reuse_problems(tripled, plan)
+    assert "3 times" in problem and "a1" in problem and "twin" in problem

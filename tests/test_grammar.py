@@ -880,7 +880,9 @@ def test_label_flyin_rides_only_on_an_infographic(spec: StyleSpec) -> None:
 def test_unique_asset_count_scales_with_runtime(spec: StyleSpec) -> None:
     """55.5 s: 12/60 s -> 11 needed, 24/60 s -> 23 allowed; the opening's two assets
     count with the body's."""
-    checked(make_plan(assets=9), spec)  # 9 + 2 = 11
+    # 056 (3): twenty body beats over `reuse_max` 2 showings need ten assets, so the
+    # floor is met with room (10 + 2 = 12) and missed at 8 + 2 = 10.
+    checked(make_plan(assets=10), spec)
     assert (None, "4.3") in rules(picture(make_plan(assets=8), spec))
     # 60.2 s of 2.0 s beats: 24/60 s -> 25 allowed; 27 fresh assets is a slideshow's
     # opposite, a blur (4.3).
@@ -892,15 +894,31 @@ def test_unique_asset_count_scales_with_runtime(spec: StyleSpec) -> None:
 
 
 def test_reuse_over_reuse_max_is_rejected(spec: StyleSpec) -> None:
-    """4.3: `reuse_max` beats per asset."""
-    plan = make_plan(assets=12)
-    four = replace(plan, "b04", asset_id="a01")  # a01: b03, b04, b15, finale
-    checked(four, spec)
-    five = replace(four, "b05", asset_id="a01")
-    result = picture(five, spec)
+    """4.3 as amended by 056 (3): `reuse_max` (2) showings per asset; the finale's cards
+    are a set piece and do not count, so a01 on b03, b15 and the finale passes."""
+    assert spec.broll.reuse_max == 2
+    plan = make_plan(assets=12)  # a01: b03, b15, finale
+    checked(plan, spec)
+    three = replace(plan, "b04", asset_id="a01")
+    result = picture(three, spec)
     assert (None, "4.3") in rules(result)
     assert isinstance(result, grammar.Violations)
-    assert any("a01" in v.message for v in result.items)
+    assert any("a01" in v.message and "3 times" in v.message for v in result.items)
+
+
+def test_a_carry_on_beat_and_the_set_pieces_are_not_showings(spec: StyleSpec) -> None:
+    """056 (3): a `number` or `quote` beat over the previous beat's asset carries that
+    showing on, and a wall's base is a set piece; neither spends `reuse_max`."""
+    plan = make_plan(assets=12)
+    carried = replace(plan, "b04", subject_kind="number", asset_id="a01")  # b03 is a01
+    checked(carried, spec)
+    quoted = replace(carried, "b05", subject_kind="quote", asset_id="a01")
+    checked(quoted, spec)
+    walled = _piece(replace(plan, "b06", asset_id="a01"), "b06", "wall", _items(4, asset="a02"))
+    checked(walled, spec)
+    # A number beat over a *different* asset than the previous beat's is a showing.
+    fresh = replace(plan, "b05", subject_kind="number", asset_id="a01")  # b04 is a02
+    assert (None, "4.3") in rules(picture(fresh, spec))
 
 
 def test_no_reuse_is_a_warning_not_a_rejection(spec: StyleSpec) -> None:

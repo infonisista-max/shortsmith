@@ -434,6 +434,56 @@ def test_a_fetched_bed_gets_a_rights_row_with_its_source(
     assert row.file == "fetched/freesound_512345.mp3" and row.sha256
 
 
+def test_an_adoption_never_changes_the_tracked_catalogue(
+    own_library: sound.Library, sounds: Sounds
+) -> None:
+    """056 (6): a job never changes a tracked file. A bed and an SFX adopted at run time
+    land in the git-ignored fetched catalogue beside their files; the tracked one is
+    byte-identical; the next load reads both, so a second job finds them with no search."""
+    tracked_before = own_library.catalogue.read_bytes()
+    tape = Tape(_recorded("search.json"), audio=_bed_file(own_library))
+    adapter = _adapter(tape)
+    bed = _bed(adapter, own_library).adopted
+    assert bed is not None and bed.id == "freesound_512345"
+    click = _candidate(
+        id="900002", kind="sfx", tags=["click"], duration_s=2.0,
+        preview_url="https://cdn.freesound.org/previews/900/900002-hq.mp3",
+    )  # fmt: skip
+    sfx = _adapter(Tape(audio=sounds("clicks"))).adopt(click, library=own_library, intent="ding")
+    assert own_library.catalogue.read_bytes() == tracked_before
+    fetched = own_library.fetched_catalogue
+    assert fetched == own_library.root / freesound.FETCHED_DIR / sound.CATALOGUE_NAME
+    assert fetched.is_file()
+    only_fetched = sound.parse_catalogue(fetched.read_text(encoding="utf-8"), name=fetched.name)
+    assert [e.id for e in only_fetched.entries] == [bed.id, sfx.id]
+    # The next job's library is the tracked catalogue followed by the fetched one.
+    reloaded = sound.load_catalogue(own_library.catalogue)
+    seeded = [e.id for e in own_library.entries]
+    assert [e.id for e in reloaded.entries] == [*seeded, bed.id, sfx.id]
+    assert reloaded.file(bed).is_file() and reloaded.file(sfx).is_file()
+    searches = adapter.searches
+    chosen, lines = sound.choose_bed(
+        reloaded, COOKING, first_stamp_s=1.0, threshold=THRESHOLD, search=adapter,
+        default_query="cinematic ambient documentary",
+    )  # fmt: skip
+    assert chosen is not None and chosen.id == bed.id and adapter.searches == searches
+    assert lines[0].startswith(f"bed {bed.id} from the library")
+    assert sound.match_sfx("ding", reloaded) == sfx
+
+
+def test_the_fetched_catalogue_is_git_ignored() -> None:
+    """The shipped library's fetched folder stays out of git (056 (6))."""
+    import subprocess
+
+    fetched = sound.load_catalogue().fetched_catalogue
+    assert fetched == sound.CATALOGUE_PATH.parent / freesound.FETCHED_DIR / sound.CATALOGUE_NAME
+    proc = subprocess.run(
+        ["git", "check-ignore", "-q", str(fetched)], cwd=sound.REPO_ROOT, capture_output=True,
+        check=False,
+    )  # fmt: skip
+    assert proc.returncode == 0, "assets/audio/fetched/catalog.yaml is not git-ignored"
+
+
 def test_choose_bed_takes_the_adopted_bed_below_the_threshold(
     own_library: sound.Library,
 ) -> None:

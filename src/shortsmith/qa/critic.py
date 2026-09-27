@@ -360,6 +360,10 @@ def balance_text(report: BalanceReport | None) -> str:
     parts.append(
         "problems: " + "; ".join(report.problems) if report.problems else "inside the 7.3 band"
     )
+    # 056 (1): what the mix did to get there, and whether the bed was dropped.
+    parts.extend(f"repair: {line}" for line in report.repairs)
+    if report.bed_dropped is not None:
+        parts.append(f"bed dropped, voice and hits only: {report.bed_dropped}")
     return "\n".join(parts)
 
 

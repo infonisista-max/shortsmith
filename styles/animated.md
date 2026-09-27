@@ -1,5 +1,5 @@
 ---
-version: "3"
+version: "4"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -57,7 +57,7 @@ broll:
     wipe: {duration_s: 0.25}
   unique_assets_min_per_60s: 12
   unique_assets_max_per_60s: 24
-  reuse_max: 4
+  reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
   rescued_max_per_60s: 4
   card_max_bottom_y: 1240
   stamp_max_y_fraction: 0.6
@@ -96,8 +96,8 @@ captions:
 sound:
   bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
   default_bed_query: upbeat playful ambient  # the bed search's last try (054)
-  bed_db_under_voice: -10
-  bed_accept_db: [-12, -9]
+  bed_db_under_voice: -14  # 056: run03 phone verdict "a bit loud, reduce by 30 %"
+  bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]
   speech_band_margin_db: 20
   duck_max_db: 4

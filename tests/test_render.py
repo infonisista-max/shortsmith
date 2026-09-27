@@ -574,6 +574,115 @@ def test_the_lower_third_is_suppressed_where_the_card_strip_already_shows_it(
     assert beat.visual.card.strip_text == "India Gate · Delhi" and beat.lower_third is None
 
 
+# --- 056 (4): stamps never cover a face ---------------------------------------------------
+#
+# run03: every stamp over the portrait card (b05, b08, b15, b16, b17, b23, b25) covered
+# the king's face. The 3.3 detector runs on the image; the stamp moves to the largest
+# face-free band of the card (upper or lower third, or below it). No face: today's place.
+
+
+def _stamped(i: int, *, kind: str, query: str = "an archival group photo") -> Beat:
+    return Beat.model_validate({
+        "id": f"b{i}", "start": float(i - 1), "end": float(i), "mode": "pip", "kind": kind,
+        "motion": "ken_burns_in" if kind == "photo" else "push_in", "subject_kind": "entity",
+        "query": query, "query_fallback": "photo", "source_intent": "search",
+        "asset_id": f"a{i}", "event": {"kind": "stamp", "text": "1953"},
+    })  # fmt: skip
+
+
+def _faced_spec(
+    tmp_path: Path, plan: PicturePlan, face: FaceBox | None, log: list[str] | None = None
+) -> RenderSpec:
+    manifest = _sourced(tmp_path, plan)
+    detector = presenter.FakeFaceDetector(face) if face is not None else None
+    return render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        manifest=manifest, job_dir=tmp_path / "job", detector=detector,
+        log=log.append if log is not None else None,
+    )  # fmt: skip
+
+
+def _overlaps(a: render.Box, b: render.Box) -> bool:
+    return a.left < b.right and b.left < a.right and a.top < b.bottom and b.top < a.bottom
+
+
+def test_a_stamp_over_a_card_with_a_face_moves_to_a_face_free_band(tmp_path: Path) -> None:
+    """The fake web image is 1600x1000 (a card); a face across the middle of it sits
+    under today's stamp, so the stamp moves off it, still inside the style band and the
+    6.3 zones, and the move is one log line naming the beat."""
+    plan = _plan().model_copy(update={"beats": [_stamped(1, kind="card")]})
+    face = FaceBox(left=600, top=250, width=400, height=500)  # image pixels, 1600x1000
+    log: list[str] = []
+    beat = _faced_spec(tmp_path, plan, face, log).beats[0]
+    plain = _faced_spec(tmp_path, plan, None).beats[0]
+    assert beat.visual is not None and beat.visual.card is not None
+    assert beat.stamp is not None and plain.stamp is not None
+    face_box = render.face_box_on(beat.visual, face)
+    assert _overlaps(render.stamp_box(plain.stamp), face_box), "today's stamp sat on the face"
+    assert not _overlaps(render.stamp_box(beat.stamp), face_box)
+    assert beat.stamp.top != plain.stamp.top and beat.stamp.left == plain.stamp.left
+    assert (beat.stamp.text, beat.stamp.font_px, beat.stamp.width) == (
+        plain.stamp.text, plain.stamp.font_px, plain.stamp.width,
+    )  # fmt: skip
+    limit = EXPLAINER.broll.stamp_max_y_fraction * render.HEIGHT
+    assert render.stamp_box(beat.stamp).top >= render.SAFE_TOP_PX - 1e-6
+    assert render.stamp_box(beat.stamp).bottom <= limit + 1e-6
+    assert any("b1" in line and "stamp" in line and "face" in line for line in log), log
+
+
+def test_a_stamp_over_a_photo_with_a_face_moves_too(tmp_path: Path) -> None:
+    plan = _plan().model_copy(update={"beats": [_stamped(1, kind="photo", query=PORTRAIT_SKY)]})
+    face = FaceBox(left=340, top=400, width=400, height=500)  # image pixels, 1080x1920
+    beat = _faced_spec(tmp_path, plan, face).beats[0]
+    plain = _faced_spec(tmp_path, plan, None).beats[0]
+    assert beat.visual is not None and beat.visual.treatment == "photo"
+    assert beat.stamp is not None and plain.stamp is not None
+    face_box = render.face_box_on(beat.visual, face)
+    assert _overlaps(render.stamp_box(plain.stamp), face_box)
+    assert not _overlaps(render.stamp_box(beat.stamp), face_box)
+
+
+def test_an_image_with_no_face_keeps_todays_stamp_placement(tmp_path: Path) -> None:
+    plan = _plan().model_copy(update={"beats": [_stamped(1, kind="card")]})
+    with_detector = _faced_spec(tmp_path, plan, None).beats[0]
+    manifest = _sourced(tmp_path, plan)
+    none_found = render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        manifest=manifest, job_dir=tmp_path / "job",
+        detector=presenter.FakeFaceDetector(found=0),
+    ).beats[0]  # fmt: skip
+    assert with_detector.stamp is not None and none_found.stamp == with_detector.stamp
+    assert none_found.stamp == render.stamp_spec("1953", numbers=EXPLAINER)
+
+
+def test_a_face_that_fills_the_card_sends_the_stamp_below_the_card(tmp_path: Path) -> None:
+    plan = _plan().model_copy(update={"beats": [_stamped(1, kind="card")]})
+    face = FaceBox(left=0, top=0, width=1600, height=1000)
+    log: list[str] = []
+    beat = _faced_spec(tmp_path, plan, face, log).beats[0]
+    assert beat.stamp is not None and beat.visual is not None
+    assert render.stamp_box(beat.stamp).top >= render.image_box_on(beat.visual).bottom
+    assert any("below the image" in line for line in log), log
+
+
+def test_a_face_that_fills_the_photo_leaves_the_stamp_where_it_was(tmp_path: Path) -> None:
+    """No face-free band on a full-bleed photo: today's placement, and the log says why."""
+    plan = _plan().model_copy(update={"beats": [_stamped(1, kind="photo", query=PORTRAIT_SKY)]})
+    face = FaceBox(left=0, top=0, width=1080, height=1920)
+    log: list[str] = []
+    beat = _faced_spec(tmp_path, plan, face, log).beats[0]
+    assert beat.stamp == render.stamp_spec("1953", numbers=EXPLAINER)
+    assert any("no face-free band" in line for line in log), log
+
+
+def test_the_render_safe_top_is_the_gates() -> None:
+    from shortsmith.qa import technical
+
+    assert render.SAFE_TOP_PX == technical.SAFE_TOP_PX
+
+
 def _number_beat(i: int, asset_id: str) -> Beat:
     return Beat.model_validate({
         "id": f"b{i}", "start": float(i - 1), "end": float(i), "mode": "pip", "kind": "photo",

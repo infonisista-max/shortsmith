@@ -10,12 +10,15 @@ from __future__ import annotations
 import json
 import math
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
 from shortsmith import ffmpeg, fixture, grammar, render, sound, styles
 from shortsmith.contracts import (
+    AudioEntry,
+    AudioTags,
     BedQuery,
     Cue,
     CueSheet,
@@ -696,22 +699,184 @@ def test_build_mix_writes_the_three_stems_and_the_balance(
     assert math.isclose(ffmpeg.duration_s(result.premix), fixture.DURATION_S, abs_tol=0.15)
 
 
-def test_a_bed_outside_the_acceptance_band_fails_the_mix(
+def test_a_bed_outside_the_acceptance_band_is_repaired_not_failed(
     tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
     library: sound.Library, nums: styles.Sound,
 ) -> None:  # fmt: skip
-    """7.3: the acceptance is in code. A bed asked for 3 dB under the voice is far above
-    the band, and the step fails with the measured numbers rather than shipping it."""
+    """7.3 as amended by 056 (1): the acceptance is in code, and a miss is repaired. A
+    bed asked for 3 dB under the voice is far above the band; the mix logs the miss,
+    lowers the bed to the window's floor and ships that, with the measured numbers."""
     stems = tmp_path / "stems"
     stems.mkdir()
     loud = nums.model_copy(update={"bed_db_under_voice": -3.0})
-    with pytest.raises(sound.SoundError, match="bed"):
-        sound.build_mix(
-            stems=stems, voice=voice, plan=plan, story=story, nums=loud,
-            library=library, runtime_s=fixture.DURATION_S,
-        )  # fmt: skip
+    lines: list[str] = []
+    result = sound.build_mix(
+        stems=stems, voice=voice, plan=plan, story=story, nums=loud,
+        library=library, runtime_s=fixture.DURATION_S, log=lines.append,
+    )  # fmt: skip
+    assert result.bed is not None and result.balance.problems == []
+    low, high = loud.bed_accept_db
+    assert result.balance.bed_under_voice_db is not None
+    assert low - 0.5 <= result.balance.bed_under_voice_db <= high
+    assert any("misses the 7.3 band" in line and "bed sits" in line for line in lines)
+    assert any("lowered to" in r for r in result.balance.repairs)
     written = json.loads((stems / "balance.json").read_text(encoding="utf-8"))
-    assert written["problems"], "the balance report is written before the step fails"
+    assert written["problems"] == [] and written["repairs"] == list(result.balance.repairs)
+
+
+# --- 056 (1): a music check never fails the job -----------------------------------------
+#
+# run03 died at the end of a 20-minute job because its Freesound bed ("middle eastern
+# mysterious") was melodic inside the 250 Hz-4 kHz speech band: the margin measured
+# 9.4 dB under the 20 dB line and `build_mix` raised. The beds below reproduce that
+# shape on the fixture voice: a bed with a partial inside the band that a dip can save,
+# and a pure in-band tone that nothing can.
+
+
+def _tone_bed(path: Path, parts: Sequence[tuple[int, float]]) -> Path:
+    expr = "+".join(f"{amp}*sin(2*PI*{hz}*t)" for hz, amp in parts)
+    return fixture.make_wav(path, expr=f"({expr})", duration_s=fixture.CATALOGUE_BED_S)
+
+
+def _bed(entry_id: str, file: str, *, drops: Sequence[float] = (1.5,)) -> AudioEntry:
+    return AudioEntry(
+        id=entry_id, kind="bed", file=file, source="synthetic",
+        source_url=f"https://example.invalid/{entry_id}", licence="CC0-1.0",
+        author="test", duration_s=fixture.CATALOGUE_BED_S,
+        tags=AudioTags(theme=["tech"], mood=["curious"], intent=[]),
+        drop_points_s=list(drops), loop_ok=True, energy=3,
+    )  # fmt: skip
+
+
+def _with_beds(
+    library: sound.Library, root: Path, *beds: tuple[str, Sequence[tuple[int, float]]]
+) -> sound.Library:
+    """The fixture catalogue's SFX plus the given beds, files written under `root`."""
+    (root / "beds").mkdir(parents=True, exist_ok=True)
+    entries: list[AudioEntry] = []
+    for entry_id, parts in beds:
+        _tone_bed(root / "beds" / f"{entry_id}.wav", parts)
+        entries.append(_bed(entry_id, f"beds/{entry_id}.wav"))
+    for sfx in library.sfx():
+        entries.append(sfx.model_copy(update={"file": str(library.file(sfx))}))
+    return sound.Library(root=root, entries=tuple(entries))
+
+
+# A bed with half its power inside the speech band: the plain mix misses the 20 dB
+# margin by a few dB and a dip on the band recovers it.
+MELODIC: tuple[tuple[int, float], ...] = ((110, 0.2), (1000, 0.2))
+# A bed entirely inside the band: a dip is undone by the level match, so nothing saves it.
+PURE: tuple[tuple[int, float], ...] = ((1000, 0.25),)
+
+
+def test_a_bed_inside_the_speech_band_is_dipped_until_the_margin_clears(
+    tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
+    library: sound.Library, nums: styles.Sound,
+) -> None:  # fmt: skip
+    """056 (1), first rung: an EQ dip on the bed in 250 Hz-4 kHz, deep enough to reach
+    the line, logged with its depth; the job goes on with the same bed."""
+    melodic = _with_beds(library, tmp_path / "audio", ("bed_melodic", MELODIC))
+    stems = tmp_path / "stems"
+    stems.mkdir()
+    lines: list[str] = []
+    result = sound.build_mix(
+        stems=stems, voice=voice, plan=plan, story=story, nums=nums,
+        library=melodic, runtime_s=fixture.DURATION_S, log=lines.append,
+    )  # fmt: skip
+    assert result.bed is not None and result.bed.id == "bed_melodic"
+    assert result.music is not None and result.music.is_file()
+    assert result.balance.problems == []
+    assert result.balance.speech_band_margin_db is not None
+    assert result.balance.speech_band_margin_db >= nums.speech_band_margin_db
+    low, high = nums.bed_accept_db
+    assert result.balance.bed_under_voice_db is not None
+    assert low <= result.balance.bed_under_voice_db <= high
+    dips = [line for line in lines if "dip" in line and "dB" in line]
+    assert dips, lines
+    assert result.balance.repairs and any("dip" in r for r in result.balance.repairs)
+    assert result.balance.dip_db is not None and result.balance.dip_db > 0
+    assert any("under sound.speech_band_margin_db" in line for line in lines), "the miss is logged"
+
+
+def test_the_next_bed_candidate_is_tried_when_no_repair_saves_the_first(
+    tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
+    library: sound.Library, nums: styles.Sound,
+) -> None:  # fmt: skip
+    """056 (1), third rung: the pure in-band bed scores first (its drop point sits on
+    the first stamp); the dip and the lower bed cannot save it, so the next library
+    candidate is mixed and passes."""
+    root = tmp_path / "audio"
+    both = _with_beds(library, root, ("bed_pure", PURE))
+    curious = library.entry("bed_tech_curious")
+    assert curious is not None
+    both = sound.Library(
+        root=root,
+        entries=(*both.entries, curious.model_copy(update={"file": str(library.file(curious))})),
+    )
+    first = sound.select_bed(both, story.bed_query, first_stamp_s=sound.first_stamp_s(plan),
+                             threshold=nums.bed_score_threshold)  # fmt: skip
+    assert first == both.entry("bed_pure")
+    stems = tmp_path / "stems"
+    stems.mkdir()
+    lines: list[str] = []
+    result = sound.build_mix(
+        stems=stems, voice=voice, plan=plan, story=story, nums=nums,
+        library=both, runtime_s=fixture.DURATION_S, log=lines.append,
+    )  # fmt: skip
+    assert result.bed is not None and result.bed.id == "bed_tech_curious"
+    assert result.balance.problems == []
+    assert any("bed_pure" in line and "next bed" in line for line in lines), lines
+    assert any("lower" in r for r in result.balance.repairs), result.balance.repairs
+
+
+def test_a_bed_no_repair_can_save_yields_a_voice_and_hits_master(
+    tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
+    library: sound.Library, nums: styles.Sound,
+) -> None:  # fmt: skip
+    """056 (1), last rung: with no other candidate the short goes out with the voice
+    and the hits alone - no exception, one `sound:` line saying so, the balance report
+    naming the dropped bed - and the cues are still there."""
+    pure = _with_beds(library, tmp_path / "audio", ("bed_pure", PURE))
+    stems = tmp_path / "stems"
+    stems.mkdir()
+    lines: list[str] = []
+    result = sound.build_mix(
+        stems=stems, voice=voice, plan=plan, story=story, nums=nums,
+        library=pure, runtime_s=fixture.DURATION_S, log=lines.append,
+    )  # fmt: skip
+    assert result.bed is None and result.music is None
+    assert result.cues and result.sfx is not None and result.sfx.is_file()
+    assert result.premix != voice and result.premix.is_file()
+    assert not (stems / "music.wav").exists() and not (stems / "music.ducked.wav").exists()
+    written = sound.balance_report(stems)
+    assert written is not None
+    assert written.problems == [] and written.bed_under_voice_db is None
+    assert written.bed_dropped is not None and "bed_pure" in written.bed_dropped
+    assert [line for line in lines if sound.VOICE_AND_HITS_LINE in line]
+    assert any("dip" in r for r in written.repairs) and any("lower" in r for r in written.repairs)
+    assert result.summary().startswith("sound: no bed")
+
+
+def test_the_search_is_asked_for_the_next_bed_when_the_library_runs_out(
+    tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
+    library: sound.Library, nums: styles.Sound,
+) -> None:  # fmt: skip
+    """056 (1): after the library's candidates the search ladder supplies the next bed."""
+    pure = _with_beds(library, tmp_path / "audio", ("bed_pure", PURE))
+    shelf = sound.Library(
+        root=pure.root,
+        entries=tuple(e.model_copy(update={"file": str(library.file(e))}) for e in library.beds()),
+    )
+    search = sound.FakeAudioSearch(shelf=shelf)
+    stems = tmp_path / "stems"
+    stems.mkdir()
+    result = sound.build_mix(
+        stems=stems, voice=voice, plan=plan, story=story, nums=nums,
+        library=pure, runtime_s=fixture.DURATION_S, search=search,
+    )  # fmt: skip
+    assert search.calls, "the search was asked for the next candidate"
+    assert result.bed is not None and result.bed.id != "bed_pure"
+    assert result.balance.problems == []
 
 
 def test_an_empty_library_leaves_the_voice_alone(

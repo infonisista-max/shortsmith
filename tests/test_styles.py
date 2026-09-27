@@ -81,8 +81,18 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "3", spec.name  # the front matter changed again (055)
+        assert spec.version == "4", spec.name  # the front matter changed again (056)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
+
+
+def test_every_style_puts_the_bed_14_db_under_the_voice_and_reuses_an_image_twice(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """056 (3, 5): the operator's run03 verdicts, in every style's front matter."""
+    for spec in specs.values():
+        assert spec.sound.bed_db_under_voice == -14, spec.name
+        assert spec.sound.bed_accept_db == (-15, -12), spec.name
+        assert spec.broll.reuse_max == 2, spec.name
 
 
 def test_every_style_opens_in_pip_over_images_and_no_style_has_hook_cards(
@@ -142,7 +152,7 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.broll.enter_transitions == ["cut", "fade", "whip", "zoom", "spring"]  # 9.4
     assert ex.broll.whip_max_per_3_beats == 1
     assert (ex.broll.unique_assets_min_per_60s, ex.broll.unique_assets_max_per_60s) == (12, 24)
-    assert ex.broll.reuse_max == 4  # 4.3
+    assert ex.broll.reuse_max == 2  # 4.3 as amended by 056 (3): counted per image
     assert "photo" in ex.broll.kinds and "parallax" not in ex.broll.kinds  # 4.1 / 9.2
     assert ex.broll.tier2_kinds == []
     assert (ex.captions.font_family, ex.captions.size_px, ex.captions.font_weight) == (
@@ -151,7 +161,9 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert (ex.captions.anchor_y, ex.captions.max_lines, ex.captions.line_height) == (1460, 2, 1.35)
     assert (ex.captions.words_per_page, ex.captions.prefer) == ((2, 4), 3)  # 6.1
     assert (ex.captions.emphasis_max_ratio, ex.captions.gap_break_s) == (0.25, 0.35)
-    assert ex.sound.bed_db_under_voice == -11 and ex.sound.duck_max_db == 4  # 7.3
+    # 7.3 as amended by 056 (5): the operator's "30 % quieter" bed, -14 dB in every style.
+    assert ex.sound.bed_db_under_voice == -14 and ex.sound.duck_max_db == 4
+    assert ex.sound.bed_accept_db == (-15, -12)
     assert (ex.sound.cues_max_per_60s, ex.sound.cues_per_beat_max) == (20, 1)
     assert (ex.sound.swell_max_db, ex.sound.drop_min_db, ex.sound.ramp_min_s) == (4, -8, 1.5)
     assert (ex.finale.mode, ex.finale.min_s, ex.finale.max_s) == ("off", 0.8, 1.2)

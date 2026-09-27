@@ -479,12 +479,16 @@ NETWORK_ERROR = "NetworkError"
 
 
 def t8(
-    manifest: AssetManifest | None, violations: Sequence[str] | None, log: str | None
+    manifest: AssetManifest | None,
+    violations: Sequence[str] | None,
+    log: str | None,
+    plan: PicturePlan | None = None,
 ) -> QaCheck:
     """Plan clean: the 4.4 rescue limit, the validated plan re-checked by the grammar
-    (`violations`: its lines, None when there is no `work/plan.validated.json`), and
-    the render log (`log`: its text, None when missing) free of NetworkError. Every
-    problem is named, the rescues first."""
+    (`violations`: its lines, None when there is no `work/plan.validated.json`), the
+    4.3 rule counted by image (056 (3), `assets.image_reuse_problems`, when `plan` is
+    given) and the render log (`log`: its text, None when missing) free of NetworkError.
+    Every problem is named, the rescues first."""
     if manifest is None:
         return QaCheck(name="T8", passed=False, detail="work/assets.json is missing")
     problems: list[str] = []
@@ -494,6 +498,8 @@ def t8(
     )
     if manifest.rescued > manifest.rescued_max:
         problems.append(f"not enough relevant B-roll: {rescue}")
+    if plan is not None:
+        problems += [f"image on repeat: {p}" for p in assets.image_reuse_problems(manifest, plan)]
     if violations is None:
         problems.append("work/plan.validated.json is missing, nothing to re-validate")
     elif violations:
@@ -840,7 +846,13 @@ def revalidate(job: Job, specs: Mapping[str, StyleSpec]) -> list[str] | None:
 def _t8(job: Job, specs: Mapping[str, StyleSpec]) -> QaCheck:
     log = job.work_dir / "render.log"
     log_text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else None
-    return t8(assets.load_manifest(job.path), revalidate(job, specs), log_text)
+    plan_path = job.work_dir / "plan.json"
+    plan = (
+        PicturePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+        if plan_path.is_file()
+        else None
+    )
+    return t8(assets.load_manifest(job.path), revalidate(job, specs), log_text, plan)
 
 
 def _t12(job: Job) -> QaCheck:

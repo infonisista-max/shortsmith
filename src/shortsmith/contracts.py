@@ -507,6 +507,12 @@ class BalanceReport(StrictModel):
     duck_max_db: float
     cues: int = 0
     problems: list[str] = []
+    # 056 (1): every repair the mix made on its way to this report (the dip depths in
+    # dB, the lower bed, the beds dropped), the dip the shipped bed carries, and - when
+    # no bed passed and the short went out voice-and-hits - which bed was dropped why.
+    repairs: list[str] = []
+    dip_db: float | None = None
+    bed_dropped: str | None = None
 
 
 class CueRecord(StrictModel):
@@ -743,6 +749,9 @@ class AssetManifest(StrictModel):
     aliases: dict[str, str | None] = {}
     runtime_s: float
     rescued_max: int
+    # 056 (3): the style's `broll.reuse_max`, the showings one image (one `sha256`, however
+    # many ids point at it) may have; 0 on a manifest written before the rule.
+    reuse_max: int = 0
     # 5.2 / 5.6: relevance-judge calls made and the style's `judge_max_calls` ceiling.
     judge_calls: int = 0
     judge_max: int = 0

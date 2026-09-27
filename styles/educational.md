@@ -1,5 +1,5 @@
 ---
-version: "3"
+version: "4"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -56,7 +56,7 @@ broll:
     wipe: {duration_s: 0.25}
   unique_assets_min_per_60s: 8
   unique_assets_max_per_60s: 16
-  reuse_max: 4
+  reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
   rescued_max_per_60s: 4
   card_max_bottom_y: 1240
   stamp_max_y_fraction: 0.6

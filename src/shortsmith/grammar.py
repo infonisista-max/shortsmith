@@ -50,7 +50,7 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import Literal
 
-from shortsmith import presenter
+from shortsmith import assets, presenter
 from shortsmith.contracts import (
     CATEGORIES,
     TIER2_KINDS,
@@ -903,12 +903,18 @@ def _assets(
 ) -> tuple[list[Violation], list[str]]:
     """4.3: unique assets inside the per-60 s range, `reuse_max` showings per asset,
     a warning when nothing is reused. Set-piece items are a montage of plan assets and
-    are not showings."""
+    are not showings; nor (056 (3)) is a `number` / `quote` beat carrying on the previous
+    beat's asset, or the wall's base and the finale's cards (`assets.is_showing`)."""
     nums = spec.broll
     found: list[Violation] = []
     warnings: list[str] = []
     unique = {b.asset_id for b in beats if b.asset_id}
-    uses = Counter(b.asset_id for b in beats if b.asset_id)
+    uses: Counter[str] = Counter()
+    previous: str | None = None
+    for b in beats:
+        if b.asset_id and assets.is_showing(b, b.asset_id, previous):
+            uses[b.asset_id] += 1
+        previous = b.asset_id
     scale = runtime / 60
     lo = math.floor(nums.unique_assets_min_per_60s * scale + EPS)
     hi = math.ceil(nums.unique_assets_max_per_60s * scale - EPS)
