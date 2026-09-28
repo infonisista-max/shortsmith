@@ -10,7 +10,10 @@ adapter appends both to the same prompt.
 
 `bind(job)` hands an adapter the job it is about to plan for, so a real adapter can
 write its prompt under the job's `work/planner/` and record its ledger row; the fake
-ignores it. A reply that is not a valid plan (no JSON, or JSON the models reject)
+ignores it. The pipeline binds once per run of `planning`, and a real adapter's bind
+takes that run's folder (`run_folder`, 065): `work/planner/run<n>/`, one past the
+highest run on disk, so a retried job's second run never writes over the first's
+request and reply files. A reply that is not a valid plan (no JSON, or JSON the models reject)
 raises `PlanInvalid` carrying the reply and the 8.2 violation lines, which the
 pipeline treats as a rejection: the same one retry applies. A planner that cannot
 answer at all raises `PlannerError` and the job fails at `planning`.
@@ -18,12 +21,26 @@ answer at all raises `PlannerError` and the job fails at `planning`.
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Self
 
 from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest, SoundStory
 from shortsmith.jobs import Job
+
+_RUN = re.compile(r"run(\d+)")
+
+
+def run_folder(job: Job) -> Path:
+    """065: this planning run's folder, `work/planner/run<n>/`, n one past the highest
+    run already on disk (1 on a fresh job). Not created here: the first call does."""
+    root = job.work_dir / "planner"
+    taken = [
+        int(m.group(1)) for p in root.glob("run*") if p.is_dir() and (m := _RUN.fullmatch(p.name))
+    ]
+    return root / f"run{max(taken, default=0) + 1}"
 
 
 class PlannerUnavailable(Exception):

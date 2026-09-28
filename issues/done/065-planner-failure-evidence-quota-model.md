@@ -87,6 +87,56 @@ The CLI also chooses its own default model. Operator decision (QA review, 28 Sep
 
 - Nothing.
 
+## Done (29 Sep 2026)
+
+All criteria met except one line of `.env.example`. That file is permission-denied to
+the agent (same as for 020, 033 and 052), so the operator pastes it. The `PLANNER_CLI_MODEL`
+setting itself works now. `tests/test_config.py` clears it and checks its default, and
+`test_every_example_key_is_a_setting` still holds once the line is pasted.
+
+**For the operator: paste into `.env.example`** (under `PLANNER_MODEL`):
+
+```
+# 065: PLANNER=claude_code's model, passed to the claude CLI as --model on every call
+# (never the CLI's own default). Read when each job's planning starts, so after an edit
+# here Retry uses the new model without restarting the app.
+PLANNER_CLI_MODEL=claude-opus-5-5
+```
+
+**Amendment line for 8.3** (to paste into the grill decisions):
+
+> 8.3 (amended 29 Sep 2026, 065): the `claude_code` planner pins its model with
+> `PLANNER_CLI_MODEL` (default `claude-opus-5-5`), passed as `--model` on every call and
+> re-read at each job's planning step; it never relies on the CLI's default. When the
+> CLI answers that the usage is spent (status 429, or a spent-credits / limit phrase),
+> the job fails at `planning` with "The planner's Claude usage is spent. Set
+> PLANNER_CLI_MODEL to another model and press Retry." The CLI's words stay in the
+> detail and in `job.log`.
+
+What was built:
+- `jobs.transition`: every `-> failed` line ends with `detail='<first line>'` (the
+  exception text, never the traceback). The `requeue` docstring is now true.
+- `planner.base.run_folder`: each `bind` (once per pipeline run of `planning`) takes
+  `work/planner/run<n>/`, one past the highest on disk. Both `claude_code` and `api`
+  write there with the 8.2 `_retry` names unchanged.
+- `claude_code`: `QuotaSpent(PlannerError)` on `api_error_status` 429, with
+  `QUOTA_PHRASES` (one tuple) as the fallback. `pipeline.failure_message` maps it to
+  `QUOTA_SENTENCE`. An `is_error` envelope with 0 tokens writes no ledger row.
+  `--model` goes on every call, and a `planner: <call> asked X, used Y[ (differs)]` line
+  is logged per call (`<call>` is `picture`, `picture_retry`, `sound` or `sound_retry`).
+- `from_settings(..., reload=)`. The app passes `config.load` when it loaded the
+  settings itself, so an edited `.env` reaches the next job's bind.
+- `tests/fixtures/claude_cli/error.json`: its `result` was "Claude AI usage limit
+  reached|…", which is itself a limit message and would be (rightly) read as quota. It
+  is now a plain `API Error: 500 … Internal server error` envelope, which keeps the
+  ticket's "any other `is_error` envelope" intent. The old wording is still tested as a
+  recognised quota phrase.
+
+What to check on run05: after a planning failure and Retry, `job.log` still has the
+`-> failed … detail='…'` line naming why, `work/planner/run1/` and `run2/` both exist,
+and each call has its `planner: … asked claude-opus-5-5, used …` line with no
+`(differs)`.
+
 ## User stories addressed
 
 - Operator, run04 QA (28 Sep 2026): planning failed once with the CLI out of usage

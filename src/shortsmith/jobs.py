@@ -5,7 +5,8 @@ Layout per decision 2.2: `<data_dir>/jobs/<job_id>/{job.json, input/, work/, out
 
     uploaded -> transcribing -> planning -> sourcing -> rendering -> qa -> delivered
     delivered -> passed | rejected
-    any non-terminal -> failed, carrying error {step, message, detail}
+    any non-terminal -> failed, carrying error {step, message, detail}; its job.log
+        line ends with the detail's first line (065)
     failed -> uploaded, by `requeue` only (043: the retry), carrying `retry_from`
 
 Every transition rewrites `job.json` and appends one timestamped line to `job.log`.
@@ -347,7 +348,10 @@ def transition(
     updated = amend(job, status=status, updated_at=stamp, error=error, progress=None)
     line = f"{job.status} -> {status}"
     if error is not None:
-        line += f" step={error.step} message={error.message!r}"
+        # 065: the first line of the detail (the exception text, never the traceback),
+        # so the log still says why after a retry clears job.json.
+        first = error.detail.strip().splitlines()[0] if error.detail.strip() else ""
+        line += f" step={error.step} message={error.message!r} detail={first!r}"
     _append_log(updated, stamp, line)
     return updated
 

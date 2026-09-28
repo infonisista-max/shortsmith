@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     transcriber_language: str = "hi"
     planner: Planner = "claude_code"
     planner_model: str = "claude-sonnet-5"  # 8.3: PLANNER=api's model, the current Sonnet
+    # 065: PLANNER=claude_code's model, passed as `--model` on every call so the CLI's own
+    # default never decides; re-read when each job's planning starts (no restart needed).
+    planner_cli_model: str = "claude-opus-5-5"
     # 8.3 / 11.3: the subscription planner is for a single-operator deployment only.
     shortsmith_single_operator: bool = False
     anthropic_api_key: SecretStr | None = None

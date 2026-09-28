@@ -1,20 +1,34 @@
 """The `claude_code` planner: the `claude` CLI on the operator's subscription (8.3).
 
-Each call writes the builder's prompt to the job's `work/planner/request_<call>.md`
-(`request_<call>_retry.md` for the 8.2 retry, so both stay on disk), runs the CLI
-non-interactively from that directory with the prompt on stdin, and keeps its JSON
-envelope as `reply_<call>[_retry].json`. The CLI gets no tools (`--tools ""`), no MCP
-servers, no CLAUDE.md, skills or hooks (`--safe-mode`), no saved session, and a system
-prompt that asks for JSON only; with no tools it cannot touch the repo or a shell.
-`ANTHROPIC_API_KEY` is removed from the child's environment so the subscription, not
-an API key, pays for the call.
+Each run of `planning` binds the adapter once and gets its own folder,
+`work/planner/run<n>/` (n = 1, 2, 3 ... one past the highest on disk; 065), so a
+retried job never writes over an earlier run's files. Each call writes the builder's
+prompt there as `request_<call>.md` (`request_<call>_retry.md` for the 8.2 retry, so
+both stay on disk), runs the CLI non-interactively from that folder with the prompt on
+stdin, and keeps its JSON envelope as `reply_<call>[_retry].json`. The CLI gets no
+tools (`--tools ""`), no MCP servers, no CLAUDE.md, skills or hooks (`--safe-mode`), no
+saved session, and a system prompt that asks for JSON only; with no tools it cannot
+touch the repo or a shell. `ANTHROPIC_API_KEY` is removed from the child's environment
+so the subscription, not an API key, pays for the call.
+
+The model is pinned, never the CLI's default (065): every call passes `--model
+<PLANNER_CLI_MODEL>`, read by `model` when the job binds, which is when its planning
+step starts, so a Retry after an edit to `.env` uses the new model without a restart.
+Each call logs `planner: <call> asked <model>, used <modelUsage model>` in `job.log`,
+ending in `(differs)` when the CLI answered on another model.
 
 The envelope's `usage` becomes one ledger row per call at INR 0 (`provider
 claude_code`, the model from `modelUsage`): input tokens include the cache writes and
 reads, since the subscription consumed them all. The row is recorded before the reply
-is parsed, so a reply the parser rejects is still counted. `result` goes through the
-shared parser; a CLI that fails outright (non-zero exit, no envelope, `is_error`)
-raises `PlannerError` and the job fails at `planning` with the CLI's own words.
+is parsed, so a reply the parser rejects is still counted; a CLI error that consumed
+no tokens at all writes no row (065). `result` goes through the shared parser; a CLI
+that fails outright (non-zero exit, no envelope, `is_error`) raises `PlannerError` and
+the job fails at `planning` with the CLI's own words.
+
+The quota path (065): an `is_error` envelope with `api_error_status` 429, or whose
+`result` holds one of `QUOTA_PHRASES` (spent credits, a reached limit), raises
+`QuotaSpent` instead; the page then says `QUOTA_SENTENCE` (switch the model and press
+Retry), and the CLI's words stay in the detail and on the job.log failure line.
 
 The ledger is passed as a callable because the app loads it in its lifespan, after the
 planner is built.
@@ -32,11 +46,11 @@ from typing import Self
 
 from pydantic import BaseModel, Field, ValidationError
 
-from shortsmith import subproc
+from shortsmith import jobs, subproc
 from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest, SoundStory
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
-from shortsmith.planner.base import Planner, PlannerError, PlannerUnavailable
+from shortsmith.planner.base import Planner, PlannerError, PlannerUnavailable, run_folder
 from shortsmith.planner.parse import parse_reply
 from shortsmith.planner.prompt import PROMPT_VERSION, SYSTEM_PROMPT, Call, build_prompt
 
@@ -54,6 +68,21 @@ CLI_FLAGS: tuple[str, ...] = (
     SYSTEM_PROMPT,
 )
 HIDDEN_ENV = ("ANTHROPIC_API_KEY",)
+DEFAULT_MODEL = "claude-opus-5-5"  # 065: the model run04's CLI actually used
+QUOTA_STATUS = 429
+# 065: what the CLI says when the subscription's usage is spent or a limit is reached;
+# the fallback when the envelope carries no `api_error_status`. Matched lower-cased.
+QUOTA_PHRASES: tuple[str, ...] = (
+    "out of usage credits",
+    "usage limit",
+    "hit your limit",
+    "reached your limit",
+    "limit reached",
+)
+QUOTA_SENTENCE = (
+    "The planner's Claude usage is spent. Set PLANNER_CLI_MODEL to another model "
+    "and press Retry."
+)
 
 Runner = Callable[[list[str], str, Path, Mapping[str, str]], subprocess.CompletedProcess[bytes]]
 
@@ -72,6 +101,11 @@ def run_cli(
     return subproc.run([found, *argv[1:]], input=stdin, cwd=cwd, env=env)
 
 
+class QuotaSpent(PlannerError):
+    """The CLI answered that the subscription's usage is spent or a limit is reached;
+    the job fails at `planning` with `QUOTA_SENTENCE` on the page."""
+
+
 class ClaudeCodePlanner(Planner):
     def __init__(
         self,
@@ -79,15 +113,21 @@ class ClaudeCodePlanner(Planner):
         *,
         run: Runner = run_cli,
         executable: str = "claude",
+        model: Callable[[], str] = lambda: DEFAULT_MODEL,
     ) -> None:
         self._ledger = ledger
         self._run = run
         self._executable = executable
+        self.cli_model = model
         self._job: Job | None = None
+        self._folder: Path | None = None
+        self._model = DEFAULT_MODEL
 
     def bind(self, job: Job) -> Self:
         bound = copy.copy(self)
         bound._job = job
+        bound._folder = run_folder(job)
+        bound._model = self.cli_model()
         return bound
 
     def plan_picture(
@@ -114,19 +154,25 @@ class ClaudeCodePlanner(Planner):
         return story
 
     def _call(self, call: Call, text: str, *, retry: bool) -> PicturePlan | SoundStory:
-        job = self._job
-        if job is None:
+        job, folder = self._job, self._folder
+        if job is None or folder is None:
             raise PlannerError("ClaudeCodePlanner has no job: bind(job) before calling")
-        folder = job.work_dir / "planner"
         folder.mkdir(parents=True, exist_ok=True)
         name = f"{call}_retry" if retry else call
         (folder / f"request_{name}.md").write_text(text, encoding="utf-8", newline="\n")
         env = {k: v for k, v in os.environ.items() if k not in HIDDEN_ENV}
-        done = self._run([self._executable, *CLI_FLAGS], text, folder, env)
+        argv = [self._executable, *CLI_FLAGS, "--model", self._model]
+        done = self._run(argv, text, folder, env)
         (folder / f"reply_{name}.json").write_bytes(done.stdout)
         envelope = _envelope(done)
-        self._ledger().record(job, "planning", PROVIDER, envelope.model, envelope.units)
+        used = envelope.model
+        differs = " (differs)" if used != self._model else ""
+        jobs.note(job, f"planner: {name} asked {self._model}, used {used}{differs}")
+        if not (envelope.is_error and not any(envelope.units.values())):
+            self._ledger().record(job, "planning", PROVIDER, used, envelope.units)
         if envelope.is_error:
+            if envelope.quota_spent:
+                raise QuotaSpent(f"the claude CLI's usage is spent: {envelope.result}")
             raise PlannerError(f"the claude CLI reported an error: {envelope.result}")
         return parse_reply(envelope.result, call, prompt_version=PROMPT_VERSION)
 
@@ -146,12 +192,21 @@ class CliEnvelope(BaseModel):
 
     is_error: bool = False
     result: str = ""
+    api_error_status: int | None = None
     usage: CliUsage = CliUsage()
     model_usage: dict[str, object] = Field(default_factory=dict, alias="modelUsage")
 
     @property
     def model(self) -> str:
         return next(iter(self.model_usage), "unknown")
+
+    @property
+    def quota_spent(self) -> bool:
+        """065: status 429 first; the phrases when the status is missing."""
+        if self.api_error_status == QUOTA_STATUS:
+            return True
+        words = self.result.lower()
+        return any(phrase in words for phrase in QUOTA_PHRASES)
 
     @property
     def units(self) -> dict[str, float]:

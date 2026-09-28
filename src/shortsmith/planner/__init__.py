@@ -43,10 +43,19 @@ __all__ = [
 ]
 
 
-def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Planner:
-    """The adapter `PLANNER` names; `ledger` resolves the app's ledger at call time."""
+def from_settings(
+    settings: Settings,
+    *,
+    ledger: Callable[[], Ledger],
+    reload: Callable[[], Settings] | None = None,
+) -> Planner:
+    """The adapter `PLANNER` names; `ledger` resolves the app's ledger at call time.
+    `reload` re-reads the settings (the app passes `config.load`), so the CLI adapter
+    picks up an edited `PLANNER_CLI_MODEL` at each job's planning step (065); without
+    it the model is the one in `settings`."""
     if settings.planner == "fake":
         return FakePlanner()
     if settings.planner == "claude_code":
-        return ClaudeCodePlanner(ledger)
+        fresh = reload or (lambda: settings)
+        return ClaudeCodePlanner(ledger, model=lambda: fresh().planner_cli_model)
     return ApiPlanner(ledger, api_key=settings.anthropic_api_key, model=settings.planner_model)

@@ -12,10 +12,11 @@ tests, whose flat clips have no face). The transcriber is bound to the job next,
 a real adapter writes under `work/asr/` and records its ledger rows (012); its
 fixed transcript is `work/asr.json`. Any exception inside a step marks the job
 `failed` at that step with the fixed user-facing sentence from `ERROR_TEXT` and the
-exception text as `detail` (11.1); a failed technical check adds its name to the
-sentence (10.1); a paid adapter's `ledger.BudgetExceeded`, raised before its call,
-becomes "Budget exceeded at step X." with the ledger rows so far left on job.json
-for the page (11.3).
+exception text as `detail` (11.1), whose first line also ends the job.log failure line
+(065); a failed technical check adds its name to the sentence (10.1); the CLI
+planner's spent quota has its own sentence (`claude_code.QUOTA_SENTENCE`, 065); a
+paid adapter's `ledger.BudgetExceeded`, raised before its call, becomes "Budget
+exceeded at step X." with the ledger rows so far left on job.json for the page (11.3).
 
 A failed job can be run again from the step it failed at (043): `jobs.requeue` sends
 it back to `uploaded` carrying `retry_from`, and `start_step` slices the step list
@@ -32,8 +33,9 @@ the grammar (`grammar`, ticket 009) after each call: a rejected call is re-sent
 exactly once with the previous output and the violation list (`PlanFeedback`), a
 second rejection fails the job at `planning` with the list in `job.json.error` and
 on the page, and the retry is logged in `job.log` (8.2); a reply the models refuse
-(`PlanInvalid`) takes the same path. The planner is bound to the job first so a real
-adapter writes its prompt under `work/planner/` and records a ledger row per call and
+(`PlanInvalid`) takes the same path. The planner is bound to the job first, once per
+run of the step, so a real adapter writes its prompt under this run's
+`work/planner/run<n>/` (065) and records a ledger row per call and
 retry (8.3), and the picture plan's `prompt_version` is recorded in `job.json`. The
 sound call receives the snapped picture plan and the catalogue tags. The step builds
 the captions (`captions.build`, 6.1-6.3: cut,
@@ -118,6 +120,7 @@ from shortsmith.contracts import (
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.ledger import BudgetExceeded
 from shortsmith.planner import PlanInvalid, Planner
+from shortsmith.planner.claude_code import QUOTA_SENTENCE, QuotaSpent
 from shortsmith.qa import calibration
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic, FakeCritic
@@ -257,6 +260,8 @@ def failure_message(status: Status, exc: Exception) -> str:
         return f"Budget exceeded at step {exc.step}."
     if isinstance(exc, presenter.NoFace):
         return str(exc)  # 3.3: the face sentence, not the transcriber's
+    if isinstance(exc, QuotaSpent):
+        return QUOTA_SENTENCE  # 065: switch the model and press Retry
     message = ERROR_TEXT[status]
     if isinstance(exc, QaFailed):
         return f"{message[:-1]} ({exc.check})."

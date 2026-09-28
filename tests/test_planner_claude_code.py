@@ -105,7 +105,7 @@ def test_the_picture_call_writes_the_prompt_and_runs_the_cli_without_tools(
     cli = StubCli([_envelope("picture")])
     plan = _planner(cli, job).plan_picture(_request())
     expected = prompt.build_prompt(_request(), "picture")
-    written = job.work_dir / "planner" / "request_picture.md"
+    written = job.work_dir / "planner" / "run1" / "request_picture.md"
     assert written.read_text(encoding="utf-8") == expected
     (call,) = cli.calls
     assert call.argv[:4] == ["claude", "-p", "--output-format", "json"]
@@ -114,7 +114,7 @@ def test_the_picture_call_writes_the_prompt_and_runs_the_cli_without_tools(
         assert flag in call.argv, flag
     assert "JSON only" in call.argv[call.argv.index("--system-prompt") + 1]
     assert call.stdin == expected
-    assert call.cwd == job.work_dir / "planner"
+    assert call.cwd == job.work_dir / "planner" / "run1"
     assert "ANTHROPIC_API_KEY" not in call.env  # the subscription pays, never an API key
     assert isinstance(plan, PicturePlan)
     assert plan.beats == FakePlanner().plan_picture(_request()).beats
@@ -145,7 +145,7 @@ def test_the_sound_call_sends_the_picture_plan_and_the_catalogue_tags(job: jobs.
         _request(), "sound", picture=picture, catalogue_tags=["suspense", "money"]
     )
     assert cli.calls[0].stdin == expected
-    assert (job.work_dir / "planner" / "request_sound.md").read_text("utf-8") == expected
+    assert (job.work_dir / "planner" / "run1" / "request_sound.md").read_text("utf-8") == expected
     assert isinstance(story, SoundStory)
     assert story.prompt_version == prompt.PROMPT_VERSION
 
@@ -156,7 +156,7 @@ def test_a_retry_sends_the_feedback_and_keeps_the_first_request_on_disk(job: job
     planner.plan_picture(_request())
     feedback = PlanFeedback(previous="{}", violations=["b03 (4.1): no motion"])
     planner.plan_picture(_request(), feedback=feedback)
-    folder = job.work_dir / "planner"
+    folder = job.work_dir / "planner" / "run1"
     assert "b03 (4.1): no motion" not in (folder / "request_picture.md").read_text("utf-8")
     assert "- b03 (4.1): no motion" in (folder / "request_picture_retry.md").read_text("utf-8")
     assert "- b03 (4.1): no motion" in cli.calls[1].stdin
@@ -174,18 +174,127 @@ def test_a_reply_that_is_not_a_plan_is_plan_invalid_and_still_a_ledger_row(
     assert caught.value.reply == "Sorry, I need more detail about the brief."
     assert caught.value.violations == ["plan (8.2): the reply holds no JSON object"]
     assert len(jobs.load(job.path).record.cost) == 1
-    reply = job.work_dir / "planner" / "reply_picture.json"
+    reply = job.work_dir / "planner" / "run1" / "reply_picture.json"
     assert json.loads(reply.read_text("utf-8"))["result"].startswith("Sorry")
 
 
 def test_a_cli_error_is_a_planner_error_not_a_retry(job: jobs.Job) -> None:
     """Usage limit, auth or crash: the job fails at planning with the CLI's words; the
     8.2 retry is for plans the grammar or the models reject, not for a broken CLI."""
-    with pytest.raises(PlannerError, match="usage limit"):
+    with pytest.raises(PlannerError, match="Internal server error") as caught:
         _planner(StubCli([_envelope("error")]), job).plan_picture(_request())
+    assert not isinstance(caught.value, claude_code.QuotaSpent)
     crashed = StubCli([b"not json"], returncode=1, stderr=b"Error: not logged in")
     with pytest.raises(PlannerError, match="not logged in"):
         _planner(crashed, job).plan_picture(_request())
+
+
+def test_run04s_spent_credits_reply_is_quota_spent_with_the_cli_words(job: jobs.Job) -> None:
+    """065 (2): status 429 is the signal; the CLI's `result` stays in the text."""
+    with pytest.raises(claude_code.QuotaSpent, match="out of usage credits"):
+        _planner(StubCli([_envelope("quota")]), job).plan_picture(_request())
+
+
+def test_a_limit_reply_without_its_status_is_still_recognised_by_its_phrase(
+    job: jobs.Job,
+) -> None:
+    envelope = json.loads(_envelope("quota"))
+    del envelope["api_error_status"]
+    with pytest.raises(claude_code.QuotaSpent, match="out of usage credits"):
+        _planner(StubCli([json.dumps(envelope).encode()]), job).plan_picture(_request())
+    for words in ("Claude AI usage limit reached|1790000000", "You've hit your limit"):
+        envelope["result"] = words
+        with pytest.raises(claude_code.QuotaSpent):
+            _planner(StubCli([json.dumps(envelope).encode()]), job).plan_picture(_request())
+
+
+def test_a_zero_token_cli_error_writes_no_ledger_row(job: jobs.Job) -> None:
+    """065 (3): no `unknown`, 0-token row; a rejected reply that used tokens keeps its row
+    (`test_a_reply_that_is_not_a_plan_is_plan_invalid_and_still_a_ledger_row`)."""
+    with pytest.raises(PlannerError):
+        _planner(StubCli([_envelope("quota")]), job).plan_picture(_request())
+    with pytest.raises(PlannerError):
+        _planner(StubCli([_envelope("error")]), job).plan_picture(_request())
+    assert jobs.load(job.path).record.cost == []
+
+
+def test_every_call_and_retry_asks_for_the_pinned_model_and_logs_what_was_used(
+    job: jobs.Job,
+) -> None:
+    """065 (4): `--model <PLANNER_CLI_MODEL>` on every call; one `asked / used` line each,
+    `(differs)` when the CLI answered on another model."""
+    cli = StubCli([_envelope("picture"), _envelope("picture"), _envelope("sound")])
+    book = Ledger(PRICES, Caps(per_job=None, hard=None, per_day=500))
+    planner = ClaudeCodePlanner(lambda: book, run=cli, model=lambda: "claude-sonnet-5").bind(job)
+    picture = planner.plan_picture(_request())
+    planner.plan_picture(_request(), feedback=PlanFeedback(previous="{}", violations=["x"]))
+    planner.plan_sound(_request(), picture)
+    assert [c.argv[c.argv.index("--model") + 1] for c in cli.calls] == ["claude-sonnet-5"] * 3
+    log = (job.path / "job.log").read_text(encoding="utf-8")
+    assert "planner: picture asked claude-sonnet-5, used claude-sonnet-5\n" in log
+    assert "planner: picture_retry asked claude-sonnet-5, used claude-sonnet-5\n" in log
+    assert "planner: sound asked claude-sonnet-5, used claude-sonnet-5\n" in log
+
+    other = ClaudeCodePlanner(
+        lambda: book, run=StubCli([_envelope("picture")]), model=lambda: "claude-opus-5-5"
+    ).bind(job)
+    other.plan_picture(_request())
+    last = (job.path / "job.log").read_text(encoding="utf-8").splitlines()[-1]
+    assert last.endswith("planner: picture asked claude-opus-5-5, used claude-sonnet-5 (differs)")
+
+
+def test_the_model_is_read_when_each_job_binds_so_an_edit_needs_no_restart(
+    tmp_path: Path,
+) -> None:
+    setting = ["claude-opus-5-5"]
+    cli = StubCli([_envelope("picture"), _envelope("picture")])
+    book = Ledger(PRICES, Caps(per_job=None, hard=None, per_day=500))
+    planner = ClaudeCodePlanner(lambda: book, run=cli, model=lambda: setting[0])
+    first = jobs.create(tmp_path, style="explainer")
+    planner.bind(first).plan_picture(_request())
+    setting[0] = "claude-sonnet-5"  # the operator edits .env between jobs
+    planner.bind(jobs.create(tmp_path, style="explainer")).plan_picture(_request())
+    assert [c.argv[c.argv.index("--model") + 1] for c in cli.calls] == [
+        "claude-opus-5-5",
+        "claude-sonnet-5",
+    ]
+
+
+def test_the_model_defaults_to_the_setting_and_from_settings_rereads_it() -> None:
+    settings = Settings(_env_file=None, planner="claude_code")  # pyright: ignore[reportCallIssue]
+    assert settings.planner_cli_model == "claude-opus-5-5"
+    book = Ledger(PRICES, Caps(per_job=None, hard=None, per_day=500))
+    edited = [settings]
+    chosen = from_settings(settings, ledger=lambda: book, reload=lambda: edited[0])
+    assert isinstance(chosen, ClaudeCodePlanner)
+    assert chosen.cli_model() == "claude-opus-5-5"
+    edited[0] = Settings(
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+        planner="claude_code",
+        planner_cli_model="claude-sonnet-5",
+    )
+    assert chosen.cli_model() == "claude-sonnet-5"
+
+
+def test_a_second_bind_writes_a_new_run_folder_and_never_over_the_first(
+    job: jobs.Job,
+) -> None:
+    """065 (1): each pipeline run of `planning` binds once and gets `run<n>`."""
+    book = Ledger(PRICES, Caps(per_job=None, hard=None, per_day=500))
+    with pytest.raises(PlannerError):
+        ClaudeCodePlanner(lambda: book, run=StubCli([_envelope("quota")])).bind(
+            job
+        ).plan_picture(_request())
+    run1 = job.work_dir / "planner" / "run1"
+    before = (run1 / "reply_picture.json").read_bytes()
+    assert before == _envelope("quota")
+    ClaudeCodePlanner(lambda: book, run=StubCli([_envelope("picture")])).bind(job).plan_picture(
+        _request()
+    )
+    assert (run1 / "reply_picture.json").read_bytes() == before
+    assert (job.work_dir / "planner" / "run2" / "reply_picture.json").read_bytes() == _envelope(
+        "picture"
+    )
 
 
 def test_an_unbound_planner_refuses_to_call(job: jobs.Job) -> None:

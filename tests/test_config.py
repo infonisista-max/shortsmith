@@ -44,6 +44,7 @@ def _settings(
         "FREESOUND_API_KEY",
         "PEXELS_API_KEY",
         "PIXABAY_API_KEY",
+        "PLANNER_CLI_MODEL",
         "PLANNER_MODEL",
         "RELEVANCE_JUDGE",
         "RELEVANCE_JUDGE_MODEL",
@@ -69,6 +70,7 @@ def test_every_example_key_is_a_setting() -> None:
 def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     s = _settings(monkeypatch)
     assert s.planner == "claude_code"
+    assert s.planner_cli_model == "claude-opus-5-5"  # 065: never the CLI's own default
     assert s.asset_policy == "any"
     assert s.image_gen == "none"
     assert s.shortsmith_max_upload_mb == 500

@@ -243,6 +243,9 @@ def create_app(
     specs: Mapping[str, StyleSpec] | None = None,
     sticker_catalogue: Path | None = None,
 ) -> FastAPI:
+    # 065: settings the app loaded itself are re-read where a value may change between
+    # jobs (`PLANNER_CLI_MODEL`); settings a caller passed stay as passed.
+    reload = config.load if settings is None else None
     settings = settings or config.load()
     # Every style spec loads here, at startup, or the app does not build (1.2, 1.4).
     # Tests pass `specs` when the fake plan must be judged by the fixture rule set.
@@ -268,7 +271,7 @@ def create_app(
         return books[0]
 
     transcriber = transcriber or transcriber_module.from_settings(settings, ledger=_book)
-    planner = planner or planner_module.from_settings(settings, ledger=_book)
+    planner = planner or planner_module.from_settings(settings, ledger=_book, reload=reload)
     limits = limits or Limits(max_upload_bytes=settings.shortsmith_max_upload_mb * ingest.MIB)
     # `renderer` None means Remotion (ticket 004) carrying the 7.2 audio search
     # `FREESOUND_API_KEY` enables (024), and `gate` None the technical gate (006);

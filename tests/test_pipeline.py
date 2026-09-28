@@ -811,8 +811,8 @@ def test_the_cli_planner_plans_a_job_picture_then_sound_with_a_row_per_call(
     snapped = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
     assert snapped.model_dump_json(indent=2) in sound_prompt
     assert "(no catalogue yet" in sound_prompt
-    assert (job.work_dir / "planner" / "request_picture.md").is_file()
-    assert (job.work_dir / "planner" / "request_sound.md").is_file()
+    assert (job.work_dir / "planner" / "run1" / "request_picture.md").is_file()
+    assert (job.work_dir / "planner" / "run1" / "request_sound.md").is_file()
     record = jobs.load(job.path).record
     assert [(r.step, r.provider, r.inr) for r in record.cost] == [
         ("planning", "claude_code", 0.0),
@@ -872,6 +872,64 @@ def test_unavailable_planner_fails_the_job_at_planning_naming_the_ticket(
     assert PlannerUnavailable.__name__ in done.record.error.detail
     assert (job.work_dir / "asr.json").is_file()
     assert not (job.work_dir / "plan.json").exists()
+
+
+# --- 065: planner failures keep their evidence; a spent quota says so -----------------
+
+
+def test_a_step_failure_logs_the_exception_text_and_a_retry_keeps_it(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    failed = _run(job, planner=_OnceBrokenPlanner())
+    assert failed.record.error is not None and "Traceback" in failed.record.error.detail
+    requeued = jobs.requeue(failed)
+    assert requeued.record.error is None
+    (line,) = [line for line in _trail(job) if "-> failed" in line]
+    assert line.endswith("step=planning message='We could not plan the short.' "
+                         "detail='claude said no'")  # fmt: skip
+
+
+def test_run04s_spent_quota_fails_planning_with_the_quota_sentence(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    done = _run(job, planner=_cli_planner(_Cli("quota")))
+    assert done.status == "failed"
+    assert done.record.error is not None and done.record.error.step == "planning"
+    assert done.record.error.message == (
+        "The planner's Claude usage is spent. Set PLANNER_CLI_MODEL to another model "
+        "and press Retry."
+    )
+    assert "You're out of usage credits" in done.record.error.detail
+    assert done.record.cost == []  # 0 tokens: no `unknown` row
+    (line,) = [line for line in _trail(job) if "-> failed" in line]
+    assert "You're out of usage credits" in line
+
+
+def test_any_other_cli_error_keeps_the_planning_sentence(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    done = _run(_uploaded(tmp_path, fixture_clip), planner=_cli_planner(_Cli("error")))
+    assert done.record.error is not None
+    assert done.record.error.message == pipeline.ERROR_TEXT["planning"]
+    assert "Internal server error" in done.record.error.detail
+
+
+def test_planning_twice_leaves_both_runs_on_disk_side_by_side(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """065 (1): fail, requeue, run again: run1 keeps the quota reply byte for byte."""
+    job = _uploaded(tmp_path, fixture_clip)
+    failed = _run(job, planner=_cli_planner(_Cli("quota")))
+    run1 = job.work_dir / "planner" / "run1"
+    before = (run1 / "reply_picture.json").read_bytes()
+    assert before == (CLI_REPLIES / "quota.json").read_bytes()
+    again = _run(jobs.requeue(failed), planner=_cli_planner(_Cli("picture", "sound")))
+    assert again.status == "delivered", again.record.error
+    assert (run1 / "reply_picture.json").read_bytes() == before
+    assert sorted(p.name for p in (job.work_dir / "planner").iterdir()) == ["run1", "run2"]
+    assert (job.work_dir / "planner" / "run2" / "reply_sound.json").is_file()
 
 
 # --- 013: the face is measured at `transcribing`, before the transcriber (3.3) ----------

@@ -191,6 +191,20 @@ def test_a_job_that_fails_twice_at_the_same_step_keeps_both_errors_in_the_log(
     ]  # fmt: skip
     assert len(failures) == 2
     assert all("step=rendering" in line for line in failures)
+    assert failures[0].endswith("detail='boom'")  # 065: the retry cleared job.json, not this
+    assert failures[1].endswith("detail='again'")
+
+
+def test_a_failure_line_carries_the_first_line_of_the_detail_never_the_traceback(
+    tmp_path: Path, clock: Clock
+) -> None:
+    """065: the log says why, for every step: the exception text, not the stack."""
+    job = jobs.transition(jobs.create(tmp_path, now=clock), "transcribing", now=clock)
+    detail = 'boom\nTraceback (most recent call last):\n  File "x.py", line 1'
+    job = jobs.fail(job, step="transcribing", message="no", detail=detail, now=clock)
+    last = (job.path / "job.log").read_text(encoding="utf-8").splitlines()[-1]
+    assert last.endswith("step=transcribing message='no' detail='boom'")
+    assert "Traceback" not in last
 
 
 def _delivered(tmp_path: Path, clock: Clock) -> jobs.Job:

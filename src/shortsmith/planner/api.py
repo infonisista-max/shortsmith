@@ -5,8 +5,9 @@ The builder's text is the prompt, exactly the one the CLI adapter sends on stdin
 the request from the brief on. The shared system prompt and the spec block carry
 `cache_control` markers, so a job's second call and its 8.2 retries read the style
 from the cache. No tools; the model is `PLANNER_MODEL`. The text is written to
-`work/planner/request_<call>[_retry].md` and the reply to `reply_<call>[_retry].json`
-as the CLI adapter does, so both leave the same files.
+`work/planner/run<n>/request_<call>[_retry].md` and the reply to
+`reply_<call>[_retry].json` as the CLI adapter does, so both leave the same files; each
+run of `planning` binds its own `run<n>` (065), so a retried job keeps both runs.
 
 One Messages call is the seam tests replace (`Create`), not the SDK's HTTP client: the
 SDK ships its own httpx build, which the project does not declare, so nothing here
@@ -29,6 +30,7 @@ from __future__ import annotations
 import copy
 import math
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Self, cast
 
 import anthropic
@@ -38,7 +40,7 @@ from pydantic import SecretStr
 from shortsmith.contracts import PicturePlan, PlanFeedback, PlanRequest, SoundStory
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
-from shortsmith.planner.base import Planner, PlannerError
+from shortsmith.planner.base import Planner, PlannerError, run_folder
 from shortsmith.planner.parse import parse_reply
 from shortsmith.planner.prompt import (
     PROMPT_VERSION,
@@ -107,10 +109,12 @@ class ApiPlanner(Planner):
         self._timeout_s = timeout_s
         self._max_tokens = max_tokens
         self._job: Job | None = None
+        self._folder: Path | None = None
 
     def bind(self, job: Job) -> Self:
         bound = copy.copy(self)
         bound._job = job
+        bound._folder = run_folder(job)
         return bound
 
     def plan_picture(
@@ -137,12 +141,11 @@ class ApiPlanner(Planner):
         return story
 
     def _call(self, call: Call, text: str, *, retry: bool) -> PicturePlan | SoundStory:
-        job = self._job
-        if job is None:
+        job, folder = self._job, self._folder
+        if job is None or folder is None:
             raise PlannerError("ApiPlanner has no job: bind(job) before calling")
         if self._api_key is None:
             raise PlannerError("PLANNER=api needs ANTHROPIC_API_KEY in .env")
-        folder = job.work_dir / "planner"
         folder.mkdir(parents=True, exist_ok=True)
         name = f"{call}_retry" if retry else call
         (folder / f"request_{name}.md").write_text(text, encoding="utf-8", newline="\n")

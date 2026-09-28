@@ -162,7 +162,7 @@ def test_the_picture_call_sends_the_cli_prompt_split_with_cache_markers(
     assert body == skeleton  # model, max_tokens, cache markers, and no tools
     assert isinstance(plan, PicturePlan)
     assert plan.prompt_version == prompt.PROMPT_VERSION
-    folder = job.work_dir / "planner"
+    folder = job.work_dir / "planner" / "run2"  # 065: the CLI's bind took run1
     assert (folder / "request_picture.md").read_text("utf-8") == stdin[0]
     assert json.loads((folder / "reply_picture.json").read_text("utf-8"))["id"].startswith("msg_")
 
@@ -210,7 +210,7 @@ def test_the_sound_call_and_the_retry_send_the_builder_text(job: jobs.Job) -> No
     )  # fmt: skip
     assert "".join(_texts(api.body(0))) == first
     assert "".join(_texts(api.body(1))) == retry
-    folder = job.work_dir / "planner"
+    folder = job.work_dir / "planner" / "run1"
     assert (folder / "request_sound_retry.md").read_text("utf-8") == retry
     assert (folder / "reply_sound_retry.json").is_file()
     assert isinstance(story, SoundStory)
@@ -248,6 +248,34 @@ def test_an_http_error_is_a_planner_error_with_the_api_words_and_no_row(
         _planner(api, job).plan_picture(_request())
     assert KEY not in str(caught.value)
     assert jobs.load(job.path).record.cost == []
+
+
+def test_a_second_bind_writes_a_new_run_folder_and_never_over_the_first(
+    job: jobs.Job,
+) -> None:
+    """065 (1): each pipeline run of `planning` binds once and gets `run<n>`; the 8.2
+    `_retry` names stay inside it."""
+    with pytest.raises(PlannerError):
+        _planner(StubApi([_status_error(529, _fixture("error"))]), job).plan_picture(_request())
+    cut = _fixture("picture")
+    cut["stop_reason"] = "max_tokens"
+    first = _planner(StubApi([Message.model_validate(cut)]), job)
+    with pytest.raises(PlannerError, match="max_tokens"):
+        first.plan_picture(_request())
+    run2 = job.work_dir / "planner" / "run2"
+    before = (run2 / "reply_picture.json").read_bytes()
+    again = _planner(StubApi([_ok("picture"), _ok("picture")]), job)
+    again.plan_picture(_request())
+    again.plan_picture(_request(), feedback=PlanFeedback(previous="{}", violations=["x"]))
+    assert (run2 / "reply_picture.json").read_bytes() == before
+    run3 = job.work_dir / "planner" / "run3"
+    assert {p.name for p in run3.iterdir()} == {
+        "request_picture.md",
+        "reply_picture.json",
+        "request_picture_retry.md",
+        "reply_picture_retry.json",
+    }
+    assert (job.work_dir / "planner" / "run1" / "request_picture.md").is_file()
 
 
 def test_an_unbound_or_keyless_planner_refuses_to_call(job: jobs.Job) -> None:
