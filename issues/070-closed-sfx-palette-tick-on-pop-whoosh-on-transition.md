@@ -99,8 +99,11 @@ What to build:
       unknown trigger.
 - [ ] Smoke on explainer, vishva and fastfacts passes T1–T13. The fake planner emits one
       pop-in tick and one transition whoosh.
-- [ ] Render run04's audio again with the fixes (`work/070/mix.wav`, git-ignored),
-      listing each cue's time, kind and Freesound name, for the operator's phone check.
+- [ ] Operator step (the afk run has `.env` parked and no network, so it does not
+      render with fetched sounds): the done note gives the exact command for the
+      operator to run with `.env` back in place. It re-renders run04's audio with the
+      fixes into `work/070/mix.wav` (git-ignored) and prints each cue's time, kind and
+      Freesound name, for the operator's phone check.
 - [ ] Ruff, pyright and every test file are green in foreground chunks.
 - [ ] Done note: the amendment lines for 7.1 and 7.3 (the closed palette; tick and whoosh
       only on pop-ins and transitions, all styles; rings, bells, chimes and dings banned)

@@ -78,7 +78,10 @@ The existing fetched catalogue is re-tagged from Freesound, not wiped.
 - [ ] `seed retag` against an `httpx.MockTransport` serving the run04 answers keeps the
       good entries (e.g. 669855 snare, 115525 bass stab) and removes 557546, 738836,
       253546 and 249931 with their files. It never touches `assets/audio/catalog.yaml`.
-- [ ] Run once for real on this machine. The done note pastes its output lines.
+- [ ] Operator step (the afk run has `.env` parked and no network, so it does not run
+      this): the done note gives the exact command for the operator to run with `.env`
+      back in place (`uv run python -m shortsmith.sound.seed retag`), and what its
+      output should show (557546, 738836, 253546 and 249931 removed).
 - [ ] Ruff, pyright and every test file are green in foreground chunks. No test reaches
       the network.
 - [ ] Done note: the amendment line for 7.2 (adoption checks name and tags against the
