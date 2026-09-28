@@ -1,5 +1,5 @@
 ---
-version: "8"
+version: "9"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -36,7 +36,7 @@ pip:
   ring_px: 8
   ring_color: "#F97316"
 broll:
-  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, clip, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, wall, map, infographic, pin_drop, route_arrow, label_flyin,
           counter, object_path]
   tier2_kinds: [parallax, vector_illustration]
@@ -44,6 +44,7 @@ broll:
     photo: {kind: parallax, depth_px: 40, alternate: true}
     card: {kind: pop_in, scale_from: 0.6, scale_to: 1.0, border_px: 0, rotate_deg: 0.0,
            ring_color: "#F97316"}
+    clip: {kind: push, scale_from: 1.0, scale_to: 1.0, speed: 1.0}  # 058
     stamp: {kind: pop, duration_s: 0.12, shake: true, palette: accent}
     lower_third: {kind: spring, duration_s: 0.3, top_y: 1150, bottom_y: 1240}
     finale: {kind: spring, duration_s: 0.4, cards: 3}
@@ -57,6 +58,7 @@ broll:
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here
   bubbles_max_per_60s: 0  # 063: off here
+  clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -150,6 +152,7 @@ Motion-graphics heavy; illustrated B-roll dominates. DRAFT (grill decision 1.4):
 ## B-roll
 - Generated or vector illustrations with strong motion: parallax, pop-in, path animation; one consistent palette per short, and the accent may come from the user's references' dominant colour (1.3).
 - Sources and rights as in explainer (5.1); generation cap `gen_max_per_short` is higher because illustration is the point here.
+- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat only, never a named entity; at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
 - The six 030 enter transitions are enabled (9.4), still at most one whip per three beats; `flash` (060) is not.
 
 ## Captions

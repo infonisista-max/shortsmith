@@ -329,13 +329,14 @@ def test_without_a_search_adapter_there_is_simply_no_bed(
 
 def test_floor_hits_from_the_plan_events(plan: PicturePlan, nums: styles.Sound) -> None:
     hits = {h.beat_id: h for h in sound.floor_hits(plan, nums)}
-    # 057: b02 is a `photo` on a whip with a lower-third - none of those earns a hit.
-    assert "b02" not in hits
+    # 058: b02 is the plan's card (on a whip with a lower-third, neither of which earns a
+    # hit); the card flies in, so it earns the thump.
+    assert hits["b02"].hit == "thump" and hits["b02"].trigger == "card_fly_in"
     assert "b03" not in hits  # 055: the full beat has no landed event
-    # 057: b04 is the plan's card, so it flies in, but its stamp is the more specific
-    # trigger and the one hit a beat gets.
+    # 058: b04 is the clip beat; a clip covers the frame like a photo and flies nothing
+    # in, so its stamp is its one trigger.
     assert hits["b04"].hit == "bass" and hits["b04"].trigger == "stamp"
-    assert sound.beat_triggers(plan)["b04"] == ("stamp", "card_fly_in")
+    assert sound.beat_triggers(plan)["b04"] == ("stamp",)
     assert hits["b06"].hit == "drum" and hits["b06"].trigger == "money_reveal"
     assert hits["b08"].hit == "bass" and hits["b08"].trigger in ("header", "reveal")
     assert hits["b10"].hit == "thump"
@@ -348,10 +349,21 @@ def test_nothing_on_whips_punch_ins_rings_or_lower_thirds(
     plan: PicturePlan, nums: styles.Sound
 ) -> None:
     """7.1: the four events that never earn a hit. b03 is a `full` punch-in, b05 a map
-    with no event; b02 enters on a whip and carries a lower-third (057: a `photo`, so
-    nothing to earn a hit from); a card that enters on a whip with a ring earns its
-    thump from the card it flies in, never from either of those."""
-    hit_ids = {h.beat_id for h in sound.floor_hits(plan, nums)}
+    with no event; b02 enters on a whip and carries a lower-third (as a `photo` there is
+    nothing to earn a hit from; 058 plans it as a card, whose fly-in is the one thing that
+    does); a card that enters on a whip with a ring earns its thump from the card it
+    flies in, never from either of those."""
+    as_photo = plan.model_copy(
+        update={
+            "beats": [
+                b.model_copy(update={"kind": "photo", "motion": "ken_burns_in"})
+                if b.id == "b02"
+                else b
+                for b in plan.beats
+            ]
+        }
+    )
+    hit_ids = {h.beat_id for h in sound.floor_hits(as_photo, nums)}
     assert "b02" not in hit_ids and "b03" not in hit_ids and "b05" not in hit_ids
     ringed = plan.model_copy(
         update={
@@ -465,8 +477,9 @@ def test_an_event_cue_on_a_text_pop_fires_where_the_pop_lands(
         bed_query=BedQuery(theme="tech", mood="curious", energy=3),
         cues=[Cue(beat_id="b03", intent="popup_tick", at="event")],
     )  # fmt: skip
-    # the fixture-shaped cap (six cues in 6 s): under the shipped 20 per 60 s only two
-    # survive, the classed floor hits, so the unclassed tick would be cut for cost
+    # the fixture-shaped cap (seven cues in 6 s, one over the plan's six floor hits):
+    # under the shipped 20 per 60 s only two survive, the classed floor hits, so the
+    # unclassed tick would be cut for cost
     judged = fixture.smoke_specs(render.loaded_styles())[styles.DEFAULT].sound
     placed = sound.place_cues(popped, story, library, judged, runtime_s=6.0)
     cue = next(c for c in placed.cues if c.beat_id == "b03")

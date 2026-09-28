@@ -49,12 +49,21 @@ b04 carries a dialogue pair, the grammar lands the first at the beat's start and
 second the fixture-scaled gap later, the render draws both clear of the circle, the
 captions, the stamp and each other with their tails on their anchors, T12 counts them,
 and job.log carries each bubble's text beside its source words.
+
+Ticket 058: the fake plan's b04 is a `clip` beat; the fake clip source (Pexels video)
+answers its query with a synthetic moving clip carrying a tone, and `check_clip` proves
+the walk: the manifest's `clip` record with its real length, the rights row and the
+"Video by ... on Pexels" credit, the render spec's `clip` visual at the style's speed,
+the strip's `Pv` letter, a frame at the beat's middle that differs from its first, and a
+picture with no audio stream. The summary carries the picture render's seconds (from
+`render.log`) so a run can be compared with the one before it.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import tempfile
 import time
@@ -124,10 +133,14 @@ SMOKE_BRIEF = (
 )
 SMOKE_STYLE_LINE = "explainer, energetic"
 SMOKE_LIMITS = Limits(min_duration_s=fixture.DURATION_S)
-# 016: the fake plan's b01 (the opening's first image) and b04 (its card reuse) ask for
-# this; Commons answers it with a full-bleed portrait. Web answers everything else with
-# a 1600x1000 landscape, so b02 (asked `photo`, 057) is drawn as a card.
+# 016: the fake plan's b01 (the opening's first image) asks for this; Commons answers it
+# with a full-bleed portrait. Web answers everything else with a 1600x1000 landscape, so
+# b02 (the planned card, 057 / 058) is drawn as a card. 058: b04 asks for moving footage,
+# which the fake Pexels video source answers with a 3 s synthetic clip.
 PHOTO_QUERY = "slow colour gradient sky"
+# Below the stamp, right of the PIP circle, above the caption band: only the clip moves here.
+CLIP_REGION = (400, 720, 940, 940)
+CLIP_MOTION_MIN = 0.01  # the share of the region's pixels that must change over the beat
 
 
 def smoke_sourcing() -> assets.Sourcing:
@@ -139,6 +152,7 @@ def smoke_sourcing() -> assets.Sourcing:
         order=("web", "commons"),
         judge=assets.FakeRelevanceJudge(),  # 017: the judge runs, on no paid call
         generator=assets.FakeImageGenerator(),  # 019: rung 2, on no paid call either
+        clips={"pexels": assets.FakeClipSource("pexels")},  # 058: the clip beat's footage
     )
 
 
@@ -332,6 +346,8 @@ def run_smoke(
     check((job.work_dir / "render_spec.json").is_file(), "rendering did not write render_spec.json")
     check((job.work_dir / "render.log").is_file(), "rendering did not keep work/render.log")
     frames = check_picture(picture)
+    render_s = check_render_time(job)
+    check_clip(reloaded, plan, manifest, style)
     check_cut(job.work_dir / "cut.mp4")
     cues = check_sound(reloaded, plan, story, library, specs[style])
     check(
@@ -373,8 +389,8 @@ def run_smoke(
         f"smoke ok: style {style}, job {job.id} -> {reloaded.status}, "
         f"{len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
-        f"text pops {pops}, bubbles {drawn_bubbles}, "
-        f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
+        f"text pops {pops}, bubbles {drawn_bubbles}, clip b04, "
+        f"picture {frames} frames {picture.stat().st_size // 1024} KiB render {render_s:.1f}s, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
         f"{' '.join(TECHNICAL_CHECKS)} pass, "
@@ -448,17 +464,123 @@ def check_assets(job: jobs.Job, plan: PicturePlan, style: str) -> assets.AssetMa
         (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
     )
     # 027: b08 (list) and b10 (wall) also carry a visual - their dimmed base still;
-    # 055 / 057: b01 and b02 are the opening's two `photo` beats (b02's landscape is
-    # drawn as a card), b04 the planned card (a1 again) that carries the stamp.
+    # 055 / 057 / 058: b01 and b02 are the opening's two image beats (b02 the planned
+    # card, its landscape could not fill the frame anyway), b04 the clip that carries the
+    # stamp.
     drawn = {b.id: b.visual.treatment for b in spec.beats if b.visual is not None}
     check(
-        drawn == {"b01": "photo", "b02": "card", "b04": "card", "b08": "photo", "b10": "photo"},
+        drawn == {"b01": "photo", "b02": "card", "b04": "clip", "b08": "photo", "b10": "photo"},
         f"render spec draws {drawn}",
     )
     check_set_pieces(spec, plan, style)
     check_transitions(spec, plan, style)
     check_look(spec, style)
     return manifest
+
+
+def check_render_time(job: jobs.Job) -> float:
+    """058: the picture render's seconds, read off the driver's `done` line in
+    `work/render.log`, so the summary carries a number to set beside the last run's."""
+    text = (job.work_dir / "render.log").read_text(encoding="utf-8", errors="replace")
+    seconds = [
+        float(match.group(1))
+        for line in text.splitlines()
+        if (match := re.search(r"done frames=\d+ render_s=([\d.]+)", line)) is not None
+    ]
+    check(len(seconds) == 1, f"render.log carries {len(seconds)} `done` lines, not one")
+    return seconds[0]
+
+
+def _region_motion(
+    a: tuple[int, int, bytes], b: tuple[int, int, bytes], box: tuple[int, int, int, int]
+) -> float:
+    """The share of the pixels inside `box` (every other pixel) that differ by more than
+    30 levels in any channel between frames `a` and `b`."""
+    left, top, right, bottom = box
+    width = a[0]
+    changed = total = 0
+    for y in range(top, bottom, 2):
+        for x in range(left, right, 2):
+            i = 3 * (y * width + x)
+            total += 1
+            if any(abs(a[2][i + c] - b[2][i + c]) > 30 for c in range(3)):
+                changed += 1
+    return changed / max(1, total)
+
+
+def check_clip(
+    job: jobs.Job, plan: PicturePlan, manifest: assets.AssetManifest, style: str
+) -> None:
+    """058: the fake plan's b04 (`clip`) was sourced from the fake Pexels video source -
+    a `clip` record at rung 0 with its real size and length, a rights row of kind
+    `clip` and the "Video by <name> on Pexels" credit - drawn as the `clip` treatment at
+    the style's speed from the file's start, marked `Pv` on the contact sheet's strip,
+    moving between the beat's first frame and its middle, while the picture stays silent
+    although the clip file carries a tone (the master carries no clip audio)."""
+    beat = next(b for b in plan.beats if b.kind == "clip")
+    check(beat.id == "b04", f"the fake plan's clip beat is {beat.id}, not b04")
+    decided = manifest.beat(beat.id)
+    check(decided is not None, "the clip beat was not sourced")
+    assert decided is not None
+    check(
+        (decided.treatment, decided.fallback_rung, decided.asset_id) == ("clip", 0, "a3"),
+        f"the clip beat was decided as {decided}",
+    )
+    record = manifest.asset("a3")
+    check(record is not None, "the manifest has no record for the clip")
+    assert record is not None
+    check(
+        (record.kind, record.origin, record.licence) == ("clip", "pexels", "Pexels License"),
+        f"the clip record is {record.kind} from {record.origin} under {record.licence!r}",
+    )
+    check(abs(record.duration_s - 3.0) <= 0.1, f"the clip record runs {record.duration_s} s")
+    clip_file = job.path / record.file
+    check(clip_file.is_file() and clip_file.suffix == ".mp4", f"the clip file {record.file} is off")
+    streams = {s.get("codec_type") for s in ffmpeg.probe(clip_file)["streams"]}
+    check(streams == {"video", "audio"}, f"the clip file carries {sorted(streams)}, not a tone")
+    check(ffmpeg.video_size(clip_file) == (record.width, record.height), "the clip size is off")
+    rows = rights.load(job.path) or []
+    clip_rows = [r for r in rows if r.kind == "clip"]
+    check(
+        [(r.id, r.origin, r.beat_ids) for r in clip_rows] == [("a3", "pexels", ["b04"])],
+        f"the clip's rights rows are {clip_rows}",
+    )
+    credits_text = (job.out_dir / "credits.md").read_text(encoding="utf-8")
+    check(
+        "Video by fake pexels video on Pexels via " in credits_text,
+        f"credits.md has no Pexels video credit:\n{credits_text}",
+    )
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    drawn = next(b for b in spec.beats if b.id == beat.id)
+    visual = drawn.visual
+    check(visual is not None and visual.treatment == "clip", f"b04 is drawn as {visual}")
+    assert visual is not None
+    numbers = render.style_numbers(style).broll
+    check(
+        (visual.speed, visual.start_s, visual.scale_from, visual.scale_to)
+        == (numbers.clip_speed, 0.0, numbers.clip_scale_from, numbers.clip_scale_to),
+        f"the clip visual is not {style}'s clip row: {visual}",
+    )
+    check(Path(visual.src) == clip_file.resolve(), "the render spec does not draw the clip file")
+    check(drawn.stamp is not None and drawn.mode == "pip", "the clip beat lost its stamp or circle")
+    strip = contact_sheet.strip_line(beat.start + 0.25, plan, manifest)
+    check(strip.text == "b04 P clip Pv", f"the strip line reads {strip.text!r}")
+    picture = job.work_dir / "picture.mp4"
+    first = ffmpeg.frame_rgb(picture, at_s=(drawn.start_frame + 1) / spec.fps)
+    middle = ffmpeg.frame_rgb(picture, at_s=(drawn.start_frame + drawn.end_frame) / 2 / spec.fps)
+    motion = _region_motion(first, middle, CLIP_REGION)
+    check(
+        motion > CLIP_MOTION_MIN,
+        f"the clip beat's middle frame differs from its first on {motion:.1%} of the region; "
+        f"the footage is not moving",
+    )
+    kinds = [s.get("codec_type") for s in ffmpeg.probe(picture)["streams"]]
+    check(kinds == ["video"], f"picture.mp4 carries {kinds}; the clip's tone must not reach it")
+    log = job.log_path.read_text(encoding="utf-8")
+    check("pexels video: " in log, "job.log has no clip search line (058 (5))")
+    check("no usable clip" not in log, "job.log says the clip beat fell to the still ladder")
 
 
 def check_transitions(spec: RenderSpec, plan: PicturePlan, style: str) -> None:

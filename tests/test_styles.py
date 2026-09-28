@@ -82,7 +82,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "8", spec.name  # the front matter changed again (063)
+        assert spec.version == "9", spec.name  # the front matter changed again (058)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -190,8 +190,9 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.budget.gen_max_per_short == 8  # 5.5
     # 030: the full tier-1 list, the two B-roll treatments and the six transitions (9.2, 9.4);
     # 055 removed `hook_cards`.
+    # 058 adds `clip`, the moving footage kind.
     assert ex.requires_components == [
-        "captions", "pip", "photo", "card", "stamp", "lower_third", "finale",
+        "captions", "pip", "photo", "card", "clip", "stamp", "lower_third", "finale",
         "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
         "pin_drop", "route_arrow", "object_path",
         "cut", "fade", "whip", "zoom", "spring", "wipe",
@@ -212,7 +213,7 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
 # 055: `hook_cards` stays exported by the Node project (its component is still built) but
 # no style requires it, so it is not in the list a shipped spec must cover.
 TIER1_REGISTRY = [
-    "captions", "pip", "photo", "card", "stamp", "lower_third", "finale",
+    "captions", "pip", "photo", "card", "clip", "stamp", "lower_third", "finale",
     "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
     "pin_drop", "route_arrow", "object_path",
     "cut", "fade", "whip", "zoom", "spring", "wipe",
@@ -427,6 +428,52 @@ def test_the_test_style_helper_turns_text_pops_on(specs: dict[str, StyleSpec]) -
     assert styled.model_dump(exclude={"broll"}) == specs["explainer"].model_dump(exclude={"broll"})
 
 
+# --- moving footage (ticket 058; 4.1 and 5.1 as amended) ----------------------------------
+
+
+def test_every_spec_carries_the_clip_row_and_the_clip_share(specs: dict[str, StyleSpec]) -> None:
+    """058 (6): the clip's numbers are a `broll.motion.clip` row in every spec (no push:
+    the clip's own movement is the motion, so 1.0 -> 1.0; speed 1.0) and
+    `broll.clip_max_fraction` is 0.35 in the four existing styles (the reference median
+    moving-footage share is 31 %); `clip` is a kind every style may plan, and the
+    renderer exports it."""
+    for spec in specs.values():
+        row = spec.broll.motion["clip"]
+        assert row["kind"] == "push", spec.name
+        assert (float(row["scale_from"]), float(row["scale_to"])) == (1.0, 1.0), spec.name
+        assert float(row["speed"]) == 1.0, spec.name
+        assert spec.broll.clip_max_fraction == 0.35, spec.name
+        assert "clip" in spec.broll.kinds, spec.name
+        assert spec.version == "9", spec.name  # the front matter changed again (058)
+    assert "clip" in REGISTRY
+    assert "clip" in specs["explainer"].requires_components
+    assert "clip" in specs["hitech"].requires_components
+
+
+def test_the_clip_row_or_share_missing_fails_the_loader_naming_the_spec(tmp_path: Path) -> None:
+    def drop_row(fm: dict[str, Any]) -> None:
+        del fm["broll"]["motion"]["clip"]
+
+    with pytest.raises(StyleError, match=r"explainer.*clip"):
+        render.numbers_for(
+            styles.load_all(REGISTRY, _variant_dir(tmp_path / "a", "explainer", drop_row))[
+                "explainer"
+            ]
+        )
+
+    def drop_share(fm: dict[str, Any]) -> None:
+        del fm["broll"]["clip_max_fraction"]
+
+    with pytest.raises(StyleError, match=r"hitech.*clip_max_fraction"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", drop_share))
+
+    def over_one(fm: dict[str, Any]) -> None:
+        fm["broll"]["clip_max_fraction"] = 1.5
+
+    with pytest.raises(StyleError, match=r"hitech.*clip_max_fraction"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "c", "hitech", over_one))
+
+
 # --- bubbles (ticket 063; 4.1 and 9.2 as amended) -----------------------------------------
 
 
@@ -576,7 +623,7 @@ def test_drafts_may_require_components_the_registry_lacks(specs: dict[str, Style
 
 
 HITECH_COMPONENTS = [
-    "captions", "pip", "photo", "card", "stamp", "lower_third", "finale",
+    "captions", "pip", "photo", "card", "clip", "stamp", "lower_third", "finale",
     "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
     "pin_drop", "route_arrow", "object_path",
     "cut", "fade", "wipe", "zoom",

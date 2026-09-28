@@ -51,6 +51,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from shortsmith import assets, presenter, styles
+from shortsmith.assets.generate import depicts_of
 from shortsmith.contracts import (
     CATEGORIES,
     TIER2_KINDS,
@@ -84,7 +85,9 @@ PRESENTER_KINDS = frozenset({"presenter_full", "presenter_pip"})
 FIXED_MOTION_KINDS = frozenset({"finale"})  # motion comes from the spec table
 SET_PIECE_KINDS = frozenset({"list", "chart", "split", "wall", "finale"})  # 3.1
 DENSITY_EXEMPT_KINDS = SET_PIECE_KINDS
-OPENING_KINDS = frozenset({"photo", "card"})  # 055: a full-screen image behind the circle
+# 055: a full-screen image behind the circle; 058: a moving clip too, when the topic is
+# a concept.
+OPENING_KINDS = frozenset({"photo", "card", "clip"})
 ITEM_KINDS = frozenset({"list", "split", "wall"})  # 027: the set pieces with own content
 TITLED_KINDS = frozenset({"list", "split"})  # a header (nkb_04) and a title strip (5.2)
 # 021: a chart carries its title strip in the same field, but needs no items.
@@ -96,8 +99,12 @@ MAP_OVERLAYS = frozenset({"pin_drop", "route_arrow", "object_path"})
 ROUTED_OVERLAYS = frozenset({"route_arrow", "object_path"})
 MAX_MAP_LAT = 85.0  # Mercator's edge; a bbox past it has nothing to draw
 TIER2_SUBSTITUTES: dict[str, str] = {"parallax": "photo", "vector_illustration": "card"}
-# 061: the picture beats a text pop may sit on (a moving `clip` joins them with 058).
-TEXT_POP_KINDS = frozenset({"photo", "card", "presenter_full"})
+# 061: the picture beats a text pop may sit on; 058: the moving `clip` joined them.
+TEXT_POP_KINDS = frozenset({"photo", "card", "clip", "presenter_full"})
+# 058 (4.1 and 5.1 as amended): the moving footage kind. A clip beat's asset is a stock
+# video file, so only another clip beat (or a `number` / `quote` beat carrying it on)
+# may name it, and it never names a still beat's asset or appears in a set piece's items.
+CLIP_KIND = "clip"
 TEXT_POP_WORDS_MAX = 4  # 061 (1): one to four words
 # 063: a bubble sits on the same picture beats (its tail points at a person in the
 # picture, or at the PIP circle).
@@ -204,6 +211,7 @@ def validate_picture(
     found += _presenter(beats, plan, spec)
     found += _opening(beats, spec, references)
     found += _kinds(beats, spec)
+    found += _clips(beats, runtime, spec)
     found += _items(beats, spec)
     found += _charts(beats, spec)
     found += _maps(beats, spec)
@@ -651,6 +659,64 @@ def _kinds(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
                     "has exactly one",
                 )
             )
+    return found
+
+
+def clip_share(beats: Sequence[Beat]) -> float:
+    """058 (6): the seconds of the plan its `clip` beats cover."""
+    return round(sum(_len(b) for b in beats if b.kind == CLIP_KIND), 3)
+
+
+def _clips(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Violation]:
+    """058 (4.1 and 5.1 as amended): a `clip` beat shows a concept, never a named entity
+    (2: a stock stranger is never King Saud; those beats keep the still ladder); clip
+    beats cover at most `broll.clip_max_fraction` of the runtime (6); and a clip's asset
+    is moving footage (7): another clip beat or a carry-on `number` / `quote` beat may
+    name it, a still beat or a set-piece item (stills only) may not, and a clip beat
+    never names a still beat's asset."""
+    found: list[Violation] = []
+    clip_ids = {b.asset_id for b in beats if b.kind == CLIP_KIND and b.asset_id}
+    still_ids = {
+        b.asset_id
+        for b in beats
+        if b.kind != CLIP_KIND and b.asset_id and b.subject_kind not in assets.REUSING_KINDS
+    }
+    for b in beats:
+        if b.kind == CLIP_KIND:
+            if depicts_of(b) == "named_entity":
+                found.append(
+                    _v("4.1", b.id, "a clip never shows a named entity (a person, place, "
+                                    "product or event keeps the still ladder); this clip "
+                                    f"beat's subject is {b.subject_kind!r} depicting a named "
+                                    "entity (058)")  # fmt: skip
+                )
+            if b.asset_id in still_ids:
+                found.append(
+                    _v("4.1", b.id, f"clip beat names {b.asset_id!r}, a still beat's asset; a "
+                                    "clip's asset is moving footage of its own or another clip "
+                                    "beat's (058)")  # fmt: skip
+                )
+        elif b.asset_id in clip_ids and b.subject_kind not in assets.REUSING_KINDS:
+            found.append(
+                _v("4.1", b.id, f"{b.kind} beat names {b.asset_id!r}, a clip beat's asset; only "
+                                "a clip beat, or a number or quote beat carrying the clip on, "
+                                "may show it (058)")  # fmt: skip
+            )
+        for i, item in enumerate(b.items):
+            if item.asset_id in clip_ids:
+                found.append(
+                    _v("4.1", b.id, f"item {i} names {item.asset_id!r}, a clip beat's asset; a "
+                                    "set piece shows stills (058)")  # fmt: skip
+                )
+    share = clip_share(beats)
+    cap = spec.broll.clip_max_fraction * runtime
+    if share > cap + EPS:
+        fraction = share / runtime if runtime else 0.0
+        found.append(
+            _v("4.1", None, f"clip beats cover {share:g} s of {runtime:g} s ({fraction:.2f}); "
+                            f"broll.clip_max_fraction {spec.broll.clip_max_fraction:g} allows "
+                            f"{cap:.1f} s (058)")  # fmt: skip
+        )
     return found
 
 

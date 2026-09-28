@@ -8,9 +8,10 @@ recording; a job with no measurement or swept stills has no such row. Then one f
 per second at 270 px wide, six per row, a time label under each frame and the strip
 line beneath it (016):
 the beat at that time, its mode letter as drawn (F/P/O; a rung-4 rescue is P), its
-kind (the treatment actually drawn for photo and card beats), and the asset-origin
+kind (the treatment actually drawn for photo, card and clip beats), and the asset-origin
 letter (U user, W web, C Commons, O Openverse, P Pexels, X Pixabay, G generated, L
-library, - none), with a red corner mark on a rescued (4.4) or downgraded (5.3) beat.
+library, - none; 058: a stock clip is Pv or Xv), with a red corner mark on a rescued
+(4.4) or downgraded (5.3) beat.
 A clamped beat (8.2) carries the same corner (035). The 6.3 platform safe-area zones
 are drawn as thin outlines on the first frame of every row. The last row is the
 summary panel (10.4, completed by 035): one dot per technical check T1-T13 (green
@@ -42,6 +43,7 @@ from shortsmith import assets, ffmpeg, jobs, ledger, presenter
 from shortsmith.contracts import (
     CRITIC_NOTES_MAX,
     AssetManifest,
+    AssetRecord,
     CriticReport,
     FaceBox,
     PicturePlan,
@@ -232,6 +234,15 @@ ORIGIN_LETTERS = {
     "owner_supplied": "U", "web": "W", "commons": "C", "openverse": "O", "pexels": "P",
     "pixabay": "X", "generated": "G", "library": "L",
 }  # fmt: skip
+# 058: a clip (a stock video) carries the still letter with a `v`, so a Pexels photo (P)
+# and a Pexels clip (Pv) read apart on the strip.
+CLIP_LETTERS = {"pexels": "Pv", "pixabay": "Xv"}
+
+
+def origin_letter(record: AssetRecord) -> str:
+    if record.kind == "clip":
+        return CLIP_LETTERS.get(record.origin, f"{ORIGIN_LETTERS.get(record.origin, '-')}v")
+    return ORIGIN_LETTERS.get(record.origin, "-")
 
 
 @dataclass(frozen=True)
@@ -259,12 +270,12 @@ def strip_line(
         marked = marked or decided.rescued or decided.treatment_downgraded
         if decided.fallback_rung == 4:
             mode = "pip"
-        elif beat.kind in ("photo", "card"):
-            kind = decided.treatment
+        elif beat.kind in ("photo", "card", "clip"):
+            kind = decided.treatment  # 058: a clip beat drawn from a still says so
     elif asset_id is not None and manifest is not None:
         asset_id = manifest.aliases.get(asset_id, asset_id)
     record = manifest.asset(asset_id) if manifest is not None and asset_id else None
-    origin = ORIGIN_LETTERS.get(record.origin, "-") if record is not None else "-"
+    origin = origin_letter(record) if record is not None else "-"
     return Strip(f"{beat.id} {MODE_LETTERS[mode]} {kind} {origin}", marked)
 
 

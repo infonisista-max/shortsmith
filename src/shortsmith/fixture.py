@@ -80,7 +80,9 @@ SMOKE_BROLL: dict[str, int] = {
 }
 SMOKE_SOUND: dict[str, float] = {
     "ramp_min_s": 0.4,  # the fake's curve rises over 0.5 s
-    "cues_max_per_60s": 60,  # -> 6 in 6 s; the fake places 5
+    # -> 7 in 6 s: the fake plan earns six floor hits (058: b02 is a planned card, so it
+    # flies in) and one planner cue must still fit beside them
+    "cues_max_per_60s": 70,
 }
 SMOKE_CUT: dict[str, float] = {
     "max_pause_s": 0.8,  # 055: the bursts are 0.7 s apart; a real pause rule would cut them

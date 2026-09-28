@@ -676,6 +676,94 @@ def test_entity_beat_per_sixty_seconds_when_the_brief_names_something(spec: Styl
     checked(plan, spec, brief=named)
 
 
+# --- moving footage (ticket 058; 4.1 and 5.1 as amended) -----------------------------------
+#
+# The base plan's even body beats (b03, b05, ..., b21) are `photo` concept scenes, the odd
+# ones `card` entities; the body is 50 s of the 56 s runtime.
+
+
+def as_clip(plan: PicturePlan, *beat_ids: str) -> PicturePlan:
+    """The beats as `clip` beats, each with its own asset (the base plan's stills cycle
+    through twelve ids, and a clip's asset is never a still's)."""
+    for beat_id in beat_ids:
+        plan = replace(plan, beat_id, kind="clip", motion="push_in", asset_id=f"v_{beat_id}")
+    return plan
+
+
+def test_a_clip_passes_on_a_concept_beat_and_on_the_opening(spec: StyleSpec) -> None:
+    """058 (1): a `clip` is a full-screen moving shot on a concept beat, the opening
+    included when the topic is a concept; it needs its motion and asset like a photo."""
+    checked(as_clip(make_plan(), "b05"), spec)
+    checked(as_clip(make_plan(), "b01"), spec)
+    assert ("b05", "4.1") in rules(picture(replace(as_clip(make_plan(), "b05"), "b05",
+                                                     motion=None), spec))  # fmt: skip
+    assert ("b01", "3.4") in rules(picture(replace(as_clip(make_plan(), "b01"), "b01",
+                                                     asset_id=None), spec))  # fmt: skip
+
+
+def test_a_clip_is_never_a_named_entity(spec: StyleSpec) -> None:
+    """058 (2): a beat whose subject is a named person, place, product or event keeps
+    the still ladder; a `clip` there is rejected naming the beat. An entity beat that
+    depicts a scene (a kind of place) may take one."""
+    result = picture(as_clip(make_plan(), "b06"), spec)  # b06: entity, depicts None
+    assert ("b06", "4.1") in rules(result)
+    assert isinstance(result, grammar.Violations)
+    assert any("named entity" in v.message and "058" in v.message for v in result.items)
+    named = replace(as_clip(make_plan(), "b05"), "b05", depicts="named_entity")
+    assert ("b05", "4.1") in rules(picture(named, spec))
+    scene = replace(as_clip(make_plan(), "b06"), "b06", depicts="scene")
+    checked(scene, spec)
+
+
+def test_clip_beats_take_at_most_the_styles_share_of_the_runtime(spec: StyleSpec) -> None:
+    """058 (6): `broll.clip_max_fraction` (0.35) caps the runtime clip beats cover:
+    seven 2.5 s clips on the 56 s plan (17.5 s, 0.31) pass, eight (20 s, 0.36) fail
+    naming the plan; a style with the share at 0 takes none."""
+    concept = [f"b{n + 3:02d}" for n in range(0, 20, 2)]  # the ten photo beats
+    checked(as_clip(make_plan(), *concept[:7]), spec)
+    result = picture(as_clip(make_plan(), *concept[:8]), spec)
+    assert (None, "4.1") in rules(result)
+    assert isinstance(result, grammar.Violations)
+    assert any("clip_max_fraction" in v.message for v in result.items)
+    off = spec.model_copy(deep=True)
+    off.broll.clip_max_fraction = 0.0
+    assert (None, "4.1") in rules(picture(as_clip(make_plan(), "b05"), off))
+    assert grammar.clip_share(as_clip(make_plan(), *concept[:7]).beats) == pytest.approx(17.5)
+
+
+def test_a_clip_beats_asset_is_moving_footage_and_never_a_still(spec: StyleSpec) -> None:
+    """058 (7): a clip counts as an image for reuse, so another clip beat may name its
+    asset; a still beat or a set-piece item (stills only) naming it is rejected, and a
+    clip beat naming a still beat's asset is rejected too. A number beat carrying the
+    clip on over its stamp is fine."""
+    plan = as_clip(make_plan(), "b05")  # b05's asset is now v_b05
+    checked(replace(as_clip(plan, "b07"), "b07", asset_id="v_b05"), spec)
+    still_reuse = replace(plan, "b07", asset_id="v_b05")  # b07 is a photo
+    assert ("b07", "4.1") in rules(picture(still_reuse, spec))
+    items = [SetPieceItem(text="one", asset_id="v_b05"), SetPieceItem(text="two")]
+    on_list = replace(plan, "b08", **{**AS_LIST, "items": items})
+    result = picture(on_list, spec)
+    assert ("b08", "4.1") in rules(result)
+    assert isinstance(result, grammar.Violations)
+    assert any("clip" in v.message and "v_b05" in v.message for v in result.items)
+    clip_of_still = replace(as_clip(make_plan(), "b07"), "b07", asset_id="a03")  # b05's still
+    assert ("b07", "4.1") in rules(picture(clip_of_still, spec))
+    number = replace(plan, "b06", subject_kind="number", depicts=None, asset_id="v_b05",
+                     kind="photo", motion="ken_burns_in")  # fmt: skip
+    checked(number, spec)
+
+
+def test_a_clip_is_a_picture_beat_for_text_pops_and_bubbles(spec: StyleSpec) -> None:
+    """061 / 063 as amended by 058: a pop or a bubble may sit on a moving clip."""
+    plan = as_clip(make_plan(), "b05")
+    popped = replace(plan, "b05", text_pops=[TextPop(text="1945", word=4, x=60.0, y=40.0)])
+    checked(popped, text_pop_style(spec))
+    bubbled = replace(plan, "b05", bubbles=[Bubble(text="Why?", first=4, last=4, x=19.4, y=50.0)])
+    checked(bubbled, bubble_style(spec))
+    assert "clip" in grammar.TEXT_POP_KINDS and "clip" in grammar.BUBBLE_KINDS
+    assert "clip" in grammar.OPENING_KINDS
+
+
 # --- set-piece items (ticket 027; decisions 4.1, 5.2) ------------------------------------
 
 

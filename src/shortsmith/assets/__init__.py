@@ -65,6 +65,21 @@ an `AssetManifest` (`work/assets.json`):
 - A source's notes about a search (053 rule 5: a 403, an empty answer, its status and
   the query) are drained into the job log after every search as `sourcing:` lines.
 
+- Moving footage (058, amending 4.1 and 5.1): a `clip` beat asks for a full-screen muted
+  stock video. Its ladder runs before the still ladder: a planned reuse of an earlier
+  clip record, then Pexels video and Pixabay video (`clips`, in `clip_order`) with
+  `query` then `query_fallback` (`_clip_cached`) - each hit's smallest file that covers
+  1080x1920 at the style's `broll.full_bleed_max_upscale` under `CLIP_MAX_BYTES`
+  (`clips.choose_file`), judged on its preview image, portrait first among equals, and
+  at least as long as the beat needs (`clip_need_s`: the beat plus the `number` /
+  `quote` beats that carry it on, at the style's playback speed) - fetched into the
+  job's asset folder and probed with ffprobe. A named entity (`depicts_of`) is never
+  offered a clip (rule 2: a stock stranger is never King Saud) and a beat that finds
+  no usable clip takes the still ladder, both with a job-log line saying why. A clip
+  record is shown only by clip beats and carry-on beats, never re-dressed (a rescue
+  re-dresses stills), and never a set piece's still; it counts as an image for the
+  4.3 / 056 reuse rule.
+
 Search results and fetched files are cached per job under
 `work/assets/<sha256(query + source)>/` (5.6), so re-running the step (a plan retry,
 a re-render) searches, judges and fetches nothing; judge verdicts are additionally
@@ -117,6 +132,17 @@ from shortsmith.assets.base import (
     reject_size,
     source_order,
 )
+from shortsmith.assets.clips import (
+    CLIP_ORDER,
+    ClipCandidate,
+    ClipSource,
+    FakeClipSource,
+    PexelsClipSource,
+    PixabayClipSource,
+    choose_file,
+    is_portrait,
+    reject_clip,
+)
 from shortsmith.assets.commons import CommonsImageSource
 from shortsmith.assets.generate import (
     FakeImageGenerator,
@@ -142,6 +168,7 @@ from shortsmith.assets.pixabay import PixabayImageSource
 from shortsmith.assets.web import WebImageSource
 from shortsmith.config import Settings
 from shortsmith.contracts import (
+    AssetKind,
     AssetManifest,
     AssetPolicy,
     AssetRecord,
@@ -164,6 +191,8 @@ from shortsmith.styles import StyleSpec
 
 __all__ = [
     "BOOKENDS",
+    "CLIP_KIND",
+    "CLIP_ORDER",
     "FRAME_H",
     "FRAME_W",
     "MAX_ASPECT",
@@ -174,7 +203,10 @@ __all__ = [
     "STOPWORDS",
     "TITLE_WORDS",
     "AssetError",
+    "ClipCandidate",
+    "ClipSource",
     "CommonsImageSource",
+    "FakeClipSource",
     "FakeImageGenerator",
     "FakeImageSource",
     "FakeRelevanceJudge",
@@ -186,7 +218,9 @@ __all__ = [
     "ImageSource",
     "Judging",
     "OpenverseImageSource",
+    "PexelsClipSource",
     "PexelsImageSource",
+    "PixabayClipSource",
     "PixabayImageSource",
     "RelevanceJudge",
     "Searching",
@@ -197,6 +231,8 @@ __all__ = [
     "VisionJudge",
     "WebImageSource",
     "card_border",
+    "choose_file",
+    "clip_need_s",
     "covers_frame",
     "image_reuse_problems",
     "image_showings",
@@ -225,6 +261,8 @@ KEYED: Mapping[str, str] = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_
 REUSING_KINDS = frozenset({"number", "quote"})
 # 053 rule 1: the stock libraries, never searched for a named entity.
 STOCK_ORIGINS: frozenset[str] = frozenset({"pexels", "pixabay"})
+# 058: the moving footage kind; its asset is a stock video file (`AssetRecord.kind` `clip`).
+CLIP_KIND = "clip"
 EPS = 1e-9
 
 # 4.4: a re-dress punches in a further step and moves the focus, so no framing repeats.
@@ -581,6 +619,174 @@ def _reject_fetched(path: Path, border_px: int) -> str | None:
     return reject_size(width, height, border_px)
 
 
+# --- moving footage (058) --------------------------------------------------------------------
+
+
+def clip_need_s(beat: Beat, beats: Sequence[Beat], *, speed: float = 1.0) -> float:
+    """How many seconds of footage `beat` needs (058 (5)): its own length plus the
+    consecutive `number` / `quote` beats after it, which carry the clip on over their
+    stamps (4.2), all at the style's playback `speed`."""
+    ids = [b.id for b in beats]
+    at = ids.index(beat.id) if beat.id in ids else -1
+    need = beat.end - beat.start
+    rest: Sequence[Beat] = beats[at + 1 :] if at >= 0 else ()
+    for following in rest:
+        if following.subject_kind not in REUSING_KINDS:
+            break
+        need += following.end - following.start
+    return round(need * max(speed, EPS), 3)
+
+
+def _probe_clip(path: Path) -> tuple[int, int, float] | None:
+    """The real size and length of a downloaded clip, or None when ffprobe finds no
+    video stream (the one size and length a source cannot misreport)."""
+    try:
+        width, height = ffmpeg.video_size(path)
+        return width, height, ffmpeg.duration_s(path)
+    except ffmpeg.FFmpegError:
+        return None
+
+
+def _clip_probe_reject(path: Path, need_s: float, max_upscale: float) -> str | None:
+    probed = _probe_clip(path)
+    if probed is None:
+        return "the downloaded file is not a readable video"
+    width, height, duration = probed
+    if not covers_frame(width, height, max_upscale):
+        return f"{width}x{height} px cannot cover 1080x1920 at <= {max_upscale:g}x"
+    if duration + 1e-3 < need_s:
+        return f"the file runs {duration:.2f} s, shorter than the {need_s:g} s the beat needs"
+    return None
+
+
+def rank_clips(
+    candidates: Sequence[Candidate], verdicts: Sequence[Verdict] | None
+) -> list[_Ranked]:
+    """058 (3, 4): the judge's accepted clips best-first, portrait ahead of landscape at
+    the same score, ties by the source's own order; unjudged, portrait first in the
+    source's order."""
+    ranked = rank(candidates, verdicts)
+    return sorted(ranked, key=lambda r: (
+        -(r.verdict.score if r.verdict is not None else 0), not is_portrait(r.candidate),
+    ))  # fmt: skip
+
+
+_CLIP_CANDIDATES = TypeAdapter(list[ClipCandidate])
+
+
+def _clip_cached(
+    source: ClipSource,
+    query: str,
+    need_s: float,
+    cache: Path,
+    clock: Clock,
+    judging: Judging,
+    searching: Searching,
+    *,
+    max_upscale: float,
+    subject_kind: str = "",
+    topic: str = "",
+    log: Callable[[str], None] = lambda _: None,
+    saturated: Callable[[str], str | None] = lambda _: None,
+) -> _Fetched | None:
+    """The clip `query` from `source` gives a beat needing `need_s` seconds (058), fetched
+    once per job. The search is cached like an image search (`result.json` under
+    `cache_key(query, source.name)`, a name no image source shares); every file fetched
+    for the query is listed in `fetched`, so a later beat asking the same query, or
+    needing a longer clip, downloads only what is new. Every line logged about the
+    source's candidates passes through `source.scrub` (058 (8))."""
+    name = source.name
+
+    def note(line: str) -> None:
+        log(f"sourcing: {source.scrub(line)}")
+
+    folder = cache / cache_key(query, name)
+    result = folder / "result.json"
+    fetched_all: list[dict[str, object]] = []
+    if result.is_file():
+        data = json.loads(result.read_text(encoding="utf-8"))
+        candidates = _CANDIDATES.validate_python(data["candidates"])
+        verdicts = (
+            judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
+            if data.get("judged")
+            else None
+        )
+        fetched_all = [dict(f) for f in cast("list[Mapping[str, object]]", data.get("fetched", []))]
+        record: dict[str, object] = dict(data)
+    else:
+        folder.mkdir(parents=True, exist_ok=True)
+        searching.count(name)
+        found = source.search(query, CANDIDATES)
+        for line in source.drain():
+            note(line)
+        candidates: list[Candidate] = []
+        for hit in found:
+            if not isinstance(hit, ClipCandidate):
+                continue
+            why = reject_clip(hit, max_upscale=max_upscale)
+            if why is not None:
+                note(f"{hit.page_url or hit.url} rejected: {why}")
+                continue
+            chosen = choose_file(hit, max_upscale=max_upscale)
+            assert chosen is not None  # reject_clip said a file fits
+            candidates.append(chosen)
+        verdicts = judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
+        record = {
+            "query": query,
+            "source": name,
+            "candidates": _CANDIDATES.dump_python(candidates, mode="json"),
+            "judged": verdicts is not None,
+            "judge_skipped": verdicts is None,
+            "fetched": [],
+        }
+    by_url: dict[str, dict[str, object]] = {str(f["url"]): f for f in fetched_all}
+    fetched: _Fetched | None = None
+    for ranked in rank_clips(candidates, verdicts):
+        candidate = ranked.candidate
+        if candidate.duration_s + 1e-3 < need_s:
+            note(f"{candidate.url} skipped: {candidate.duration_s:g} s clip is shorter than "
+                 f"the {need_s:g} s the beat needs")  # fmt: skip
+            continue
+        have: dict[str, object] | None = by_url.get(candidate.url)
+        if have is None:
+            dest = folder / f"clip-{len(fetched_all) + 1}"
+            try:
+                path = source.fetch(candidate, dest)
+            except SourceError as exc:
+                note(str(exc))
+                continue
+            why = _clip_probe_reject(path, need_s, max_upscale)
+            if why is not None:
+                note(f"{candidate.url} rejected: {why}")
+                path.unlink(missing_ok=True)
+                continue
+            verdict = _verdict(judging.model, ranked.verdict)
+            have = {
+                "url": candidate.url,
+                "candidate": candidate.model_dump(mode="json"),
+                "judge": verdict.model_dump(mode="json") if verdict is not None else None,
+                "file": path.name,
+                "fetched_at": clock().isoformat(),
+            }
+            fetched_all.append(have)
+            by_url[candidate.url] = have
+        else:
+            why = _clip_probe_reject(folder / str(have["file"]), need_s, max_upscale)
+            if why is not None:
+                note(f"{candidate.url} skipped: {why}")
+                continue
+        got = _fetched_from(have, folder, verdicts is None)
+        why = saturated(got.sha256())
+        if why is not None:
+            note(f"{candidate.url} skipped: {why}")
+            continue
+        fetched = got
+        break
+    record["fetched"] = fetched_all
+    result.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    return fetched
+
+
 # --- owner references (1.3) ---------------------------------------------------------------
 
 
@@ -638,13 +844,22 @@ def _reference_file(
 # --- the step ------------------------------------------------------------------------------
 
 
-def _measure(path: Path) -> tuple[int, int, str]:
+def _measure(path: Path, kind: AssetKind = "image") -> tuple[int, int, float, str]:
+    """(width, height, duration_s, sha256): the real size of a still through Pillow, or
+    of a clip (058) through ffprobe with its length; 0 s on a still."""
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if kind == CLIP_KIND:
+        probed = _probe_clip(path)
+        if probed is None:
+            raise AssetError(f"{path.name} is not a readable video")
+        width, height, duration = probed
+        return width, height, duration, digest
     try:
         with Image.open(path) as image:
             width, height = image.size
     except OSError as exc:
         raise AssetError(f"{path.name} is not a readable image: {exc}") from None
-    return width, height, hashlib.sha256(path.read_bytes()).hexdigest()
+    return width, height, 0.0, digest
 
 
 def _rel(path: Path, job_dir: Path) -> str:
@@ -774,10 +989,10 @@ class _Walk:
         return f"{beat.id}-asset"
 
     def add(self, asset_id: str, path: Path, *, origin: Origin, fetched_at: str,
-            kind: Literal["image", "clip_frame"] = "image", candidate: Candidate | None = None,
+            kind: AssetKind = "image", candidate: Candidate | None = None,
             generated: Generated | None = None,
             judge: JudgeVerdict | None = None) -> AssetRecord:  # fmt: skip
-        width, height, digest = _measure(path)
+        width, height, duration, digest = _measure(path, kind)
         record = AssetRecord(
             id=asset_id,
             kind=kind,
@@ -794,6 +1009,7 @@ class _Walk:
             width=width,
             height=height,
             fetched_at=fetched_at,
+            duration_s=duration,
         )  # fmt: skip
         self.records[asset_id] = record
         return record
@@ -805,10 +1021,15 @@ class _Walk:
 
     def show(self, beat: Beat, record: AssetRecord, rung: int, *,
              redressed: bool = False, judge_skipped: bool = False) -> None:  # fmt: skip
-        treatment, downgraded = classify(
-            record.width, record.height, planned=_planned(beat),
-            max_upscale=self.full_bleed_max_upscale,
-        )  # fmt: skip
+        if record.kind == CLIP_KIND:
+            # 058: a clip is drawn full-screen whatever its aspect (its 9:16 crop covers
+            # the frame, `choose_file` saw to that); never a card, never downgraded.
+            treatment, downgraded = cast("Treatment", CLIP_KIND), False
+        else:
+            treatment, downgraded = classify(
+                record.width, record.height, planned=_planned(beat),
+                max_upscale=self.full_bleed_max_upscale,
+            )  # fmt: skip
         crop = Crop()
         if redressed:
             times = self.redresses.get(record.id, 0) + 1
@@ -846,21 +1067,31 @@ class _Walk:
             self.aliases.setdefault(beat.asset_id, None)
 
     def nearest(
-        self, subject: str | None = None, *, free_for: Beat | None = None
-    ) -> AssetRecord | None:
+        self, subject: str | None = None, *, free_for: Beat | None = None,
+        stills_only: bool = False,
+    ) -> AssetRecord | None:  # fmt: skip
         """The asset of the nearest earlier beat that shows one (of `subject` kind);
         with `free_for`, only one that still has a showing left for that beat (056 (3):
-        a rescue never re-dresses a spent image)."""
+        a rescue never re-dresses a spent image); with `stills_only`, never a clip (058:
+        a rescue re-dresses stills, a clip is carried on only by a number / quote beat)."""
         for shown in reversed(self.beats):
             if shown.asset_id is None:
                 continue
             if subject is not None and self.subjects.get(shown.beat_id) != subject:
                 continue
             record = self.records[shown.asset_id]
+            if stills_only and record.kind == CLIP_KIND:
+                continue
             if free_for is not None and self.blocked(free_for, record) is not None:
                 continue
             return record
         return None
+
+
+def clip_speed(spec: StyleSpec) -> float:
+    """The style's clip playback speed (`broll.motion.clip.speed`, 058 (6)); 1.0 when
+    the spec carries no clip row."""
+    return float(spec.broll.motion.get("clip", {}).get("speed", 1.0))
 
 
 def source_assets(
@@ -875,15 +1106,20 @@ def source_assets(
     generating: Generating | None = None,
     judging: Judging | None = None,
     searching: Searching | None = None,
+    clips: Mapping[str, ClipSource] | None = None,
+    clip_order: Sequence[str] = CLIP_ORDER,
     topic: str = "",
     log: Callable[[str], None] = lambda _: None,
     clock: Clock = _utc_now,
 ) -> AssetManifest:
-    """Decide every sourced beat's asset per the rules in the module docstring."""
+    """Decide every sourced beat's asset per the rules in the module docstring. `clips`
+    are the stock video sources by name (058), tried in `clip_order`; None or empty
+    means every clip beat takes the still ladder."""
     picture = validated.picture
     cache = job_dir / "work" / CACHE_DIR
     cache.mkdir(parents=True, exist_ok=True)
     searched = [(name, sources[name]) for name in source_order(order, policy) if name in sources]
+    clip_sources = [clips[name] for name in clip_order if clips and name in clips]
     by_id = {ref.id: ref for ref in references}
     walk = _Walk(job_dir=job_dir, cache=cache, clock=clock, references=references,
                  reuse_max=spec.broll.reuse_max,
@@ -892,6 +1128,7 @@ def source_assets(
     searching = searching if searching is not None else Searching()
     generating = generating if generating is not None else Generating()
     border = card_border(spec)
+    speed = clip_speed(spec)
 
     def sources_for(beat: Beat) -> list[tuple[str, ImageSource]]:
         """053 rule 1: a named entity never comes from the stock libraries."""
@@ -949,6 +1186,52 @@ def source_assets(
     def skipped(beat: Beat, why: str) -> None:
         log(f"sourcing: {beat.id}: {why}; the next candidate is tried (056)")
 
+    def source_clip(beat: Beat) -> bool:
+        """058: the clip ladder for a `clip` beat - a planned reuse of an earlier clip,
+        then every clip source with `query` and `query_fallback` - showing the clip and
+        returning True, or False (logged) when the beat is to take the still ladder."""
+        if depicts_of(beat) == "named_entity":
+            log(
+                f"sourcing: {beat.id}: a named entity never takes a stock clip; the still "
+                "ladder is used instead (053, 058)"
+            )
+            return False
+        planned = beat.asset_id
+        if planned is not None and planned in walk.records:
+            record = walk.records[planned]
+            if record.kind == CLIP_KIND and walk.blocked(beat, record) is None:
+                walk.show(beat, record, 0)
+                return True
+        if not clip_sources:
+            log(f"sourcing: {beat.id}: no clip source is configured; the still ladder is used "
+                "instead (058)")  # fmt: skip
+            return False
+        need = clip_need_s(beat, picture.beats, speed=speed)
+        for rung, query in ((0, beat.query), (1, beat.query_fallback)):
+            if not query:
+                continue
+            for source in clip_sources:
+                found = _clip_cached(
+                    source, query, need, cache, clock, judging, searching,
+                    max_upscale=spec.broll.full_bleed_max_upscale,
+                    subject_kind=beat.subject_kind or "", topic=topic, log=log,
+                    saturated=lambda digest: walk.blocked_sha(beat, digest),
+                )  # fmt: skip
+                if found is None:
+                    continue
+                record = walk.add(
+                    walk.new_id(beat), found.path, origin=source.origin, kind=CLIP_KIND,
+                    fetched_at=found.fetched_at, candidate=found.candidate, judge=found.verdict,
+                )  # fmt: skip
+                walk.show(beat, record, rung, judge_skipped=found.judge_skipped)
+                return True
+        log(
+            f"sourcing: {beat.id}: no usable clip for {beat.query!r} (need {need:g} s, cover "
+            f"1080x1920 at <= {spec.broll.full_bleed_max_upscale:g}x); the still ladder is "
+            "used instead (058)"
+        )
+        return False
+
     opening = {b.id for b in picture.beats[: spec.beats.opening_beats_min]}
 
     def source_opening(beat: Beat) -> None:
@@ -979,13 +1262,27 @@ def source_assets(
     for beat in picture.beats:
         if beat.kind in NOT_SOURCED or beat.subject_kind is None:
             continue
+        # 058: a clip beat runs the clip ladder first; a beat that finds no clip (or may
+        # not have one) is sourced as a still below.
+        if beat.kind == CLIP_KIND and source_clip(beat):
+            continue
         planned = beat.asset_id
         # 056 (3): a planned reuse, an owner reference or a caption match is taken only
         # while the image has a showing left; past that the beat is sourced afresh.
         if planned is not None and planned in walk.records:
-            why = walk.blocked(beat, walk.records[planned])
+            record = walk.records[planned]
+            carries_on = beat.subject_kind in REUSING_KINDS
+            if record.kind == CLIP_KIND and beat.kind != CLIP_KIND and not carries_on:
+                # 058: a still beat shows a still; the clip stays with its clip beats
+                why = f"{planned!r} is a clip; a {beat.kind} beat shows a still (058)"
+            elif record.kind == CLIP_KIND and depicts_of(beat) == "named_entity":
+                why = f"{planned!r} is a clip; a named entity never takes one (058)"
+            elif record.kind != CLIP_KIND and beat.kind == CLIP_KIND:
+                why = f"{planned!r} is a still; a clip beat shows moving footage (058)"
+            else:
+                why = walk.blocked(beat, record)
             if why is None:
-                walk.show(beat, walk.records[planned], 0)
+                walk.show(beat, record, 0)
                 continue
             skipped(beat, why)
         elif planned is not None and planned in by_id:
@@ -1038,7 +1335,7 @@ def source_assets(
         if record is not None:
             walk.show(beat, record, 2)
             continue
-        earlier = walk.nearest(beat.subject_kind, free_for=beat)
+        earlier = walk.nearest(beat.subject_kind, free_for=beat, stills_only=True)
         if earlier is not None:
             walk.show(beat, earlier, 3, redressed=True)
             continue
@@ -1094,6 +1391,10 @@ class Sourcing:
     policy: AssetPolicy = "any"
     generator: ImageGenerator | None = None
     judge: RelevanceJudge | None = None
+    # 058: the stock video sources by name, tried in `clip_order` for a `clip` beat;
+    # none means every clip beat takes the still ladder.
+    clips: Mapping[str, ClipSource] = field(default_factory=lambda: {})
+    clip_order: Sequence[str] = CLIP_ORDER
     # Why a configured source has no adapter, one line each, written by
     # `from_settings` and logged by the pipeline before the step runs.
     notes: Sequence[str] = ()
@@ -1136,6 +1437,8 @@ class Sourcing:
             generating=generating,
             judging=judging,
             searching=searching,
+            clips=self.clips,
+            clip_order=self.clip_order,
             topic=topic_line(job_dir),
             log=lambda line: jobs.note(job, line, now=clock),
             clock=clock,
@@ -1183,10 +1486,14 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourci
 
     Pexels and Pixabay want a free key; a configured source whose key is unset is left
     out with a note rather than failing startup, so the ladder simply skips that rung.
-    `owner` and `generate` in the order are the fixed bookends and build nothing."""
+    `owner` and `generate` in the order are the fixed bookends and build nothing.
+
+    058: the same two keys build the clip sources (Pexels video, then Pixabay video)
+    for the `clip` beats, for whichever of the two is in the order with its key set."""
     order = parse_order(settings.asset_sources)
     wanted = source_order(order, settings.asset_policy)
     sources: dict[str, ImageSource] = {}
+    clips: dict[str, ClipSource] = {}
     notes: list[str] = []
     for name in wanted:
         if name == "web":
@@ -1197,8 +1504,10 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourci
             sources["openverse"] = OpenverseImageSource()
         elif name == "pexels" and settings.pexels_api_key is not None:
             sources["pexels"] = PexelsImageSource(api_key=settings.pexels_api_key)
+            clips["pexels"] = PexelsClipSource(api_key=settings.pexels_api_key)
         elif name == "pixabay" and settings.pixabay_api_key is not None:
             sources["pixabay"] = PixabayImageSource(api_key=settings.pixabay_api_key)
+            clips["pixabay"] = PixabayClipSource(api_key=settings.pixabay_api_key)
         elif name in KEYED:
             notes.append(
                 f"{name} is in ASSET_SOURCES but {KEYED[name]} is not set in .env; "
@@ -1212,6 +1521,7 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourci
         policy=settings.asset_policy,
         generator=generator_from_settings(settings, ledger),
         judge=judge_from_settings(settings, ledger),
+        clips={name: clips[name] for name in CLIP_ORDER if name in clips},
         notes=notes,
     )
 

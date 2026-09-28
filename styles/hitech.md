@@ -1,8 +1,8 @@
 ---
-version: "8"
+version: "9"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
-requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
+requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
                       cut, fade, wipe, zoom]
@@ -39,7 +39,7 @@ pip:
   ring_px: 4
   ring_color: "#22D3EE"
 broll:
-  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, clip, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, wall, map, infographic, pin_drop, route_arrow, label_flyin,
           counter, object_path]
   tier2_kinds: []
@@ -47,6 +47,7 @@ broll:
     photo: {kind: ken_burns, scale_from: 1.08, scale_to: 1.14, alternate: true}
     card: {kind: push, scale_from: 1.3, scale_to: 1.8, border_px: 2, rotate_deg: 0.0,
            ring_color: "#22D3EE"}
+    clip: {kind: push, scale_from: 1.0, scale_to: 1.0, speed: 1.0}  # 058
     stamp: {kind: land, duration_s: 0.12, shake: false, palette: cyan_white}
     lower_third: {kind: fade, duration_s: 0.3, top_y: 1150, bottom_y: 1240}
     finale: {kind: fade, duration_s: 0.35, cards: 3}
@@ -71,6 +72,7 @@ broll:
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here
   bubbles_max_per_60s: 0  # 063: off here
+  clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -162,6 +164,7 @@ Dark, glowing, product and tech facts. DRAFT (grill decision 1.4): aliases resol
 
 ## B-roll
 - Product images on the dark gradient, UI mock cards, spec stamps and number counters; sources and rights as in explainer (5.1). Generated named products stay illustration-style (`illustration_look`).
+- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat only (a process, a material, a kind of place), never a named product or person; at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
 - The set pieces, infographics and map are the explainer's components under hitech numbers: flat cards (`rotate_deg` 0, a 2 px border), deeper dims under lists and walls, the map's land in the gradient's blue with a cyan coast.
 - Transitions are `cut`, `fade`, `wipe` and `zoom` (9.4); no whips or springs, no flash (060).
 

@@ -140,6 +140,13 @@ def test_run_job_transcribes_plans_renders_gates_and_delivers(
     # 033: the critic's note sits inside the `qa` step; the status trail is the rest.
     assert _trail(job) == TRAIL
     log = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
+    # 058: with no clip source configured the fake plan's clip beat says so in one
+    # `sourcing:` line inside the sourcing step and takes the still ladder.
+    sourcing = [line for line in log if line.startswith("sourcing: ")]
+    assert sourcing == ["sourcing: b04: no clip source is configured; the still ladder is used "
+                        "instead (058)"]  # fmt: skip
+    assert log.index(sourcing[0]) > log.index("planning -> sourcing")
+    log = [line for line in log if not line.startswith("sourcing: ")]
     assert len(log) == len(TRAIL) + 1 and log[-2].startswith("critic: overall ")
 
 
@@ -640,14 +647,14 @@ def test_a_rejected_picture_plan_is_resent_once_with_the_violations(
     assert first is None and second is not None
     assert PicturePlan.model_validate_json(second.previous).beats[3].motion is None
     assert second.violations == [
-        "b04 (4.1): non-presenter beat (card) has no motion; "
+        "b04 (4.1): non-presenter beat (clip) has no motion; "
         "every non-presenter beat has exactly one",
         "b04 (9.4): enter 'wipe' is not in broll.enter_transitions "
         "['cut', 'fade', 'whip', 'zoom', 'spring']",
     ]
     assert planner.sound_feedback == [None]
     plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
-    assert plan.beats[3].motion == "push_in"  # 057: b04 is the fake plan's card
+    assert plan.beats[3].motion == "push_in"  # 058: b04 is the fake plan's clip
     log = job.log_path.read_text("utf-8")
     assert "picture plan rejected" in log and "b04 (4.1)" in log
 

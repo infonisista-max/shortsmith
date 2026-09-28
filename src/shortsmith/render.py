@@ -292,6 +292,11 @@ class BrollNumbers:
     bubble_width_px: int
     bubble_fill: str
     bubble_ink: str
+    # 058: the clip row - the slow push over the beat (1.0 -> 1.0: the clip's own movement
+    # is the motion) and the playback speed.
+    clip_scale_from: float
+    clip_scale_to: float
+    clip_speed: float
 
 
 @dataclass(frozen=True)
@@ -321,7 +326,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         photo, card = motion["photo"], motion["card"]
         stamp, lower, finale = motion["stamp"], motion["lower_third"], motion["finale"]
         rows, split, wall = motion["list"], motion["split"], motion["wall"]
-        pop, bubble = motion["text_pop"], motion["bubble"]
+        pop, bubble, clip = motion["text_pop"], motion["bubble"], motion["clip"]
         return BrollNumbers(
             photo_scale_from=float(photo["scale_from"]),
             photo_scale_to=float(photo["scale_to"]),
@@ -371,6 +376,9 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             bubble_width_px=int(bubble["width_px"]),
             bubble_fill=str(bubble["fill"]),
             bubble_ink=str(bubble["ink"]),
+            clip_scale_from=float(clip["scale_from"]),
+            clip_scale_to=float(clip["scale_to"]),
+            clip_speed=float(clip["speed"]),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -545,17 +553,32 @@ def card_visual(src: str, width: int, height: int, *, strip_text: str, ring: boo
     )  # fmt: skip
 
 
+def clip_visual(src: str, width: int, height: int, *, crop: Crop, numbers: StyleNumbers,
+                start_s: float = 0.0) -> VisualSpec:  # fmt: skip
+    """058: the full-screen muted clip, playing from `start_s` seconds into the file at
+    the style's `broll.motion.clip.speed` with the row's slow push (1.0 -> 1.0 in every
+    existing style: the clip's own movement is the motion); it never drifts."""
+    b = numbers.broll
+    return VisualSpec(
+        treatment="clip", src=src, width=width, height=height, zoom=crop.zoom,
+        focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=b.clip_scale_from,
+        scale_to=b.clip_scale_to, pan_px=0.0, speed=b.clip_speed, start_s=start_s,
+    )  # fmt: skip
+
+
 # 4.2: a number or quote beat stamps over the asset already on screen, so its motion
 # carries on from the previous beat instead of restarting.
 CONTINUING_SUBJECTS = frozenset({"number", "quote"})
-# The kinds whose own asset is drawn behind them: the two B-roll treatments, and (027)
-# the dimmed base still of a `list` or a `wall`. A `split` fills its card instead.
-BASE_STILL_KINDS = frozenset({"photo", "card", "list", "wall"})
+# The kinds whose own asset is drawn behind them: the two B-roll treatments, the moving
+# clip (058), and (027) the dimmed base still of a `list` or a `wall`. A `split` fills its
+# card instead.
+BASE_STILL_KINDS = frozenset({"photo", "card", "clip", "list", "wall"})
 
 
 def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSpec:
     """`previous` carried on for `own_s` more seconds at the rate it was moving: the
-    same framing, the Ken Burns picked up where it stopped, never restarted (4.2)."""
+    same framing, the Ken Burns picked up where it stopped, never restarted (4.2); a
+    clip (058) plays on from the second the last beat stopped at."""
     span = max(previous_s, 1e-6)
     step = (previous.scale_to - previous.scale_from) * own_s / span
     updates: dict[str, object] = {
@@ -563,6 +586,8 @@ def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSp
         "scale_to": max(1.0, previous.scale_to + step),
         "pan_px": previous.pan_px * own_s / span,
     }
+    if previous.treatment == "clip":
+        updates["start_s"] = round(previous.start_s + previous_s * previous.speed, 3)
     card = previous.card
     if card is not None:
         cover = (card.cover_scale_to - card.cover_scale_from) * own_s / span
@@ -623,6 +648,11 @@ def _visuals(
         if carries_on and previous is not None:
             earlier, visual, _ = previous
             visual = continued(visual, earlier.end - earlier.start, beat.end - beat.start)
+        elif decided.treatment == "clip":
+            # 058: the moving clip, whatever kind the beat was planned as (a number beat
+            # showing an earlier clip afresh plays it from its start).
+            visual = clip_visual(src, record.width, record.height, crop=decided.crop,
+                                 numbers=numbers)  # fmt: skip
         elif decided.treatment == "photo":
             visual = photo_visual(src, record.width, record.height, index=index,
                                   crop=decided.crop, numbers=numbers)  # fmt: skip
@@ -1404,9 +1434,10 @@ def lower_third_spec(text: str, *, numbers: StyleNumbers) -> LowerThirdSpec:
 
 
 def opening_asset_ids(plan: PicturePlan, manifest: AssetManifest, count: int) -> list[str]:
-    """The first `count` distinct assets the short shows, in beat order (055): the
+    """The first `count` distinct still assets the short shows, in beat order (055): the
     opening's images first, then whatever follows. A beat's asset is the one the step
-    decided for it, else its planned id through the aliases."""
+    decided for it, else its planned id through the aliases. A clip (058) is passed
+    over: the finale's cards are stills."""
     out: list[str] = []
     for beat in plan.beats:
         decided = manifest.beat(beat.id)
@@ -1415,7 +1446,8 @@ def opening_asset_ids(plan: PicturePlan, manifest: AssetManifest, count: int) ->
             if decided is not None
             else (manifest.aliases.get(beat.asset_id, beat.asset_id) if beat.asset_id else None)
         )
-        if asset_id is None or asset_id in out or manifest.asset(asset_id) is None:
+        record = manifest.asset(asset_id) if asset_id is not None else None
+        if asset_id is None or asset_id in out or record is None or record.kind == "clip":
             continue
         out.append(asset_id)
         if len(out) == count:
@@ -1682,6 +1714,11 @@ def item_sources(
             )
         asset_id = manifest.aliases.get(item.asset_id, item.asset_id)
         record = manifest.asset(asset_id) if asset_id is not None else None
+        if record is not None and record.kind == "clip":
+            raise RenderError(
+                f"{beat.id}: set-piece item asset {item.asset_id!r} is a clip; a set piece "
+                "shows stills (058)"
+            )
         out.append(
             ItemSource(
                 text=item.text,
@@ -1871,8 +1908,9 @@ def build_spec(
     faces: dict[str, FaceBox | None] = {}
 
     def face_on(visual: VisualSpec | None) -> Box | None:
-        """The face on the beat's image in composition pixels, detected once per file."""
-        if detector is None or visual is None:
+        """The face on the beat's image in composition pixels, detected once per file.
+        A clip (058) has no still to read: the overlays keep today's placement."""
+        if detector is None or visual is None or visual.treatment == "clip":
             return None
         if visual.src not in faces:
             try:

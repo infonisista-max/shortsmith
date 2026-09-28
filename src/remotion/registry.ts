@@ -3,12 +3,14 @@
 // six enter transitions (9.4, ticket 030) are registered like any component: each is a
 // file that wraps a beat's picture; 060 adds the seventh, `flash`. 061 adds `text_pop`,
 // the bold words pinned on the picture that land on the spoken word; 063 adds `bubble`,
-// the speech and thought bubbles of the recording's own words.
+// the speech and thought bubbles of the recording's own words. 058 adds `clip`, the
+// full-screen muted stock footage drawn where a photo is.
 import type React from "react";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
+import { Clip } from "./components/clip";
 import { Counter } from "./components/counter";
 import { Cut } from "./components/cut";
 import { Fade } from "./components/fade";
@@ -40,6 +42,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   captions: Captions,
   card: Card,
   chart: Chart,
+  clip: Clip,
   counter: Counter,
   cut: Cut,
   fade: Fade,

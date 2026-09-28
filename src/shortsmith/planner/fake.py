@@ -35,10 +35,18 @@ Under a cap of 0 the plan is byte-identical to before.
 
 Ticket 063: where the style's `broll.bubbles_max_per_60s` is over 0 (none of the four
 shipped and draft styles; the smoke's `--bubbles` copy and 059's recipe styles), b04 (the
-card beat with the stamp) carries a dialogue pair (`FAKE_BUBBLES`): a speech bubble of
-words 0-1 pointing at the PIP circle and a thought bubble of words 2-3 over the card. The
-stamp stays the beat's landed event, so the sound story is unchanged. Under a cap of 0
-the plan is byte-identical to before.
+stamped beat) carries a dialogue pair (`FAKE_BUBBLES`): a speech bubble of words 0-1
+pointing at the PIP circle and a thought bubble of words 2-3 over the picture. The stamp
+stays the beat's landed event, so the sound story is unchanged. Under a cap of 0 the plan
+is byte-identical to before.
+
+Ticket 058: b04 is the plan's one `clip` beat - a concept ("drifting clouds timelapse",
+`CLIP_QUERY`) asking for moving stock footage under the stamp (and the bubbles), with its
+own asset `a3`; with no clip source configured it takes the still ladder like any clip
+beat. So that every tier-1 kind is still named once, b02 (the opening's second image,
+India Gate, a named entity) is planned as the `card` it was drawn as anyway (its
+landscape cannot fill the frame, 057), and the reuse 4.3 asks for moves to b06, the
+number beat, which returns to the opening's first image `a1`.
 """
 
 from __future__ import annotations
@@ -164,16 +172,20 @@ def bubbles_allowed(style: PlanStyle) -> bool:
     return isinstance(cap, int | float) and cap > 0
 
 
-# 063: the fake's dialogue pair on b04 (the card beat, 1.5-2.0 s): the presenter's own
-# question from words 0-1 ("hello there"), its tail at the top of the PIP circle (explainer
-# pip.left 60 + diameter 300 / 2 = 210 px, pip.top 960 px), and the thought it prompts
-# from words 2-3 ("this is"), over the card's picture. Both quote words said before the
+# 063: the fake's dialogue pair on b04 (the stamped clip beat, 1.5-2.0 s): the presenter's
+# own question from words 0-1 ("hello there"), its tail at the top of the PIP circle
+# (explainer pip.left 60 + diameter 300 / 2 = 210 px, pip.top 960 px), and the thought it
+# prompts from words 2-3 ("this is"), over the picture. Both quote words said before the
 # beat, so the grammar lands the first at the beat's start and the second the dialogue
 # gap later.
 FAKE_BUBBLES: tuple[Bubble, ...] = (
     Bubble(shape="speech", text="Hello there?", first=0, last=1, x=19.4, y=50.0),
     Bubble(shape="thought", text="This is...", first=2, last=3, x=62.0, y=30.0),
 )
+# 058: the fake's one clip beat asks for moving footage of a concept; the smoke's fake clip
+# source answers this query with a synthetic clip.
+CLIP_QUERY = "drifting clouds timelapse"
+CLIP_FALLBACK = "sky timelapse"
 
 
 def enter_for(wanted: Transition, enabled: Sequence[Transition]) -> Transition:
@@ -205,27 +217,28 @@ class FakePlanner(Planner):
         # 055: the short opens with the speaker's first words in `pip` over the strongest
         # images - the owner's reference first when the job has one, else the searched
         # sky (a1) - then the second image, then the one `full` beat (an emotional line)
-        # that keeps `presenter_full` in the plan. 057 (4): both opening beats ask
-        # `photo`; the smoke's second image is a landscape, so code draws it as a card
-        # (with the lower-third on the card strip) and the card path stays rendered.
+        # that keeps `presenter_full` in the plan. 057 / 058: b02 is planned as the
+        # `card` (the plan's one; the smoke's India Gate is a landscape that could not
+        # fill the frame anyway), with the lower-third on the card strip.
         first_asset = request.references[0].id if request.references else "a1"
         beats = [
             B(id="b01", start=0.0, end=0.5, mode="pip", kind="photo", motion="ken_burns_in",
               subject_kind="concept", depicts="scene", query="slow colour gradient sky",
               query_fallback="abstract gradient", source_intent="search",
               asset_id=first_asset),
-            B(id="b02", start=0.5, end=1.0, mode="pip", kind="photo", motion="ken_burns_in",
+            B(id="b02", start=0.5, end=1.0, mode="pip", kind="card", motion="push_in",
               subject_kind="entity", query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",
               enter=enter("whip"), event=Event(kind="lower_third", text="India Gate · Delhi")),
             # 060: the turn back to the presenter flashes where the style enables it.
             B(id="b03", start=1.0, end=1.5, mode="full", reason="emotional_line",
               kind="presenter_full", enter=enter("flash"), text_pops=pops),
-            # 057: b04 is the plan's one planned `card` (every tier-1 kind is named once),
-            # the opening's first image again, re-dressed as a card with the stamp.
-            B(id="b04", start=1.5, end=2.0, mode="pip", kind="card", motion="push_in",
-              subject_kind="concept", depicts="scene", query="slow colour gradient sky",
-              query_fallback="abstract gradient", source_intent="search", asset_id="a1",
+            # 058: b04 is the plan's one `clip` beat - moving stock footage of a concept
+            # under the stamp (and the 063 bubbles); a job with no clip source draws it
+            # from the still ladder.
+            B(id="b04", start=1.5, end=2.0, mode="pip", kind="clip", motion="push_in",
+              subject_kind="concept", depicts="scene", query=CLIP_QUERY,
+              query_fallback=CLIP_FALLBACK, source_intent="search", asset_id="a3",
               event=Event(kind="stamp", text="NOTHING"), bubbles=bubbles),
             # 020: the map is drawn from the bundled geodata with the markers at the
             # geocoder's points; it sources no picture. 028 animates its three overlays.
@@ -238,9 +251,10 @@ class FakePlanner(Planner):
                           route=["Delhi", "Mumbai"], object="plane")),
             # 021: the chart is drawn from the series, the diagram's labels in code. 029:
             # the counter is the chart beat's landed event, counting to its top value.
+            # 058: the number beat returns to the opening's first image (4.3: a reuse).
             B(id="b06", start=2.5, end=3.0, mode="off", kind="chart", overlays=["counter"],
               motion="count_up", subject_kind="number", query="twelve words in six seconds",
-              query_fallback="word count", source_intent="generate", asset_id="a5",
+              query_fallback="word count", source_intent="reuse", asset_id="a1",
               counter=Counter(start=0, target=12, unit="words"), money_reveal=True,
               set_piece_title="Nothing per second", value_unit="words",
               chart_form="bar",
@@ -259,7 +273,7 @@ class FakePlanner(Planner):
               subject_kind="concept", query="three things about nothing",
               query_fallback="empty list", source_intent="generate", asset_id="a7",
               enter=enter("spring"), set_piece_title="Three kinds of nothing",
-              items=[Item(text="Nothing to see", asset_id="a5"),
+              items=[Item(text="Nothing to see", asset_id="a1"),
                      Item(text="Nothing to hear", asset_id="a6"),
                      Item(text="Nothing at all")]),
             B(id="b09", start=4.0, end=4.5, mode="pip", kind="split", motion="pan_left",
@@ -270,7 +284,7 @@ class FakePlanner(Planner):
             B(id="b10", start=4.5, end=5.0, mode="off", kind="wall", motion="pan_right",
               subject_kind="concept", depicts="scene", query="grid of colour gradients",
               query_fallback="colour swatches", source_intent="generate", asset_id="a9",
-              items=[Item(asset_id="a1"), Item(asset_id="a2"), Item(asset_id="a5"),
+              items=[Item(asset_id="a1"), Item(asset_id="a2"), Item(asset_id="a7"),
                      Item(asset_id="a6")]),
             # 006: the finale is one 1.0 s beat so T3 (finale 0.8-1.2 s) holds on the
             # fixture; the former b11 (photo, ken_burns_out, stamp "6 s") folded into it.

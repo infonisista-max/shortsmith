@@ -34,12 +34,16 @@
 // overlays, above the PIP circle and below the captions; they are placed clear of both,
 // so the order only settles what a stray pixel would cover. Ticket 063: a beat's speech
 // and thought bubbles (`bubble`) sit in the same layer, after the text pops.
+//
+// Ticket 058 (4.1 as amended): a `clip` treatment is a full-screen muted stock video drawn
+// in the photo's layer, under the PIP circle, the overlays and the captions.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
+import { Clip } from "./components/clip";
 import { Counter } from "./components/counter";
 import { Finale } from "./components/finale";
 import { FlashOverlay, flashAt } from "./components/flash";
@@ -81,6 +85,9 @@ const BeatLayers: React.FC<{ spec: RenderSpec; beat: BeatSpec; frame: number }> 
       ) : null}
       {visual?.treatment === "card" ? (
         <Card beat={beat} frame={frame} fps={spec.fps} width={spec.width} height={spec.height} />
+      ) : null}
+      {visual?.treatment === "clip" ? (
+        <Clip beat={beat} frame={frame} fps={spec.fps} width={spec.width} height={spec.height} />
       ) : null}
       {beat.hook ? (
         <HookCards spec={beat.hook} style={spec.caption_style} frame={since} fps={spec.fps} />

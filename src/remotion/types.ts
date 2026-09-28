@@ -47,7 +47,7 @@ export type CardSpec = {
 };
 
 export type VisualSpec = {
-  treatment: "photo" | "card";
+  treatment: "photo" | "card" | "clip";
   src: string;
   width: number;
   height: number;
@@ -61,6 +61,10 @@ export type VisualSpec = {
   // broll.motion.<kind>.dim where it is only a set piece's base (027).
   dim: number;
   card: CardSpec | null;
+  // 058: a `clip` plays from `start_s` seconds into the file at `speed` (the style's
+  // broll.motion.clip.speed); both 1.0 / 0.0 on a still.
+  speed: number;
+  start_s: number;
 };
 
 // Set pieces and overlays (ticket 026): everything is already placed and measured in

@@ -137,6 +137,10 @@ class Broll(StrictModel):
     # hold, the per-beat cap, the word cap, the dialogue gap, the type sizes, the body
     # width, fill and ink) are the `motion.bubble` row, required of every spec too.
     bubbles_max_per_60s: int = Field(ge=0)
+    # 058 (4.1 as amended): the share of the runtime `clip` beats (full-screen moving
+    # stock footage) may take, 0-1; 0 turns clips off. The clip's own numbers (the slow
+    # push, the playback speed) are the `motion.clip` row, required of every spec too.
+    clip_max_fraction: float = Field(ge=0.0, le=1.0)
     # 030: the 9.4 vocabulary's numbers. Every spec carries all six rows, enabled or
     # not, so the renderer reads one shape; `enter_transitions` is the subset it may use.
     transitions: Transitions

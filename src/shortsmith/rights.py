@@ -34,7 +34,10 @@ AUDIO_NAME = "audio_rights.json"  # under work/: the renderer's rows, carried by
 DISCLOSURE = "Some scenes are AI-generated illustrations"
 UNCREDITED = frozenset({"owner_supplied", "generated"})
 AUDIO_KINDS = ("music", "sfx")
+PICTURE_KINDS = ("image", "clip_frame", "clip")  # 058: a stock clip is credited like a picture
 CREDIT_LABELS = {"music": "Music", "sfx": "Sound"}
+# 058 (8): the sites ask to be credited as "Video by <name> on Pexels" / "on Pixabay".
+CLIP_SITES = {"pexels": "Pexels", "pixabay": "Pixabay"}
 
 _ROWS = TypeAdapter(list[RightsRow])
 
@@ -92,19 +95,21 @@ def credit_line(r: RightsRow) -> str:
     licence in brackets, so the credits carry what 054 (4) adopted it under."""
     via = r.page_url or r.source_url
     who = r.author or urlparse(r.source_url or r.page_url).netloc
+    if r.kind == "clip":
+        # 058 (8): "Video by <name> on Pexels", the credit the site asks for, then the page.
+        site = CLIP_SITES.get(r.origin, urlparse(r.source_url or r.page_url).netloc)
+        return f"Video by {who} on {site} via {via}"
     label = CREDIT_LABELS.get(r.kind, "Photo")
     licence = f" ({r.licence})" if r.kind in AUDIO_KINDS and r.licence else ""
     return f"{label}: {who} via {via}{licence}"
 
 
 def credits(rows: Sequence[RightsRow]) -> str:
-    """`credits.md`: the picture credit lines, then the music and sound lines (5.4: the
-    music line is the bed and the cue files the mix used, once each), then the disclosure
-    line when one applies."""
+    """`credits.md`: the picture credit lines (stills and clips), then the music and
+    sound lines (5.4: the music line is the bed and the cue files the mix used, once
+    each), then the disclosure line when one applies."""
     pictures = [
-        credit_line(r)
-        for r in rows
-        if r.kind in ("image", "clip_frame") and r.origin not in UNCREDITED
+        credit_line(r) for r in rows if r.kind in PICTURE_KINDS and r.origin not in UNCREDITED
     ]
     audio = [
         credit_line(r) for r in rows if r.kind in AUDIO_KINDS and r.origin not in UNCREDITED

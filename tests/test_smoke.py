@@ -91,9 +91,20 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     assert layout is not None and [m.source for m in layout.markers] == ["fake", "fake"]
     treatments = {b.beat_id: b.treatment for b in manifest.beats}
     assert (treatments["b01"], treatments["b02"]) == ("photo", "card")  # 055: the opening
+    # 058: b04 is the clip beat, sourced from the fake Pexels video source as a muted clip
+    assert treatments["b04"] == "clip"
+    clip = manifest.asset("a3")
+    assert clip is not None and clip.kind == "clip" and clip.origin == "pexels"
+    assert (job.path / clip.file).suffix == ".mp4"
+    assert clip.duration_s == pytest.approx(3.0, abs=0.1)
+    b04 = next(b for b in spec.beats if b.id == "b04")
+    assert b04.visual is not None and b04.visual.treatment == "clip" and b04.visual.speed == 1.0
     rows = rights.load(job.path)
     assert rows is not None and rights.completeness(rows, manifest, plan) == []
-    assert (job.out_dir / "credits.md").read_text("utf-8").startswith("Photo: fake ")
+    assert [r.kind for r in rows if r.id == "a3"] == ["clip"]
+    credits_text = (job.out_dir / "credits.md").read_text("utf-8")
+    assert credits_text.startswith("Photo: fake ")
+    assert "Video by fake pexels video on Pexels via https://fake.invalid/" in credits_text
     sheet = job.out_dir / "contact.jpg"
     assert sheet.is_file() and sheet.stat().st_size < contact_sheet.MAX_BYTES
     with Image.open(sheet) as image:
@@ -121,6 +132,7 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     assert any(line.startswith("sound: ") and "placed at" in line for line in noted)
     assert "ok" in result.summary and job.id in result.summary
     assert "180 frames" in result.summary and "short" in result.summary
+    assert "clip b04" in result.summary and " render " in result.summary  # 058
     assert "T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 pass" in result.summary
     assert f"critic {report.critic.overall}/10 advisory" in result.summary
     assert "not implemented" not in result.summary and "contact" in result.summary

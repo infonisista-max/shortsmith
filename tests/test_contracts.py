@@ -118,8 +118,9 @@ def test_tier_lists_are_disjoint_and_complete() -> None:
     """4.1 as amended by 9.2: every listed kind is tier 1; only parallax and vector
     illustration are tier 2."""
     # 055: `hook_cards` left the tier with the hook; the short opens in pip over images.
+    # 058: `clip` is the moving footage kind (4.1 as amended).
     assert set(TIER1_KINDS) == {
-        "photo", "card", "stamp", "lower_third", "finale",
+        "photo", "card", "clip", "stamp", "lower_third", "finale",
         "presenter_full", "presenter_pip", "list", "chart", "split", "wall", "map",
         "infographic", "pin_drop", "route_arrow", "label_flyin", "counter", "object_path",
     }  # fmt: skip

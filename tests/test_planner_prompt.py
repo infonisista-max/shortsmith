@@ -160,7 +160,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v11"
+    assert prompt.PROMPT_VERSION == "v12"
 
 
 def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:
@@ -241,6 +241,32 @@ def test_the_v11_prompts_say_when_to_bubble_and_that_the_words_are_the_recording
         "`pop` in `sound.whoosh.on`",
     ):
         assert needle in sound, needle
+
+
+def test_the_v12_prompts_say_when_to_ask_a_clip_and_never_for_a_named_entity() -> None:
+    """058: the picture file's clip rule (moving stock footage on a concept beat and a
+    concept opening, never a named entity, under `broll.clip_max_fraction`, a request the
+    still ladder answers when no clip fits, its asset never a set piece's still) and the
+    sound file's line (a clip is muted, an ordinary picture beat for cues)."""
+    picture = prompt.build_prompt(_request(), "picture")
+    for needle in (
+        "Moving footage (`clip`)",
+        "always muted",
+        "Never for a named entity",
+        "a stock stranger is never the person named",
+        "`broll.clip_max_fraction`",
+        "Pexels video, then Pixabay video",
+        "a clip shorter than its beat is skipped",
+        "request, never a promise",
+        "a `photo`, `card`, `clip` or\n  presenter-full beat may carry `text_pops`",
+        "a `photo`, `card`, `clip` or\n  presenter-full beat may carry `bubbles`",
+        "an opening beat may be a\n  `clip`",
+    ):
+        assert needle in picture, needle
+    sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
+    assert "A `clip` beat (moving stock footage) is always muted" in sound
+    plan = FakePlanner().plan_picture(_request())
+    assert [b.id for b in plan.beats if b.kind == "clip"] == ["b04"]
 
 
 def test_the_picture_prompt_v8_asks_for_photo_on_the_opening_beats() -> None:

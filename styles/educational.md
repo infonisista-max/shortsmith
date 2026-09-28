@@ -1,5 +1,5 @@
 ---
-version: "8"
+version: "9"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -36,13 +36,14 @@ pip:
   ring_px: 4
   ring_color: "#1B7F79"
 broll:
-  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, clip, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, map, infographic, pin_drop, route_arrow, label_flyin, counter]
   tier2_kinds: []
   motion:
     photo: {kind: ken_burns, scale_from: 1.04, scale_to: 1.08, alternate: true}
     card: {kind: push, scale_from: 1.1, scale_to: 1.25, border_px: 10, rotate_deg: 0.0,
            ring_color: "#1B7F79"}
+    clip: {kind: push, scale_from: 1.0, scale_to: 1.0, speed: 1.0}  # 058
     stamp: {kind: fade, duration_s: 0.3, shake: false, palette: teal}
     lower_third: {kind: fade, duration_s: 0.35, top_y: 1150, bottom_y: 1240}
     finale: {kind: fade, duration_s: 0.5, cards: 3}
@@ -56,6 +57,7 @@ broll:
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here
   bubbles_max_per_60s: 0  # 063: off here
+  clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -150,6 +152,7 @@ Calm, clear teaching. DRAFT (grill decision 1.4): aliases resolve to `explainer`
 ## B-roll
 - Diagrams, labelled images, step cards and simple process animations dominate; photos are calm Ken Burns, cards sit flat with no rotation.
 - Sources and rights as in explainer (5.1); generated illustration is the flat diagram look in `illustration_look`.
+- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat only (a process, a phenomenon, a kind of place), never a named entity; at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
 - Fewer unique assets than explainer (`unique_assets_min_per_60s`–`unique_assets_max_per_60s`); reuse a diagram across the steps it explains.
 - Transitions are `cut` and `fade` only (9.4); no whips, no flash (060).
 

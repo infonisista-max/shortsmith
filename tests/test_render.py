@@ -51,6 +51,7 @@ from shortsmith.contracts import (
     PlanRequest,
     PlanStyle,
     RenderSpec,
+    SetPieceItem,
     SoundStory,
     Span,
     TextPop,
@@ -2175,3 +2176,169 @@ def test_registry_exports_the_map_animations_after_028() -> None:
     assert animations <= set(render.registry())
     required = render.loaded_styles()["explainer"].requires_components
     assert animations <= set(required)
+
+
+# --- moving footage (ticket 058; 4.1 and 5.1 as amended) --------------------------------
+
+CLOUDS = "clouds drifting over hills"
+
+
+def _clip_beat(i: int, *, asset_id: str | None = None, length: float = 1.0) -> Beat:
+    return Beat.model_validate({
+        "id": f"b{i}", "start": (i - 1) * length, "end": i * length, "mode": "pip",
+        "kind": "clip", "motion": "push_in", "subject_kind": "concept", "depicts": "scene",
+        "query": CLOUDS, "query_fallback": "sky", "source_intent": "search",
+        "asset_id": asset_id or f"a{i}", "event": {"kind": "stamp", "text": "CLOUDS"},
+    })  # fmt: skip
+
+
+def _clip_sourced(
+    tmp_path: Path, plan: PicturePlan, clip_source: assets.ClipSource | None = None
+) -> AssetManifest:
+    job_dir = tmp_path / "job"
+    (job_dir / "work").mkdir(parents=True, exist_ok=True)
+    validated = ValidatedPlan(picture=plan, sound=SoundStory(
+        prompt_version="t", theme="t", mood_curve=[], bed_query=BedQuery(theme="t", mood="t",
+        energy=3), cues=[]))  # fmt: skip
+    return assets.source_assets(
+        validated, [], "any", spec=SPECS["explainer"], job_dir=job_dir,
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY}),
+            "commons": assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)}),
+        },
+        clips={"pexels": clip_source or assets.FakeClipSource("pexels")},
+    )  # fmt: skip
+
+
+def test_a_clip_beat_draws_the_video_full_screen_at_the_styles_speed(tmp_path: Path) -> None:
+    """058 (1, 6): the clip is the beat's visual - the `clip` treatment covering the
+    frame under the circle, muted, from the file's start at `broll.motion.clip.speed`
+    with the row's push (1.0 -> 1.0: the clip's own movement is the motion), no drift,
+    no scrim, no card."""
+    plan = _plan().model_copy(update={"beats": [_clip_beat(1)]})
+    manifest = _clip_sourced(tmp_path, plan)
+    beat = _visual_spec(tmp_path, plan, manifest).beats[0]
+    visual = beat.visual
+    assert visual is not None and visual.treatment == "clip" and beat.mode == "pip"
+    assert Path(visual.src).is_absolute() and Path(visual.src).is_file()
+    assert visual.src.endswith(".mp4") and (visual.width, visual.height) == (1080, 1920)
+    row = EXPLAINER.broll
+    assert (visual.speed, visual.start_s) == (row.clip_speed, 0.0) == (1.0, 0.0)
+    assert (visual.scale_from, visual.scale_to) == (row.clip_scale_from, row.clip_scale_to)
+    assert (visual.pan_px, visual.dim, visual.card, visual.zoom) == (0.0, 0.0, None, 1.0)
+    assert beat.stamp is not None  # the stamp still lands over the clip
+
+
+def test_a_number_beat_carries_the_clip_on_from_where_it_stopped(tmp_path: Path) -> None:
+    """4.2 / 058: a number beat over the clip keeps playing it: same file, `start_s` the
+    seconds the first beat already played at the style's speed."""
+    beats = [_clip_beat(1), _number_beat(2, "a1")]
+    plan = _plan().model_copy(update={"beats": beats})
+    manifest = _clip_sourced(tmp_path, plan)
+    assert len(manifest.assets) == 1
+    first, second = (b.visual for b in _visual_spec(tmp_path, plan, manifest).beats)
+    assert first is not None and second is not None and first.src == second.src
+    assert (first.treatment, second.treatment) == ("clip", "clip")
+    assert second.start_s == pytest.approx(1.0 * first.speed) and second.speed == first.speed
+
+
+def test_the_finale_cards_and_set_pieces_never_show_a_clip(tmp_path: Path) -> None:
+    """058 (7): the finale's cards are the short's first stills, so a clip record is
+    passed over; a set-piece item resolving to a clip fails the build naming it."""
+    plan = _plan()
+    beats = [_clip_beat(1, length=0.5), *plan.beats[1:]]
+    plan = plan.model_copy(update={"beats": beats})
+    manifest = _clip_sourced(tmp_path, plan)
+    first = manifest.asset("a1")
+    assert first is not None and first.kind == "clip"
+    ids = render.opening_asset_ids(plan, manifest, 3)
+    assert "a1" not in ids and len(ids) == 3
+    with pytest.raises(render.RenderError, match="clip"):
+        render.item_sources(
+            plan.beats[-2].model_copy(update={"items": [SetPieceItem(text="x", asset_id="a1")]}),
+            manifest, tmp_path / "job",
+        )  # fmt: skip
+
+
+def test_no_face_detection_runs_on_a_clip_and_its_overlays_stay_placed(tmp_path: Path) -> None:
+    """056 (4) / 058: the detector reads stills; a clip has no still to read, so the
+    stamp (and a pop or bubble) over a clip keeps today's placement and the detector is
+    never asked."""
+    plan = _plan().model_copy(update={"beats": [_clip_beat(1)]})
+    manifest = _clip_sourced(tmp_path, plan)
+    detector = presenter.FakeFaceDetector(FaceBox(left=300, top=300, width=400, height=500))
+    log: list[str] = []
+    spec = render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        manifest=manifest, job_dir=tmp_path / "job", detector=detector, log=log.append,
+    )  # fmt: skip
+    plain = _visual_spec(tmp_path, plan, manifest)
+    assert detector.seen == []
+    assert spec.beats[0].stamp == plain.beats[0].stamp and spec.beats[0].stamp is not None
+    assert not any("face" in line for line in log)
+
+
+def _region_motion(a: tuple[int, int, bytes], b: tuple[int, int, bytes],
+                   box: tuple[int, int, int, int]) -> float:  # fmt: skip
+    """The share of the pixels inside `box` that differ by more than 30 levels."""
+    left, top, right, bottom = box
+    changed = total = 0
+    for y in range(top, bottom, 2):
+        for x in range(left, right, 2):
+            total += 1
+            if not _near(_pixel(a, x, y), _pixel(b, x, y)):
+                changed += 1
+    return changed / max(1, total)
+
+
+# Below the stamp, right of the PIP circle, above the caption band: the clip alone moves here.
+CLIP_REGION = (400, 720, 940, 940)
+
+
+def test_a_clip_beat_renders_moving_muted_footage(tmp_path: Path, fixture_clip: Path) -> None:
+    """058 end to end through Remotion: the fake plan's clip beat (b04, 1.5-2.0 s) draws
+    the synthetic clip full-screen under the circle and the captions - a frame at the
+    beat's middle differs from its first - while the picture stays silent although the
+    clip file carries a tone (the master carries no clip audio)."""
+    plan = _plan()
+    job = _job_with(tmp_path, fixture_clip, plan)
+    validated = ValidatedPlan(picture=plan, sound=SoundStory(
+        prompt_version="t", theme="t", mood_curve=[],
+        bed_query=BedQuery(theme="t", mood="t", energy=3), cues=[]))  # fmt: skip
+    manifest = assets.source_assets(
+        validated, [], "any", spec=SPECS["explainer"], job_dir=job.path,
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY}),
+            "commons": assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)}),
+        },
+        clips={"pexels": assets.FakeClipSource("pexels")},
+    )  # fmt: skip
+    assets.write_manifest(job.path, manifest)
+    decided = manifest.beat("b04")
+    assert decided is not None and decided.treatment == "clip" and decided.asset_id is not None
+    record = manifest.asset(decided.asset_id)
+    assert record is not None and record.kind == "clip"
+    clip_streams = {s["codec_type"] for s in ffmpeg.probe(job.path / record.file)["streams"]}
+    assert clip_streams == {"video", "audio"}  # the source clip carries a tone
+    render.RemotionRenderer().render(job)
+    picture = job.work_dir / "picture.mp4"
+    assert [s["codec_type"] for s in ffmpeg.probe(picture)["streams"]] == ["video"]
+    short = job.out_dir / "short.mp4"
+    assert ffmpeg.video_md5(short) == ffmpeg.video_md5(picture)
+    spec = RenderSpec.model_validate_json((job.work_dir / "render_spec.json").read_text("utf-8"))
+    b04 = next(b for b in spec.beats if b.id == "b04")
+    assert b04.visual is not None and b04.visual.treatment == "clip"
+    start_s = b04.start_frame / spec.fps
+    middle_s = (b04.start_frame + b04.end_frame) / 2 / spec.fps
+    first = ffmpeg.frame_rgb(picture, at_s=start_s + 1 / spec.fps)
+    middle = ffmpeg.frame_rgb(picture, at_s=middle_s)
+    assert _region_motion(first, middle, CLIP_REGION) > 0.01
+    # the stems are the voice, the bed and the cues; no clip audio reaches the mix
+    stems = sorted(p.name for p in (job.work_dir / "stems").glob("*.wav"))
+    assert "voice.wav" in stems and "mix.wav" in stems and not any("clip" in s for s in stems)
+
+
+def test_registry_exports_clip_after_058() -> None:
+    assert "clip" in render.registry()
+    assert "clip" in render.loaded_styles()["explainer"].requires_components

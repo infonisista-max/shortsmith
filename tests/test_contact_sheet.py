@@ -330,6 +330,29 @@ def test_strip_line_without_a_plan_is_a_placeholder() -> None:
     assert contact_sheet.strip_line(1.0, None, None) == contact_sheet.Strip("-", False)
 
 
+@pytest.mark.parametrize(("origin", "letter"), [("pexels", "Pv"), ("pixabay", "Xv")])
+def test_strip_line_marks_a_clip_beat_with_its_own_origin_letter(origin: str, letter: str) -> None:
+    """058: a clip beat's strip reads the `clip` treatment and a video letter of its own
+    (the still letter with a `v`), so a Pexels photo (P) and a Pexels clip (Pv) differ."""
+    plan = _strip_plan()
+    plan = plan.model_copy(update={"beats": [
+        b.model_copy(update={"kind": "clip"}) if b.id == "b04" else b for b in plan.beats
+    ]})  # fmt: skip
+    clip = AssetRecord.model_validate({
+        "id": "a3", "kind": "clip", "origin": origin, "source_url": "https://x.invalid/a.mp4",
+        "file": "work/assets/a.mp4", "sha256": "1" * 64, "width": 1080, "height": 1920,
+        "fetched_at": "2026-09-22T12:00:00+00:00", "duration_s": 3.0,
+    })  # fmt: skip
+    base = _strip_manifest()
+    manifest = base.model_copy(update={
+        "assets": [*base.assets, clip],
+        "beats": [*base.beats[:2], BeatAsset(beat_id="b04", asset_id="a3", treatment="clip",
+                                              fallback_rung=0)],
+    })  # fmt: skip
+    strip = contact_sheet.strip_line(3.5, plan, manifest)
+    assert (strip.text, strip.marked) == (f"b04 P clip {letter}", False)
+
+
 def test_marked_cells_get_a_red_corner_and_the_others_do_not() -> None:
     hook = [_solid((HOOK_W, HOOK_H), (0, 0, 0))] * HOOK_FRAMES
     frames = [_solid((FRAME_W, FRAME_H), (0, 0, 0)) for _ in range(2)]

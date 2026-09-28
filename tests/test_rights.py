@@ -176,6 +176,28 @@ def test_credit_line_names_the_domain_when_the_author_is_unknown() -> None:
     assert rights.credit_line(row) == "Photo: images.example.org via https://images.example.org/a1.jpg"
 
 
+def test_a_stock_clip_gets_a_clip_row_and_the_video_credit_the_site_asks_for() -> None:
+    """058 (8): one rights row of kind `clip` per clip, credited "Video by <name> on
+    Pexels" / "on Pixabay" beside the stills' photo lines."""
+    pexels = rights.row(
+        _record("a1", "pexels", kind="clip", author="Ana", licence="Pexels License",
+                page_url="https://www.pexels.com/video/1/", duration_s=3.0),
+        ["b01"],
+    )  # fmt: skip
+    pixabay = rights.row(
+        _record("a2", "pixabay", kind="clip", author="Bo", licence="Pixabay Content License",
+                page_url="https://pixabay.com/videos/2/", duration_s=4.0),
+        ["b02"],
+    )  # fmt: skip
+    still = rights.row(_record("a3", author="Jane Doe"), ["b03"])
+    assert (pexels.kind, pexels.licence) == ("clip", "Pexels License")
+    assert rights.credits([pexels, pixabay, still]) == (
+        "Video by Ana on Pexels via https://www.pexels.com/video/1/\n"
+        "Video by Bo on Pixabay via https://pixabay.com/videos/2/\n"
+        "Photo: Jane Doe via https://www.example.org/wiki/a3\n"
+    )
+
+
 def test_owner_and_generated_assets_get_no_credit_line() -> None:
     rows = [
         rights.row(_record("u1", "owner_supplied"), ["b01"]),

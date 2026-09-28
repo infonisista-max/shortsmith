@@ -143,9 +143,13 @@ Mode = Literal["full", "pip", "off"]
 ReasonTag = Literal["emotional_line", "argument_turn"]
 
 # 055: `hook_cards` left the tier with the hook; the short opens in `pip` over images.
+# 058 (4.1 as amended): `clip` is a full-screen moving shot from a free stock video
+# library, always muted, under the PIP circle and the captions like `photo`; only on
+# concept beats, never for a named entity.
 Tier1Kind = Literal[
     "photo",
     "card",
+    "clip",
     "stamp",
     "lower_third",
     "finale",
@@ -707,15 +711,22 @@ Origin = Literal[
     "owner_supplied", "web", "commons", "openverse", "pexels", "pixabay", "generated", "library"
 ]
 SearchOrigin = Literal["web", "commons", "openverse", "pexels", "pixabay"]
-RightsKind = Literal["image", "clip_frame", "music", "sfx"]
-# How a beat's asset is drawn (5.3): full-bleed photo, framed card, or no asset at all
-# (rung 4: the presenter PIP over the style gradient with a stamp; 4.4).
-Treatment = Literal["photo", "card", "gradient"]
+# 058: the free stock video libraries a `clip` may come from (5.1 as amended).
+ClipOrigin = Literal["pexels", "pixabay"]
+# 058: `clip` is a moving asset (a stock video file), beside the stills.
+AssetKind = Literal["image", "clip_frame", "clip"]
+RightsKind = Literal["image", "clip_frame", "clip", "music", "sfx"]
+# How a beat's asset is drawn (5.3): full-bleed photo, framed card, a full-screen
+# moving clip (058), or no asset at all (rung 4: the presenter PIP over the style
+# gradient with a stamp; 4.4).
+Treatment = Literal["photo", "card", "clip", "gradient"]
 
 
 class Candidate(StrictModel):
     """One search hit from an `ImageSource` (5.1): where it lives and its reported size.
-    The fetched file's real dimensions are what classification reads (5.3)."""
+    The fetched file's real dimensions are what classification reads (5.3). 058: a video
+    candidate carries its `duration_s` too (0 on a still), so a clip shorter than its
+    beat is skipped before anything is downloaded."""
 
     url: str
     page_url: str = ""
@@ -724,6 +735,7 @@ class Candidate(StrictModel):
     height: int
     author: str | None = None
     licence: str = "unknown"
+    duration_s: float = 0.0
 
 
 class Generated(StrictModel):
@@ -746,10 +758,11 @@ class JudgeVerdict(StrictModel):
 
 class AssetRecord(StrictModel):
     """One unique asset the short uses; the rights row (5.4) is derived from it.
-    `file` is relative to the job directory."""
+    `file` is relative to the job directory. 058: a `clip` record is a muted stock
+    video file with its `duration_s` (0 on a still)."""
 
     id: str
-    kind: Literal["image", "clip_frame"] = "image"
+    kind: AssetKind = "image"
     origin: Origin
     source_url: str = ""
     page_url: str = ""
@@ -762,6 +775,7 @@ class AssetRecord(StrictModel):
     width: int
     height: int
     fetched_at: str
+    duration_s: float = 0.0
 
 
 class Crop(StrictModel):
@@ -951,9 +965,11 @@ class VisualSpec(StrictModel):
     beat (the full-bleed photo, or the card body), `pan_px` the horizontal drift, and
     `zoom` / `focus_*` the framing (a re-dress differs here, 4.4). `dim` is the black
     scrim over it: 0 for a photo or card beat, the style's `broll.motion.<kind>.dim`
-    where the still is only the base of a set piece (027)."""
+    where the still is only the base of a set piece (027). 058: a `clip` is the video
+    file covering the frame, muted, played from `start_s` seconds into it at `speed`
+    (the style's `broll.motion.clip.speed`), with the same slow push numbers."""
 
-    treatment: Literal["photo", "card"]
+    treatment: Literal["photo", "card", "clip"]
     src: str
     width: int
     height: int
@@ -965,6 +981,8 @@ class VisualSpec(StrictModel):
     pan_px: float
     dim: float = 0.0
     card: CardSpec | None = None
+    speed: float = 1.0
+    start_s: float = 0.0
 
 
 class CardBox(StrictModel):

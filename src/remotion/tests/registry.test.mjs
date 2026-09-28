@@ -152,8 +152,30 @@ test("the composition lists bubble after ticket 063 and draws it over the text p
   assert.match(source, /<circle/, "the thought trail is never drawn");
 });
 
+test("the composition lists clip after ticket 058 and draws it muted in the photo's layer", () => {
+  assert.ok(registry.components.includes("clip"), "clip is not registered");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const clip = short.indexOf("<Clip ");
+  assert.ok(clip > 0, "Short.tsx never draws Clip");
+  assert.ok(clip < short.indexOf("<Pip "), "the clip is drawn over the PIP circle");
+  assert.ok(clip < short.indexOf("<Captions "), "the clip is drawn over the captions");
+  assert.ok(clip < short.indexOf("<Stamp "), "the clip is drawn over the stamp");
+  // Every number is the spec's: the speed, the start offset and the push; never a sound.
+  const source = readFileSync(join(root, "components", "clip.tsx"), "utf-8");
+  for (const field of ["speed", "start_s", "scale_from", "scale_to", "zoom", "focus_x"]) {
+    assert.ok(source.includes(`.${field}`), `clip.tsx never reads ${field}`);
+  }
+  assert.match(source, /\bmuted\b/, "the clip is not muted");
+  assert.match(source, /playbackRate=\{visual\.speed\}/, "the speed is not the spec's");
+  assert.match(source, /trimBefore=/, "the clip never starts where the spec says");
+  // The driver serves video files, so a clip's file reaches Chrome like the presenter cut.
+  const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
+  assert.match(driver, /"\.mp4": "video\/mp4"/, "the driver does not serve .mp4");
+  assert.match(driver, /b\.visual \? \[b\.visual\.src\]/, "the driver never serves a beat's visual");
+});
+
 test("the registry holds the whole tier-1 set the explainer requires (030)", () => {
-  const tier1 = ["captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards",
+  const tier1 = ["captions", "pip", "photo", "card", "clip", "stamp", "lower_third", "hook_cards",
                  "finale", "list", "chart", "split", "wall", "infographic", "label_flyin",
                  "counter", "map", ...MAP_ANIMATIONS, ...TRANSITIONS];
   for (const name of tier1) {
@@ -165,7 +187,7 @@ test("Short.tsx draws every registered component", () => {
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
   const enters = readFileSync(join(root, "components", "transitions.tsx"), "utf-8");
   const drawn = { hook_cards: "HookCards", finale: "Finale", stamp: "Stamp",
-                  lower_third: "LowerThird", photo: "Photo", card: "Card",
+                  lower_third: "LowerThird", photo: "Photo", card: "Card", clip: "Clip",
                   captions: "Captions", pip: "Pip", list: "List", split: "Split",
                   wall: "Wall", chart: "Chart", infographic: "Infographic",
                   label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase",

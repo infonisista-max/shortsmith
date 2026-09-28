@@ -1,0 +1,127 @@
+{
+  "page": 1,
+  "per_page": 6,
+  "total_results": 3120,
+  "url": "https://www.pexels.com/videos/",
+  "videos": [
+    {
+      "id": 3045163,
+      "width": 1920,
+      "height": 1080,
+      "duration": 12,
+      "url": "https://www.pexels.com/video/clouds-drifting-over-hills-3045163/",
+      "image": "https://images.pexels.com/videos/3045163/free-video-3045163.jpg?auto=compress&cs=tinysrgb&fit=crop&h=630&w=1200",
+      "user": {
+        "id": 1437723,
+        "name": "Taryn Elliott",
+        "url": "https://www.pexels.com/@taryn-elliott"
+      },
+      "video_files": [
+        {
+          "id": 9237501,
+          "quality": "hd",
+          "file_type": "video/mp4",
+          "width": 1920,
+          "height": 1080,
+          "fps": 25.0,
+          "link": "https://videos.pexels.com/video-files/3045163/3045163-hd_1920_1080_25fps.mp4",
+          "size": 9800000
+        },
+        {
+          "id": 9237502,
+          "quality": "uhd",
+          "file_type": "video/mp4",
+          "width": 3840,
+          "height": 2160,
+          "fps": 25.0,
+          "link": "https://videos.pexels.com/video-files/3045163/3045163-uhd_3840_2160_25fps.mp4",
+          "size": 61000000
+        },
+        {
+          "id": 9237503,
+          "quality": "sd",
+          "file_type": "video/mp4",
+          "width": 640,
+          "height": 360,
+          "fps": 25.0,
+          "link": "https://videos.pexels.com/video-files/3045163/3045163-sd_640_360_25fps.mp4",
+          "size": 1200000
+        }
+      ]
+    },
+    {
+      "id": 5532771,
+      "width": 1080,
+      "height": 1920,
+      "duration": 7,
+      "url": "https://www.pexels.com/video/time-lapse-of-clouds-5532771/",
+      "image": "https://images.pexels.com/videos/5532771/pexels-photo-5532771.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=1200&w=630",
+      "user": {
+        "id": 2922218,
+        "name": "Ruvim Miksanskiy",
+        "url": "https://www.pexels.com/@digitech"
+      },
+      "video_files": [
+        {
+          "id": 11450221,
+          "quality": "hd",
+          "file_type": "video/mp4",
+          "width": 1080,
+          "height": 1920,
+          "fps": 30.0,
+          "link": "https://videos.pexels.com/video-files/5532771/5532771-hd_1080_1920_30fps.mp4",
+          "size": 7200000
+        },
+        {
+          "id": 11450222,
+          "quality": "sd",
+          "file_type": "video/mp4",
+          "width": 540,
+          "height": 960,
+          "fps": 30.0,
+          "link": "https://videos.pexels.com/video-files/5532771/5532771-sd_540_960_30fps.mp4",
+          "size": 2100000
+        }
+      ]
+    },
+    {
+      "id": 7891011,
+      "width": 1280,
+      "height": 720,
+      "duration": 4,
+      "url": "https://www.pexels.com/video/low-clouds-7891011/",
+      "image": "https://images.pexels.com/videos/7891011/free-video-7891011.jpg",
+      "user": {
+        "id": 4455,
+        "name": "Small Files",
+        "url": "https://www.pexels.com/@small-files"
+      },
+      "video_files": [
+        {
+          "id": 12345,
+          "quality": "hd",
+          "file_type": "video/mp4",
+          "width": 1280,
+          "height": 720,
+          "fps": 30.0,
+          "link": "https://videos.pexels.com/video-files/7891011/7891011-hd_1280_720_30fps.mp4",
+          "size": 3000000
+        }
+      ]
+    },
+    {
+      "id": 7891012,
+      "width": 1920,
+      "height": 1080,
+      "duration": 9,
+      "url": "https://www.pexels.com/video/no-files-7891012/",
+      "image": "https://images.pexels.com/videos/7891012/free-video-7891012.jpg",
+      "user": {
+        "id": 4456,
+        "name": "No Files",
+        "url": "https://www.pexels.com/@no-files"
+      },
+      "video_files": []
+    }
+  ]
+}

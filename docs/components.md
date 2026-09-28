@@ -15,8 +15,9 @@ it. A blank cell means the style does not enable that component.
 | --- | --- | --- | --- | --- | --- |
 | `captions` | 1 | implemented | 5 pages | 5 pages | hitech: Poppins 700 at 70 px, cyan active word |
 | `pip` | 1 | implemented | b01, b02, b04, b07, b09 | b01, b02, b04, b07, b09 | hitech: 4 px cyan ring at y 970; 055: the opening beats b01 and b02 are pip over full-screen images |
-| `photo` | 1 | implemented | b01, b04 | b01, b04 | Ken Burns from `broll.motion.photo`; b01 opens the short (055) |
-| `card` | 1 | implemented | b02 | b02 | hitech: flat card, 2 px border, no tilt |
+| `photo` | 1 | implemented | b01 | b01 | Ken Burns from `broll.motion.photo`; b01 opens the short (055); b04's still became the clip (058) |
+| `card` | 1 | implemented | b02 | b02 | hitech: flat card, 2 px border, no tilt; 058: b02 is planned as the card (the India Gate landscape), b04 became the clip |
+| `clip` | 1 | implemented | b04 | b04 | 058: a full-screen muted stock video clip drawn in the photo's layer under the circle and the captions, played at `broll.motion.clip.speed` with no push; the smoke's fake clip source answers b04's concept query with a 3 s synthetic `testsrc2` clip; never on a named entity (the still ladder keeps those) |
 | `stamp` | 1 | implemented | b04 | b04 | hitech: `cyan_white` palette, no shake |
 | `lower_third` | 1 | implemented | none drawn | none drawn | b02's card strip carries the label, so the standalone overlay is not exercised by the fixture plan |
 | `hook_cards` | retired | retired (055) |  |  | no longer a tier-1 kind: the short opens with the speaker's first words over images, no title card; the Node component stays exported until it is removed with its registry test |

@@ -57,15 +57,16 @@ def test_beats_tile_the_fixture_with_no_gaps(request_: PlanRequest) -> None:
 def test_the_opening_is_two_pip_beats_over_images_and_nothing_is_lifted(
     request_: PlanRequest,
 ) -> None:
-    """3.4 as amended by 055 and 057 (4): the first two beats are `pip` over two `photo`
-    beats with assets (full-screen whenever the image allows; the smoke's second image
-    is a landscape, so code draws it as a card), the plan has no hook object, and the
-    cut keeps the whole recording in order (nothing lifted, nothing dropped)."""
+    """3.4 as amended by 055 and 057 (4): the first two beats are `pip` over two image
+    beats with assets - a `photo` (full-screen whenever the image allows) and, since 058
+    moved the plan's one `card` here, the India Gate `card` (the smoke's second image is
+    a landscape that could not fill the frame anyway) - the plan has no hook object, and
+    the cut keeps the whole recording in order (nothing lifted, nothing dropped)."""
     plan = FakePlanner().plan_picture(request_)
     first, second = plan.beats[0], plan.beats[1]
     assert (first.mode, first.kind, first.asset_id) == ("pip", "photo", "a1")
-    assert (second.mode, second.kind, second.asset_id) == ("pip", "photo", "a2")
-    assert second.event.kind == "lower_third"  # drawn on the card strip when downgraded
+    assert (second.mode, second.kind, second.asset_id) == ("pip", "card", "a2")
+    assert second.event.kind == "lower_third"  # drawn on the card strip
     assert first.reason is None and not hasattr(plan, "hook")
     assert [(s.start, s.end) for s in plan.cut.keep] == [(0.0, fixture.DURATION_S)]
     assert plan.cut.drop == []

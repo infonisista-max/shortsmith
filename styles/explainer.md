@@ -1,8 +1,8 @@
 ---
-version: "8"
+version: "9"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
-requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
+requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
                       cut, fade, whip, zoom, spring, wipe]
@@ -39,7 +39,7 @@ pip:
   ring_px: 6
   ring_color: "#FFFFFF"
 broll:
-  kinds: [photo, card, stamp, lower_third, finale, presenter_full, presenter_pip,
+  kinds: [photo, card, clip, stamp, lower_third, finale, presenter_full, presenter_pip,
           list, chart, split, wall, map, infographic, pin_drop, route_arrow, label_flyin,
           counter, object_path]
   tier2_kinds: []
@@ -47,6 +47,9 @@ broll:
     photo: {kind: ken_burns, scale_from: 1.10, scale_to: 1.16, alternate: true}
     card: {kind: push, scale_from: 1.45, scale_to: 2.1, border_px: 14, rotate_deg: -1.5,
            ring_color: "#E53935"}
+    # 058: a full-screen stock clip; no push and real speed (4 of the 119 reference clips
+    # were pushed, 5 were slowed: the clip's own movement is the motion).
+    clip: {kind: push, scale_from: 1.0, scale_to: 1.0, speed: 1.0}
     stamp: {kind: land, duration_s: 0.16, shake: true, palette: yellow_green_red}
     lower_third: {kind: fade, duration_s: 0.35, top_y: 1150, bottom_y: 1240}
     finale: {kind: fade, duration_s: 0.35, cards: 3}
@@ -76,6 +79,7 @@ broll:
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here; the recipe styles of 059 turn pops on
   bubbles_max_per_60s: 0  # 063: off here; the recipe styles of 059 turn bubbles on
+  clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -174,6 +178,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - Only kinds in `kinds` may be used; `tier2_kinds` is empty here, so parallax depth and vector-illustration looks are validation errors naming the nearest tier-1 substitute (4.1 as amended by 9.2). Every non-presenter beat has exactly one motion; there is never a static still.
 - Label every non-presenter beat with `subject_kind` and a `query` plus a broader `query_fallback` (4.2): `entity` beats get a card or photo from owner references first, then search, then generation as the last resort, plus a lower-third; `concept` beats get a Ken Burns photo and a stamp of the key word; `number` and `quote` beats reuse the previous asset with a stamp and add nothing to the asset count; a `number` beat may instead carry a `counter` that counts up to the real figure and lands on it like a stamp, its digits written in `motion.counter.grouping`.
 - Source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration (5.1). Every image, whatever its source, is re-dressed the same way (5.1 and 5.3 as amended by 057): a portrait or square image asked as `photo` that covers the frame at no more than `full_bleed_max_upscale` is drawn full-screen under the Ken Burns, the PIP circle and the captions; a landscape image, or one that cannot cover the frame at that upscale, is drawn as a card. Ask `photo` wherever a full-screen image would serve; code draws the card when the image cannot fill the frame. Generated depictions of a named person or product are illustration-style (`illustration_look`); scenes and unnamed people may be photoreal (`photo_look`).
+- Moving footage (4.1 and 5.1 as amended by 058): a `clip` beat is a full-screen stock video clip, always muted, under the PIP circle and the captions exactly like a `photo`, drawn at `motion.clip.speed` with the push in `motion.clip` (none here: the clip's own movement is the motion). Ask `clip` on concept beats — a thing, a kind of place, a process, nature, science ("cheese", "the sun", "the brain") — and on the opening when the topic is a concept; never for a named person, place, product or event, which keep the still ladder (a stock stranger is never King Saud). Clips come from Pexels video, then Pixabay video, judged on their preview image like any candidate; a clip shorter than its beat is skipped, and a beat that finds no usable clip is drawn from the still ladder instead, logged. Clip beats take at most `clip_max_fraction` of the runtime. A clip counts as an image for `reuse_max`; a set piece's items and the finale's cards are stills, so they never name a clip beat's asset.
 - Count unique assets, not beats: between `unique_assets_min_per_60s` and `unique_assets_max_per_60s` per minute, each reused at most `reuse_max` times (4.3). Reuse is encouraged for callbacks, payoffs and number beats; a short with no reused asset is a warning.
 - The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).
 - The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture, flying in one after another (`label_flyin`); a label that would land outside the phone's safe area fails the build.
