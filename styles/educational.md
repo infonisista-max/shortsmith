@@ -1,5 +1,5 @@
 ---
-version: "10"
+version: "11"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -113,7 +113,7 @@ sound:
   bed_db_under_voice: -14
   bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]
-  speech_band_margin_db: 20
+  speech_band_margin_db: 12
   duck_max_db: 3
   swell_max_db: 3
   drop_min_db: -8

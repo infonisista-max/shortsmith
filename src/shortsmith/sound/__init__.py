@@ -1388,6 +1388,18 @@ def _premix(stems: Path, *, voice: Path, ducked: Path | None, sfx: Path | None) 
     return out
 
 
+def margin_problem(margin_db: float, nums: styles.Sound) -> str | None:
+    """The 7.3 speech-band line (as amended by 064): `None` when the voice clears the bed
+    by at least the style's margin, else the problem line the repair ladder starts on."""
+    if margin_db + 1e-9 >= nums.speech_band_margin_db:
+        return None
+    lo_hz, hi_hz = nums.speech_band_hz
+    return (
+        f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by only {margin_db:.1f} dB, "
+        f"under sound.speech_band_margin_db {nums.speech_band_margin_db:g} dB"
+    )
+
+
 def _balance(
     stems: Path,
     *,
@@ -1428,13 +1440,9 @@ def _balance(
             if voice_band is not None and bed_band is not None:
                 margin = voice_band - bed_band
                 report["speech_band_margin_db"] = round(margin, 2)
-                if margin + 1e-9 < nums.speech_band_margin_db:
-                    lo_hz, hi_hz = nums.speech_band_hz
-                    problems.append(
-                        f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by only "
-                        f"{margin:.1f} dB, under sound.speech_band_margin_db "
-                        f"{nums.speech_band_margin_db:g} dB"
-                    )
+                problem = margin_problem(margin, nums)
+                if problem is not None:
+                    problems.append(problem)
         if ducked is not None:
             ducked_db = ffmpeg.mean_volume_db(ducked)
             music_db = ffmpeg.mean_volume_db(music)

@@ -920,11 +920,15 @@ def test_a_bed_outside_the_acceptance_band_is_repaired_not_failed(
 # mysterious") was melodic inside the 250 Hz-4 kHz speech band: the margin measured
 # 9.4 dB under the 20 dB line and `build_mix` raised. The beds below reproduce that
 # shape on the fixture voice: a bed with a partial inside the band that a dip can save,
-# and a pure in-band tone that nothing can.
+# and an in-band tone that nothing can.
+#
+# 064 moved the line to 12 dB. A steady tone, levelled on its median, clears 12 dB on the
+# fixture voice whatever its spectrum (~14 dB), so both beds swell inside the band one
+# second in three: the median (1 s windows, 7.3) stays on the quiet part while the
+# band's mean carries the swell.
 
 
-def _tone_bed(path: Path, parts: Sequence[tuple[int, float]]) -> Path:
-    expr = "+".join(f"{amp}*sin(2*PI*{hz}*t)" for hz, amp in parts)
+def _tone_bed(path: Path, expr: str) -> Path:
     return fixture.make_wav(path, expr=f"({expr})", duration_s=fixture.CATALOGUE_BED_S)
 
 
@@ -939,24 +943,25 @@ def _bed(entry_id: str, file: str, *, drops: Sequence[float] = (1.5,)) -> AudioE
 
 
 def _with_beds(
-    library: sound.Library, root: Path, *beds: tuple[str, Sequence[tuple[int, float]]]
+    library: sound.Library, root: Path, *beds: tuple[str, str]
 ) -> sound.Library:
     """The fixture catalogue's SFX plus the given beds, files written under `root`."""
     (root / "beds").mkdir(parents=True, exist_ok=True)
     entries: list[AudioEntry] = []
-    for entry_id, parts in beds:
-        _tone_bed(root / "beds" / f"{entry_id}.wav", parts)
+    for entry_id, expr in beds:
+        _tone_bed(root / "beds" / f"{entry_id}.wav", expr)
         entries.append(_bed(entry_id, f"beds/{entry_id}.wav"))
     for sfx in library.sfx():
         entries.append(sfx.model_copy(update={"file": str(library.file(sfx))}))
     return sound.Library(root=root, entries=tuple(entries))
 
 
-# A bed with half its power inside the speech band: the plain mix misses the 20 dB
-# margin by a few dB and a dip on the band recovers it.
-MELODIC: tuple[tuple[int, float], ...] = ((110, 0.2), (1000, 0.2))
-# A bed entirely inside the band: a dip is undone by the level match, so nothing saves it.
-PURE: tuple[tuple[int, float], ...] = ((1000, 0.25),)
+# A steady 110 Hz bass under an in-band swell: the plain mix misses the 12 dB margin by
+# a few dB (8.5 measured) and a dip on the band recovers it (one 5 dB dip, 12.7 dB).
+MELODIC = "0.2*sin(2*PI*110*t)+0.6*sin(2*PI*1000*t)*lt(mod(t,3),1)"
+# A bed entirely inside the band: a dip is undone by the level match, so nothing saves it
+# (1.1 dB plain, 2.3 dB after the dips and the lower bed).
+PURE = "sin(2*PI*1000*t)*(0.1+0.6*lt(mod(t,3),1))"
 
 
 def test_a_bed_inside_the_speech_band_is_dipped_until_the_margin_clears(

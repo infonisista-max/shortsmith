@@ -1,5 +1,5 @@
 ---
-version: "1"
+version: "2"
 status: shipped
 aliases: [vishva, vishvagyan, vishva gyan, desi, history]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -139,7 +139,7 @@ sound:
   bed_db_under_voice: -14  # 056: run03 phone verdict "a bit loud, reduce by 30 %" = -3.1 dB
   bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]
-  speech_band_margin_db: 20
+  speech_band_margin_db: 12
   duck_max_db: 4
   swell_max_db: 4
   drop_min_db: -8

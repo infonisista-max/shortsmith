@@ -25,8 +25,9 @@ NAMES = ("explainer", "educational", "animated", "hitech")
 # 059: the three recipe styles built from the references; tests/test_recipe_styles.py
 # judges their numbers. The facts below that pin the four styles above stay on those four.
 RECIPES = ("fastfacts", "footage", "vishva")
-# 059 changed the explainer's aliases (1.1 as amended): its front matter is v11.
-VERSIONS = {"explainer": "11", "educational": "10", "animated": "10", "hitech": "10"}
+# 059 changed the explainer's aliases (1.1 as amended): its front matter was v11; 064's
+# 12 dB speech-band margin bumped every style once more.
+VERSIONS = {"explainer": "12", "educational": "11", "animated": "11", "hitech": "11"}
 FORBIDDEN = ["sweep", "riser", "rumble_crescendo", "whoosh"]  # 7.1, operator rider
 
 
@@ -93,7 +94,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == VERSIONS.get(spec.name, "1"), spec.name
+        assert spec.version == VERSIONS.get(spec.name, "2"), spec.name
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 

@@ -1,5 +1,5 @@
 ---
-version: "10"
+version: "11"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -114,7 +114,7 @@ sound:
   bed_db_under_voice: -14  # 056: run03 phone verdict "a bit loud, reduce by 30 %"
   bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]
-  speech_band_margin_db: 20
+  speech_band_margin_db: 12
   duck_max_db: 4
   swell_max_db: 4
   drop_min_db: -8
