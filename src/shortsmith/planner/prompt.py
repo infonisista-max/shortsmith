@@ -30,6 +30,7 @@ from typing import Literal
 
 import yaml
 
+from shortsmith import stickers
 from shortsmith.contracts import (
     CATEGORIES,
     TIER2_KINDS,
@@ -41,13 +42,19 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v12 (ticket 058): the picture file says when to ask `clip` (moving stock footage on a
+# v13 (ticket 062): the picture file says when to write `stickers` (a 3D emoji picked by
+# a tag of the committed catalogue, rendered tag by tag as `$stickers`, and optionally one
+# of that tag's names, never a file; landing on the spoken `word`; above the speaker's
+# circle without `{x, y}`, which a beat without the circle needs; one per beat under
+# `broll.stickers_max_per_60s`; `at_s` left to code); the sound file says a ding or pop
+# cue at `event`, and a whoosh under `pop`, may ride a sticker's pop-in.
+# (v12, ticket 058: the picture file says when to ask `clip` (moving stock footage on a
 # concept beat and on a concept opening, never a named entity, under
 # `broll.clip_max_fraction`, a request the still ladder answers when no clip fits; its
 # asset shared only with clip and carry-on beats, never a set piece's item), and that a
 # text pop or a bubble may sit on a clip; the sound file says a clip is muted and an
-# ordinary picture beat for cues.
-# (v11, ticket 063: the picture file says when to write `bubbles` (speech or thought
+# ordinary picture beat for cues;
+# v11, ticket 063: the picture file says when to write `bubbles` (speech or thought
 # bubbles of 1-`broll.motion.bubble.words_max` words the recording itself carries, on a
 # photo, card or presenter-full beat, `first`-`last` naming the source words, the tail at
 # `{x, y}`, a dialogue pair landing `dialogue_gap_min_s`-`dialogue_gap_max_s` apart, under
@@ -70,7 +77,7 @@ Call = Literal["picture", "sound"]
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
 # diagram data; v2, ticket 027: the set-piece content rules.)
-PROMPT_VERSION = "v12"
+PROMPT_VERSION = "v13"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "
@@ -145,6 +152,17 @@ def _instructions(request: PlanRequest, call: Call) -> str:
         tiers=_tiers(request.style.numbers),
         full_reasons=", ".join(reasons),
         categories=", ".join(CATEGORIES),
+        stickers=_sticker_catalogue(),
+    )
+
+
+def _sticker_catalogue() -> str:
+    """062: the committed sticker catalogue as the planner reads it, one line per tag
+    with its emoji names in catalogue order (the first is the tag's default)."""
+    catalogue = stickers.shipped()
+    return "\n".join(
+        f"  - {tag}: {', '.join(e.name for e in catalogue.with_tag(tag))}"
+        for tag in catalogue.tags()
     )
 
 

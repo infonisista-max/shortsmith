@@ -4,7 +4,8 @@
 // file that wraps a beat's picture; 060 adds the seventh, `flash`. 061 adds `text_pop`,
 // the bold words pinned on the picture that land on the spoken word; 063 adds `bubble`,
 // the speech and thought bubbles of the recording's own words. 058 adds `clip`, the
-// full-screen muted stock footage drawn where a photo is.
+// full-screen muted stock footage drawn where a photo is. 062 adds `sticker`, the Fluent
+// Emoji 3D pop above the PIP circle or near its subject.
 import type React from "react";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
@@ -30,6 +31,7 @@ import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
 import { Spring } from "./components/spring";
 import { Stamp } from "./components/stamp";
+import { Sticker } from "./components/sticker";
 import { TextPop } from "./components/text_pop";
 import { Wall } from "./components/wall";
 import { Whip } from "./components/whip";
@@ -62,6 +64,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   split: Split,
   spring: Spring,
   stamp: Stamp,
+  sticker: Sticker,
   text_pop: TextPop,
   wall: Wall,
   whip: Whip,

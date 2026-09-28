@@ -160,7 +160,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v12"
+    assert prompt.PROMPT_VERSION == "v13"
 
 
 def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:
@@ -236,11 +236,39 @@ def test_the_v11_prompts_say_when_to_bubble_and_that_the_words_are_the_recording
         assert needle in picture, needle
     sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
     for needle in (
-        "`text_pops` or `bubbles`",
-        "A text pop or a bubble may carry a hit",
+        "`text_pops`, `bubbles` or `stickers`",  # v13 (062) added the sticker
+        "A text pop, a\n  bubble or a sticker may carry a hit",
         "`pop` in `sound.whoosh.on`",
     ):
         assert needle in sound, needle
+
+
+def test_the_v13_prompts_say_when_to_stick_an_emoji_and_list_the_catalogue_by_tag() -> None:
+    """062: the picture file's sticker rule (picked by a catalogue tag and optionally one
+    of its names, never a file; landing on the spoken `word`; above the circle without
+    `{x, y}`; one per beat under `broll.stickers_max_per_60s`; `at_s` left to code) with
+    the committed catalogue rendered tag by tag; the sound file says a ding or pop cue
+    and a whoosh may ride a sticker's pop-in."""
+    from shortsmith import stickers
+
+    picture = prompt.build_prompt(_request(), "picture")
+    for needle in (
+        "Stickers (3D emoji pops)",
+        "`stickers`",
+        "Pick it by `intent`",
+        "Never write a file name",
+        "above the speaker's circle",
+        "`broll.motion.sticker.max_per_beat`",
+        "`broll.stickers_max_per_60s`",
+        "- idea: Light bulb, Brain, Puzzle piece, Exploding head",
+        "- death: Skull, Coffin, Ghost",
+    ):
+        assert needle in picture, needle
+    for tag in stickers.shipped().tags():
+        assert f"\n  - {tag}: " in picture, tag
+    sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
+    assert "`text_pops`, `bubbles` or `stickers`" in sound
+    assert "Stickers (3D emoji pops)" not in sound
 
 
 def test_the_v12_prompts_say_when_to_ask_a_clip_and_never_for_a_named_entity() -> None:

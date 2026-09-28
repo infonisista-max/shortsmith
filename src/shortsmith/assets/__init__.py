@@ -182,11 +182,13 @@ from shortsmith.contracts import (
     PicturePlan,
     ReferenceRecord,
     SearchOrigin,
+    StickerRecord,
     Treatment,
     ValidatedPlan,
 )
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
+from shortsmith.stickers import StickerShelf, live_shelf
 from shortsmith.styles import StyleSpec
 
 __all__ = [
@@ -1395,6 +1397,9 @@ class Sourcing:
     # none means every clip beat takes the still ladder.
     clips: Mapping[str, ClipSource] = field(default_factory=lambda: {})
     clip_order: Sequence[str] = CLIP_ORDER
+    # 062: where the plan's stickers are fetched from (the catalogue, the fetcher, the
+    # cache); None drops every sticker with a job.log line, as a failed fetch does.
+    stickers: StickerShelf | None = None
     # Why a configured source has no adapter, one line each, written by
     # `from_settings` and logged by the pipeline before the step runs.
     notes: Sequence[str] = ()
@@ -1443,9 +1448,25 @@ class Sourcing:
             log=lambda line: jobs.note(job, line, now=clock),
             clock=clock,
         )
+        manifest.stickers = self._stickers(job, validated.picture, clock=clock)
         write_manifest(job_dir, manifest)
         rights.write(job_dir, manifest, validated.picture)
         return manifest
+
+    def _stickers(self, job: Job, plan: PicturePlan, *, clock: Clock) -> list[StickerRecord]:
+        """062 (2): the plan's stickers fetched at job time (never at render time) and
+        copied into the job; each one that cannot be is dropped with a job.log line."""
+        def log(line: str) -> None:
+            jobs.note(job, line, now=clock)
+
+        if self.stickers is None:
+            for beat in plan.beats:
+                for sticker in beat.stickers:
+                    log(f"sticker: {beat.id}: {sticker.name!r} dropped, no sticker source is "
+                        "configured (062)")  # fmt: skip
+            return []
+        fetched_at = clock().isoformat(timespec="seconds")
+        return self.stickers.source(plan, job_dir=job.path, log=log, fetched_at=fetched_at)
 
 
 def judge_from_settings(settings: Settings, ledger: Callable[[], Ledger]) -> RelevanceJudge | None:
@@ -1522,6 +1543,7 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourci
         generator=generator_from_settings(settings, ledger),
         judge=judge_from_settings(settings, ledger),
         clips={name: clips[name] for name in CLIP_ORDER if name in clips},
+        stickers=live_shelf(settings.shortsmith_data_dir),  # 062: free, no key
         notes=notes,
     )
 

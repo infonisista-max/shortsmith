@@ -40,6 +40,13 @@ pointing at the PIP circle and a thought bubble of words 2-3 over the picture. T
 stays the beat's landed event, so the sound story is unchanged. Under a cap of 0 the plan
 is byte-identical to before.
 
+Ticket 062: where the style's `broll.stickers_max_per_60s` is over 0 (none of the four
+shipped and draft styles; the smoke's `--stickers` copy and 059's recipe styles), b01 (the
+opening photo) carries one sticker (`FAKE_STICKER`): the `idea` tag above the PIP circle,
+landing on word 1. b01 already carries the opening hit, the one cue
+`sound.cues_per_beat_max` allows, so the sound story is unchanged. Under a cap of 0 the
+plan is byte-identical to before.
+
 Ticket 058: b04 is the plan's one `clip` beat - a concept ("drifting clouds timelapse",
 `CLIP_QUERY`) asking for moving stock footage under the stamp (and the bubbles), with its
 own asset `a3`; with no clip source configured it takes the still ladder like any clip
@@ -73,6 +80,7 @@ from shortsmith.contracts import (
     PlanStyle,
     SoundStory,
     Span,
+    Sticker,
     Transition,
 )
 from shortsmith.contracts import (
@@ -165,11 +173,27 @@ def text_pops_allowed(style: PlanStyle) -> bool:
 def bubbles_allowed(style: PlanStyle) -> bool:
     """063: the style's `broll.bubbles_max_per_60s` is over 0; a request with no
     numbers allows none (the explainer's rule)."""
+    return _cap_over_zero(style, "bubbles_max_per_60s")
+
+
+def stickers_allowed(style: PlanStyle) -> bool:
+    """062: the style's `broll.stickers_max_per_60s` is over 0; a request with no
+    numbers allows none (the explainer's rule)."""
+    return _cap_over_zero(style, "stickers_max_per_60s")
+
+
+def _cap_over_zero(style: PlanStyle, key: str) -> bool:
     broll = style.numbers.get("broll")
     if not isinstance(broll, Mapping):
         return False
-    cap = cast(Mapping[str, object], broll).get("bubbles_max_per_60s", 0)
+    cap = cast(Mapping[str, object], broll).get(key, 0)
     return isinstance(cap, int | float) and cap > 0
+
+
+# 062: the fake's one sticker, on b01 (the opening `pip` photo, 0.0-0.5 s): the `idea` tag
+# (the grammar writes its first row, the light bulb) above the PIP circle - no `{x, y}` -
+# landing on word 1 ("there" at 0.36 s).
+FAKE_STICKER = Sticker(intent="idea", word=1)
 
 
 # 063: the fake's dialogue pair on b04 (the stamped clip beat, 1.5-2.0 s): the presenter's
@@ -210,6 +234,8 @@ class FakePlanner(Planner):
         pops = [Pop(text="THIS", word=2, x=50.0, y=42.0)] if allowed else []
         # 063: the dialogue pair on the card beat where the style allows bubbles at all.
         bubbles = list(FAKE_BUBBLES) if bubbles_allowed(request.style) else []
+        # 062: one sticker above the circle on the opening beat where the style allows any.
+        stuck = [FAKE_STICKER] if stickers_allowed(request.style) else []
 
         def enter(wanted: Transition) -> Transition:
             return enter_for(wanted, enabled)
@@ -225,7 +251,7 @@ class FakePlanner(Planner):
             B(id="b01", start=0.0, end=0.5, mode="pip", kind="photo", motion="ken_burns_in",
               subject_kind="concept", depicts="scene", query="slow colour gradient sky",
               query_fallback="abstract gradient", source_intent="search",
-              asset_id=first_asset),
+              asset_id=first_asset, stickers=stuck),
             B(id="b02", start=0.5, end=1.0, mode="pip", kind="card", motion="push_in",
               subject_kind="entity", query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",
@@ -322,7 +348,9 @@ class FakePlanner(Planner):
             for b in picture.beats
             if b.event.kind == "stamp" or b.counter is not None
         ]
-        # 061: a tick where the text pop lands, on the beat that carries one.
+        # 061: a tick where the text pop lands, on the beat that carries one. (062: the
+        # sticker's beat, b01, already carries the opening hit, the one cue
+        # `sound.cues_per_beat_max` allows, so it gets no ding of its own.)
         cues += [
             Cue(beat_id=b.id, intent="popup_tick", at="event")
             for b in picture.beats

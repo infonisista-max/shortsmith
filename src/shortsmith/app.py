@@ -110,6 +110,7 @@ from shortsmith import (
     presenter,
     publishing,
     render,
+    stickers,
     styles,
     sweeper,
 )
@@ -240,12 +241,16 @@ def create_app(
     styles_dir: Path | None = None,
     book: ledger.Ledger | None = None,
     specs: Mapping[str, StyleSpec] | None = None,
+    sticker_catalogue: Path | None = None,
 ) -> FastAPI:
     settings = settings or config.load()
     # Every style spec loads here, at startup, or the app does not build (1.2, 1.4).
     # Tests pass `specs` when the fake plan must be judged by the fixture rule set.
     if specs is None:
         specs = styles.load_all(render.registry(), styles_dir or styles.STYLES_DIR)
+    # 062: the committed sticker catalogue is validated here too; a broken row is a
+    # `StickerError` naming it, and the app does not build.
+    stickers.load_catalogue(sticker_catalogue or stickers.CATALOGUE_PATH)
     chips = styles.shipped(specs)
     # The ledger loads the prices file at startup (5.6), in the lifespan like the
     # passcode check, so `import shortsmith.app` never needs the file: a provider the

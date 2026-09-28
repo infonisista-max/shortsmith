@@ -50,7 +50,7 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import Literal
 
-from shortsmith import assets, presenter, styles
+from shortsmith import assets, presenter, stickers, styles
 from shortsmith.assets.generate import depicts_of
 from shortsmith.contracts import (
     CATEGORIES,
@@ -65,6 +65,7 @@ from shortsmith.contracts import (
     PlanReference,
     SoundStory,
     Span,
+    Sticker,
     StrictModel,
     TextPop,
     Transcript,
@@ -109,6 +110,9 @@ TEXT_POP_WORDS_MAX = 4  # 061 (1): one to four words
 # 063: a bubble sits on the same picture beats (its tail points at a person in the
 # picture, or at the PIP circle).
 BUBBLE_KINDS = TEXT_POP_KINDS
+# 062: a sticker pops over the same picture beats (above the PIP circle, or near its
+# subject in the picture).
+STICKER_KINDS = TEXT_POP_KINDS
 
 
 class Violations(StrictModel):
@@ -220,6 +224,8 @@ def validate_picture(
     found += pop_found
     bubble_found, beats = _bubbles(beats, runtime, spec, words, spans)
     found += bubble_found
+    sticker_found, beats = _stickers(beats, runtime, spec, words, spans)
+    found += sticker_found
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
@@ -476,6 +482,13 @@ def _lengths(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
     return found
 
 
+def pops_in(beat: Beat) -> bool:
+    """061 / 063 / 062: the beat carries something that pops in over the picture - a
+    text pop, a bubble or a sticker: a change for 3.1, something an `event` cue may hit
+    and the `pop` trigger of the whoosh allowance."""
+    return bool(beat.text_pops) or bool(beat.bubbles) or bool(beat.stickers)
+
+
 def _density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
     """3.1: the gap between consecutive visual events (beat starts, landed events) is
     at most `density_gap_max_s`; see the module docstring for the mid-beat reading."""
@@ -485,8 +498,8 @@ def _density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
         if b.kind in DENSITY_EXEMPT_KINDS or b.overlays:
             continue
         length = _len(b)
-        # 061: a pop is a change; 063: so is a bubble
-        landed = b.event.kind != "none" or bool(b.text_pops) or bool(b.bubbles)
+        # 061: a pop is a change; 063: so is a bubble; 062: and a sticker
+        landed = b.event.kind != "none" or pops_in(b)
         gap = round(length / 2, 3) if landed else length
         if gap > gap_max + EPS:
             found.append(
@@ -1131,6 +1144,96 @@ def _bubbles(
     return found, out
 
 
+def sticker_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """062: `broll.stickers_max_per_60s` scaled to the runtime, rounded up like the other
+    per-60 s maxima (4.3); 0 stays 0."""
+    return math.ceil(spec.broll.stickers_max_per_60s * runtime / 60 - EPS)
+
+
+def _stickers(
+    beats: Sequence[Beat],
+    runtime: float,
+    spec: StyleSpec,
+    words: Sequence[Word],
+    spans: Sequence[Span],
+) -> tuple[list[Violation], list[Beat]]:
+    """062 (4.1 as amended): a sticker sits on a picture beat (`STICKER_KINDS`), is
+    picked by a tag of the committed catalogue (`stickers.shipped`) and, when it names a
+    row, a row carrying that tag - never a file; it lands on a transcript word the beat
+    covers; off the PIP (a `full` beat) it needs its `{x, y}`, there being no circle to
+    sit above. At most `motion.sticker.max_per_beat` per beat and `sticker_cap` over the
+    runtime (a style with the cap at 0 has none). Every sticker's `name` is written (the
+    tag's first row when empty) and its `at_s` rewritten as its word's start on the
+    output timeline, whatever the planner put there."""
+    found: list[Violation] = []
+    out: list[Beat] = []
+    cap = sticker_cap(spec, runtime=runtime)
+    per_beat = int(spec.broll.motion.get("sticker", {}).get("max_per_beat", 0))
+    catalogue = stickers.shipped()
+    total = 0
+    for b in beats:
+        if not b.stickers:
+            out.append(b)
+            continue
+        kind = "presenter_full" if b.mode == "full" else b.kind
+        if kind not in STICKER_KINDS:
+            picture_kinds = ", ".join(sorted(STICKER_KINDS))
+            found.append(
+                _v("4.1", b.id, f"stickers sit on a picture beat ({picture_kinds}); this beat "
+                                f"is a {b.kind!r}")  # fmt: skip
+            )
+        if len(b.stickers) > per_beat:
+            found.append(
+                _v("4.1", b.id, f"{len(b.stickers)} stickers on one beat; broll.motion.sticker."
+                                f"max_per_beat allows {per_beat}")  # fmt: skip
+            )
+        resolved: list[Sticker] = []
+        for i, sticker in enumerate(b.stickers):
+            total += 1
+            if total > cap:
+                found.append(
+                    _v("4.1", b.id, f"sticker {total} over {runtime:g} s; "
+                                    f"broll.stickers_max_per_60s "
+                                    f"{spec.broll.stickers_max_per_60s} allows {cap} "
+                                    "(062)")  # fmt: skip
+                )
+            entry = catalogue.pick(sticker.intent, sticker.name)
+            if entry is None:
+                wanted = f"row {sticker.name!r} tagged {sticker.intent!r}" if sticker.name else (
+                    f"tag {sticker.intent!r}"
+                )
+                found.append(
+                    _v("4.1", b.id, f"sticker {i}: the catalogue has no {wanted}; pick a tag "
+                                    f"from {catalogue.tags()} and, if you name a row, one "
+                                    "listed under that tag (062)")  # fmt: skip
+                )
+            if b.mode != "pip" and sticker.x is None:
+                found.append(
+                    _v("4.1", b.id, f"sticker {i} {sticker.intent!r} on a {b.mode!r} beat has no "
+                                    "PIP circle to sit above; give its {x, y}")  # fmt: skip
+                )
+            name = entry.name if entry is not None else sticker.name
+            if not 0 <= sticker.word < len(words):
+                found.append(
+                    _v("4.1", b.id, f"sticker {i} {sticker.intent!r} lands on word "
+                                    f"{sticker.word}; the transcript has {len(words)} words "
+                                    f"(0-{len(words) - 1})")  # fmt: skip
+                )
+                resolved.append(sticker.model_copy(update={"name": name}))
+                continue
+            at = round(presenter.output_time(spans, words[sticker.word].start), 3)
+            if not b.start - CONTIGUITY_TOL_S <= at < b.end:
+                found.append(
+                    _v("4.1", b.id, f"sticker {i} {sticker.intent!r} lands on word "
+                                    f"{sticker.word} ({words[sticker.word].text!r} at {at:g} s "
+                                    f"on the cut), which this beat ({b.start:g}-{b.end:g} s) "
+                                    "does not cover")  # fmt: skip
+                )
+            resolved.append(sticker.model_copy(update={"name": name, "at_s": max(at, b.start)}))
+        out.append(b.model_copy(update={"stickers": resolved}))
+    return found, out
+
+
 def _subjects(beats: Sequence[Beat], runtime: float, brief: str) -> list[Violation]:
     """4.2: subject_kind and query on every B-roll beat; an entity beat per 60 s when
     the brief names something."""
@@ -1355,16 +1458,17 @@ def validate_sound(
                 _v("8.2", cue.beat_id, f"cue {cue.intent!r} names a beat that is not in the plan")
             )
             continue
-        # 029: a counter lands; 061 / 063: a text pop or a bubble pops in, so an `event`
-        # cue has something to hit there too.
-        pops_in = bool(beat.text_pops) or bool(beat.bubbles)
-        bare = beat.event.kind == "none" and beat.counter is None and not pops_in
-        # 060 (7.3 as amended): a whoosh rides only a flash enter or a pop-in (061 / 063:
-        # a `whoosh` at the `event` of a beat carrying text pops or bubbles rides the
-        # first one), and only where the style's allowance names that trigger.
+        # 029: a counter lands; 061 / 063 / 062: a text pop, a bubble or a sticker pops
+        # in, so an `event` cue has something to hit there too.
+        popping = pops_in(beat)
+        bare = beat.event.kind == "none" and beat.counter is None and not popping
+        # 060 (7.3 as amended): a whoosh rides only a flash enter or a pop-in (061 / 063 /
+        # 062: a `whoosh` at the `event` of a beat carrying text pops, bubbles or a
+        # sticker rides the first one), and only where the style's allowance names that
+        # trigger.
         whoosh = styles.is_whoosh(cue.intent)
         on_flash = cue.at == "start" and beat.enter == "flash"
-        on_pop = cue.at == "event" and pops_in
+        on_pop = cue.at == "event" and popping
         whoosh_ok = (
             whoosh
             and allowance is not None
@@ -1386,7 +1490,8 @@ def validate_sound(
                     beat.id,
                     f"cue {cue.intent!r} at {cue.at!r} on a {beat.enter!r} enter: a whoosh is "
                     f"allowed only on {allowance.on} - at the start of a `flash` beat, or at "
-                    "the event of a beat carrying text pops or bubbles (060, 061, 063)"
+                    "the event of a beat carrying text pops, bubbles or a sticker (060, 061, "
+                    "063, 062)"
                     if allowance is not None
                     else f"cue {cue.intent!r}: whooshes are forbidden (060)",
                 )

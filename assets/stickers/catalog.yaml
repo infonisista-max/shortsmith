@@ -1,0 +1,74 @@
+# Stickers (ticket 062): 3D emoji from Microsoft Fluent Emoji, MIT License,
+# "Copyright (c) Microsoft Corporation" (https://github.com/microsoft/fluentui-emoji).
+# `name` is the Fluent folder name, the one word the planner may write besides a tag;
+# `path` sits under that repository's `assets/` folder; `tags` are the intents the
+# planner picks by (a tag's first row is its default). The PNGs are fetched on first
+# use into the git-ignored cache `<data dir>/cache/stickers/`, never committed. Every path below was
+# checked live (HTTP 200) on 28 Sep 2026. Validated at startup by
+# `shortsmith.stickers.load_catalogue`.
+entries:
+  # idea, thinking, question
+  - {name: Light bulb, path: Light bulb/3D/light_bulb_3d.png, tags: [idea, science]}
+  - {name: Thinking face, path: Thinking face/3D/thinking_face_3d.png, tags: [think, question]}
+  - {name: Red question mark, path: Red question mark/3D/red_question_mark_3d.png, tags: [question]}
+  - {name: Face with monocle, path: Face with monocle/3D/face_with_monocle_3d.png, tags: [think, secret]}
+  - {name: Brain, path: Brain/3D/brain_3d.png, tags: [idea, think, science]}
+  - {name: Magnifying glass tilted left, path: Magnifying glass tilted left/3D/magnifying_glass_tilted_left_3d.png, tags: [secret, question]}
+  - {name: Puzzle piece, path: Puzzle piece/3D/puzzle_piece_3d.png, tags: [question, idea]}
+  # shock, surprise
+  - {name: Exploding head, path: Exploding head/3D/exploding_head_3d.png, tags: [shock, idea]}
+  - {name: Face screaming in fear, path: Face screaming in fear/3D/face_screaming_in_fear_3d.png, tags: [shock, fear]}
+  - {name: Astonished face, path: Astonished face/3D/astonished_face_3d.png, tags: [shock]}
+  - {name: Face with open mouth, path: Face with open mouth/3D/face_with_open_mouth_3d.png, tags: [shock]}
+  - {name: Collision, path: Collision/3D/collision_3d.png, tags: [shock]}
+  - {name: Red exclamation mark, path: Red exclamation mark/3D/red_exclamation_mark_3d.png, tags: [shock]}
+  - {name: Double exclamation mark, path: Double exclamation mark/3D/double_exclamation_mark_3d.png, tags: [shock]}
+  - {name: Eyes, path: Eyes/3D/eyes_3d.png, tags: [secret, shock]}
+  # danger, death, warning
+  - {name: Warning, path: Warning/3D/warning_3d.png, tags: [danger, warning]}
+  - {name: Skull, path: Skull/3D/skull_3d.png, tags: [death, danger]}
+  - {name: Coffin, path: Coffin/3D/coffin_3d.png, tags: [death]}
+  - {name: Ghost, path: Ghost/3D/ghost_3d.png, tags: [death, fear]}
+  - {name: Bomb, path: Bomb/3D/bomb_3d.png, tags: [danger]}
+  - {name: Police car light, path: Police car light/3D/police_car_light_3d.png, tags: [danger, warning]}
+  - {name: Crossed swords, path: Crossed swords/3D/crossed_swords_3d.png, tags: [war, history]}
+  - {name: Anxious face with sweat, path: Anxious face with sweat/3D/anxious_face_with_sweat_3d.png, tags: [fear]}
+  # fire, energy, power
+  - {name: Fire, path: Fire/3D/fire_3d.png, tags: [fire]}
+  - {name: High voltage, path: High voltage/3D/high_voltage_3d.png, tags: [power, fire]}
+  - {name: Flexed biceps, path: Flexed biceps/Default/3D/flexed_biceps_3d_default.png, tags: [power, win]}
+  - {name: Crown, path: Crown/3D/crown_3d.png, tags: [power, win, history]}
+  # money
+  - {name: Money bag, path: Money bag/3D/money_bag_3d.png, tags: [money]}
+  - {name: Money with wings, path: Money with wings/3D/money_with_wings_3d.png, tags: [money, loss]}
+  - {name: Dollar banknote, path: Dollar banknote/3D/dollar_banknote_3d.png, tags: [money]}
+  - {name: Coin, path: Coin/3D/coin_3d.png, tags: [money]}
+  - {name: Gem stone, path: Gem stone/3D/gem_stone_3d.png, tags: [money, win]}
+  - {name: Chart increasing, path: Chart increasing/3D/chart_increasing_3d.png, tags: [growth, money]}
+  - {name: Chart decreasing, path: Chart decreasing/3D/chart_decreasing_3d.png, tags: [loss]}
+  # yes, no
+  # (quoted: bare yes / no are booleans in YAML)
+  - {name: Check mark button, path: Check mark button/3D/check_mark_button_3d.png, tags: ["yes"]}
+  - {name: Thumbs up, path: Thumbs up/Default/3D/thumbs_up_3d_default.png, tags: ["yes"]}
+  - {name: Cross mark, path: Cross mark/3D/cross_mark_3d.png, tags: ["no"]}
+  - {name: Thumbs down, path: Thumbs down/Default/3D/thumbs_down_3d_default.png, tags: ["no"]}
+  - {name: No entry, path: No entry/3D/no_entry_3d.png, tags: ["no", danger]}
+  # time
+  - {name: Hourglass not done, path: Hourglass not done/3D/hourglass_not_done_3d.png, tags: [time]}
+  - {name: Alarm clock, path: Alarm clock/3D/alarm_clock_3d.png, tags: [time]}
+  - {name: Stopwatch, path: Stopwatch/3D/stopwatch_3d.png, tags: [time, sport]}
+  # win, celebration
+  - {name: Trophy, path: Trophy/3D/trophy_3d.png, tags: [win, sport]}
+  - {name: Party popper, path: Party popper/3D/party_popper_3d.png, tags: [win]}
+  - {name: Hundred points, path: Hundred points/3D/hundred_points_3d.png, tags: [win, "yes"]}
+  # love, feelings
+  - {name: Red heart, path: Red heart/3D/red_heart_3d.png, tags: [love]}
+  - {name: Face with tears of joy, path: Face with tears of joy/3D/face_with_tears_of_joy_3d.png, tags: [laugh]}
+  - {name: Crying face, path: Crying face/3D/crying_face_3d.png, tags: [sad]}
+  # food, science, space, sport, history
+  - {name: Pizza, path: Pizza/3D/pizza_3d.png, tags: [food]}
+  - {name: Test tube, path: Test tube/3D/test_tube_3d.png, tags: [science]}
+  - {name: Rocket, path: Rocket/3D/rocket_3d.png, tags: [space, growth]}
+  - {name: Ringed planet, path: Ringed planet/3D/ringed_planet_3d.png, tags: [space]}
+  - {name: Cricket game, path: Cricket game/3D/cricket_game_3d.png, tags: [sport]}
+  - {name: Scroll, path: Scroll/3D/scroll_3d.png, tags: [history]}

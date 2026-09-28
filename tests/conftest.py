@@ -58,6 +58,17 @@ def bubble_style(spec: styles.StyleSpec) -> styles.StyleSpec:
     return fixture.bubbles_on(spec)
 
 
+# 062: the cap the test style raises stickers to: ceil(10 x 6 / 60) = 1 on the fixture.
+STICKERS_PER_60S = fixture.STICKERS_PER_60S
+
+
+def sticker_style(spec: styles.StyleSpec) -> styles.StyleSpec:
+    """062's test style: a deep copy of `spec` with stickers turned on
+    (`broll.stickers_max_per_60s` = `STICKERS_PER_60S`), the smoke's `--stickers` copy
+    (`fixture.stickers_on`). The four shipped and draft specs keep the cap at 0."""
+    return fixture.stickers_on(spec)
+
+
 @pytest.fixture(scope="session")
 def fixture_clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
     path = tmp_path_factory.mktemp("fixture") / "fixture.mp4"

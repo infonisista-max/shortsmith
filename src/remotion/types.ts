@@ -163,6 +163,25 @@ export type TextPopSpec = {
   until_s: number;
 };
 
+// 062: a Fluent Emoji sticker, placed and timed by `render.sticker_spec`: the PNG `src`
+// (the driver serves it) in a `size` px square at `left`, `top`, the pop-in (`scale_from`
+// -> 1 over `pop_s` from `at_s`), the float (`float_px` every `float_period_s`), the soft
+// shadow and the leave (`until_s`).
+export type StickerSpec = {
+  name: string;
+  src: string;
+  left: number;
+  top: number;
+  size: number;
+  scale_from: number;
+  at_s: number;
+  pop_s: number;
+  until_s: number;
+  float_px: number;
+  float_period_s: number;
+  shadow_px: number;
+};
+
 // 063: a speech or thought bubble, placed, wrapped and timed by `render.bubble_spec`:
 // the body box with its text lines, the outline `path` (body plus tail, one shape) in
 // composition pixels, the thought trail `dots`, the tail tip (the planner's anchor), the
@@ -490,6 +509,7 @@ export type BeatSpec = {
   counter?: CounterSpec | null;
   text_pops?: TextPopSpec[];
   bubbles?: BubbleSpec[];
+  stickers?: StickerSpec[];
 };
 
 export type PipGeometry = {

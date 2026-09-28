@@ -122,6 +122,21 @@ def bubbles_on(spec: StyleSpec) -> StyleSpec:
     return styled
 
 
+# 062: the cap the stickers-on copy raises stickers to: ceil(10 x 6 / 60) = 1 on the
+# fixture, the fake plan's one sticker.
+STICKERS_PER_60S = 10
+
+
+def stickers_on(spec: StyleSpec) -> StyleSpec:
+    """`spec` copied with stickers turned on (`broll.stickers_max_per_60s` =
+    `STICKERS_PER_60S`): every shipped and draft style keeps the cap at 0 until 059's
+    recipe styles, so the smoke's `--stickers` and the tests judge and render the fake
+    plan's one sticker under this copy. Nothing else changes."""
+    styled = spec.model_copy(deep=True)
+    styled.broll.stickers_max_per_60s = STICKERS_PER_60S
+    return styled
+
+
 def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> dict[str, StyleSpec]:
     """`specs` with the style `name` (the default unless told otherwise) replaced by its
     fixture-shaped copy. Ticket 048 renders the fixture under the `hitech` draft, so

@@ -102,7 +102,7 @@ test("the flash is drawn over the picture layers and under the pip, overlays and
   assert.ok(overlay > 0, "Short.tsx never draws the FlashOverlay");
   assert.ok(short.lastIndexOf("</Transition>") < overlay, "the flash is under the beat's picture");
   for (const above of ["<Pip ", "<Stamp ", "<Counter ", "<LowerThird", "<TextPop ", "<Bubble",
-                       "<Captions "]) {
+                       "<Sticker ", "<Captions "]) {
     assert.ok(short.indexOf(above) > overlay, `${above.trim()} is drawn under the flash`);
   }
   // Both sides of the boundary: the next beat's flash rises through this beat's last frames.
@@ -152,6 +152,29 @@ test("the composition lists bubble after ticket 063 and draws it over the text p
   assert.match(source, /<circle/, "the thought trail is never drawn");
 });
 
+test("the composition lists sticker after ticket 062 and draws it over the bubbles, under the captions", () => {
+  assert.ok(registry.components.includes("sticker"), "sticker is not registered");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const stickers = short.indexOf("<Sticker ");
+  assert.ok(stickers > 0, "Short.tsx never draws Sticker");
+  assert.ok(short.indexOf("<Pip ") < stickers, "stickers are drawn under the PIP circle");
+  assert.ok(short.indexOf("<Bubble") < stickers, "stickers are drawn under the bubbles");
+  assert.ok(stickers < short.indexOf("<Captions "), "stickers are drawn over the captions");
+  // Every number is the spec's: the file, the square, the landing, the overshoot, the
+  // float, the shadow and the leave.
+  const source = readFileSync(join(root, "components", "sticker.tsx"), "utf-8");
+  for (const field of ["src", "left", "top", "size", "at_s", "pop_s", "until_s", "scale_from",
+                       "float_px", "float_period_s", "shadow_px"]) {
+    assert.ok(source.includes(`.${field}`), `sticker.tsx never reads ${field}`);
+  }
+  assert.match(source, /Easing\.back\(/, "the sticker has no overshoot");
+  assert.match(source, /<Img/, "the sticker PNG is not drawn with Remotion's Img");
+  // The driver serves the job's copy of the PNG like any other picture.
+  const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
+  assert.match(driver, /b\.stickers \?\? \[\]\)\.map\(\(s\) => s\.src\)/,
+               "the driver never serves a beat's sticker");  // prettier-ignore
+});
+
 test("the composition lists clip after ticket 058 and draws it muted in the photo's layer", () => {
   assert.ok(registry.components.includes("clip"), "clip is not registered");
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
@@ -192,7 +215,7 @@ test("Short.tsx draws every registered component", () => {
                   wall: "Wall", chart: "Chart", infographic: "Infographic",
                   label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase",
                   pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath",
-                  text_pop: "TextPop", bubble: "Bubble" };
+                  text_pop: "TextPop", bubble: "Bubble", sticker: "Sticker" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   for (const name of registry.components) {

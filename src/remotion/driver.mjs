@@ -208,7 +208,8 @@ async function render(args) {
   const inputProps = { ...spec };
   // Every file the composition reads: the presenter cut, each beat's B-roll (016), the
   // cards of the hook and finale set pieces (026) and the wall's cells, the list's row
-  // icons and the split's panes and badge (027), and the diagram's base picture (021).
+  // icons and the split's panes and badge (027), the diagram's base picture (021), and
+  // each beat's sticker PNG (062).
   const setPieceCards = (beat) => [
     ...(beat.hook?.cards ?? []),
     ...(beat.finale?.cards ?? []),
@@ -222,6 +223,8 @@ async function render(args) {
     ...(b.list?.rows ?? []).map((r) => r.icon_src).filter(Boolean),
     // 021: the labelled diagram's own base picture.
     ...(b.infographic?.src ? [b.infographic.src] : []),
+    // 062: the beat's sticker, the job's copy of the fetched Fluent Emoji PNG.
+    ...(b.stickers ?? []).map((s) => s.src),
   ]);
   const files = [...(spec.presenter ? [spec.presenter] : []), ...assetFiles];
   if (files.length) {
@@ -259,6 +262,9 @@ async function render(args) {
       ...(b.list ? { list: servedList(b.list) } : {}),
       ...(b.split ? { split: servedSplit(b.split) } : {}),
       ...(b.infographic ? { infographic: { ...b.infographic, src: url(b.infographic.src) } } : {}),
+      ...(b.stickers?.length
+        ? { stickers: b.stickers.map((s) => ({ ...s, src: url(s.src) })) }
+        : {}),
     }));
   }
   const started = performance.now();

@@ -50,6 +50,12 @@ second the fixture-scaled gap later, the render draws both clear of the circle, 
 captions, the stamp and each other with their tails on their anchors, T12 counts them,
 and job.log carries each bubble's text beside its source words.
 
+`--stickers` (ticket 062) likewise with stickers on (`fixture.stickers_on`): the fake
+plan's b01 carries one sticker (the `idea` tag, resolved by the grammar to the light
+bulb), the sourcing step fetches it through the fake fetcher into a cache under the smoke
+root and copies it into the job, the render draws it centred above the PIP circle, T12
+counts it, and the rights log and credits carry it.
+
 Ticket 058: the fake plan's b04 is a `clip` beat; the fake clip source (Pexels video)
 answers its query with a synthetic moving clip carrying a tone, and `check_clip` proves
 the walk: the manifest's `clip` record with its real length, the rights row and the
@@ -91,11 +97,13 @@ from shortsmith import (
     render,
     rights,
     sound,
+    stickers,
     styles,
 )
 from shortsmith.contracts import (
     CRITIC_LINES,
     TIER1_KINDS,
+    AssetManifest,
     Captions,
     CriticReport,
     DiagramLayout,
@@ -143,7 +151,15 @@ CLIP_REGION = (400, 720, 940, 940)
 CLIP_MOTION_MIN = 0.01  # the share of the region's pixels that must change over the beat
 
 
-def smoke_sourcing() -> assets.Sourcing:
+def smoke_sourcing(sticker_cache: Path | None = None) -> assets.Sourcing:
+    """The fake sources; `sticker_cache` (062) gives the step the shipped sticker
+    catalogue over the fake fetcher, cached there."""
+    shelf = (
+        stickers.StickerShelf(catalogue=stickers.shipped(), fetcher=stickers.FakeStickerFetcher(),
+                              cache_dir=sticker_cache)  # fmt: skip
+        if sticker_cache is not None
+        else None
+    )
     return assets.Sourcing(
         sources={
             "web": assets.FakeImageSource("web", nothing_for={PHOTO_QUERY}),
@@ -153,6 +169,7 @@ def smoke_sourcing() -> assets.Sourcing:
         judge=assets.FakeRelevanceJudge(),  # 017: the judge runs, on no paid call
         generator=assets.FakeImageGenerator(),  # 019: rung 2, on no paid call either
         clips={"pexels": assets.FakeClipSource("pexels")},  # 058: the clip beat's footage
+        stickers=shelf,
     )
 
 
@@ -207,6 +224,7 @@ def run_smoke(
     style: str = styles.DEFAULT,
     text_pops: bool = False,
     bubbles: bool = False,
+    stickers_on: bool = False,
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
     renderer: Renderer | None = None,
@@ -214,8 +232,9 @@ def run_smoke(
     """`text_pops` (061) judges and renders the walk under the selected style's copy
     with text pops turned on (`fixture.pops_on`), so the fake plan's one pop is drawn;
     `bubbles` (063) likewise with bubbles on (`fixture.bubbles_on`), so the fake plan's
-    dialogue pair is drawn; every existing style keeps both off, so the plain walk
-    draws none."""
+    dialogue pair is drawn; `stickers_on` (062) likewise with stickers on
+    (`fixture.stickers_on`), so the fake plan's one sticker is fetched and drawn; every
+    existing style keeps all three off, so the plain walk draws none."""
     started = time.perf_counter()
     transcriber = transcriber or FakeTranscriber()
     planner = planner or FakePlanner()
@@ -264,9 +283,12 @@ def run_smoke(
         judged[style] = fixture.pops_on(judged[style])
     if bubbles:
         judged[style] = fixture.bubbles_on(judged[style])
+    if stickers_on:
+        judged[style] = fixture.stickers_on(judged[style])
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
-        sourcing=smoke_sourcing(), specs=judged, library=library, critic=critic,
+        sourcing=smoke_sourcing(root / "stickers"), specs=judged, library=library,
+        critic=critic,
     )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
@@ -360,6 +382,7 @@ def run_smoke(
     check_qa(reloaded)
     pops = check_text_pops(reloaded, plan, on=text_pops)
     drawn_bubbles = check_bubbles(reloaded, plan, on_disk, on=bubbles)
+    drawn_stickers = check_stickers(reloaded, plan, manifest, on_disk, on=stickers_on)
     sheet = job.out_dir / "contact.jpg"
     check_contact_sheet(sheet)
     verdict = check_critic(reloaded, critic, plan)
@@ -389,7 +412,7 @@ def run_smoke(
         f"smoke ok: style {style}, job {job.id} -> {reloaded.status}, "
         f"{len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
-        f"text pops {pops}, bubbles {drawn_bubbles}, clip b04, "
+        f"text pops {pops}, bubbles {drawn_bubbles}, stickers {drawn_stickers}, clip b04, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB render {render_s:.1f}s, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
@@ -1102,6 +1125,73 @@ def check_bubbles(job: jobs.Job, plan: PicturePlan, transcript: Transcript, *, o
     return len(drawn["b04"])
 
 
+def check_stickers(
+    job: jobs.Job, plan: PicturePlan, manifest: AssetManifest, transcript: Transcript,
+    *, on: bool,
+) -> int:  # fmt: skip
+    """062: with stickers on, the fake plan's b01 carries one sticker (the `idea` tag,
+    which the grammar resolved to the light bulb, landing on word 1), the sourcing step
+    fetched it (the fake fetcher) and copied it into the job, the render spec draws it
+    as the style's square centred above the PIP circle, off the circle and the 6.3 zones
+    with its float, from the job's copy, T12 counted it, the rights log and the credits
+    carry it, and job.log dropped nothing; with stickers off (every existing style) no
+    beat carries one and no sticker is fetched or credited. Returns the stickers drawn."""
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    planned = {b.id: b.stickers for b in plan.beats if b.stickers}
+    drawn = {b.id: b.stickers for b in spec.beats if b.stickers}
+    report = technical.load_report(job)
+    assert report is not None
+    t12 = next(c.detail for c in report.checks if c.name == "T12")
+    rows = rights.load(job.path) or []
+    stuck_rows = [r for r in rows if r.kind == "sticker"]
+    credits = (job.out_dir / rights.CREDITS_NAME).read_text(encoding="utf-8")
+    log_lines = job.log_path.read_text(encoding="utf-8").splitlines()
+    sticker_lines = [line.split(" ", 1)[1] for line in log_lines if "sticker: " in line]
+    if not on:
+        check(not planned and not drawn, f"stickers without the stickers style: {planned} {drawn}")
+        check(manifest.stickers == [] and not stuck_rows, "a sticker was fetched or credited")
+        check("0 stickers" in t12, f"T12 did not count the stickers: {t12}")
+        check(not sticker_lines, f"job.log has sticker lines without the style: {sticker_lines}")
+        return 0
+    check(list(planned) == ["b01"], f"the fake plan sticks on {list(planned)}, not on b01")
+    (asked,) = planned["b01"]
+    landing = transcript.words[1].start
+    check((asked.intent, asked.name, asked.at_s, asked.x) == ("idea", "Light bulb", landing, None),
+          f"b01's sticker is {asked}")  # fmt: skip
+    (record,) = manifest.stickers
+    check(record.name == "Light bulb" and (job.path / record.file).is_file(),
+          f"the sticker was not fetched into the job: {record}")  # fmt: skip
+    check(list(drawn) == ["b01"], f"the render spec draws stickers on {list(drawn)}, not on b01")
+    (placed,) = drawn["b01"]
+    beat = next(b for b in spec.beats if b.id == "b01")
+    row = render.style_numbers(job.record.style).broll
+    check((placed.size, placed.pop_s, placed.float_px) == (
+        float(row.sticker_size_px), row.sticker_s, row.sticker_float_px),
+        f"b01's sticker is not {job.record.style}'s sticker row: {placed}")  # fmt: skip
+    check(placed.src == str((job.path / record.file).resolve()),
+          f"b01's sticker is not drawn from the job's copy: {placed.src}")  # fmt: skip
+    circle = render.Box(spec.pip.left, spec.pip.top, spec.pip.diameter, spec.pip.diameter)
+    square = render.Box(placed.left, placed.top, placed.size, placed.size)
+    check(abs(placed.left + placed.size / 2 - (circle.left + circle.width / 2)) < 1e-6
+          and abs(square.bottom + render.STICKER_GAP_PX - circle.top) < 1e-6,
+          f"b01's sticker is not centred above the circle: {square} over {circle}")  # fmt: skip
+    check(not square.overlaps(circle), "b01's sticker sits on the circle")
+    hits = technical.zone_hits(placed.left, placed.top - placed.float_px, placed.size,
+                               placed.size + 2 * placed.float_px)  # fmt: skip
+    check(not hits, f"b01's sticker reaches a reserved zone: {hits}")
+    at = beat.start_frame / spec.fps + placed.at_s
+    check(abs(at - landing) <= 0.15, f"b01's sticker lands at {at:g} s, not at {landing:g} s")
+    check("1 sticker" in t12, f"T12 did not count the sticker: {t12}")
+    check(len(stuck_rows) == 1 and stuck_rows[0].beat_ids == ["b01"],
+          f"the rights log does not carry the sticker: {stuck_rows}")  # fmt: skip
+    check(f"Sticker: Light bulb - {stickers.CREDIT} via {record.source_url}" in credits,
+          f"credits.md lacks the sticker line: {credits}")  # fmt: skip
+    check(not sticker_lines, f"a sticker was moved, dropped or left out: {sticker_lines}")
+    return len(drawn["b01"])
+
+
 def check_qa(job: jobs.Job) -> None:
     """`out/qa.json`: T1-T13 ran in order and every one passed (10.1; 006, 016, 023,
     031, 032). The smoke mixes cues, so T6 must have scanned a real SFX stem - its
@@ -1388,6 +1478,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="judge and render under the style's copy with bubbles turned on (063), so "
         "the fake plan's dialogue pair is drawn",
     )
+    parser.add_argument(
+        "--stickers",
+        action="store_true",
+        help="judge and render under the style's copy with stickers turned on (062), so "
+        "the fake plan's one sticker is fetched (fake fetcher) and drawn",
+    )
     return parser.parse_args(argv if argv is not None else [])
 
 
@@ -1403,7 +1499,7 @@ def main(
         try:
             result = run_smoke(
                 root, style=args.style, text_pops=args.text_pops, bubbles=args.bubbles,
-                transcriber=transcriber, planner=planner,
+                stickers_on=args.stickers, transcriber=transcriber, planner=planner,
             )  # fmt: skip
         except Exception as exc:  # noqa: BLE001 - the smoke reports every failure the same way
             print(f"smoke FAILED: {exc}", file=sys.stderr)

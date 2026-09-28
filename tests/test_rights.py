@@ -198,6 +198,45 @@ def test_a_stock_clip_gets_a_clip_row_and_the_video_credit_the_site_asks_for() -
     )
 
 
+def test_every_sticker_shown_gets_a_rights_row_and_a_credits_line(tmp_path: Path) -> None:
+    """062 (2): one rights row per sticker shown ("Fluent Emoji by Microsoft, MIT
+    License"), with every beat that shows it, and one credits line naming it; a sticker
+    the fetch dropped has no record and no row; T9 stays complete."""
+    from shortsmith.contracts import Sticker, StickerRecord
+
+    plan = _plan(("b01", "photo", "a1"), ("b02", "photo", "a1"), ("b03", "photo", "a1"))
+    bulb = Sticker(intent="idea", name="Light bulb", word=0)
+    skull = Sticker(intent="death", name="Skull", word=1)
+    plan = plan.model_copy(update={"beats": [
+        plan.beats[0].model_copy(update={"stickers": [bulb]}),
+        plan.beats[1].model_copy(update={"stickers": [skull]}),
+        plan.beats[2].model_copy(update={"stickers": [bulb]}),
+    ]})  # fmt: skip
+    url = ("https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/"
+           "Light%20bulb/3D/light_bulb_3d.png")  # fmt: skip
+    manifest = _manifest([_record("a1", author="Jane Doe")], [_beat_asset("b01", "a1")])
+    manifest = manifest.model_copy(update={"stickers": [StickerRecord(
+        name="Light bulb", file="assets/stickers/light_bulb_3d.png", source_url=url,
+        sha256="1" * 64, width=256, height=256, fetched_at=STAMP,
+    )]})  # fmt: skip
+    rows = rights.write(tmp_path, manifest, plan)
+    sticker = next(r for r in rows if r.kind == "sticker")
+    assert sticker.id == "sticker:light_bulb_3d"
+    assert sticker.beat_ids == ["b01", "b03"]
+    assert (sticker.origin, sticker.licence, sticker.author) == (
+        "fluent_emoji", "MIT License", "Microsoft",
+    )  # fmt: skip
+    assert (sticker.source_url, sticker.page_url) == (url, "https://github.com/microsoft/fluentui-emoji")
+    assert [r.kind for r in rows].count("sticker") == 1, "the dropped skull has no row"
+    credits = (tmp_path / "out" / "credits.md").read_text(encoding="utf-8")
+    assert credits == (
+        "Photo: Jane Doe via https://www.example.org/wiki/a1\n"
+        "\n"
+        f"Sticker: Light bulb - Fluent Emoji by Microsoft, MIT License via {url}\n"
+    )
+    assert rights.completeness(rows, manifest, plan) == []
+
+
 def test_owner_and_generated_assets_get_no_credit_line() -> None:
     rows = [
         rights.row(_record("u1", "owner_supplied"), ["b01"]),

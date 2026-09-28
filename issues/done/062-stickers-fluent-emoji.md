@@ -59,6 +59,40 @@ the operator records the lines from the done note):
       chunks.
 - [ ] Done note: the amendment lines for 4.1, 5.1 and 9.2 for the operator to paste.
 
+## Done note (28 Sep 2026)
+
+Recovery session: an earlier session was killed with the whole slice in the working
+tree. This session checked it against every criterion, fixed the missing `stickers`
+import in `app.py`, a pyright error in `stickers.parse_catalogue` and two import orders,
+then ran every loop.
+
+- Catalogue: `assets/stickers/catalog.yaml`, 51 rows, validated in `create_app`
+  (`stickers.load_catalogue`); the MIT licence text sits beside it.
+- Live spike (one fetch, real `HttpStickerFetcher`): `Light bulb/3D/light_bulb_3d.png`
+  answered HTTP 200 with 22450 bytes; the second `ensure` was a cache hit (1 network call).
+- **Deviation:** the fetched cache is `<data dir>/cache/stickers/`, not
+  `assets/stickers/fetched/`. The killed session could not edit `.gitignore`, and
+  `data/` is already ignored. `tests/test_stickers.py` proves it with `git check-ignore`.
+- Loops: ruff and pyright clean; all 53 test files green in foreground chunks; smoke
+  explainer, smoke hitech and smoke `--stickers` pass T1-T13 (the kept `--stickers` qa.json
+  was read by hand; T12 counts 1 sticker); npm typecheck clean; npm test 26 passed.
+
+Amendment lines for the operator to paste into `docs/grill-decisions.md`:
+
+- **4.1 (kinds), amended by 062:** a `sticker` (a 3D emoji from the committed Microsoft
+  Fluent Emoji catalogue) may pop on a picture beat on its spoken word. It sits above
+  the PIP circle, or at `{x, y}` near its subject, and never over a face, the circle or
+  the captions. It is capped at one per beat and at `broll.stickers_max_per_60s` (0 in
+  the four existing styles).
+- **5.1 (sources), amended by 062:** stickers have one source, Microsoft Fluent Emoji
+  (MIT, raw.githubusercontent.com). The asset step fetches each one at job time into a
+  cache and reuses it after that. Each sticker gets one rights row (kind `sticker`, origin
+  `fluent_emoji`) and one credits line ("Fluent Emoji by Microsoft, MIT License"). A
+  failed fetch drops that sticker with a log line.
+- **9.2 (the planner's words), amended by 062:** the planner picks a sticker by an
+  intent tag from the catalogue, and may name one of that tag's rows, never a file.
+  The grammar writes the tag's first row when no row is named.
+
 ## Blocked by
 
 - `issues/056-run03-findings.md` (its never-on-a-face rule for overlays is reused here; the

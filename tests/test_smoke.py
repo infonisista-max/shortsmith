@@ -184,13 +184,13 @@ def test_main_passes_the_style_flag_to_run_smoke(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """048: `--style hitech` selects the draft; no flag keeps the default. 061:
-    `--text-pops` turns the pops style on; 063: `--bubbles` the bubbles style; no flag
-    keeps both off."""
-    seen: list[tuple[str, bool, bool]] = []
+    `--text-pops` turns the pops style on; 063: `--bubbles` the bubbles style; 062:
+    `--stickers` the stickers style; no flag keeps all three off."""
+    seen: list[tuple[str, bool, bool, bool]] = []
 
     def fake_run(root: Path, **kwargs: object) -> smoke.SmokeResult:
         seen.append((str(kwargs.get("style")), bool(kwargs.get("text_pops")),
-                     bool(kwargs.get("bubbles"))))  # fmt: skip
+                     bool(kwargs.get("bubbles")), bool(kwargs.get("stickers_on"))))  # fmt: skip
         picture = root / "picture.mp4"
         picture.write_bytes(b"")
         return smoke.SmokeResult(job_dir=root, summary="smoke ok: faked", picture=picture)
@@ -201,11 +201,13 @@ def test_main_passes_the_style_flag_to_run_smoke(
     assert smoke.main([]) == 0
     assert smoke.main(["--text-pops"]) == 0
     assert smoke.main(["--bubbles"]) == 0
+    assert smoke.main(["--stickers"]) == 0
     assert seen == [
-        ("hitech", False, False), ("explainer", False, False), ("explainer", True, False),
-        ("explainer", False, True),
+        ("hitech", False, False, False), ("explainer", False, False, False),
+        ("explainer", True, False, False), ("explainer", False, True, False),
+        ("explainer", False, False, True),
     ]  # fmt: skip
-    assert capsys.readouterr().out == "smoke ok: faked\n" * 4
+    assert capsys.readouterr().out == "smoke ok: faked\n" * 5
 
 
 def test_run_smoke_renders_the_hitech_draft_end_to_end(tmp_path: Path) -> None:
@@ -266,6 +268,33 @@ def test_run_smoke_renders_one_text_pop_under_the_pops_style(tmp_path: Path) -> 
     noted = job.log_path.read_text(encoding="utf-8").splitlines()
     pop_lines = [line for line in noted if "text pop:" in line]
     assert not any("dropped" in line for line in pop_lines), pop_lines
+
+
+def test_run_smoke_fetches_and_renders_one_sticker_under_the_stickers_style(
+    tmp_path: Path,
+) -> None:
+    """062: under the explainer copy with stickers on, the fake plan's b01 carries the
+    light bulb landing on "there", fetched through the fake fetcher into a cache under
+    the smoke root (the second use would be a hit) and copied into the job; the render
+    spec draws it above the PIP circle; T1-T13 pass with T12 counting it; the rights log
+    and credits carry it; the summary says so."""
+    result = smoke.run_smoke(tmp_path, stickers_on=True)
+    job = load(result.job_dir)
+    assert job.status == "delivered"
+    plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    (sticker,) = next(b for b in plan.beats if b.id == "b01").stickers
+    assert (sticker.intent, sticker.name) == ("idea", "Light bulb")
+    assert (tmp_path / "stickers" / "light_bulb_3d.png").is_file(), "the cache holds the PNG"
+    spec = RenderSpec.model_validate_json((job.work_dir / "render_spec.json").read_text("utf-8"))
+    (placed,) = next(b for b in spec.beats if b.id == "b01").stickers
+    assert placed.top + placed.size + render.STICKER_GAP_PX == pytest.approx(spec.pip.top)
+    report = technical.load_report(job)
+    assert report is not None and report.passed
+    assert "1 sticker" in next(c.detail for c in report.checks if c.name == "T12")
+    assert "stickers 1" in result.summary and "bubbles 0" in result.summary
+    assert "Fluent Emoji by Microsoft, MIT License" in (job.out_dir / "credits.md").read_text(
+        "utf-8"
+    )
 
 
 def test_run_smoke_renders_the_dialogue_pair_under_the_bubbles_style(tmp_path: Path) -> None:

@@ -309,6 +309,45 @@ def test_under_a_style_with_bubbles_on_the_fake_puts_a_dialogue_pair_on_the_card
     assert [b.at_s for b in landed] == [1.5, 1.5 + fixture.SMOKE_BUBBLE["dialogue_gap_min_s"]]
 
 
+def test_under_a_style_with_stickers_on_the_fake_puts_one_sticker_above_the_circle(
+    request_: PlanRequest,
+) -> None:
+    """062: where the style's `broll.stickers_max_per_60s` is over 0, b01 (the opening
+    `pip` photo) carries one sticker - the `idea` tag, no `{x, y}` (above the PIP
+    circle), landing on word 1 ("there") - and the sound story is unchanged (b01's
+    opening hit is the one cue per beat); under explainer (cap 0) no beat carries one
+    and the plan is unchanged.
+    The sticker passes the grammar under the fixture-shaped copy of the stickers style,
+    which writes its catalogue row (the light bulb) and its landing."""
+    from shortsmith import grammar, render, styles
+    from shortsmith.contracts import ValidatedPlan
+    from tests.conftest import sticker_style
+
+    stuck = sticker_style(styles.load_all(render.registry())["explainer"])
+    styled = request_.model_copy(update={"style": PlanStyle(
+        name="explainer", status="shipped", numbers=stuck.numbers(), prose=stuck.prose,
+    )})  # fmt: skip
+    plan = FakePlanner().plan_picture(styled)
+    with_stickers = {b.id: b.stickers for b in plan.beats if b.stickers}
+    assert list(with_stickers) == ["b01"]
+    (sticker,) = with_stickers["b01"]
+    assert (sticker.intent, sticker.name, sticker.word, sticker.x, sticker.y) == (
+        "idea", "", 1, None, None,
+    )  # fmt: skip
+    story = FakePlanner().plan_sound(styled, plan)
+    plain = FakePlanner().plan_picture(request_)
+    assert story.cues == FakePlanner().plan_sound(request_, plain).cues
+    assert all(not b.stickers for b in plain.beats)
+    assert plain == plan.model_copy(update={"beats": [
+        b.model_copy(update={"stickers": []}) for b in plan.beats
+    ]})  # fmt: skip
+    judged = fixture.smoke_specs({"explainer": stuck})["explainer"]
+    result = grammar.validate(plan, story, request_.transcript, judged)
+    assert isinstance(result, ValidatedPlan), getattr(result, "items", result)
+    (landed,) = next(b for b in result.picture.beats if b.id == "b01").stickers
+    assert (landed.name, landed.at_s) == ("Light bulb", request_.transcript.words[1].start)
+
+
 def test_from_settings_selects_the_fake_only_for_planner_fake(
     request_: PlanRequest, tmp_path: Path
 ) -> None:

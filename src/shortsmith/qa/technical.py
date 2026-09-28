@@ -36,9 +36,9 @@ every listed check is present and `pass`: a report that stopped short never deli
         inscribed in the box the detector found (the face, not the box's corners) sits
         fully inside the PIP circle once the window is scaled into it, and the chin is
         above 90 % of the window; from job.json.presenter, never pixels
-    T12 safe area (6.3): no caption word box, stamp, counter, lower-third, text pop (061)
-        or bubble body (063) of the render spec reaches the top 250, bottom 320 or right
-        140 px; from geometry, not pixels.
+    T12 safe area (6.3): no caption word box, stamp, counter, lower-third, text pop (061),
+        bubble body (063) or sticker (062, with its float) of the render spec reaches the
+        top 250, bottom 320 or right 140 px; from geometry, not pixels.
         The hook title and the finale word are set pieces read off the reference frames
         (the title sits at y 170 by design) and are not in 10.1's list, so not here.
     T13 budget (11.3): the ledger total, the per-step totals, the style's allowances
@@ -781,20 +781,20 @@ def _plural(count: int, noun: str) -> str:
 
 
 def pop_in_beats(plan: PicturePlan) -> set[str]:
-    """061 / 063: the beats carrying text pops or bubbles, the `pop` trigger of the
-    whoosh allowance T6 judges."""
-    return {b.id for b in plan.beats if b.text_pops or b.bubbles}
+    """061 / 063 / 062: the beats carrying text pops, bubbles or a sticker, the `pop`
+    trigger of the whoosh allowance T6 judges."""
+    return {b.id for b in plan.beats if b.text_pops or b.bubbles or b.stickers}
 
 
 def t12(spec: RenderSpec | None) -> QaCheck:
-    """No caption word, stamp, counter, lower-third, text pop or bubble body box of the
-    render spec inside the 6.3 reserved zones, each offender named with its page or
-    beat. A bubble's tail may point into a zone (at the PIP circle); only its body is
-    judged."""
+    """No caption word, stamp, counter, lower-third, text pop, bubble body or sticker
+    box of the render spec inside the 6.3 reserved zones, each offender named with its
+    page or beat. A bubble's tail may point into a zone (at the PIP circle); only its
+    body is judged. A sticker's box is its square widened by its float, up and down."""
     if spec is None:
         return QaCheck(name="T12", passed=False, detail="work/render_spec.json is missing")
     problems: list[str] = []
-    words = stamps = lowers = pops = bubbles = 0
+    words = stamps = lowers = pops = bubbles = stuck = 0
 
     def judge(label: str, left: float, top: float, width: float, height: float) -> None:
         problems.extend(f"{label} {hit}" for hit in zone_hits(left, top, width, height))
@@ -822,12 +822,18 @@ def t12(spec: RenderSpec | None) -> QaCheck:
             bubbles += 1
             judge(f"{beat.id} bubble {bubble.text!r}", bubble.left, bubble.top, bubble.width,
                   bubble.height)  # fmt: skip
+        for sticker in beat.stickers:  # 062: the square with its float
+            stuck += 1
+            judge(f"{beat.id} sticker {sticker.name!r}", sticker.left,
+                  sticker.top - sticker.float_px, sticker.size,
+                  sticker.size + 2 * sticker.float_px)  # fmt: skip
     if problems:
         return QaCheck(name="T12", passed=False, detail="; ".join(problems))
     detail = (
         f"{_plural(words, 'caption word')}, {_plural(stamps, 'stamp')}, "
         f"{_plural(lowers, 'lower-third')}, {_plural(pops, 'text pop')}, "
-        f"{_plural(bubbles, 'bubble')}: none inside the reserved zones "
+        f"{_plural(bubbles, 'bubble')}, {_plural(stuck, 'sticker')}: none inside the "
+        "reserved zones "
         f"(top {SAFE_TOP_PX}, bottom {SAFE_BOTTOM_PX}, right {SAFE_RIGHT_PX} px)"
     )
     return QaCheck(name="T12", passed=True, detail=detail)

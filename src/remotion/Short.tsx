@@ -33,7 +33,8 @@
 // Ticket 061 (4.1 as amended): a beat's text pops (`text_pop`) are drawn with the landed
 // overlays, above the PIP circle and below the captions; they are placed clear of both,
 // so the order only settles what a stray pixel would cover. Ticket 063: a beat's speech
-// and thought bubbles (`bubble`) sit in the same layer, after the text pops.
+// and thought bubbles (`bubble`) sit in the same layer, after the text pops. Ticket 062:
+// a beat's sticker (`sticker`, a Fluent Emoji PNG) after the bubbles, under the captions.
 //
 // Ticket 058 (4.1 as amended): a `clip` treatment is a full-screen muted stock video drawn
 // in the photo's layer, under the PIP circle, the overlays and the captions.
@@ -60,6 +61,7 @@ import { Pip, Presenter } from "./components/pip";
 import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
 import { Stamp } from "./components/stamp";
+import { Sticker } from "./components/sticker";
 import { TextPop } from "./components/text_pop";
 import { Transition, holdFrames, holdsPrevious } from "./components/transitions";
 import { Wall } from "./components/wall";
@@ -212,6 +214,9 @@ export const Short: React.FC<RenderSpec> = (spec) => {
           width={spec.width}
           height={spec.height}
         />
+      ) : null}
+      {beat?.stickers?.length ? (
+        <Sticker stickers={beat.stickers} frame={since} fps={spec.fps} />
       ) : null}
       <Captions spec={spec} t={t} />
     </AbsoluteFill>

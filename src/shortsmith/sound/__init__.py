@@ -489,13 +489,15 @@ def landing_s(beat: Beat, counter_land_s: float | None) -> float:
     """When a beat's landed event lands: its start (a stamp lands there, 026), or for a
     `counter` the start of its last `counter_land_s`, where the digits land (029). The
     land time is the picture's (`broll.motion.stamp.duration_s`); without it the counter
-    is placed like a stamp. 061 / 063: a beat with no landed event that carries text
-    pops or bubbles lands where its first pop does (a text pop before a bubble; `at_s`,
-    written by the grammar; the start when it was never written)."""
+    is placed like a stamp. 061 / 063 / 062: a beat with no landed event that carries
+    text pops, bubbles or a sticker lands where its first pop does (a text pop before a
+    bubble before a sticker; `at_s`, written by the grammar; the start when it was never
+    written)."""
     if beat.counter is not None and counter_land_s is not None:
         return max(beat.start, beat.end - counter_land_s)
-    if beat.event.kind == "none" and beat.counter is None and (beat.text_pops or beat.bubbles):
-        first = beat.text_pops[0].at_s if beat.text_pops else beat.bubbles[0].at_s
+    popping = [*beat.text_pops, *beat.bubbles, *beat.stickers]
+    if beat.event.kind == "none" and beat.counter is None and popping:
+        first = popping[0].at_s
         return beat.start if first is None else max(beat.start, first)
     return beat.start
 

@@ -82,7 +82,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "9", spec.name  # the front matter changed again (058)
+        assert spec.version == "10", spec.name  # the front matter changed again (062)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -444,7 +444,7 @@ def test_every_spec_carries_the_clip_row_and_the_clip_share(specs: dict[str, Sty
         assert float(row["speed"]) == 1.0, spec.name
         assert spec.broll.clip_max_fraction == 0.35, spec.name
         assert "clip" in spec.broll.kinds, spec.name
-        assert spec.version == "9", spec.name  # the front matter changed again (058)
+        assert spec.version == "10", spec.name  # the front matter changed again (062)
     assert "clip" in REGISTRY
     assert "clip" in specs["explainer"].requires_components
     assert "clip" in specs["hitech"].requires_components
@@ -545,6 +545,68 @@ def test_the_fixture_shaped_copy_scales_the_dialogue_gap_to_the_clip(
     assert {k: v for k, v in scaled.items() if not k.startswith("dialogue_gap")} == {
         k: v for k, v in real.items() if not k.startswith("dialogue_gap")
     }
+
+
+# --- stickers (ticket 062; 4.1 and 9.2 as amended) ----------------------------------------
+
+
+def test_every_spec_carries_the_sticker_row_and_a_cap_of_zero(specs: dict[str, StyleSpec]) -> None:
+    """062 (3, 4): the sticker's numbers are a `broll.motion.sticker` row in every spec (a
+    0.15-0.25 s overshoot, a hold, one per beat, a 180-320 px square, a gentle float)
+    and `broll.stickers_max_per_60s` is 0 in the four existing styles: off until the
+    recipe styles of 059 set theirs."""
+    for spec in specs.values():
+        row = spec.broll.motion["sticker"]
+        assert row["kind"] == "pop", spec.name
+        assert 0.15 <= float(row["duration_s"]) <= 0.25, spec.name
+        assert float(row["hold_max_s"]) > 0, spec.name
+        assert int(row["max_per_beat"]) == 1, spec.name
+        assert 180 <= int(row["size_px"]) <= 320, spec.name
+        assert 0 < float(row["float_px"]) <= 20 and float(row["float_period_s"]) > 0, spec.name
+        assert spec.broll.stickers_max_per_60s == 0, spec.name
+        assert "sticker" not in spec.requires_components, spec.name
+        assert spec.version == "10", spec.name
+    assert "sticker" in REGISTRY
+
+
+def test_the_sticker_row_or_cap_missing_or_oversized_fails_naming_the_spec(tmp_path: Path) -> None:
+    def drop_row(fm: dict[str, Any]) -> None:
+        del fm["broll"]["motion"]["sticker"]
+
+    with pytest.raises(StyleError, match=r"explainer.*sticker"):
+        render.numbers_for(
+            styles.load_all(REGISTRY, _variant_dir(tmp_path / "a", "explainer", drop_row))[
+                "explainer"
+            ]
+        )
+
+    def drop_cap(fm: dict[str, Any]) -> None:
+        del fm["broll"]["stickers_max_per_60s"]
+
+    with pytest.raises(StyleError, match=r"hitech.*stickers_max_per_60s"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", drop_cap))
+
+    def too_big(fm: dict[str, Any]) -> None:
+        fm["broll"]["motion"]["sticker"]["size_px"] = 400
+
+    with pytest.raises(StyleError, match=r"explainer.*sticker.*180-320"):
+        render.numbers_for(
+            styles.load_all(REGISTRY, _variant_dir(tmp_path / "c", "explainer", too_big))[
+                "explainer"
+            ]
+        )
+
+
+def test_the_test_style_helper_turns_stickers_on(specs: dict[str, StyleSpec]) -> None:
+    """The copy the grammar, the fake planner, the render and the smoke exercise 062
+    under: the explainer with `stickers_max_per_60s` raised to 10, so a six-second
+    fixture allows one; nothing else changes and the original is untouched."""
+    from tests.conftest import STICKERS_PER_60S, sticker_style
+
+    styled = sticker_style(specs["explainer"])
+    assert styled.broll.stickers_max_per_60s == STICKERS_PER_60S == 10
+    assert specs["explainer"].broll.stickers_max_per_60s == 0, "the original is untouched"
+    assert styled.model_dump(exclude={"broll"}) == specs["explainer"].model_dump(exclude={"broll"})
 
 
 def test_the_test_style_helper_enables_flash_and_allows_whooshes(

@@ -166,6 +166,9 @@ def test_from_settings_follows_asset_sources_and_policy() -> None:
     assert list(sourcing.sources) == ["fake"]  # the policy dropped `web`
     assert sourcing.missing() == []
     assert sourcing.generator is None  # IMAGE_GEN=none makes rung 2 a no-op (5.5)
+    # 062: the free sticker fetch, cached under the data dir.
+    assert sourcing.stickers is not None
+    assert sourcing.stickers.cache_dir == _settings().shortsmith_data_dir / "cache" / "stickers"
 
 
 def test_default_settings_build_every_keyless_adapter_in_the_5_1_order() -> None:

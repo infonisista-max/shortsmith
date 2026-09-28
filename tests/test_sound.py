@@ -523,6 +523,21 @@ def test_an_event_cue_on_a_bubble_fires_where_the_first_bubble_lands(
     assert sound.landing_s(b03.model_copy(update={"text_pops": [pop]}), None) == 1.2
 
 
+def test_an_event_cue_on_a_sticker_fires_where_it_lands(plan: PicturePlan) -> None:
+    """062 (5): a ding or pop cue at the `event` of a beat with no landed event that
+    carries a sticker fires at the sticker's `at_s`; a text pop or a bubble on the same
+    beat lands first; an unwritten `at_s` is the beat's start."""
+    from shortsmith.contracts import Bubble, Sticker
+
+    sticker = Sticker(intent="idea", name="Light bulb", word=2, at_s=1.3)
+    b03 = next(b for b in plan.beats if b.id == "b03").model_copy(update={"stickers": [sticker]})
+    assert sound.landing_s(b03, None) == 1.3 and b03.start == 1.0
+    bubble = Bubble(text="Hello?", first=0, last=1, x=19.4, y=50.0, at_s=1.1)
+    assert sound.landing_s(b03.model_copy(update={"bubbles": [bubble]}), None) == 1.1
+    unwritten = b03.model_copy(update={"stickers": [sticker.model_copy(update={"at_s": None})]})
+    assert sound.landing_s(unwritten, None) == 1.0
+
+
 def test_an_event_cue_on_a_counter_fires_at_its_landing(
     plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
 ) -> None:

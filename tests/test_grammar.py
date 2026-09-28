@@ -44,6 +44,7 @@ from shortsmith.contracts import (
     SetPieceItem,
     SoundStory,
     Span,
+    Sticker,
     TextPop,
     Transcript,
     Word,
@@ -51,7 +52,7 @@ from shortsmith.contracts import (
 from shortsmith.planner import FakePlanner
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import FakeTranscriber
-from tests.conftest import bubble_style, flash_whoosh_style, text_pop_style
+from tests.conftest import bubble_style, flash_whoosh_style, sticker_style, text_pop_style
 
 BRIEF = "Topic: why the sky is blue. Angle: scattering in one breath. Hook wish: none."
 # Each beat's one word starts this far into it (the first beat's at its start), so the
@@ -1230,6 +1231,112 @@ def test_a_bubble_is_a_change_on_screen_and_something_a_cue_may_hit(
     assert isinstance(cued(with_bubble, both, whoosh), grammar.SoundCheck)
     at_start = Cue(beat_id="b05", intent="whoosh", at="start")
     assert ("b05", "7.3") in rules(cued(with_bubble, both, at_start))
+    assert ("b05", "7.3") in rules(cued(bare, both, whoosh))
+
+
+# --- stickers (ticket 062; 4.1 as amended) -----------------------------------------------
+#
+# The base plan's b05 (10.0-12.5 s, a `pip` photo) speaks w4 at 10.4; b06 (a card) w5 at 12.9.
+
+
+@pytest.fixture(scope="module")
+def stuck(spec: StyleSpec) -> StyleSpec:
+    """062's test style: the explainer with `stickers_max_per_60s` 10."""
+    return sticker_style(spec)
+
+
+def _sticker(intent: str = "idea", word: int = 4, **fields: Any) -> Sticker:
+    return Sticker(intent=intent, word=word, **fields)
+
+
+def _with_sticker(plan: PicturePlan, beat_id: str, *on: Sticker) -> PicturePlan:
+    return replace(plan, beat_id, stickers=list(on))
+
+
+def test_a_sticker_passes_on_a_picture_beat_lands_on_its_word_and_gets_its_row(
+    stuck: StyleSpec,
+) -> None:
+    """062 (3, 4): a sticker on a picture beat passes under a style with stickers on;
+    the validated plan carries `at_s` (the word's start on the output timeline, never
+    the planner's) and the catalogue row: the one named, or the tag's first row."""
+    plan = _with_sticker(make_plan(), "b05", _sticker(at_s=99.0))
+    (sticker,) = checked(plan, stuck).picture.beats[4].stickers
+    assert sticker.at_s == 10.4
+    assert sticker.name == "Light bulb", "the tag's first row"
+    named = _with_sticker(make_plan(), "b06", _sticker("shock", 5, name="Astonished face"))
+    (kept,) = checked(named, stuck).picture.beats[5].stickers
+    assert (kept.name, kept.at_s) == ("Astonished face", 12.9)
+    placed = _with_sticker(make_plan(), "b05", _sticker(x=70.0, y=35.0))
+    checked(placed, stuck)
+
+
+def test_stickers_are_rejected_where_the_style_caps_them_at_zero(spec: StyleSpec) -> None:
+    """062 (4): the four existing styles set `broll.stickers_max_per_60s` 0."""
+    assert ("b05", "4.1") in rules(picture(_with_sticker(make_plan(), "b05", _sticker()), spec))
+
+
+def test_stickers_are_capped_one_per_beat_and_per_60s_rounding_up(stuck: StyleSpec) -> None:
+    """062 (3, 4): at most one per beat (`motion.sticker.max_per_beat`) and
+    ceil(`stickers_max_per_60s` x runtime / 60) over the short: 10 on the 56 s plan, 1
+    on the six-second fixture; the violation names the beat that crosses the cap."""
+    two = _with_sticker(make_plan(), "b05", _sticker(), _sticker("fire"))
+    assert ("b05", "4.1") in rules(picture(two, stuck))
+    plan = make_plan()
+    ids = [f"b{n:02d}" for n in range(3, 23)]
+    for beat_id, index in zip(ids[:10], range(2, 12), strict=True):
+        plan = _with_sticker(plan, beat_id, _sticker(word=index, x=60.0, y=35.0))  # some are off
+    checked(plan, stuck)
+    eleventh = _with_sticker(plan, ids[10], _sticker(word=12, x=60.0, y=35.0))
+    found = rules(picture(eleventh, stuck))
+    assert (ids[10], "4.1") in found and (ids[9], "4.1") not in found
+    assert grammar.sticker_cap(stuck, runtime=6.0) == 1
+    assert grammar.sticker_cap(stuck, runtime=56.0) == 10
+
+
+def test_a_sticker_is_picked_by_a_catalogue_tag_never_a_free_name(stuck: StyleSpec) -> None:
+    """062 (4): the intent must be a catalogue tag, and a named row must carry it; a
+    file name is not a row."""
+    for bad in (_sticker("unicorn"), _sticker("idea", name="Skull"),
+                _sticker("idea", name="light_bulb_3d.png")):  # fmt: skip
+        found = rules(picture(_with_sticker(make_plan(), "b05", bad), stuck))
+        assert ("b05", "4.1") in found, bad
+
+
+def test_a_sticker_lands_on_a_word_its_picture_beat_covers(stuck: StyleSpec) -> None:
+    """062 (3): on a photo, card, clip or the presenter full frame, landing on a word
+    the beat covers; off the PIP (a full beat) it needs its `{x, y}`."""
+    assert ("b05", "4.1") in rules(picture(_with_sticker(make_plan(), "b05", _sticker(word=5)),
+                                           stuck))  # fmt: skip
+    assert ("b05", "4.1") in rules(picture(_with_sticker(make_plan(), "b05", _sticker(word=99)),
+                                           stuck))  # fmt: skip
+    on_list = _with_sticker(replace(make_plan(), "b05", **AS_LIST), "b05", _sticker())
+    assert ("b05", "4.1") in rules(picture(on_list, stuck))
+
+    def full(*on: Sticker) -> PicturePlan:
+        return replace(
+            make_plan(), "b05", mode="full", reason="emotional_line", kind="presenter_full",
+            motion=None, event=Event(), asset_id=None, stickers=list(on),
+        )  # fmt: skip
+
+    assert ("b05", "4.1") in rules(picture(full(_sticker()), stuck))
+    checked(full(_sticker(x=50.0, y=30.0)), stuck)
+
+
+def test_a_sticker_is_a_change_on_screen_and_something_a_cue_may_hit(
+    stuck: StyleSpec, spec: StyleSpec
+) -> None:
+    """062 (5): a sticker counts as a change for 3.1 and a ding or pop cue may hit it
+    (`at: event`); a whoosh may ride its pop-in where `pop` is in `sound.whoosh.on`."""
+    bare = replace(make_plan(), "b05", event=Event())
+    assert ("b05", "3.1") in rules(picture(bare, stuck))
+    with_sticker = _with_sticker(bare, "b05", _sticker())
+    checked(with_sticker, stuck)
+    ding = Cue(beat_id="b05", intent="popup_tick", at="event")
+    assert ("b05", "9.4") in rules(cued(bare, stuck, ding))
+    assert isinstance(cued(with_sticker, stuck, ding), grammar.SoundCheck)
+    both = sticker_style(flash_whoosh_style(spec))
+    whoosh = Cue(beat_id="b05", intent="whoosh", at="event")
+    assert isinstance(cued(with_sticker, both, whoosh), grammar.SoundCheck)
     assert ("b05", "7.3") in rules(cued(bare, both, whoosh))
 
 

@@ -29,6 +29,7 @@ from shortsmith import (
     render,
     rights,
     sound,
+    stickers,
     styles,
 )
 from shortsmith.contracts import (
@@ -54,6 +55,8 @@ from shortsmith.contracts import (
     SetPieceItem,
     SoundStory,
     Span,
+    Sticker,
+    StickerSpec,
     TextPop,
     TextPopSpec,
     TransitionStyle,
@@ -2070,6 +2073,169 @@ def test_bubbles_render_their_white_bodies_after_landing(
         box = _body(bubble)
         assert _colour_pixels(before, box, white) == 0
         assert _colour_pixels(landed, box, white) > box.width * box.height * 0.3
+
+
+# --- stickers (ticket 062; 4.1 as amended) -----------------------------------------------------
+
+STICKER_ROW = EXPLAINER_SPEC.broll.motion["sticker"]
+BULB = Sticker(intent="idea", name="Light bulb", word=1, at_s=0.36)
+
+
+def _stuck(plan: PicturePlan, beat_id: str, *on: Sticker) -> PicturePlan:
+    return plan.model_copy(update={"beats": [
+        b.model_copy(update={"stickers": list(on)}) if b.id == beat_id else b for b in plan.beats
+    ]})  # fmt: skip
+
+
+def _with_stickers(tmp_path: Path, plan: PicturePlan) -> AssetManifest:
+    """The fake plan sourced through fakes, its stickers fetched by the fake fetcher into
+    the job folder `_sourced` uses."""
+    manifest = _sourced(tmp_path, plan)
+    shelf = stickers.StickerShelf(catalogue=stickers.shipped(),
+                                  fetcher=stickers.FakeStickerFetcher(),
+                                  cache_dir=tmp_path / "cache")  # fmt: skip
+    manifest.stickers = shelf.source(plan, job_dir=tmp_path / "job", log=print, fetched_at="t")
+    return manifest
+
+
+def _sticker_spec(
+    tmp_path: Path, plan: PicturePlan, *, manifest: AssetManifest | None = None,
+    face: FaceBox | None = None, log: list[str] | None = None,
+) -> RenderSpec:  # fmt: skip
+    return render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        manifest=manifest if manifest is not None else _with_stickers(tmp_path, plan),
+        job_dir=tmp_path / "job",
+        detector=presenter.FakeFaceDetector(face) if face is not None else None,
+        log=log.append if log is not None else None,
+    )  # fmt: skip
+
+
+def _square(sticker: StickerSpec) -> render.Box:
+    return render.Box(sticker.left, sticker.top, sticker.size, sticker.size)
+
+
+def test_a_sticker_sits_above_the_pip_circle_and_pops_in_on_its_word(tmp_path: Path) -> None:
+    """062 (3): with no `{x, y}` on a `pip` beat the sticker is a `size_px` square
+    centred over the circle, `STICKER_GAP_PX` above it (the "over his head" spot); it
+    never touches the circle, the caption band or a 6.3 zone (float included); it lands
+    at its word's time and floats in the style's row; its src is the job's own copy."""
+    log: list[str] = []
+    spec = _sticker_spec(tmp_path, _stuck(_plan(), "b01", BULB), log=log)
+    beat = next(b for b in spec.beats if b.id == "b01")
+    (sticker,) = beat.stickers
+    circle = render.Box(spec.pip.left, spec.pip.top, spec.pip.diameter, spec.pip.diameter)
+    size = float(STICKER_ROW["size_px"])
+    assert sticker.size == size == 240
+    assert sticker.left + size / 2 == pytest.approx(circle.left + circle.width / 2)
+    assert sticker.top + size == pytest.approx(circle.top - render.STICKER_GAP_PX)
+    assert not _square(sticker).overlaps(circle)
+    assert _square(sticker).bottom <= styles.caption_block_top(spec.caption_style)
+    assert technical.zone_hits(sticker.left, sticker.top - sticker.float_px, size,
+                               size + 2 * sticker.float_px) == []  # fmt: skip
+    assert (sticker.at_s, sticker.pop_s, sticker.until_s) == (
+        0.36, float(STICKER_ROW["duration_s"]), 0.5,
+    )  # fmt: skip
+    assert (sticker.float_px, sticker.float_period_s) == (
+        float(STICKER_ROW["float_px"]), float(STICKER_ROW["float_period_s"]),
+    )  # fmt: skip
+    assert sticker.scale_from < 1.0 and sticker.shadow_px > 0
+    assert sticker.src == str((tmp_path / "job" / "assets/stickers/light_bulb_3d.png").resolve())
+    assert sticker.name == "Light bulb"
+    assert all(not b.stickers for b in spec.beats if b.id != "b01")
+    assert log == []
+
+
+def test_a_sticker_with_a_point_sits_centred_on_it(tmp_path: Path) -> None:
+    near = BULB.model_copy(update={"x": 70.0, "y": 30.0})
+    spec = _sticker_spec(tmp_path, _stuck(_plan(), "b01", near))
+    (sticker,) = next(b for b in spec.beats if b.id == "b01").stickers
+    assert sticker.left + sticker.size / 2 == pytest.approx(0.70 * render.WIDTH)
+    assert sticker.top + sticker.size / 2 == pytest.approx(0.30 * render.HEIGHT)
+
+
+def test_a_sticker_keeps_off_the_beats_text_pops_and_bubbles(tmp_path: Path) -> None:
+    """062 (3): the beat's other overlays are obstacles too."""
+    circle_top = _sticker_spec(tmp_path, _stuck(_plan(), "b01", BULB)).pip.top
+    pop = TextPop(text="HELLO", word=0, x=19.4, y=(circle_top - 140) / render.HEIGHT * 100,
+                  at_s=0.2)  # fmt: skip
+    plan = _stuck(_popped(_plan(), "b01", pop), "b01", BULB)
+    log: list[str] = []
+    beat = next(b for b in _sticker_spec(tmp_path, plan, log=log).beats if b.id == "b01")
+    (sticker,) = beat.stickers
+    (placed_pop,) = beat.text_pops
+    assert not _square(sticker).overlaps(_box(placed_pop))
+    assert any("sticker: b01" in line and "moved" in line for line in log), log
+
+
+def test_a_sticker_over_a_face_is_moved_and_with_no_free_spot_dropped(tmp_path: Path) -> None:
+    """062 (3) reusing 056 (4): a detected face under the asked-for spot moves the
+    sticker off it (logged); a face filling the photo leaves no spot, so the sticker
+    is dropped (logged) and the job goes on."""
+    plan = _stuck(_plan().model_copy(update={"beats": [
+        _stamped(1, kind="photo", query=PORTRAIT_SKY).model_copy(update={"event": Event()}),
+    ]}), "b1", BULB.model_copy(update={"at_s": 0.2}))  # fmt: skip
+    face = FaceBox(left=0, top=640, width=460, height=360)  # over the spot above the circle
+    log: list[str] = []
+    beat = _sticker_spec(tmp_path, plan, face=face, log=log).beats[0]
+    assert beat.visual is not None and len(beat.stickers) == 1
+    assert not _square(beat.stickers[0]).overlaps(render.face_box_on(beat.visual, face))
+    assert any("sticker: b1" in line and "face" in line for line in log), log
+    whole = FaceBox(left=0, top=0, width=1080, height=1920)
+    dropped_log: list[str] = []
+    dropped = _sticker_spec(tmp_path, plan, face=whole, log=dropped_log).beats[0]
+    assert dropped.stickers == ()
+    assert any("sticker: b1" in line and "dropped" in line for line in dropped_log), dropped_log
+
+
+def test_a_sticker_the_fetch_dropped_is_left_out_of_the_picture(tmp_path: Path) -> None:
+    """062 (2): no fetched file (no manifest record) leaves the beat without it."""
+    plan = _stuck(_plan(), "b01", BULB)
+    log: list[str] = []
+    spec = _sticker_spec(tmp_path, plan, manifest=_sourced(tmp_path, plan), log=log)
+    assert next(b for b in spec.beats if b.id == "b01").stickers == ()
+    assert any("sticker: b01" in line and "no fetched file" in line for line in log), log
+
+
+def test_a_sticker_renders_above_the_pip_circle_after_landing(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """062 end to end through Remotion: the fake sticker (a yellow disc) on b01 above the
+    circle is absent at 0 s and drawn once it lands (0.1 s + the 0.2 s pop)."""
+    plan = _stuck(_plan(), "b01", BULB.model_copy(update={"at_s": 0.1}))
+    job = _job_with(tmp_path, fixture_clip, plan)
+    manifest = _sourced(tmp_path, plan)
+    manifest = assets.source_assets(
+        ValidatedPlan(picture=plan, sound=SoundStory(
+            prompt_version="t", theme="t", mood_curve=[],
+            bed_query=BedQuery(theme="t", mood="t", energy=3), cues=[])),
+        [], "any", spec=SPECS["explainer"], job_dir=job.path,
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY}),
+            "commons": assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)}),
+        },
+    )  # fmt: skip
+    shelf = stickers.StickerShelf(catalogue=stickers.shipped(),
+                                  fetcher=stickers.FakeStickerFetcher(),
+                                  cache_dir=tmp_path / "cache")  # fmt: skip
+    manifest.stickers = shelf.source(plan, job_dir=job.path, log=print, fetched_at="t")
+    assets.write_manifest(job.path, manifest)
+    render.cut_presenter(job)
+    spec = render.spec_for_job(job)
+    (sticker,) = next(b for b in spec.beats if b.id == "b01").stickers
+    picture = job.work_dir / "picture.mp4"
+    render.run_driver(
+        spec, spec_path=job.work_dir / "render_spec.json", out_path=picture,
+        log_path=job.work_dir / "render.log",
+    )  # fmt: skip
+    frames = ffmpeg.frames_rgb(picture, fps=30, width=1080, duration_s=0.5)
+    before, landed = frames[0], frames[14]
+    inner = render.Box(sticker.left + sticker.size * 0.3, sticker.top + sticker.size * 0.3,
+                       sticker.size * 0.4, sticker.size * 0.4)  # fmt: skip
+    yellow = (255, 214, 10)
+    assert _colour_pixels(before, inner, yellow) == 0
+    assert _colour_pixels(landed, inner, yellow) > inner.width * inner.height * 0.5
 
 
 # --- maps (ticket 020; decisions 9.3, 12.1) ----------------------------------------------------

@@ -336,6 +336,33 @@ class Bubble(StrictModel):
         return self
 
 
+class Sticker(StrictModel):
+    """One sticker (062; 4.1 as amended): a 3D emoji from the committed Fluent Emoji
+    catalogue (`assets/stickers/catalog.yaml`) popping in on the spoken word `word` (a
+    transcript word index inside the beat). The planner picks by `intent`, a catalogue
+    tag, and may name one of that tag's rows in `name`, never a file; the grammar
+    writes the tag's first row when `name` is empty. With no `{x, y}` it sits above the
+    PIP circle (the "over his head" spot); otherwise near its subject at `{x, y}` in
+    percent of the frame. `at_s` is the word's start on the output timeline, written by
+    the grammar; the planner leaves it empty. Code keeps it inside the safe area, off
+    the circle, the captions, the stamp and any face."""
+
+    intent: str
+    name: str = ""
+    word: int = Field(ge=0)
+    x: float | None = Field(default=None, ge=0.0, le=100.0)
+    y: float | None = Field(default=None, ge=0.0, le=100.0)
+    at_s: float | None = None
+
+    @model_validator(mode="after")
+    def _both_or_neither(self) -> Sticker:
+        if (self.x is None) != (self.y is None):
+            raise ValueError(
+                f"sticker {self.intent!r}: give both x and y, or neither (above the PIP circle)"
+            )
+        return self
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -377,6 +404,9 @@ class Beat(StrictModel):
     # 063: speech and thought bubbles on a picture beat, at most
     # `broll.motion.bubble.max_per_beat` (a dialogue pair), under `broll.bubbles_max_per_60s`.
     bubbles: list[Bubble] = []
+    # 062: at most `broll.motion.sticker.max_per_beat` sticker on a picture beat, under
+    # `broll.stickers_max_per_60s`.
+    stickers: list[Sticker] = []
     motion: Motion | None = None
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
@@ -707,15 +737,17 @@ class CriticReport(StrictModel):
 # --- assets and rights (decisions 4.2, 4.4, 5.1, 5.3, 5.4, 5.6; ticket 016) ----------
 
 # Where an asset came from (5.4). `library` is the audio catalogue (022).
+# 062: `fluent_emoji` is Microsoft's Fluent Emoji set (MIT), the stickers' one source.
 Origin = Literal[
-    "owner_supplied", "web", "commons", "openverse", "pexels", "pixabay", "generated", "library"
+    "owner_supplied", "web", "commons", "openverse", "pexels", "pixabay", "generated", "library",
+    "fluent_emoji",
 ]
 SearchOrigin = Literal["web", "commons", "openverse", "pexels", "pixabay"]
 # 058: the free stock video libraries a `clip` may come from (5.1 as amended).
 ClipOrigin = Literal["pexels", "pixabay"]
 # 058: `clip` is a moving asset (a stock video file), beside the stills.
 AssetKind = Literal["image", "clip_frame", "clip"]
-RightsKind = Literal["image", "clip_frame", "clip", "music", "sfx"]
+RightsKind = Literal["image", "clip_frame", "clip", "music", "sfx", "sticker"]
 # How a beat's asset is drawn (5.3): full-bleed photo, framed card, a full-screen
 # moving clip (058), or no asset at all (rung 4: the presenter PIP over the style
 # gradient with a stamp; 4.4).
@@ -817,6 +849,20 @@ class BeatAsset(StrictModel):
         return self.fallback_rung >= 3
 
 
+class StickerRecord(StrictModel):
+    """One sticker the short shows (062): the catalogue row's `name`, the PNG copied
+    into the job folder (`file`, relative to it) from the fetched cache, and the raw
+    GitHub URL it came from. Its rights row and credits line are derived from it."""
+
+    name: str
+    file: str
+    source_url: str
+    sha256: str
+    width: int
+    height: int
+    fetched_at: str
+
+
 class AssetManifest(StrictModel):
     """`work/assets.json`: every unique asset, every sourced beat, and the planned
     asset ids resolved to the ids actually used (`aliases`; None = no asset) so set
@@ -844,12 +890,18 @@ class AssetManifest(StrictModel):
     # rung 3 of the ladder, it never fails the job.
     generated_images: int = 0
     gen_max: int = 0
+    # 062: the stickers fetched for the plan, one per catalogue row shown; a sticker whose
+    # fetch failed has none and is left out of the picture.
+    stickers: list[StickerRecord] = []
 
     def asset(self, asset_id: str) -> AssetRecord | None:
         return next((a for a in self.assets if a.id == asset_id), None)
 
     def beat(self, beat_id: str) -> BeatAsset | None:
         return next((b for b in self.beats if b.beat_id == beat_id), None)
+
+    def sticker(self, name: str) -> StickerRecord | None:
+        return next((s for s in self.stickers if s.name == name), None)
 
     @property
     def rescued(self) -> int:
@@ -1115,6 +1167,29 @@ class BubbleSpec(StrictModel):
     at_s: float
     pop_s: float
     until_s: float
+
+
+class StickerSpec(StrictModel):
+    """A sticker placed and timed (062): the PNG `src` (the driver serves it) drawn in a
+    `size` px square at `left`, `top` (composition pixels), popping in with an overshoot
+    from `scale_from` over `pop_s` at `at_s` seconds into the beat, then floating
+    `float_px` up and down every `float_period_s`, under a soft `shadow_px` shadow,
+    leaving at `until_s`. Placed by `render.sticker_spec` inside the safe area, off the
+    PIP circle, the caption band, the stamp, any detected face and the beat's text pops
+    and bubbles."""
+
+    name: str
+    src: str
+    left: float
+    top: float
+    size: float
+    scale_from: float
+    at_s: float
+    pop_s: float
+    until_s: float
+    float_px: float
+    float_period_s: float
+    shadow_px: float
 
 
 class CounterSpec(StampSpec):
@@ -1486,6 +1561,8 @@ class BeatSpec(StrictModel):
     text_pops: tuple[TextPopSpec, ...] = ()
     # 063: the beat's bubbles, placed and timed; a tuple for the same reason.
     bubbles: tuple[BubbleSpec, ...] = ()
+    # 062: the beat's sticker, placed and timed; a tuple for the same reason.
+    stickers: tuple[StickerSpec, ...] = ()
     finale: FinaleCardSpec | None = None
     split: SplitSpec | None = None
     wall: WallSpec | None = None

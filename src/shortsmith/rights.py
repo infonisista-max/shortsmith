@@ -6,7 +6,9 @@ finale beats that point at it through the manifest's aliases), and derives
 `out/credits.md`: one "Photo: <author or domain> via <page url>" line per asset that
 is neither the owner's nor generated, the music and sound lines, then the AI-disclosure
 line when any row is generated. Both files are regenerated on every run, never
-hand-edited.
+hand-edited. 062: each sticker the asset step fetched (Microsoft Fluent Emoji, MIT) is
+one row of kind `sticker` and one "Sticker: <name> - Fluent Emoji by Microsoft, MIT
+License" credits line, after the pictures.
 
 The renderer's music and SFX rows (022) are not in the manifest, so they are kept beside
 it in `work/audio_rights.json` (`write_audio`) and appended by every later `write`: a
@@ -26,7 +28,15 @@ from urllib.parse import urlparse
 
 from pydantic import TypeAdapter
 
-from shortsmith.contracts import AssetManifest, AssetRecord, Beat, PicturePlan, RightsRow
+from shortsmith import stickers
+from shortsmith.contracts import (
+    AssetManifest,
+    AssetRecord,
+    Beat,
+    PicturePlan,
+    RightsRow,
+    StickerRecord,
+)
 
 RIGHTS_NAME = "rights.json"
 CREDITS_NAME = "credits.md"
@@ -81,12 +91,36 @@ def shown(beat: Beat, manifest: AssetManifest, plan: PicturePlan) -> list[str]:
     return list(dict.fromkeys(i for i in ids if i is not None))
 
 
+def sticker_row(record: StickerRecord, beat_ids: Sequence[str]) -> RightsRow:
+    """062 (2): a sticker's row - Microsoft Fluent Emoji, MIT License - keyed by its
+    file stem so a sticker shown on several beats is one row."""
+    return RightsRow(
+        id=f"sticker:{Path(record.file).stem}",
+        beat_ids=list(beat_ids),
+        kind="sticker",
+        origin="fluent_emoji",
+        source_url=record.source_url,
+        page_url=stickers.PAGE_URL,
+        licence=stickers.LICENCE,
+        author=stickers.AUTHOR,
+        file=record.file,
+        sha256=record.sha256,
+        width=record.width,
+        height=record.height,
+        fetched_at=record.fetched_at,
+    )
+
+
 def rows(manifest: AssetManifest, plan: PicturePlan) -> list[RightsRow]:
-    """One row per unique asset, in manifest order, beat ids in plan order."""
+    """One row per unique asset, in manifest order, beat ids in plan order; then (062)
+    one per sticker the asset step fetched, with every beat that shows it."""
     out: list[RightsRow] = []
     for record in manifest.assets:
         beat_ids = [b.id for b in plan.beats if record.id in shown(b, manifest, plan)]
         out.append(row(record, beat_ids))
+    for sticker in manifest.stickers:
+        beat_ids = [b.id for b in plan.beats if any(s.name == sticker.name for s in b.stickers)]
+        out.append(sticker_row(sticker, beat_ids))
     return out
 
 
@@ -95,6 +129,11 @@ def credit_line(r: RightsRow) -> str:
     licence in brackets, so the credits carry what 054 (4) adopted it under."""
     via = r.page_url or r.source_url
     who = r.author or urlparse(r.source_url or r.page_url).netloc
+    if r.kind == "sticker":
+        # 062 (2): the emoji's name and the credit the MIT licence carries, then the file.
+        name = Path(r.file).stem.removesuffix("_default").removesuffix("_3d")
+        label = name.replace("_", " ").capitalize()
+        return f"Sticker: {label} - {stickers.CREDIT} via {r.source_url}"
     if r.kind == "clip":
         # 058 (8): "Video by <name> on Pexels", the credit the site asks for, then the page.
         site = CLIP_SITES.get(r.origin, urlparse(r.source_url or r.page_url).netloc)
@@ -111,10 +150,11 @@ def credits(rows: Sequence[RightsRow]) -> str:
     pictures = [
         credit_line(r) for r in rows if r.kind in PICTURE_KINDS and r.origin not in UNCREDITED
     ]
+    stuck = [credit_line(r) for r in rows if r.kind == "sticker"]  # 062
     audio = [
         credit_line(r) for r in rows if r.kind in AUDIO_KINDS and r.origin not in UNCREDITED
     ]
-    blocks = ["\n".join(lines) for lines in (pictures, audio) if lines]
+    blocks = ["\n".join(lines) for lines in (pictures, stuck, audio) if lines]
     if any(r.generated is not None or r.origin == "generated" for r in rows):
         blocks.append(DISCLOSURE)
     return "\n\n".join(blocks) + "\n" if blocks else ""

@@ -29,6 +29,7 @@ from shortsmith import (
     render,
     rights,
     sound,
+    stickers,
     styles,
     subproc,
 )
@@ -222,6 +223,67 @@ def test_sourcing_writes_the_manifest_rights_and_credits(
     assert rows is not None and [r.id for r in rows] == [a.id for a in manifest.assets]
     assert (job.out_dir / "credits.md").is_file()
     assert rights.completeness(rows, manifest, plan) == []
+
+
+def _sticker_run(job: jobs.Job, shelf: stickers.StickerShelf) -> jobs.Job:
+    """062: the fake plan under the explainer copy with stickers on, sourced with `shelf`."""
+    stuck = {**SPECS, "explainer": fixture.stickers_on(SPECS["explainer"])}
+    sourcing = assets.Sourcing(sources={"web": assets.FakeImageSource("web")}, order=("web",),
+                               stickers=shelf)  # fmt: skip
+    return pipeline.run_job(
+        job, transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
+        gate=FakeGate(), sourcing=sourcing, specs=stuck, detector=presenter.FakeFaceDetector(),
+        critic=FakeCritic(),
+    )  # fmt: skip
+
+
+def test_the_sourcing_step_fetches_the_sticker_copies_it_and_credits_it(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """062 (2): the sticker is fetched at job time (the sourcing step) into the cache,
+    copied into the job, recorded in the manifest and given its rights row and credits
+    line; the second job is a cache hit."""
+    fetcher = stickers.FakeStickerFetcher()
+    shelf = stickers.StickerShelf(catalogue=stickers.shipped(), fetcher=fetcher,
+                                  cache_dir=tmp_path / "cache")  # fmt: skip
+    job = _uploaded(tmp_path / "one", fixture_clip)
+    assert _sticker_run(job, shelf).status == "delivered"
+    manifest = assets.load_manifest(job.path)
+    assert manifest is not None
+    (record,) = manifest.stickers
+    assert record.name == "Light bulb" and (job.path / record.file).is_file()
+    rows = rights.load(job.path)
+    assert rows is not None
+    (row,) = [r for r in rows if r.kind == "sticker"]
+    assert row.beat_ids == ["b01"]
+    assert "Sticker: Light bulb - Fluent Emoji by Microsoft, MIT License via " in (
+        job.out_dir / "credits.md"
+    ).read_text("utf-8")
+    again = _uploaded(tmp_path / "two", fixture_clip)
+    assert _sticker_run(again, shelf).status == "delivered"
+    assert len(fetcher.calls) == 1, "the second job read the cache"
+
+
+class _Offline(stickers.FakeStickerFetcher):
+    def fetch(self, url: str) -> bytes:
+        raise stickers.StickerError(f"GET {url}: connection refused")
+
+
+def test_a_failed_sticker_fetch_drops_it_logged_and_the_job_passes(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """062 (2) AC: a network failure leaves the beat without its sticker, logged, and the
+    job is delivered."""
+    shelf = stickers.StickerShelf(catalogue=stickers.shipped(), fetcher=_Offline(),
+                                  cache_dir=tmp_path / "cache")  # fmt: skip
+    job = _uploaded(tmp_path, fixture_clip)
+    assert _sticker_run(job, shelf).status == "delivered"
+    manifest = assets.load_manifest(job.path)
+    assert manifest is not None and manifest.stickers == []
+    log = job.log_path.read_text("utf-8")
+    assert "sticker: b01: 'Light bulb' dropped, the fetch failed: GET " in log
+    rows = rights.load(job.path)
+    assert rows is not None and not [r for r in rows if r.kind == "sticker"]
 
 
 def test_sources_without_an_adapter_are_noted_in_the_job_log(

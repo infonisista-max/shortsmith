@@ -190,6 +190,22 @@ def test_a_broken_style_spec_stops_the_app_with_a_config_error(tmp_path: Path) -
         )
 
 
+def test_a_broken_sticker_catalogue_row_stops_the_app_naming_it(tmp_path: Path) -> None:
+    """062 AC: the sticker catalogue is validated at startup; a broken row stops the app
+    naming it."""
+    from shortsmith import stickers
+
+    broken = tmp_path / "catalog.yaml"
+    text = stickers.CATALOGUE_PATH.read_text(encoding="utf-8")
+    broken.write_text(text.replace("Skull/3D/skull_3d.png", "Skull/skull.png"), "utf-8")
+    with pytest.raises(stickers.StickerError, match=r"catalog.yaml: row \d+ 'Skull'.*3D"):
+        app_module.create_app(
+            _settings(tmp_path), transcriber=FakeTranscriber(), planner=FakePlanner(),
+            renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
+            start_worker=False, sticker_catalogue=broken,
+        )  # fmt: skip
+
+
 def test_accepted_upload_writes_input_and_redirects(
     client: TestClient, app: FastAPI, media: Media
 ) -> None:

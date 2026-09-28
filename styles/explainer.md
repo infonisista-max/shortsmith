@@ -1,5 +1,5 @@
 ---
-version: "9"
+version: "10"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -74,11 +74,16 @@ broll:
     bubble: {kind: pop, duration_s: 0.2, hold_max_s: 3.0, max_per_beat: 2, words_max: 7,
              dialogue_gap_min_s: 0.6, dialogue_gap_max_s: 1.2, size_px: 56, min_size_px: 36,
              width_px: 640, fill: "#FFFFFF", ink: "#111111"}
+    # 062: a Fluent Emoji 3D sticker popping in on its word, then floating gently; a
+    # size_px square (180-320 px), one per beat at most.
+    sticker: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 1, size_px: 240,
+              float_px: 10, float_period_s: 1.8}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here; the recipe styles of 059 turn pops on
   bubbles_max_per_60s: 0  # 063: off here; the recipe styles of 059 turn bubbles on
+  stickers_max_per_60s: 0  # 062: off here; the recipe styles of 059 set theirs
   clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}

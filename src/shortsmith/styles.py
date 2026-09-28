@@ -137,6 +137,11 @@ class Broll(StrictModel):
     # hold, the per-beat cap, the word cap, the dialogue gap, the type sizes, the body
     # width, fill and ink) are the `motion.bubble` row, required of every spec too.
     bubbles_max_per_60s: int = Field(ge=0)
+    # 062 (4.1 as amended): at most this many Fluent Emoji stickers per 60 s of runtime,
+    # rounded up; 0 turns them off. The sticker's numbers (the overshoot, the hold, the
+    # per-beat cap, the square size, the float) are the `motion.sticker` row, required
+    # of every spec too.
+    stickers_max_per_60s: int = Field(ge=0)
     # 058 (4.1 as amended): the share of the runtime `clip` beats (full-screen moving
     # stock footage) may take, 0-1; 0 turns clips off. The clip's own numbers (the slow
     # push, the playback speed) are the `motion.clip` row, required of every spec too.

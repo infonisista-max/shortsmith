@@ -61,6 +61,7 @@ from shortsmith.contracts import (
     PresenterMeasurement,
     RenderSpec,
     Span,
+    StickerSpec,
     TextPopSpec,
     Transcript,
     ValidatedPlan,
@@ -573,6 +574,13 @@ def test_the_gate_hands_t6_every_beat_that_pops_something_in() -> None:
     ]})  # fmt: skip
     assert technical.pop_in_beats(popped) == {"b1", "b2"}
     assert technical.pop_in_beats(plan) == set()
+    from shortsmith.contracts import Sticker
+
+    stuck = plan.model_copy(update={"beats": [
+        b.model_copy(update={"stickers": [Sticker(intent="idea", word=0)]}) if b.id == "b1" else b
+        for b in plan.beats
+    ]})  # fmt: skip
+    assert technical.pop_in_beats(stuck) == {"b1"}, "062: a sticker pops in too"
 
 
 def test_t6_caps_whooshes_per_60s_and_keeps_them_apart() -> None:
@@ -1158,8 +1166,8 @@ def test_t12_passes_a_spec_whose_text_stays_out_of_the_reserved_zones() -> None:
     check = technical.t12(spec)
     assert (check.name, check.passed) == ("T12", True)
     assert check.detail == (
-        "2 caption words, 1 stamp, 1 lower-third, 0 text pops, 0 bubbles: none inside the "
-        "reserved zones (top 250, bottom 320, right 140 px)"
+        "2 caption words, 1 stamp, 1 lower-third, 0 text pops, 0 bubbles, 0 stickers: none "
+        "inside the reserved zones (top 250, bottom 320, right 140 px)"
     )
 
 
@@ -1179,7 +1187,7 @@ def test_t12_judges_text_pops_like_the_other_overlays() -> None:
     inside = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec()])]))
     assert inside.passed
     assert inside.detail.startswith(
-        "0 caption words, 0 stamps, 0 lower-thirds, 1 text pop, 0 bubbles:"
+        "0 caption words, 0 stamps, 0 lower-thirds, 1 text pop, 0 bubbles, 0 stickers:"
     )
     high = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec(top=249.5)])]))
     assert not high.passed
@@ -1207,7 +1215,7 @@ def test_t12_judges_bubble_bodies_like_the_other_overlays() -> None:
     inside = technical.t12(_spec([_beat_spec("b04", bubbles=[_bubble_spec(tip_y=1700.0)])]))
     assert inside.passed
     assert inside.detail.startswith(
-        "0 caption words, 0 stamps, 0 lower-thirds, 0 text pops, 1 bubble:"
+        "0 caption words, 0 stamps, 0 lower-thirds, 0 text pops, 1 bubble, 0 stickers:"
     )
     low = technical.t12(_spec([_beat_spec("b04", bubbles=[_bubble_spec(top=1500.0)])]))
     assert not low.passed
@@ -1215,6 +1223,32 @@ def test_t12_judges_bubble_bodies_like_the_other_overlays() -> None:
     wide = technical.t12(_spec([_beat_spec("b04", bubbles=[_bubble_spec("Nobody", left=700.0)])]))
     assert not wide.passed
     assert "b04 bubble 'Nobody' reaches x 1120, inside the right rail" in wide.detail
+
+
+def _sticker_spec(**fields: Any) -> StickerSpec:
+    base = {
+        "name": "Light bulb", "src": "/job/assets/stickers/light_bulb_3d.png", "left": 90.0,
+        "top": 700.0, "size": 240.0, "scale_from": 0.3, "at_s": 0.2, "pop_s": 0.2,
+        "until_s": 0.5, "float_px": 10.0, "float_period_s": 1.8, "shadow_px": 18.0,
+    }
+    return StickerSpec.model_validate({**base, **fields})
+
+
+def test_t12_judges_stickers_like_the_other_overlays() -> None:
+    """062: a sticker's square (with its float) is judged against the 6.3 zones and
+    counted in the detail; one reaching the top zone or the right rail fails naming the
+    beat and the sticker."""
+    inside = technical.t12(_spec([_beat_spec("b01", stickers=[_sticker_spec()])]))
+    assert inside.passed
+    assert inside.detail.startswith(
+        "0 caption words, 0 stamps, 0 lower-thirds, 0 text pops, 0 bubbles, 1 sticker:"
+    )
+    high = technical.t12(_spec([_beat_spec("b01", stickers=[_sticker_spec(top=255.0)])]))
+    assert not high.passed, "the float lifts it 10 px into the top zone"
+    assert "b01 sticker 'Light bulb' reaches y 245, inside the top zone" in high.detail
+    wide = technical.t12(_spec([_beat_spec("b01", stickers=[_sticker_spec(left=720.0)])]))
+    assert not wide.passed
+    assert "b01 sticker 'Light bulb' reaches x 960, inside the right rail" in wide.detail
 
 
 @pytest.mark.parametrize(("right", "ok"), [(940.0, True), (940.5, False)])

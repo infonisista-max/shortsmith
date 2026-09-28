@@ -1,5 +1,5 @@
 ---
-version: "9"
+version: "10"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -65,6 +65,8 @@ broll:
     bubble: {kind: pop, duration_s: 0.18, hold_max_s: 3.0, max_per_beat: 2, words_max: 7,
              dialogue_gap_min_s: 0.6, dialogue_gap_max_s: 1.2, size_px: 54, min_size_px: 36,
              width_px: 640, fill: "#FFFFFF", ink: "#0F172A"}  # 063
+    sticker: {kind: pop, duration_s: 0.18, hold_max_s: 2.5, max_per_beat: 1, size_px: 240,
+              float_px: 10, float_period_s: 1.8}  # 062
     map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#0F2A44",
           coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2}
   enter_transitions: [cut, fade, wipe, zoom]
@@ -72,6 +74,7 @@ broll:
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here
   bubbles_max_per_60s: 0  # 063: off here
+  stickers_max_per_60s: 0  # 062: off here
   clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}

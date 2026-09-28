@@ -184,6 +184,8 @@ from shortsmith.contracts import (
     SplitPane,
     SplitSpec,
     StampSpec,
+    Sticker,
+    StickerSpec,
     TextPop,
     TextPopSpec,
     TitleWord,
@@ -292,6 +294,14 @@ class BrollNumbers:
     bubble_width_px: int
     bubble_fill: str
     bubble_ink: str
+    # 062: the sticker row - the overshoot's length, how long a sticker may stay, the
+    # per-beat cap, the square's size (180-320 px) and the gentle float's height and period.
+    sticker_s: float
+    sticker_hold_max_s: float
+    sticker_max_per_beat: int
+    sticker_size_px: int
+    sticker_float_px: float
+    sticker_float_period_s: float
     # 058: the clip row - the slow push over the beat (1.0 -> 1.0: the clip's own movement
     # is the motion) and the playback speed.
     clip_scale_from: float
@@ -327,6 +337,13 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         stamp, lower, finale = motion["stamp"], motion["lower_third"], motion["finale"]
         rows, split, wall = motion["list"], motion["split"], motion["wall"]
         pop, bubble, clip = motion["text_pop"], motion["bubble"], motion["clip"]
+        sticker = motion["sticker"]
+        size = int(sticker["size_px"])
+        if not STICKER_SIZE_MIN_PX <= size <= STICKER_SIZE_MAX_PX:
+            raise styles.StyleError(
+                f"{spec.name}: broll.motion.sticker.size_px {size} is outside "
+                f"{STICKER_SIZE_MIN_PX}-{STICKER_SIZE_MAX_PX} px (062)"
+            )
         return BrollNumbers(
             photo_scale_from=float(photo["scale_from"]),
             photo_scale_to=float(photo["scale_to"]),
@@ -376,6 +393,12 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             bubble_width_px=int(bubble["width_px"]),
             bubble_fill=str(bubble["fill"]),
             bubble_ink=str(bubble["ink"]),
+            sticker_s=float(sticker["duration_s"]),
+            sticker_hold_max_s=float(sticker["hold_max_s"]),
+            sticker_max_per_beat=int(sticker["max_per_beat"]),
+            sticker_size_px=size,
+            sticker_float_px=float(sticker["float_px"]),
+            sticker_float_period_s=float(sticker["float_period_s"]),
             clip_scale_from=float(clip["scale_from"]),
             clip_scale_to=float(clip["scale_to"]),
             clip_speed=float(clip["speed"]),
@@ -1172,6 +1195,69 @@ def text_pop_spec(
         color=_pop_fill(pop.fill, numbers), stroke_px=TEXT_POP_STROKE_PX,
         drop_px=TEXT_POP_DROP_PX, scale_from=TEXT_POP_SCALE_FROM, at_s=round(at, 3),
         pop_s=b.pop_s, until_s=round(min(length, at + b.pop_hold_max_s), 3),
+    ), placed  # fmt: skip
+
+
+# --- stickers (062; 4.1 as amended) -----------------------------------------------------
+#
+# A Fluent Emoji 3D PNG (fetched by the asset step into the job folder) popping in with an
+# overshoot on its word, then floating gently under a soft shadow. The style row
+# (`broll.motion.sticker`) carries the overshoot length, the hold, the per-beat cap, the
+# square's size and the float; the ticket bounds the size to 180-320 px. Placement: with
+# no `{x, y}` it sits centred above the PIP circle ("over his head"), `STICKER_GAP_PX`
+# clear of it; otherwise centred on the planner's point; either way clamped into the safe
+# area and moved off the circle, the caption band, the stamp, a face and the beat's text
+# pops and bubbles by 061's `place_text_pop` search.
+
+STICKER_SIZE_MIN_PX, STICKER_SIZE_MAX_PX = 180, 320
+STICKER_GAP_PX = 20.0
+STICKER_SCALE_FROM = 0.3
+STICKER_SHADOW_PX = 18.0
+
+
+def sticker_spec(
+    sticker: Sticker,
+    *,
+    src: str,
+    beat_id: str,
+    beat_start_s: float,
+    beat_end_s: float,
+    numbers: StyleNumbers,
+    blocked: Mapping[str, Box],
+    image: Box | None,
+    circle: Box | None,
+) -> tuple[StickerSpec | None, Placement | None]:
+    """One sticker, placed and timed: above `circle` (the PIP circle) when it has no
+    `{x, y}`, else centred on its point; the square and its float kept off the
+    obstacles (`place_text_pop`); it lands at `at_s` (the grammar's; the beat's start
+    when never written) and leaves at the beat's end or `hold_max_s` later. None when
+    no spot is free."""
+    b = numbers.broll
+    size, lift = float(b.sticker_size_px), b.sticker_float_px
+    if sticker.x is not None and sticker.y is not None:
+        cx, cy = sticker.x / 100 * WIDTH, sticker.y / 100 * HEIGHT
+    elif circle is not None:
+        cx, cy = circle.left + circle.width / 2, circle.top - STICKER_GAP_PX - size / 2
+    else:
+        raise RenderError(
+            f"{beat_id}: sticker {sticker.name!r} has no {{x, y}} and no PIP circle to sit "
+            "above (062)"
+        )
+    placed = place_text_pop(
+        cx, cy, width=size, height=size + 2 * lift, rotate_deg=0.0, blocked=blocked,
+        image=image, highest=HEIGHT - SAFE_BOTTOM_PX,
+    )  # fmt: skip
+    if placed is None:
+        return None, None
+    length = beat_end_s - beat_start_s
+    at = 0.0
+    if sticker.at_s is not None:
+        at = min(max(sticker.at_s - beat_start_s, 0.0), max(length - EPS, 0.0))
+    return StickerSpec(
+        name=sticker.name, src=src, left=placed.cx - size / 2, top=placed.cy - size / 2,
+        size=size, scale_from=STICKER_SCALE_FROM, at_s=round(at, 3), pop_s=b.sticker_s,
+        until_s=round(min(length, at + b.sticker_hold_max_s), 3), float_px=lift,
+        float_period_s=b.sticker_float_period_s, shadow_px=STICKER_SHADOW_PX,
     ), placed  # fmt: skip
 
 
@@ -2025,6 +2111,63 @@ def build_spec(
             placed.append(spec)
         return tuple(placed)
 
+    def sticker_specs(
+        b: Beat, mode: Mode, visual: VisualSpec | None, stamp: StampSpec | None,
+        pops: Sequence[TextPopSpec], said: Sequence[BubbleSpec],
+    ) -> tuple[StickerSpec, ...]:  # fmt: skip
+        """062: the beat's sticker, its file the job's copy the asset step fetched (none:
+        left out, logged), placed above the circle or on its point, off the circle (a
+        `pip` beat), the caption band, the stamp, the face and the beat's text pops and
+        bubbles."""
+        if not b.stickers:
+            return ()
+        blocked: dict[str, Box] = {}
+        circle = None
+        if mode == "pip":
+            circle = Box(float(geometry.left), float(geometry.top), float(geometry.diameter),
+                         float(geometry.diameter))  # fmt: skip
+            blocked["the PIP circle"] = circle
+        band_top = styles.caption_block_top(numbers.captions)
+        blocked["the caption band"] = Box(0.0, band_top, float(WIDTH), HEIGHT - band_top)
+        if stamp is not None:
+            blocked["the stamp"] = stamp_box(stamp)
+        face = presenter_face_box(presenter_face) if mode == "full" and presenter_face else None
+        face = face if face is not None else face_on(visual)
+        if face is not None:
+            blocked["the face"] = face
+        for i, pop in enumerate(pops):
+            blocked[f"text pop {i + 1}"] = Box(pop.left, pop.top, pop.width, pop.height)
+        for i, bubble in enumerate(said):
+            blocked[f"bubble {i + 1}"] = Box(bubble.left, bubble.top, bubble.width, bubble.height)
+        placed: list[StickerSpec] = []
+        for sticker in b.stickers:
+            record = manifest.sticker(sticker.name) if manifest is not None else None
+            if record is None or job_dir is None:
+                if log is not None:
+                    log(f"sticker: {b.id}: {sticker.name!r} has no fetched file; left out (062)")
+                continue
+            spec, placement = sticker_spec(
+                sticker, src=str((job_dir / record.file).resolve()), beat_id=b.id,
+                beat_start_s=b.start, beat_end_s=b.end, numbers=numbers, blocked=blocked,
+                image=image_box_on(visual) if visual is not None else None, circle=circle,
+            )  # fmt: skip
+            if spec is None or placement is None:
+                if face is None:
+                    raise RenderError(
+                        f"{b.id}: sticker {sticker.name!r} has no spot clear of the PIP circle, "
+                        "the captions, the stamp and the beat's pops inside the safe area (062)"
+                    )
+                if log is not None:
+                    log(f"sticker: {b.id}: {sticker.name!r} dropped, no spot clear of the face, "
+                        "the circle and the captions (062)")  # fmt: skip
+                continue
+            if placement.cleared and log is not None:
+                log(f"sticker: {b.id}: {sticker.name!r} moved off "
+                    f"{' and '.join(placement.cleared)} to ({placement.cx:.0f}, "
+                    f"{placement.cy:.0f}) (062)")  # fmt: skip
+            placed.append(spec)
+        return tuple(placed)
+
     beats: list[BeatSpec] = []
     for b in plan.beats:
         if b.enter not in numbers.transitions.enabled:
@@ -2041,6 +2184,8 @@ def build_spec(
         chart, diagram = infographic(b, manifest, job_dir, numbers=numbers)
         start_frame, end_frame = round(b.start * fps), round(b.end * fps)
         placed_stamp = off_face(b.id, stamp_spec(stamp, numbers=numbers), visual) if stamp else None
+        placed_pops = text_pops(b, mode, visual)
+        placed_bubbles = bubbles(b, mode, visual, placed_stamp)
         beats.append(
             BeatSpec(
                 id=b.id,
@@ -2057,8 +2202,9 @@ def build_spec(
                     if label and not labelled and b.id not in two_lines
                     else None
                 ),
-                text_pops=text_pops(b, mode, visual),
-                bubbles=bubbles(b, mode, visual, placed_stamp),
+                text_pops=placed_pops,
+                bubbles=placed_bubbles,
+                stickers=sticker_specs(b, mode, visual, placed_stamp, placed_pops, placed_bubbles),
                 finale=(
                     finale_spec(plan.finale.text, sources, numbers=numbers)
                     if finale_beat is not None and b.id == finale_beat.id
