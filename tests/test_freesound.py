@@ -125,7 +125,8 @@ def test_every_search_carries_the_cc0_or_cc_by_licence_filter() -> None:
         tape = Tape(_recorded("search.json"))
         _adapter(tape).search("tech", kind)  # pyright: ignore[reportArgumentType]
         assert freesound.LICENCE_FILTER in tape.url.params["filter"], kind
-        assert tape.url.params["filter"] == f"{freesound.DURATION_FILTER[kind]} {freesound.LICENCE_FILTER}"  # pyright: ignore[reportArgumentType]  # noqa: E501
+        assert tape.url.params["filter"] == freesound.search_filter(kind)  # pyright: ignore[reportArgumentType]
+        assert tape.url.params["filter"].startswith(freesound.DURATION_FILTER[kind])  # pyright: ignore[reportArgumentType]
     assert freesound.LICENCE_FILTER == 'license:("Attribution" OR "Creative Commons 0")'
 
 

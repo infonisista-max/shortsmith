@@ -1024,6 +1024,70 @@ def test_the_next_bed_candidate_is_tried_when_no_repair_saves_the_first(
     assert any("lower" in r for r in result.balance.repairs), result.balance.repairs
 
 
+# 069: run04's bed was a car's exhaust, -14.9 dB full-band but ~30 dB down in the band a
+# phone speaker plays. A sub-200 Hz tone levelled on its median reproduces that shape; the
+# mid-band bed carries a partial inside the band, as any bed with a melody does.
+BASS_ONLY = "0.5*sin(2*PI*55*t)*(0.8+0.2*sin(2*PI*0.5*t))"
+MID_BAND = "(0.25*sin(2*PI*110*t)+0.25*sin(2*PI*550*t))*(0.7+0.3*sin(2*PI*0.5*t))"
+AUDIBLE_PAIR = (("bed_a_bass", BASS_ONLY), ("bed_b_mid", MID_BAND))
+
+
+def test_a_bass_only_bed_fails_the_ceiling_and_a_mid_band_bed_is_mixed(
+    tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
+    library: sound.Library, nums: styles.Sound,
+) -> None:  # fmt: skip
+    """069: at run04's level (`bed_db_under_voice` under the voice, inside
+    `bed_accept_db`) the bass-only bed clears the speech band by more than
+    `speech_band_margin_max_db`; the message names the margin, the director logs the
+    walk, and the mid-band bed passes both bounds."""
+    both = _with_beds(library, tmp_path / "audio", *AUDIBLE_PAIR)
+    stems = tmp_path / "stems"
+    stems.mkdir()
+    lines: list[str] = []
+    result = sound.build_mix(
+        stems=stems, voice=voice, plan=plan, story=story, nums=nums,
+        library=both, runtime_s=fixture.DURATION_S, log=lines.append,
+    )  # fmt: skip
+    missed = [line for line in lines if "bed_a_bass" in line and "misses the 7.3 band" in line]
+    assert missed and "over sound.speech_band_margin_max_db 20 dB" in missed[0], lines
+    assert any("bed bed_a_bass dropped after every repair; trying the next bed" in line
+               for line in lines), lines  # fmt: skip
+    assert result.bed is not None and result.bed.id == "bed_b_mid"
+    assert result.balance.problems == []
+    margin = result.balance.speech_band_margin_db
+    assert margin is not None
+    assert nums.speech_band_margin_db <= margin <= nums.speech_band_margin_max_db
+    assert result.balance.speech_band_margin_max_db == nums.speech_band_margin_max_db
+
+
+def test_the_audibility_check_runs_on_two_files(
+    tmp_path: Path, voice: Path, library: sound.Library, nums: styles.Sound
+) -> None:
+    """069 / 075: the bound is a function of a voice and a levelled bed, so the shortlist
+    tool can run it on every bed candidate before the operator hears it."""
+    both = _with_beds(library, tmp_path / "audio", *AUDIBLE_PAIR)
+    voice_db = ffmpeg.mean_volume_db(voice)
+    assert voice_db is not None
+    verdicts: dict[str, str | None] = {}
+    for entry in both.beds():
+        levelled = tmp_path / f"{entry.id}.levelled.wav"
+        source = both.file(entry)
+        bed_db = ffmpeg.mean_volume_db(source)
+        assert bed_db is not None
+        gain = voice_db + nums.bed_db_under_voice - bed_db
+        ffmpeg.run(
+            [ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(source), "-af", f"volume={gain:.2f}dB",
+             "-c:a", "pcm_f32le", str(levelled)],
+            timeout_s=ffmpeg.MEASURE_TIMEOUT_S,
+        )  # fmt: skip
+        margin, problem = sound.audibility(voice, levelled, nums)
+        assert margin is not None
+        verdicts[entry.id] = problem
+    assert verdicts["bed_b_mid"] is None
+    bass = verdicts["bed_a_bass"]
+    assert bass is not None and "over sound.speech_band_margin_max_db" in bass
+
+
 def test_a_bed_no_repair_can_save_yields_a_voice_and_hits_master(
     tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
     library: sound.Library, nums: styles.Sound,

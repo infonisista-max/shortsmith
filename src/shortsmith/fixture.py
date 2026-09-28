@@ -166,7 +166,9 @@ def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> d
 
 # id, theme tags, mood tags, energy, drop points, fundamental Hz. The fundamentals sit
 # under the 250 Hz-4 kHz speech band, as a real bed's energy does: a bed that crowded the
-# band would fail the 7.3 speech-band margin, which is the point of that check.
+# band would fail the 7.3 speech-band margin, which is the point of that check. 069: the
+# fifth partial (325-550 Hz) sits inside the band, as a bed's melody does, so the bed is
+# not a bass-only one a phone speaker cannot play (`speech_band_margin_max_db`).
 BedRow = tuple[str, tuple[str, ...], tuple[str, ...], int, tuple[float, ...], int]
 CATALOGUE_BEDS: tuple[BedRow, ...] = (
     ("bed_tech_curious", ("tech", "science"), ("curious", "bright"), 3, (1.0, 3.5), 110),
@@ -217,7 +219,7 @@ def make_catalogue(root: Path) -> Path:
         make_wav(
             files / f"{name}.wav",
             expr=(
-                f"(0.25*sin(2*PI*{hz}*t)+0.05*sin(2*PI*{3 * hz}*t))"
+                f"(0.25*sin(2*PI*{hz}*t)+0.25*sin(2*PI*{5 * hz}*t))"
                 "*(0.7+0.3*sin(2*PI*0.5*t))"
             ),
             duration_s=CATALOGUE_BED_S,

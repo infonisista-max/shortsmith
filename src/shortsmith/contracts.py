@@ -614,6 +614,9 @@ class BalanceReport(StrictModel):
     speech_band_margin_db: float | None = None
     bed_accept_db: tuple[float, float]
     speech_band_margin_min_db: float
+    # 069: the ceiling a bed the phone speaker can play stays under; None on a job
+    # measured before it existed.
+    speech_band_margin_max_db: float | None = None
     duck_max_db: float
     cues: int = 0
     problems: list[str] = []

@@ -1,5 +1,5 @@
 ---
-version: "12"
+version: "13"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -110,10 +110,12 @@ captions:
 sound:
   bed_score_threshold: 0.5  # a tag hit scores 1, energy distance at most 0.4: one tag must match
   default_bed_query: calm ambient piano  # the bed search's last try (054)
+  bed_query_anchor: music  # 069: every bed search rung carries it (Freesound adds tag:music)
   bed_db_under_voice: -14
   bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]
   speech_band_margin_db: 12
+  speech_band_margin_max_db: 20  # 069: further under than this, a phone speaker does not play the bed (run03 9.4 heard, run04 28.7 not)
   duck_max_db: 3
   swell_max_db: 3
   drop_min_db: -8

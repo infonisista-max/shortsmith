@@ -80,6 +80,58 @@ What to change (numbers in each style's `sound` front matter, never in code):
 
 - 068 (the fallback search's adoption check).
 
+## Done (29 Sep 2026)
+
+- **Music-anchored searches.** `sound.bed_query_anchor: music` in all seven styles.
+  `bed_queries(query, default, anchor)` ends every rung with the anchor, cutting the
+  rung's own words to keep `QUERY_MAX_WORDS`. Run04's ladder is now `history documentary
+  regal intriguing eastern music` → `history documentary regal music` → `regal
+  intriguing eastern music` → `regal music` → `calm ambient history documentary music`.
+  `build_mix` and the smoke pass the style's anchor. The Freesound bed request's filter
+  is `duration:[20 TO 600] tag:music license:(…)` (`freesound.search_filter`; SFX
+  unchanged).
+- **Audible on a phone.** `sound.speech_band_margin_max_db: 20` in all seven styles;
+  `styles.check` (run by `load_all`) refuses a max below the min. `margin_problem` fails a
+  margin over it ("… over sound.speech_band_margin_max_db 20 dB: a phone speaker does not
+  play this bed"). `balance.json` carries `speech_band_margin_max_db`; the job page's
+  balance line reads "(min 12, max 20)".
+- **Repairs.** An over-the-ceiling bed takes no repair (a dip or a lower bed only pushes
+  the band further down): the log says so and the director walks on to the next
+  candidate ("bed … dropped after every repair; trying the next bed"). A bed that is too
+  loud *and* crowds the band is dipped, then lowered; when dip plus drop leaves the band
+  over the ceiling, the lowered bed is mixed once more without the dip (one more repair
+  line).
+- **Reusable check.** `sound.audibility(voice, music, nums) -> (margin, problem)` on two
+  files (the bed already levelled against the voice). 075's shortlist calls it.
+- **Fixture.** The synthesised catalogue beds were bass-only too (25.4 dB). Each now has a
+  fifth partial inside the band (325–550 Hz); `bed_tech_curious` measures 16.4 dB.
+- Versions: explainer 14, educational / animated / hitech 13, footage / vishva /
+  fastfacts 4; pins updated in `test_styles`, `test_recipe_styles`,
+  `test_speech_band_margin` and the new `test_bed_audible`.
+- Deviation from the ticket text: when no candidate passes, the code's existing 056 rule
+  applies as built, which is **voice and hits only** with the dropped bed and its margin
+  in `balance.bed_dropped` and the job-page notice. The ticket says "the best-balanced
+  bed". An inaudible bed and no bed sound the same on a phone, so the code was not
+  changed. If the operator wants the best-balanced bed shipped instead, that is a new
+  ticket.
+- Smoke passes T1–T13 on explainer, vishva and fastfacts. Ruff, pyright and all 61 test
+  files are green in foreground chunks. No `src/remotion` change.
+
+**Amendment lines for the operator to paste:**
+
+- 7.2: "The runtime bed search carries the style's `sound.bed_query_anchor` (`music`) on
+  every rung, and the Freesound bed request filters on `tag:music`. 068's kind check
+  stays the backstop."
+- 7.3: "The speech-band margin has a ceiling, `sound.speech_band_margin_max_db` (20 dB).
+  A bed further under the voice than that in the 250 Hz–4 kHz band is one a phone
+  speaker does not play. It fails the balance, takes no repair, and the director tries
+  the next candidate."
+
+**Check on run05 (phone speaker):** the music is audible, quiet under the voice, and fits
+the story. Confirm or move the 20 dB starting value (run03 at 9.4 dB was heard, run04 at
+28.7 dB was not). Read `work/stems/balance.json` → `speech_band_margin_db` beside the
+verdict.
+
 ## User stories addressed
 
 - Operator, run04 QA (29 Sep 2026): "I heard no background music. For a Saudi-king story I

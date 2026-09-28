@@ -103,6 +103,14 @@ DURATION_FILTER: Mapping[AudioKind, str] = {
 # 054 (4): Freesound's own licence names for CC0 and CC BY; the filter is in the request
 # and the result is checked again by `licence_allowed`.
 LICENCE_FILTER = 'license:("Attribution" OR "Creative Commons 0")'
+# 069: a bed is asked for among sounds Freesound's uploaders tagged as music (run04's
+# fourth rung found a car's exhaust); 068's kind check stays the backstop.
+KIND_FILTER: Mapping[AudioKind, str] = {"bed": "tag:music", "sfx": ""}
+
+
+def search_filter(kind: AudioKind) -> str:
+    """The request's `filter`: length, then (a bed) the music tag, then the licences."""
+    return " ".join(p for p in (DURATION_FILTER[kind], KIND_FILTER[kind], LICENCE_FILTER) if p)
 ALLOWED_LICENCES: tuple[str, ...] = ("CC0", "CC BY")
 LOOP_TAGS = frozenset({"loop", "loopable", "seamless"})
 # The licence URLs Freesound hands out, as the text the rights row carries (5.4).
@@ -276,7 +284,7 @@ class FreesoundAudioSearch(AudioSearch):
         self.searches += 1
         params = {
             "query": " ".join(query.split()),
-            "filter": f"{DURATION_FILTER[kind]} {LICENCE_FILTER}",
+            "filter": search_filter(kind),
             "fields": FIELDS,
             "page_size": str(self._page_size),
         }

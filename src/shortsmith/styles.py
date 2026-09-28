@@ -218,14 +218,18 @@ class Sound(StrictModel):
     """7.3 bed, envelope and cue numbers; the 7.1 floor hits; the forbidden list; the
     7.2 bed-score line under which the audio search is asked (024) and the plain words
     that search falls back to last (`default_bed_query`, 054); the whoosh allowance a
-    style may carry (060)."""
+    style may carry (060). 069: `bed_query_anchor` rides on every bed search rung, and
+    `speech_band_margin_max_db` bounds the speech-band margin from above - a bed further
+    under the voice than that in the band a phone speaker plays is not heard."""
 
     bed_score_threshold: float
     default_bed_query: str = Field(min_length=1)
+    bed_query_anchor: str = Field(min_length=1)
     bed_db_under_voice: float
     bed_accept_db: tuple[float, float]
     speech_band_hz: tuple[int, int]
     speech_band_margin_db: float
+    speech_band_margin_max_db: float
     duck_max_db: float
     swell_max_db: float
     drop_min_db: float
@@ -371,8 +375,9 @@ def caption_block_top(captions: CaptionStyle) -> float:
 
 
 def check(spec: StyleSpec, registry: Sequence[str]) -> None:
-    """The cross-field asserts: 6.3 collision, 9.2 components for shipped specs, and
-    the 060 whoosh allowance (the row and the forbidden list agree)."""
+    """The cross-field asserts: 6.3 collision, 9.2 components for shipped specs, the
+    069 speech-band window (the ceiling not under the floor), and the 060 whoosh
+    allowance (the row and the forbidden list agree)."""
     if spec.captions.max_width_px > BAND_WIDTH:
         raise StyleError(
             f"{spec.name}: captions.max_width_px {spec.captions.max_width_px} is wider than "
@@ -385,6 +390,12 @@ def check(spec: StyleSpec, registry: Sequence[str]) -> None:
             f"{spec.name}: pip.top + pip.diameter = {bottom} passes the caption block top "
             f"{block_top:g} (6.3: pip.top + pip.diameter <= captions.anchor_y - "
             "captions.max_lines x line height)"
+        )
+    if spec.sound.speech_band_margin_max_db < spec.sound.speech_band_margin_db:
+        raise StyleError(
+            f"{spec.name}: sound.speech_band_margin_max_db "
+            f"{spec.sound.speech_band_margin_max_db:g} is below sound.speech_band_margin_db "
+            f"{spec.sound.speech_band_margin_db:g}; no bed could pass (069)"
         )
     forbidden = WHOOSH in spec.sound.forbidden
     if forbidden and spec.sound.whoosh is not None:

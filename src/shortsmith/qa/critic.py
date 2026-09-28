@@ -352,9 +352,11 @@ def balance_text(report: BalanceReport | None) -> str:
     if report.duck_db is not None:
         parts.append(f"duck {report.duck_db:.1f} dB (max {report.duck_max_db:g})")
     if report.speech_band_margin_db is not None:
+        ceiling = report.speech_band_margin_max_db
         parts.append(
             f"speech-band margin {report.speech_band_margin_db:.1f} dB "
-            f"(min {report.speech_band_margin_min_db:g})"
+            f"(min {report.speech_band_margin_min_db:g}"
+            f"{'' if ceiling is None else f', max {ceiling:g}'})"
         )
     parts.append(f"{report.cues} cues")
     parts.append(

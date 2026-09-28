@@ -69,7 +69,9 @@ the voice's RMS, run through the envelope and the style's fades, then ducked und
 voice with the 7.3 sidechain (threshold 0.06, ratio 2, attack 20, release 400). Each cue
 is delayed to its time and peak-matched to its class level. The acceptance is in code:
 the bed's median must sit inside `bed_accept_db` under the voice, the speech band must
-clear the bed by `speech_band_margin_db`, and the ducking must stay under `duck_max_db`
+clear the bed by `speech_band_margin_db` and by no more than `speech_band_margin_max_db`
+(069: past it a phone speaker plays nothing of the bed; `audibility` is that check on
+two files), and the ducking must stay under `duck_max_db`
 - outside any of them the step fails with the measured numbers, after writing the report.
 
 **No sweeps (7.3; 023).** `sound.sweep` is the R1-R4 detector gate T6 runs on the SFX
@@ -270,18 +272,24 @@ def keywords(text: str) -> list[str]:
     return out
 
 
-def _rungs(*candidates: Sequence[str]) -> tuple[str, ...]:
+def _rungs(*candidates: Sequence[str], anchor: Sequence[str] = ()) -> tuple[str, ...]:
+    """Each candidate as one rung of at most `QUERY_MAX_WORDS`, repeats gone. 069: the
+    `anchor` words end every rung, the candidate's own words cut to make room."""
     out: list[str] = []
+    room = QUERY_MAX_WORDS - len(anchor)
     for words in candidates:
-        rung = " ".join(words[:QUERY_MAX_WORDS])
+        own = [w for w in words if w not in anchor][:room]
+        rung = " ".join([*own, *anchor] if own else [])
         if rung and rung not in out:
             out.append(rung)
     return tuple(out)
 
 
-def bed_queries(query: BedQuery, default: str) -> tuple[str, ...]:
+def bed_queries(query: BedQuery, default: str, anchor: str = "") -> tuple[str, ...]:
     """The bed search's queries, specific to broad (054 (2)): keywords from the theme and
-    the mood, fewer of them, the mood alone, one mood word, then the style's default."""
+    the mood, fewer of them, the mood alone, one mood word, then the style's default.
+    069: every rung carries the style's `sound.bed_query_anchor` ("music"), so the
+    ladder never narrows to a word that is not about music (run04's `'regal'`)."""
     theme, mood = keywords(query.theme), keywords(query.mood)
     return _rungs(
         theme[:3] + mood[:3],
@@ -289,6 +297,7 @@ def bed_queries(query: BedQuery, default: str) -> tuple[str, ...]:
         mood[:3],
         mood[:1],
         keywords(default),
+        anchor=keywords(anchor),
     )
 
 
@@ -424,6 +433,7 @@ def bed_candidates(
     threshold: float,
     search: AudioSearch | None = None,
     default_query: str = "",
+    anchor: str = "",
 ) -> Iterator[tuple[AudioEntry | None, tuple[str, ...]]]:
     """The beds to try, best first, each with the lines the job log gets (054 (1)):
     every library bed over `threshold` in `select_bed`'s order, then the search ladder
@@ -441,7 +451,7 @@ def bed_candidates(
     if search is None:
         yield None, (f"{asked}: nothing in the library scored and {NO_SEARCH_LINE}",)
         return
-    for words in bed_queries(query, default_query):
+    for words in bed_queries(query, default_query, anchor):
         outcome = search.bed(words, query, library)
         lines = [outcome.line(), *outcome.notes]
         if outcome.adopted is not None:
@@ -460,6 +470,7 @@ def choose_bed(
     threshold: float,
     search: AudioSearch | None = None,
     default_query: str = "",
+    anchor: str = "",
 ) -> tuple[AudioEntry | None, tuple[str, ...]]:
     """The first bed of `bed_candidates` and every line up to it: the library's best
     over `threshold`, else the search ladder stopping at the first adoption, else none
@@ -467,7 +478,7 @@ def choose_bed(
     lines: list[str] = []
     for entry, more in bed_candidates(
         library, query, first_stamp_s=first_stamp_s, threshold=threshold, search=search,
-        default_query=default_query,
+        default_query=default_query, anchor=anchor,
     ):  # fmt: skip
         lines += more
         if entry is not None:
@@ -1163,7 +1174,7 @@ def build_mix(
     for candidate, lines in bed_candidates(
         library, story.bed_query, first_stamp_s=first_stamp_s(plan),
         threshold=nums.bed_score_threshold, search=search,
-        default_query=nums.default_bed_query,
+        default_query=nums.default_bed_query, anchor=nums.bed_query_anchor,
     ):  # fmt: skip
         note(lines)
         if candidate is None or candidate.id in tried:
@@ -1256,6 +1267,11 @@ def _repaired_bed(
     if not plain.balance.problems:
         return plain
     note((f"bed {bed.id} misses the 7.3 band: {'; '.join(plain.balance.problems)}",))
+    if inaudible(plain.balance.speech_band_margin_db, nums):
+        # 069: a dip or a lower bed only pushes the band further down; the caller walks
+        # on to the next candidate.
+        note((f"bed {bed.id}: no repair makes a bed the phone speaker cannot play audible",))
+        return plain
     low_hz, high_hz = nums.speech_band_hz
     repairs: list[str] = []
     current = plain
@@ -1294,6 +1310,21 @@ def _repaired_bed(
     )
     repairs.append(line)
     note((line,))
+    if current.dip_db > 0 and inaudible(reached, nums):
+        # 069: the dip fixed the margin at the loud level; lowered as well, the band is
+        # past the ceiling, so the lowered bed goes out without it.
+        current = _mix_bed(
+            stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+            voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=0.0, under_db=low,
+        )  # fmt: skip
+        reached = current.balance.speech_band_margin_db
+        line = (
+            f"bed {bed.id}: lowered without the dip, which left the band over "
+            f"sound.speech_band_margin_max_db {nums.speech_band_margin_max_db:g} dB (margin now "
+            f"{reached if reached is None else round(reached, 1)} dB)"
+        )
+        repairs.append(line)
+        note((line,))
     return _BedMix(current.music, current.ducked, current.balance, tuple(repairs), current.dip_db)
 
 
@@ -1431,15 +1462,43 @@ def _premix(stems: Path, *, voice: Path, ducked: Path | None, sfx: Path | None) 
 
 
 def margin_problem(margin_db: float, nums: styles.Sound) -> str | None:
-    """The 7.3 speech-band line (as amended by 064): `None` when the voice clears the bed
-    by at least the style's margin, else the problem line the repair ladder starts on."""
+    """The 7.3 speech-band window (as amended by 064 and 069): `None` when the voice
+    clears the bed by at least `speech_band_margin_db` and at most
+    `speech_band_margin_max_db`, else the problem line. Under the floor the bed crowds
+    the voice and the repair ladder starts; over the ceiling the bed has nothing in the
+    band a phone speaker plays (run04's car exhaust, 28.7 dB) and no repair helps."""
+    lo_hz, hi_hz = nums.speech_band_hz
+    if margin_db > nums.speech_band_margin_max_db + 1e-9:
+        return (
+            f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by {margin_db:.1f} dB, "
+            f"over sound.speech_band_margin_max_db {nums.speech_band_margin_max_db:g} dB: "
+            "a phone speaker does not play this bed"
+        )
     if margin_db + 1e-9 >= nums.speech_band_margin_db:
         return None
-    lo_hz, hi_hz = nums.speech_band_hz
     return (
         f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by only {margin_db:.1f} dB, "
         f"under sound.speech_band_margin_db {nums.speech_band_margin_db:g} dB"
     )
+
+
+def inaudible(margin_db: float | None, nums: styles.Sound) -> bool:
+    """069: the margin is over the style's ceiling."""
+    return margin_db is not None and margin_db > nums.speech_band_margin_max_db + 1e-9
+
+
+def audibility(voice: Path, music: Path, nums: styles.Sound) -> tuple[float | None, str | None]:
+    """069: the speech-band margin of `voice` over `music` (a bed already levelled
+    against it) and its `margin_problem`; `(None, None)` when either is silent in the
+    band. The mix's balance runs it, and 075's shortlist runs it on every bed candidate
+    before the operator hears one."""
+    band = _speech_band(nums)
+    voice_band = ffmpeg.mean_volume_db(voice, prefilter=band)
+    bed_band = ffmpeg.mean_volume_db(music, prefilter=band)
+    if voice_band is None or bed_band is None:
+        return None, None
+    margin = voice_band - bed_band
+    return margin, margin_problem(margin, nums)
 
 
 def _balance(
@@ -1459,6 +1518,7 @@ def _balance(
         "voice_db": round(voice_db, 2),
         "bed_accept_db": (low, high),
         "speech_band_margin_min_db": nums.speech_band_margin_db,
+        "speech_band_margin_max_db": nums.speech_band_margin_max_db,
         "duck_max_db": nums.duck_max_db,
         "cues": cues,
     }
@@ -1476,15 +1536,11 @@ def _balance(
                     f"the bed sits {under:.1f} dB under the voice, outside "
                     f"sound.bed_accept_db {low:g} to {high:g} dB"
                 )
-            band = _speech_band(nums)
-            voice_band = ffmpeg.mean_volume_db(voice, prefilter=band)
-            bed_band = ffmpeg.mean_volume_db(music, prefilter=band)
-            if voice_band is not None and bed_band is not None:
-                margin = voice_band - bed_band
+            margin, problem = audibility(voice, music, nums)
+            if margin is not None:
                 report["speech_band_margin_db"] = round(margin, 2)
-                problem = margin_problem(margin, nums)
-                if problem is not None:
-                    problems.append(problem)
+            if problem is not None:
+                problems.append(problem)
         if ducked is not None:
             ducked_db = ffmpeg.mean_volume_db(ducked)
             music_db = ffmpeg.mean_volume_db(music)

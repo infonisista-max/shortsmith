@@ -18,9 +18,9 @@ from shortsmith.sound import (
 
 ALL = ("explainer", "educational", "animated", "hitech", "footage", "vishva", "fastfacts")
 VERSIONS = {
-    "explainer": "13", "educational": "12", "animated": "12", "hitech": "12",
-    "footage": "3", "vishva": "3", "fastfacts": "3",
-}  # fmt: skip  (067 bumped each once more)
+    "explainer": "14", "educational": "13", "animated": "13", "hitech": "13",
+    "footage": "4", "vishva": "4", "fastfacts": "4",
+}  # fmt: skip  (067 bumped each once more, 069 once more)
 
 
 @pytest.fixture(scope="module")
@@ -54,6 +54,7 @@ def _report(nums: styles.Sound, margin: float) -> BalanceReport:
     return BalanceReport(
         voice_db=-20.0, bed_under_voice_db=-14.0, speech_band_margin_db=margin,
         bed_accept_db=nums.bed_accept_db, speech_band_margin_min_db=nums.speech_band_margin_db,
+        speech_band_margin_max_db=nums.speech_band_margin_max_db,
         duck_max_db=nums.duck_max_db, problems=[] if problem is None else [problem],
     )  # fmt: skip
 

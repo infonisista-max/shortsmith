@@ -989,6 +989,7 @@ def check_sound(
     bed, _ = sound.choose_bed(
         library, story.bed_query, first_stamp_s=sound.first_stamp_s(plan),
         threshold=nums.bed_score_threshold, default_query=nums.default_bed_query,
+        anchor=nums.bed_query_anchor,
     )  # fmt: skip
     check(bed is not None, f"no bed was chosen for {story.bed_query}")
     assert bed is not None
