@@ -92,7 +92,7 @@ def test_the_plot_the_title_and_the_axis_labels_stay_in_the_safe_box() -> None:
     chart = _chart("bar", 4.0, 8.0)
     assert chart.plot_left >= infographics.SAFE_LEFT
     assert chart.plot_left + chart.plot_width <= infographics.WIDTH - infographics.SAFE_LEFT
-    assert chart.title_top >= infographics.SAFE_TOP
+    assert chart.title_top >= infographics.SAFE_TOP_PX
     assert chart.title_top + chart.title_font_px <= chart.plot_top
     # the axis labels are outside the plot box, under the baseline, still above the limit
     assert chart.label_top >= chart.baseline_y
@@ -470,7 +470,7 @@ def test_marker_labels_sit_beside_the_dot_inside_the_safe_area_and_flip_at_the_e
     for m in layout.markers:
         assert m.label_left >= infographics.SAFE_LEFT
         assert m.label_left + m.label_width <= infographics.WIDTH - infographics.SAFE_RIGHT_PX
-        assert m.label_top >= infographics.SAFE_TOP
+        assert m.label_top >= infographics.SAFE_TOP_PX
         assert m.label_top + m.label_height <= CARD_LIMIT
         assert m.label_top + m.label_height / 2 == pytest.approx(m.y)
     kolkata = layout.markers[2]  # the easternmost: its label would leave the right rail

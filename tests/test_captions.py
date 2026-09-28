@@ -247,7 +247,7 @@ def test_devanagari_words_are_measured_at_the_same_size() -> None:
     assert page.lines == 1 and len(page.words) == 3
 
 
-def test_boxes_advance_by_the_fixed_gap_and_the_block_is_centred_on_the_anchor() -> None:
+def test_boxes_advance_by_the_fixed_gap_and_the_block_is_centred_in_the_safe_band() -> None:
     (page,) = _page(_words(["hello", "there", "this", "one"]), [1])  # cap: 1 of 4 words
     line = page.words
     for left, right in zip(line, line[1:], strict=False):
@@ -257,7 +257,7 @@ def test_boxes_advance_by_the_fixed_gap_and_the_block_is_centred_on_the_anchor()
     assert all(w.y == pytest.approx(STYLE.anchor_y - line_h) for w in line)
     assert all(w.height == pytest.approx(line_h) for w in line)
     left, right = line[0].x, line[-1].x + line[-1].width
-    assert left == pytest.approx(1080 - right)
+    assert left - 60 == pytest.approx(940 - right)  # 067: the band x 60-940, not the frame
     assert [w.keyword for w in line] == [False, True, False, False]
     assert [(w.start, w.end) for w in line][:2] == [(1.0, 1.2), (1.3, 1.5)]
     assert _page(_words(["hello", "there", "this"]), [1])[0].keyword is None  # cap 0 of 3

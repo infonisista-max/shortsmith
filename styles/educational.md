@@ -1,5 +1,5 @@
 ---
-version: "11"
+version: "12"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -87,7 +87,7 @@ captions:
   letter_spacing_px: 0.0
   anchor_y: 1460
   max_lines: 2
-  max_width_px: 960
+  max_width_px: 880
   word_gap_px: 20
   unspoken_alpha: 0.9
   active_color: "#FFFFFF"

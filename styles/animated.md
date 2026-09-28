@@ -1,5 +1,5 @@
 ---
-version: "11"
+version: "12"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -88,7 +88,7 @@ captions:
   letter_spacing_px: 0.5
   anchor_y: 1460
   max_lines: 2
-  max_width_px: 960
+  max_width_px: 880
   word_gap_px: 24
   unspoken_alpha: 0.8
   active_color: "#F97316"

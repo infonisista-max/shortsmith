@@ -74,17 +74,14 @@ from shortsmith.contracts import (
     Treatment,
 )
 from shortsmith.geo import GeocodeError, Geocoder, Place
+from shortsmith.safe_area import HEIGHT, SAFE_LEFT, SAFE_RIGHT_PX, SAFE_TOP_PX, WIDTH
 from shortsmith.styles import StyleSpec
 
 __all__ = ["Geocoder", "GeocodeError", "Place"]  # the interface, re-exported from `geo`
 
-# The composition's frame and the two margins nothing lands under: the same numbers the
-# renderer uses (6.2 left margin, the platform's right rail) and the top of the
-# platform's safe area the contact sheet draws (10.4).
-WIDTH, HEIGHT = 1080, 1920
-SAFE_LEFT = 60.0
-SAFE_RIGHT_PX = 140.0
-SAFE_TOP = 250.0
+# The composition's frame and the margins nothing lands under (6.2 left margin, the
+# platform's right rail and top zone) are `safe_area`'s, the renderer's and the gate's
+# too (067).
 FONT_STEP_PX = 4
 
 # The chart's look, read off the reference frames' stat cards (nkb_07, dyson_07).
@@ -583,14 +580,14 @@ def _check_inside(
     inside = (
         left >= SAFE_LEFT - 1e-6
         and right <= WIDTH - SAFE_RIGHT_PX + 1e-6
-        and top >= SAFE_TOP - 1e-6
+        and top >= SAFE_TOP_PX - 1e-6
         and bottom <= numbers.max_bottom_y + 1e-6
     )
     if not inside:
         raise InfographicError(
             f"the label {planned.text!r} at {planned.x:g}% x {planned.y:g}% draws at "
             f"({left:.0f}, {top:.0f}) to ({right:.0f}, {bottom:.0f}), outside the safe area "
-            f"x {SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP:g}-{numbers.max_bottom_y}"
+            f"x {SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP_PX:g}-{numbers.max_bottom_y}"
         )
 
 
@@ -691,14 +688,14 @@ def _marker_layout(
     inside = (
         left >= SAFE_LEFT - 1e-6
         and right <= WIDTH - SAFE_RIGHT_PX + 1e-6
-        and top >= SAFE_TOP - 1e-6
+        and top >= SAFE_TOP_PX - 1e-6
         and bottom <= numbers.max_bottom_y + 1e-6
     )
     if not inside:
         raise InfographicError(
             f"the marker {place.name!r} at ({x:.0f}, {y:.0f}) puts its label at ({left:.0f}, "
             f"{top:.0f}) to ({right:.0f}, {bottom:.0f}), outside the safe area x "
-            f"{SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP:g}-{numbers.max_bottom_y}"
+            f"{SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP_PX:g}-{numbers.max_bottom_y}"
         )
     return MapMarkerLayout(
         name=place.name, lat=place.lat, lon=place.lon, x=x, y=y, label_left=left,

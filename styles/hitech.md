@@ -1,5 +1,5 @@
 ---
-version: "11"
+version: "12"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -102,7 +102,7 @@ captions:
   letter_spacing_px: 1.5
   anchor_y: 1460
   max_lines: 2
-  max_width_px: 960
+  max_width_px: 880
   word_gap_px: 22
   unspoken_alpha: 0.85
   active_color: "#22D3EE"

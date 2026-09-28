@@ -10,7 +10,8 @@ renderer and QA read only the numbers; the planner reads numbers and prose.
 
 `load_all(registry)` validates every spec at startup and fails with the spec name
 and what is wrong: a missing key group, a stray or mistyped key, a missing prose
-section, a PIP circle that would reach into the caption block (6.3), or a shipped
+section, a PIP circle that would reach into the caption block (6.3), a caption width
+wider than the safe band (067), or a shipped
 spec that requires a component the renderer registry does not export (9.2). Drafts
 may require components still to be built.
 
@@ -36,6 +37,7 @@ import yaml
 from pydantic import Field, ValidationError
 
 from shortsmith.contracts import CaptionStyle, Palette, StrictModel, Transition, Transitions
+from shortsmith.safe_area import BAND_LEFT, BAND_RIGHT, BAND_WIDTH
 
 STYLES_DIR = Path(__file__).resolve().parents[2] / "styles"
 DEFAULT = "explainer"
@@ -371,6 +373,11 @@ def caption_block_top(captions: CaptionStyle) -> float:
 def check(spec: StyleSpec, registry: Sequence[str]) -> None:
     """The cross-field asserts: 6.3 collision, 9.2 components for shipped specs, and
     the 060 whoosh allowance (the row and the forbidden list agree)."""
+    if spec.captions.max_width_px > BAND_WIDTH:
+        raise StyleError(
+            f"{spec.name}: captions.max_width_px {spec.captions.max_width_px} is wider than "
+            f"the safe band {BAND_WIDTH:g} px (067: x {BAND_LEFT:g} to {BAND_RIGHT:g}, 6.3)"
+        )
     block_top = caption_block_top(spec.captions)
     bottom = spec.pip.top + spec.pip.diameter
     if bottom > block_top:

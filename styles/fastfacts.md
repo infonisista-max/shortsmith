@@ -1,5 +1,5 @@
 ---
-version: "2"
+version: "3"
 status: shipped
 aliases: [fastfacts, fast facts, facts, fact, quick]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -115,7 +115,7 @@ captions:
   letter_spacing_px: 0.5
   anchor_y: 1460
   max_lines: 2
-  max_width_px: 960
+  max_width_px: 880
   word_gap_px: 22
   unspoken_alpha: 0.86
   active_color: "#FFD60A"

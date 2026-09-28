@@ -195,13 +195,21 @@ from shortsmith.contracts import (
     WallSpec,
 )
 from shortsmith.jobs import Job
+from shortsmith.safe_area import (  # 067: the one 6.2/6.3 definition
+    HEIGHT,
+    SAFE_BOTTOM_PX,
+    SAFE_LEFT,
+    SAFE_RIGHT_PX,
+    SAFE_TOP_PX,
+    WIDTH,
+)
 from shortsmith.styles import StyleSpec
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REMOTION_DIR = REPO_ROOT / "src" / "remotion"
 DRIVER = REMOTION_DIR / "driver.mjs"
 REGISTRY_PATH = REMOTION_DIR / "registry.json"
-WIDTH, HEIGHT, FPS = 1080, 1920, 30
+FPS = 30
 CONCURRENCY = 2  # decision 9.1
 DRIVER_TIMEOUT_S = 3600.0
 FFMPEG_TIMEOUT_S = 1800.0
@@ -719,8 +727,6 @@ def _visuals(
 # constants above. The finale geometry is read off the reference frames (nkb_11,
 # dyson_10), the stamp and punch-in numbers off research sections 2 and 3.
 
-SAFE_LEFT = 60.0  # the style's left margin, the caption block's too (6.2)
-SAFE_RIGHT_PX = 140.0  # the platform's right rail: nothing lands under it
 FONT_STEP_PX = 4  # type shrinks in steps until a measured line fits
 
 # The card fly-in the finale's cards (and the wall's cells) share: research S3.
@@ -894,10 +900,9 @@ def stamp_spec(text: str, *, numbers: StyleNumbers, max_font_px: int = STAMP_FON
 # image, the 3.3 face detector runs on that image, the face is mapped into composition
 # pixels through the visual's geometry, and the stamp moves to the largest face-free
 # band: the image's upper third, its lower third, or below it. No face, or no free band,
-# leaves today's placement. The 6.3 top zone is the gate's number (qa.technical).
+# leaves today's placement. The 6.3 top zone is `safe_area`'s, the gate's too; 061's
+# text pops stay above its bottom zone.
 
-SAFE_TOP_PX = 250.0
-SAFE_BOTTOM_PX = 320.0  # 061: the text pops stay above the platform's bottom zone too
 STAMP_BELOW_GAP_PX = 24.0
 
 

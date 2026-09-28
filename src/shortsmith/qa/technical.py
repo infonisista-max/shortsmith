@@ -96,13 +96,14 @@ from shortsmith.contracts import (
 )
 from shortsmith.ffmpeg import FrameStat, Loudness
 from shortsmith.jobs import Job, JobRecord
+from shortsmith.safe_area import HEIGHT, SAFE_BOTTOM_PX, SAFE_RIGHT_PX, SAFE_TOP_PX, WIDTH
 from shortsmith.sound import sweep
 from shortsmith.styles import Budget, StyleSpec
 from shortsmith.styles import Sound as StyleSound
 
 REPORT_NAME = "qa.json"
 
-WIDTH, HEIGHT, FPS = 1080, 1920, 30
+FPS = 30
 MAX_DURATION_S = 60.0
 BEAT_GAP_S = 0.011
 FINALE_MIN_S, FINALE_MAX_S = 0.8, 1.2
@@ -759,8 +760,8 @@ def t11(measured: PresenterMeasurement | None) -> QaCheck:
 
 # --- T12 safe area (6.3) ------------------------------------------------------------------------
 
-# The platform's reserved zones (6.3): top, bottom and right, in composition pixels.
-SAFE_TOP_PX, SAFE_BOTTOM_PX, SAFE_RIGHT_PX = 250, 320, 140
+# The platform's reserved zones (6.3): top, bottom and right, in composition pixels, are
+# `safe_area`'s (067), imported at the top of the module.
 
 
 def zone_hits(left: float, top: float, width: float, height: float) -> list[str]:
@@ -838,7 +839,7 @@ def t12(spec: RenderSpec | None) -> QaCheck:
         f"{_plural(lowers, 'lower-third')}, {_plural(pops, 'text pop')}, "
         f"{_plural(bubbles, 'bubble')}, {_plural(stuck, 'sticker')}{strips}: none inside the "
         "reserved zones "
-        f"(top {SAFE_TOP_PX}, bottom {SAFE_BOTTOM_PX}, right {SAFE_RIGHT_PX} px)"
+        f"(top {SAFE_TOP_PX:g}, bottom {SAFE_BOTTOM_PX:g}, right {SAFE_RIGHT_PX:g} px)"
     )
     return QaCheck(name="T12", passed=True, detail=detail)
 

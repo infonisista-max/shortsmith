@@ -54,12 +54,11 @@ from shortsmith.jobs import Job, JobRecord
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaReport
 
-SOURCE_W, SOURCE_H = 1080, 1920
-# Decision 6.3: the platform safe area, global for every style.
-# The 6.3 zones the gate's T12 checks text against; drawn here as outlines.
-SAFE_TOP, SAFE_BOTTOM, SAFE_RIGHT = (
-    technical.SAFE_TOP_PX, technical.SAFE_BOTTOM_PX, technical.SAFE_RIGHT_PX,
-)  # fmt: skip
+# Decision 6.3: the platform safe area, global for every style: the zones the gate's
+# T12 checks text against, drawn here as outlines, from `safe_area` (067).
+from shortsmith.safe_area import HEIGHT as SOURCE_H
+from shortsmith.safe_area import SAFE_BOTTOM_PX, SAFE_RIGHT_PX, SAFE_TOP_PX
+from shortsmith.safe_area import WIDTH as SOURCE_W
 
 FRAME_W = 270
 PER_ROW = 6
@@ -202,7 +201,8 @@ def layout(n_hook: int, n_frames: int, pip_times: Sequence[float] = ()) -> Layou
 def safe_area_rects(frame: Box) -> tuple[Box, Box, Box]:
     """The 6.3 top, bottom and right reserved zones scaled into a frame box."""
     scale = frame.w / SOURCE_W
-    top_h, bottom_h, right_w = (round(v * scale) for v in (SAFE_TOP, SAFE_BOTTOM, SAFE_RIGHT))
+    zones = (SAFE_TOP_PX, SAFE_BOTTOM_PX, SAFE_RIGHT_PX)
+    top_h, bottom_h, right_w = (round(v * scale) for v in zones)
     return (
         Box(frame.x, frame.y, frame.w, top_h),
         Box(frame.x, frame.y + frame.h - bottom_h, frame.w, bottom_h),

@@ -21,8 +21,10 @@ Layout (6.2): every word is a fixed-advance box at its `active_scale` width, mea
 with Pillow on the bundled Poppins at the style size and weight (Devanagari at the
 same size; Pillow here has no complex-script shaping, so conjunct widths are the sum
 of their glyphs), plus the keyword padding when boxed; boxes are `word_gap_px` apart,
-lines greedy-wrapped at `max_width_px` and centred, the block's bottom on `anchor_y`.
-A page no partition can fit in `max_lines` lines is a pager bug: `LayoutError`.
+lines greedy-wrapped at `max_width_px` (never wider than the safe band) and centred in
+the safe band (067: x 60 to 940 of `safe_area`, centre x 500, so no line reaches the
+6.3 right rail), the block's bottom on `anchor_y`. A page no partition can fit in
+`max_lines` lines, or a single word wider than the band, is a pager bug: `LayoutError`.
 Every number is from the style front matter; the renderer draws the boxes it gets.
 """
 
@@ -46,6 +48,7 @@ from shortsmith.contracts import (
     Word,
     WordBox,
 )
+from shortsmith.safe_area import BAND_CENTRE, BAND_WIDTH
 from shortsmith.styles import StyleSpec
 
 # Research S4 timing, global (not style numbers).
@@ -53,7 +56,6 @@ LEAD_S = 0.04  # page appears this long before its first word
 HOLD_S = 0.9  # page stays this long after its last word unless the next page starts
 LAST_HOLD_S = 1.2  # the last page holds this long
 
-WIDTH = 1080  # the composition width the block is centred in
 FONTS_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
 WEIGHT_FILES = {500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black"}
 TRAILING = ".,!?;:…।॥"  # segment punctuation: breaks the page, stripped from the text
@@ -132,14 +134,21 @@ def display_text(text: str) -> str:
     return text.rstrip(TRAILING) or text
 
 
+def wrap_width(style: CaptionStyle) -> float:
+    """The line width the pager wraps at: `max_width_px`, never wider than the safe
+    band (067; the loader already refuses a wider style)."""
+    return min(style.max_width_px, BAND_WIDTH)
+
+
 def _wrap(widths: Sequence[float], style: CaptionStyle) -> list[list[int]]:
-    """Greedy lines of positions no wider than `max_width_px` (a word wider than that
-    sits alone on its line)."""
+    """Greedy lines of positions no wider than `wrap_width` (a word wider than that
+    sits alone on its line; the pager never accepts such a page)."""
+    room = wrap_width(style)
     lines: list[list[int]] = [[]]
     used = 0.0
     for n, width in enumerate(widths):
         extra = width if not lines[-1] else style.word_gap_px + width
-        if lines[-1] and used + extra > style.max_width_px:
+        if lines[-1] and used + extra > room:
             lines.append([n])
             used = width
         else:
@@ -198,6 +207,14 @@ class _Pager:
             self._lines[(a, b)] = len(_wrap(self.widths(a, b), self.style))
         return self._lines[(a, b)]
 
+    def too_wide(self, a: int, b: int) -> int | None:
+        """The first position of [a, b) whose box is wider than the wrap width (067)."""
+        room = wrap_width(self.style)
+        return next((a + p for p, w in enumerate(self.widths(a, b)) if w > room + EPS), None)
+
+    def fits(self, a: int, b: int) -> bool:
+        return self.lines(a, b) <= self.style.max_lines and self.too_wide(a, b) is None
+
     def cost(self, size: int) -> int:
         lo, hi = self.numbers.words_per_page
         if size < lo:
@@ -215,7 +232,7 @@ class _Pager:
             choice: tuple[int, list[tuple[int, int]]] | None = None
             for k in sorted((k for k in stops if k > i and k in best),
                             key=lambda k: (self.cost(k - i), k)):  # fmt: skip
-                if self.lines(i, k) > self.style.max_lines:
+                if not self.fits(i, k):
                     continue
                 total = self.cost(k - i) + best[k][0]
                 if choice is None or total < choice[0]:
@@ -235,6 +252,13 @@ class _Pager:
                     f"caption words {i}-{k - 1} cannot be split and need "
                     f"{_count(self.lines(i, k))} lines (max {self.style.max_lines}): {text!r}"
                 )
+            wide = self.too_wide(i, k)
+            if wide is not None:
+                width = self.widths(i, k)[wide - i]
+                raise LayoutError(
+                    f"caption word {wide} {self.texts[wide]!r} is {width:.0f} px wide, wider "
+                    f"than the safe band {wrap_width(self.style):g} px (6.3)"
+                )
         raise LayoutError(f"caption words {a}-{b - 1} have no page layout")  # pragma: no cover
 
     def boxes(self, a: int, b: int) -> list[WordBox]:
@@ -246,7 +270,8 @@ class _Pager:
         top = style.anchor_y - len(lines) * line_h
         out: list[WordBox] = []
         for n, line in enumerate(lines):
-            x = (WIDTH - sum(widths[p] for p in line) - style.word_gap_px * (len(line) - 1)) / 2
+            used = sum(widths[p] for p in line) + style.word_gap_px * (len(line) - 1)
+            x = BAND_CENTRE - used / 2
             for p in line:
                 word = self.words[a + p]
                 out.append(WordBox(text=self.texts[a + p], start=word.start, end=word.end, x=x,

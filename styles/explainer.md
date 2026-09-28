@@ -1,5 +1,5 @@
 ---
-version: "12"
+version: "13"
 status: shipped
 # 059 (1.1 as amended): `fact`, `facts` and `dhruv` moved to the fastfacts and footage recipes
 aliases: [explainer, explain, explained, explanation, story, news]
@@ -112,7 +112,7 @@ captions:
   letter_spacing_px: 0.5
   anchor_y: 1460
   max_lines: 2
-  max_width_px: 960
+  max_width_px: 880
   word_gap_px: 22
   unspoken_alpha: 0.86
   active_color: "#FFD60A"

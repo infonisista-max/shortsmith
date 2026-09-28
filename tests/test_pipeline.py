@@ -97,7 +97,8 @@ def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
          gate: Gate | None = None,
          sourcing: assets.Sourcing | None = None,
          detector: presenter.FaceDetector | None = None,
-         critic: Critic | None = None) -> jobs.Job:  # fmt: skip
+         critic: Critic | None = None,
+         library: sound.Library | None = None) -> jobs.Job:  # fmt: skip
     # 013: the fake detector, so the suite never waits on the cascade; the real one is
     # exercised below on the fixture and its faceless twin, and by the smoke.
     return pipeline.run_job(
@@ -108,6 +109,7 @@ def _run(job: jobs.Job, *, transcriber: Transcriber | None = None,
         gate=gate or FakeGate(),
         sourcing=sourcing or _sourcing(),
         specs=SPECS,
+        library=library,
         detector=detector or presenter.FakeFaceDetector(),
         critic=critic or FakeCritic(),  # 033: the fake scores every delivered job
     )
@@ -799,7 +801,10 @@ def test_the_cli_planner_plans_a_job_picture_then_sound_with_a_row_per_call(
     lands on the plans and in job.json."""
     job = _uploaded(tmp_path, fixture_clip)
     cli = _Cli("picture", "sound")
-    done = _run(job, planner=_cli_planner(cli))
+    # An empty library, not the machine's: runtime adoptions under assets/audio/fetched/
+    # (git-ignored, written by real jobs) would put tags in the prompt.
+    empty = sound.Library(root=tmp_path / "audio")
+    done = _run(job, planner=_cli_planner(cli), library=empty)
     assert done.status == "delivered", done.record.error
     picture_prompt, sound_prompt = cli.stdins
     assert "## JSON schema (PicturePlan)" in picture_prompt

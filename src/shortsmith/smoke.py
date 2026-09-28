@@ -103,6 +103,7 @@ from shortsmith import (
     publishing,
     render,
     rights,
+    safe_area,
     sound,
     stickers,
     styles,
@@ -788,11 +789,11 @@ def check_map(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
     limit = render.style_numbers(style).broll.card_max_bottom_y
     for m in layout.markers:
         inside = (
-            infographics.SAFE_LEFT <= m.x <= render.WIDTH - infographics.SAFE_RIGHT_PX
+            safe_area.BAND_LEFT <= m.x <= safe_area.BAND_RIGHT
             and infographics.DIAGRAM_BAND_TOP <= m.y <= limit
-            and m.label_left >= infographics.SAFE_LEFT
-            and m.label_left + m.label_width <= render.WIDTH - infographics.SAFE_RIGHT_PX
-            and m.label_top >= infographics.SAFE_TOP
+            and m.label_left >= safe_area.BAND_LEFT
+            and m.label_left + m.label_width <= safe_area.BAND_RIGHT
+            and m.label_top >= safe_area.SAFE_TOP_PX
             and m.label_top + m.label_height <= limit
         )
         check(inside, f"the marker {m.name!r} or its label is outside the safe band")
@@ -839,9 +840,9 @@ def check_infographics(spec: RenderSpec, plan: PicturePlan, style: str) -> None:
     check(diagram_beat.visual is None, "the diagram base is drawn as a bare photo too (9.3)")
     for label in diagram.labels:
         inside = (
-            label.left >= infographics.SAFE_LEFT
-            and label.left + label.width <= render.WIDTH - infographics.SAFE_RIGHT_PX
-            and label.top >= infographics.SAFE_TOP
+            label.left >= safe_area.BAND_LEFT
+            and label.left + label.width <= safe_area.BAND_RIGHT
+            and label.top >= safe_area.SAFE_TOP_PX
             and label.top + label.height <= limit
         )
         check(inside, f"the label {label.text!r} draws outside the safe area")

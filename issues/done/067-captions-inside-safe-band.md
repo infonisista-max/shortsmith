@@ -60,28 +60,28 @@ px wide with its centre at x 500:
 
 ## Acceptance criteria
 
-- [ ] Run04's page 3 and page 56 words (copied into a test as text, times and keyword
+- [x] Run04's page 3 and page 56 words (copied into a test as text, times and keyword
       flags; no media) lay out with every box's right edge ≤ 940 and left edge ≥ 60.
       Page 3 wraps to two lines or stays on one line inside the band.
-- [ ] A property-style test over every shipped style: any page the pager accepts has
+- [x] A property-style test over every shipped style: any page the pager accepts has
       every word box inside x 60–940.
-- [ ] `styles.load_all` rejects `max_width_px: 960` with a message naming the style.
+- [x] `styles.load_all` rejects `max_width_px: 960` with a message naming the style.
       All seven specs carry 880 and a bumped `version`, and the version pins in the
       style tests are updated.
-- [ ] `safe_area.py` is the only place the numbers 60, 140, 250 and 320 are defined as
+- [x] `safe_area.py` is the only place the numbers 60, 140, 250 and 320 are defined as
       safe-area values. A test asserts that `render`, `infographics`,
       `qa.technical`, `contact_sheet` and `captions` all use its values, and a grep in
       the done note shows no other `SAFE_*` definition under `src/shortsmith/`.
-- [ ] T12 still judges every caption word. Its only change is where it imports the
+- [x] T12 still judges every caption word. Its only change is where it imports the
       zones from. It passes on smoke explainer,
       hitech, footage, vishva and fastfacts (T1–T13).
-- [ ] The `captions.py` docstring (Layout, 6.2) says "centred in the safe band", and
+- [x] The `captions.py` docstring (Layout, 6.2) says "centred in the safe band", and
       the `WIDTH` comment no longer calls the frame "the width the block is centred
       in".
-- [ ] Ruff, pyright and every test file are green in foreground chunks (plus
+- [x] Ruff, pyright and every test file are green in foreground chunks (plus
       `npm run typecheck` and `npm test` if anything under `src/remotion/` changed).
-- [ ] The before and after frames are saved to `work/067/`.
-- [ ] Done note: the amendment line for 6.2/6.3 for the operator to paste, the paths of
+- [x] The before and after frames are saved to `work/067/`.
+- [x] Done note: the amendment line for 6.2/6.3 for the operator to paste, the paths of
       the `work/067/` frames for the operator's phone verdict, and what to check on
       run05: captions sit just left of centre and never under the like/comment rail on
       the phone.
@@ -94,3 +94,38 @@ px wide with its centre at x 500:
 
 - Operator, run04 QA (28 Sep 2026): QA failed T12, with two caption lines reaching
   into the right rail.
+
+## Done note (28 Sep 2026)
+
+- `src/shortsmith/safe_area.py` is the one 6.2/6.3 definition (frame 1080 x 1920,
+  `SAFE_LEFT` 60, `SAFE_RIGHT_PX` 140, `SAFE_TOP_PX` 250, `SAFE_BOTTOM_PX` 320; band x
+  60-940, width 880, centre 500). It imports nothing from `shortsmith`. `captions`,
+  `render`, `infographics`, `qa.technical` and `contact_sheet` import from it
+  (`infographics.SAFE_TOP` is now `SAFE_TOP_PX`). Grep
+  `^\s*SAFE_\w+(\s*,\s*SAFE_\w+)*\s*=` under `src/shortsmith/` finds only
+  `safe_area.py:18-21` and `contact_sheet.py:94 SAFE_COLOUR` (a colour, not a zone).
+  `tests/test_safe_area.py` asserts the same thing.
+- The pager wraps at `min(max_width_px, BAND_WIDTH)` and centres each line on x 500.
+  A word wider than the band raises `LayoutError` ("wider than the safe band").
+- All seven specs: `max_width_px: 880`. Versions: explainer 13, educational, animated
+  and hitech 12, footage, vishva and fastfacts 3. `styles.check` refuses a wider
+  width: "<style>: captions.max_width_px 960 is wider than the safe band 880 px".
+- Run04's page 3 with vishva captions: it was one line from x 85.0 to 995.0. It now
+  wraps to two lines: "प्राइम मिनिस्टर कौन" from 79.8 to 920.2, and "है" from 476.2 to 523.8
+  on its own line. That second line is one short word; the operator may want to look
+  at it.
+- `tests/test_pipeline.py`: the CLI-planner prompt test now uses an empty
+  `sound.Library`. Without it, runtime adoptions under the git-ignored
+  `assets/audio/fetched/` leaked tags into the prompt on this machine. This is a test
+  isolation fix found while running the suite for this ticket.
+- Frames for the phone verdict (git-ignored). They show the explainer composition on
+  the fixture, with vishva's caption numbers and the real driver.
+  `work/067/frames.py` renders them again:
+  - `work/067/page3_before.jpg`, `work/067/page3_after.jpg` (run04 page 3)
+  - `work/067/english_before.jpg`, `work/067/english_after.jpg` ("prime minister")
+- Amendment line for 6.2/6.3 (for the operator to paste): "6.2/6.3 amended by 067
+  (28 Sep 2026): caption lines wrap at min(max_width_px, 880) and are centred in the
+  safe band x 60-940 (centre x 500), no longer on the frame centre; the safe-area
+  numbers are defined once, in `safe_area.py`."
+- Run05 check on the phone: captions sit about 40 px left of centre and never go under
+  the like/comment rail. A long Hindi page wraps instead of running right.
