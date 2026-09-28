@@ -27,7 +27,7 @@ Freesound hit at job time (068, 069, 070). Operator decisions (grill, 29 Sep 202
     an idea/lightbulb sticker (070).
 - **Aim:** about 2–3 approved beds per mood, 1 per flavour, 2 per effect kind.
 
-### Sources (the tracer step confirms each API with one live call before building on it; the done note corrects this table if anything differs)
+### Sources (written from memory in the grill, with no web access; the afk run has no network, so it builds against recorded fixtures of each API's documented answer shape, and the operator confirms each source live with `shortlist probe` below)
 
 | source | reach | licence check |
 |---|---|---|
@@ -48,6 +48,12 @@ Freesound hit at job time (068, 069, 070). Operator decisions (grill, 29 Sep 202
    from the source's committed template, and the operator's yes is the attestation.
 
 ### The tool
+
+`uv run python -m shortsmith.sound.shortlist probe` makes **one live request per API
+source**: Freesound with `FREESOUND_API_KEY`, Openverse audio with no key. For each it
+prints one line: HTTP status, result count, and the first hit's name, licence field and
+duration. It downloads nothing and changes no catalogue. With a key missing it says so
+and skips that source.
 
 `uv run python -m shortsmith.sound.shortlist [--slot tense_dramatic ...]`:
 
@@ -88,8 +94,16 @@ approved API files again. Drop-folder files are the operator's to keep.
       test).
 - [ ] Tests never reach the network. Ruff, pyright and every test file are green in
       foreground chunks.
-- [ ] Operator step, in the done note:
-      - the command to build the first shortlist with `.env` back;
+- [ ] `shortlist probe` against `httpx.MockTransport` prints one line per source from
+      recorded answers, reports a missing key without calling that source, and writes
+      nothing.
+- [ ] Operator step, in the done note (the afk run has `.env` parked and no network):
+      - first, the exact probe command to run with `.env` back in place,
+        `uv run python -m shortsmith.sound.shortlist probe`, and what each line should
+        show (status 200, results above 0, a CC0 or CC BY licence field). If a source
+        answers differently from its fixture, the operator pastes the line back and the
+        adapter and fixture are fixed before any shortlist is built;
+      - then the command to build the first shortlist;
       - the drop-folder steps;
       - the page URL;
       - roughly how many minutes of listening it is (about 12 slots × 3).

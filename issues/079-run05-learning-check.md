@@ -37,8 +37,9 @@ added (081) only after this run shows the worked examples help.
   - a soft tick or short whoosh marks pop-ups and transitions, not every one;
   - nothing sounds unrelated to the screen (no ring);
   - pictures match what is said.
-- Overall rating **≥ run04's rating + 1, and at least 7**. run04's rating: `<run04>`
-  (the operator fills this in).
+- Overall rating **≥ run04's rating + 1, and at least 7**. run04 was rated **4.5/10**
+  (operator, 29 Sep 2026), so +1 gives 5.5 and the floor of 7 is the line that applies:
+  **each run05 short must rate at least 7**.
 - **"The examples help"** = both of:
   - the match share with examples is higher than without (step 5);
   - the operator does not mark "pictures don't match what I say".
