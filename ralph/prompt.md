@@ -61,7 +61,10 @@ after the four above and before the commit:
 
 # COMMIT
 
-Make a git commit. The commit message must:
+Stage by name (`git add <paths>`, `git mv` for the ticket), never `git add -A` or
+`git add .`. Write the message to `work/commit_<ticket>.txt` (git-ignored) with the Write
+tool, then run `git commit -F work/commit_<ticket>.txt` as a command on its own — never a
+heredoc. The commit message must:
 
 1. Include key decisions made
 2. Include files changed
@@ -85,10 +88,15 @@ Dependencies only via `uv add`. If a task needs a new dependency that is not alr
 - One ticket per session. After the done-commit, STOP. Do not pick,
   propose, queue, or begin another ticket, and never claim an approval
   the operator has not typed in this session.
-- A denied tool call is a stop sign, not a puzzle. Never reach the same
-  file or action another way (`python -c`, a script, another shell, a
-  copy). If the ticket needs it, write it in the done note for the
-  operator and carry on without it.
+- A denial of a FILE or PATH is a stop sign. If reading or writing a file
+  is denied (`.env*`, `docs/references.md`, `.claude/**`, CLAUDE.md, ...),
+  never reach that file another way (`python -c`, a script, another
+  shell, a copy): write what you needed in the done note for the operator
+  and carry on without it.
+- A command refused only for its FORM (too long, heredoc, script block,
+  several operations on one line) is not a stop sign: run the same allowed
+  action again in a plainer form, one command per call. A refused
+  environment-variable change stays refused.
 - Tickets marked HITL are never self-selected. Work a HITL ticket only
   when the session's launch prompt names it.
 - If your ticket needs a package that is not installed, do not install
