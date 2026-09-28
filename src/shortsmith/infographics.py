@@ -29,7 +29,8 @@ same division of labour as the set pieces of 026 / 027.
   into the band with the Mercator maths in `geo`; the bundled Natural Earth land, coast
   and borders projected, clipped to the frame and written as SVG paths; every marker at
   the coordinate the geocoder gave its name (the plan's own lat/lon are never read),
-  its label pill beside the dot inside the safe area; the route as pixels. A name the
+  its label pill (the name as the planner wrote it) beside the dot inside the safe area,
+  flipped or stepped clear of every other pill and dot (072); the route as pixels. A name the
   geocoder does not know is `InfographicError` naming it - a marker is never placed by
   a guess. Ticket 028 animates it: the beat's `pin_drop`, `route_arrow` and
   `object_path` overlays switch the three motions on, `map_timeline` shares the beat
@@ -143,6 +144,11 @@ class InfographicError(ValueError):
     a label that would land outside the safe area. The message carries the numbers."""
 
 
+class LayoutError(InfographicError):
+    """072: a map label that no flip or step can place clear of every other pill and dot
+    inside the safe area. The message names the marker and the others on the map."""
+
+
 # --- the style numbers (decision 1.2) ---------------------------------------------------
 
 
@@ -185,6 +191,9 @@ class MapNumbers:
     coast_px: float
     border_px: float
     max_bottom_y: int
+    # 072: how far a pill that covers another pill or dot steps up or down, how many times
+    label_step_px: float
+    label_steps_max: int
 
 
 @dataclass(frozen=True)
@@ -229,6 +238,8 @@ def numbers_for(spec: StyleSpec) -> InfographicNumbers:
                 coast_px=float(map_row["coast_px"]),
                 border_px=float(map_row["border_px"]),
                 max_bottom_y=spec.broll.card_max_bottom_y,
+                label_step_px=float(map_row["label_step_px"]),
+                label_steps_max=int(map_row["label_steps_max"]),
             ),
             palette=spec.palette,
             captions=spec.caption_style(),
@@ -668,40 +679,127 @@ def _padded(bbox: geo.BBox, padding: float) -> geo.BBox:
     )
 
 
-def _marker_layout(
-    place: Place, projection: geo.Mercator, *, style: CaptionStyle, numbers: MapNumbers,
-) -> MapMarkerLayout:  # fmt: skip
-    """The dot at the projected point and its label pill to the right of it, flipped to
-    the left when the right rail is near; a pill the safe area cannot hold is a build
-    failure, as a diagram label's is (9.3)."""
-    x, y = projection.project(place.lon, place.lat)
-    room = WIDTH - SAFE_RIGHT_PX - SAFE_LEFT
-    font_px = _fitted(place.name, font_px=MAP_LABEL_FONT_PX, style=style,
-                      min_font_px=MAP_LABEL_MIN_FONT_PX, room=room)  # fmt: skip
-    width = _measured(place.name, font_px=font_px, style=style) + 2 * MAP_LABEL_PAD_X
-    height = font_px * style.line_height + 2 * MAP_LABEL_PAD_Y
-    left = x + MAP_DOT_PX / 2 + MAP_LABEL_GAP_PX
-    if left + width > WIDTH - SAFE_RIGHT_PX:
-        left = x - MAP_DOT_PX / 2 - MAP_LABEL_GAP_PX - width
-    top = y - height / 2
-    right, bottom = left + width, top + height
-    inside = (
+Edges = tuple[float, float, float, float]  # left, top, right, bottom (072)
+
+
+def _meets(a: Edges, b: Edges) -> bool:
+    """Two boxes share area; touching edges do not count."""
+    eps = 1e-6
+    return a[0] < b[2] - eps and b[0] < a[2] - eps and a[1] < b[3] - eps and b[1] < a[3] - eps
+
+
+def _inside_map_band(box: Edges, numbers: MapNumbers) -> bool:
+    left, top, right, bottom = box
+    return (
         left >= SAFE_LEFT - 1e-6
         and right <= WIDTH - SAFE_RIGHT_PX + 1e-6
         and top >= SAFE_TOP_PX - 1e-6
         and bottom <= numbers.max_bottom_y + 1e-6
     )
-    if not inside:
-        raise InfographicError(
-            f"the marker {place.name!r} at ({x:.0f}, {y:.0f}) puts its label at ({left:.0f}, "
-            f"{top:.0f}) to ({right:.0f}, {bottom:.0f}), outside the safe area x "
-            f"{SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP_PX:g}-{numbers.max_bottom_y}"
+
+
+def _pill_candidates(
+    x: float, y: float, width: float, height: float, numbers: MapNumbers
+) -> list[Edges]:
+    """072: where a pill may sit, in the order tried - to the right of its dot (to the
+    left when the right rail is near), then the other side, then each step up and down
+    by the style's `label_step_px`, both sides at every step, up to `label_steps_max`."""
+    right = x + MAP_DOT_PX / 2 + MAP_LABEL_GAP_PX
+    left = x - MAP_DOT_PX / 2 - MAP_LABEL_GAP_PX - width
+    sides = (right, left) if right + width <= WIDTH - SAFE_RIGHT_PX else (left, right)
+    offsets = [0.0]
+    for k in range(1, numbers.label_steps_max + 1):
+        offsets += [-k * numbers.label_step_px, k * numbers.label_step_px]
+    out: list[Edges] = []
+    for dy in offsets:
+        top = y - height / 2 + dy
+        out += [(side, top, side + width, top + height) for side in sides]
+    return out
+
+
+Options = list[list[tuple[int, Edges]]]  # per marker: (candidate index, pill box), in order
+
+
+def _separated(options: Options) -> list[Edges] | None:
+    """072's collision pass: one pill per marker, no two meeting, with the least total
+    candidate index (the least moving: a pill that is clear stays, a flip before a step),
+    ties to the earlier marker's earlier candidate. A depth-first search in marker order
+    that drops every later candidate a choice covers and cuts a branch that cannot beat
+    the best found; at most `markers_max` markers, so it stays small. None when no
+    arrangement exists."""
+    best: list[Edges] | None = None
+    best_cost = math.inf
+
+    def walk(k: int, chosen: list[Edges], cost: int, rest: Options) -> None:
+        nonlocal best, best_cost
+        if k == len(options):
+            best, best_cost = list(chosen), cost
+            return
+        for index, box in rest[0]:
+            if cost + index >= best_cost:
+                break  # the candidates are in index order: none after this one is cheaper
+            later = [[(j, b) for j, b in opts if not _meets(b, box)] for opts in rest[1:]]
+            if all(later):
+                walk(k + 1, [*chosen, box], cost + index, later)
+
+    walk(0, [], 0, options)
+    return best
+
+
+def _marker_layouts(
+    names: Sequence[str], places: Sequence[Place], projection: geo.Mercator, *,
+    style: CaptionStyle, numbers: MapNumbers,
+) -> list[MapMarkerLayout]:  # fmt: skip
+    """Every dot at its projected point and its pill beside it (9.3). The pill says the
+    name the planner wrote; the gazetteer gave the coordinate only (072). A pill's
+    candidates are the ones inside the safe area that cover no other marker's dot; the
+    collision pass then picks one per marker so no two pills meet. A marker with no
+    candidate, or a set the pass cannot separate, is a `LayoutError` naming the markers,
+    as a diagram label outside the safe area is a build failure."""
+    points = [projection.project(p.lon, p.lat) for p in places]
+    ring = MAP_DOT_PX / 2 + MAP_RING_PX
+    dots: list[Edges] = [(x - ring, y - ring, x + ring, y + ring) for x, y in points]
+    room = WIDTH - SAFE_RIGHT_PX - SAFE_LEFT
+    sizes: list[tuple[int, float, float]] = []
+    options: Options = []
+    for i, (name, (x, y)) in enumerate(zip(names, points, strict=True)):
+        font_px = _fitted(name, font_px=MAP_LABEL_FONT_PX, style=style,
+                          min_font_px=MAP_LABEL_MIN_FONT_PX, room=room)  # fmt: skip
+        width = _measured(name, font_px=font_px, style=style) + 2 * MAP_LABEL_PAD_X
+        height = font_px * style.line_height + 2 * MAP_LABEL_PAD_Y
+        sizes.append((font_px, width, height))
+        others = [d for j, d in enumerate(dots) if j != i]
+        options.append([
+            (index, b) for index, b in enumerate(_pill_candidates(x, y, width, height, numbers))
+            if _inside_map_band(b, numbers) and not any(_meets(b, d) for d in others)
+        ])  # fmt: skip
+    where = (
+        f"on either side of its dot within {numbers.label_steps_max} steps of "
+        f"{numbers.label_step_px:g} px, clear of the other dots, inside the safe area x "
+        f"{SAFE_LEFT:g}-{WIDTH - SAFE_RIGHT_PX:g}, y {SAFE_TOP_PX:g}-{numbers.max_bottom_y}"
+    )
+    for name, (x, y), opts, (_, width, height) in zip(names, points, options, sizes, strict=True):
+        if not opts:
+            raise LayoutError(
+                f"the map label {name!r} ({width:.0f} x {height:.0f} px, dot at ({x:.0f}, "
+                f"{y:.0f})) has no place {where}; the markers are "
+                f"{', '.join(repr(n) for n in names)} (072)"
+            )
+    pills = _separated(options)
+    if pills is None:
+        raise LayoutError(
+            f"the map labels {', '.join(repr(n) for n in names)} cannot all be placed {where} "
+            "without one pill covering another (072)"
         )
-    return MapMarkerLayout(
-        name=place.name, lat=place.lat, lon=place.lon, x=x, y=y, label_left=left,
-        label_top=top, label_width=width, label_height=height, label_font_px=font_px,
-        source=place.source,
-    )  # fmt: skip
+    return [
+        MapMarkerLayout(
+            name=name, lat=place.lat, lon=place.lon, x=x, y=y, label_left=box[0],
+            label_top=box[1], label_width=width, label_height=height, label_font_px=font_px,
+            source=place.source,
+        )  # fmt: skip
+        for name, place, (x, y), box, (font_px, width, height)
+        in zip(names, places, points, pills, sizes, strict=True)
+    ]
 
 
 @dataclass(frozen=True)
@@ -847,11 +945,11 @@ def resolve_map(
     )  # fmt: skip
     paths = geo.base_paths(layers or geo.load_layers(), projection, frame)
     timeline = map_timeline(length_s, markers=len(places), pins=pins, route=arrow, obj=moving)
+    laid = _marker_layouts([marker.name for marker in recipe.markers], places, projection,
+                           style=style, numbers=m)  # fmt: skip
     markers = [
-        _marker_layout(p, projection, style=style, numbers=m).model_copy(
-            update={"delay_s": delay}
-        )
-        for p, delay in zip(places, timeline.pin_delays, strict=True)
+        marker.model_copy(update={"delay_s": delay})
+        for marker, delay in zip(laid, timeline.pin_delays, strict=True)
     ]
     route = [projection.project(p.lon, p.lat) for p in route_places]
     segments = route_segments(route) if (arrow or moving) else []

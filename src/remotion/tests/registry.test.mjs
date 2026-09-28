@@ -88,6 +88,18 @@ test("the map animations read their timing and pixels from the layout, never a l
   assert.match(object, /rotate\(\$\{/, "object_path.tsx never turns the sprite");
 });
 
+test("the map draws every label pill before every dot, so no dot is ever hidden (072)", () => {
+  for (const name of ["map", "pin_drop"]) {
+    const source = readFileSync(join(root, "components", `${name}.tsx`), "utf-8");
+    const pills = source.indexOf("<MarkerPill");
+    const dots = source.indexOf("<MarkerDot");
+    assert.ok(pills > 0 && dots > 0, `${name}.tsx does not draw pills and dots apart`);
+    assert.ok(pills < dots, `${name}.tsx draws a dot before the pills`);
+    assert.equal(source.lastIndexOf("<MarkerPill"), pills, `${name}.tsx draws pills twice`);
+    assert.doesNotMatch(source, /<Marker\s/, `${name}.tsx still draws a dot and pill together`);
+  }
+});
+
 const TRANSITIONS = ["cut", "fade", "whip", "zoom", "spring", "wipe", "flash"];
 
 test("the composition lists the six enter transitions after ticket 030 and flash after 060", () => {

@@ -1,5 +1,5 @@
 ---
-version: "13"
+version: "14"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -68,7 +68,9 @@ broll:
     sticker: {kind: pop, duration_s: 0.18, hold_max_s: 2.5, max_per_beat: 1, size_px: 240,
               float_px: 10, float_period_s: 1.8}  # 062
     map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#0F2A44",
-          coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2}
+          coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2,
+          # 072: a pill over another pill or dot flips sides, then steps up or down
+          label_step_px: 24, label_steps_max: 3}
   enter_transitions: [cut, fade, wipe, zoom]
   whip_max_per_3_beats: 0
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row

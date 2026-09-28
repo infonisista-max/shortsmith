@@ -5,7 +5,7 @@
 // measured the label pill beside it. This file draws the base in the style's colours
 // over the palette gradient (the water) and fades it in over `draw_s`. The markers are
 // drawn here, static, only when the beat has no `pin_drop` overlay; with one, 028's
-// `PinDrop` drops the same `Marker` in (`route_arrow` draws the route on and
+// `PinDrop` drops the same `MarkerDot` and `MarkerPill` in (`route_arrow` draws the route on and
 // `object_path` moves the object, each its own component over this base).
 import React from "react";
 import { AbsoluteFill, interpolate } from "remotion";
@@ -19,20 +19,18 @@ const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const LABEL_GROW_FROM = 0.7;
 const SPLASH_SCALE_TO = 2.6;
 
-// One marker: the dot with its pale ring and the label pill beside it, already placed
-// and measured. `lift` is how far above its point the pin still is (0 once it has
-// landed; `shown` is false before it starts falling), `labelIn` the pill's pop, `splash`
-// the landing ring's spread; a static marker is 0, true, 1, 1.
-export const Marker: React.FC<{
+// One marker is two parts, already placed and measured, drawn in two passes: every
+// label pill first, then every dot over them, so a pill never hides a dot (072).
+// `lift` is how far above its point the pin still is (0 once it has landed; `shown` is
+// false before it starts falling), `labelIn` the pill's pop, `splash` the landing
+// ring's spread; a static marker is 0, true, 1, 1.
+export const MarkerDot: React.FC<{
   marker: MapMarkerLayout;
   spec: MapLayout;
-  style: CaptionStyle;
   lift: number;
   shown: boolean;
-  labelIn: number;
   splash: number;
-}> = ({ marker, spec, style, lift, shown, labelIn, splash }) => {
-  const labelScale = interpolate(labelIn, [0, 1], [LABEL_GROW_FROM, 1], clamp);
+}> = ({ marker, spec, lift, shown, splash }) => {
   const splashScale = interpolate(splash, [0, 1], [1, SPLASH_SCALE_TO], clamp);
   const splashAlpha = splash > 0 && splash < 1 ? interpolate(splash, [0, 1], [0.6, 0], clamp) : 0;
   return (
@@ -68,34 +66,46 @@ export const Marker: React.FC<{
           transform: `translateY(${-lift}px)`,
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          left: marker.label_left,
-          top: marker.label_top,
-          width: marker.label_width,
-          height: marker.label_height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: spec.label_fill,
-          borderRadius: spec.label_radius_px,
-          fontFamily: style.font_family,
-          fontWeight: style.font_weight,
-          fontSize: marker.label_font_px,
-          letterSpacing: style.letter_spacing_px,
-          color: spec.text_color,
-          textShadow: shadow(style),
-          whiteSpace: "nowrap",
-          opacity: labelIn > 0 ? 1 : 0,
-          transform: `scale(${labelScale})`,
-          // the pill grows out from the side the dot is on
-          transformOrigin: marker.label_left > marker.x ? "0% 50%" : "100% 50%",
-        }}
-      >
-        {marker.name}
-      </div>
     </>
+  );
+};
+
+// The pill carries the name the planner wrote (072), never the gazetteer's.
+export const MarkerPill: React.FC<{
+  marker: MapMarkerLayout;
+  spec: MapLayout;
+  style: CaptionStyle;
+  labelIn: number;
+}> = ({ marker, spec, style, labelIn }) => {
+  const labelScale = interpolate(labelIn, [0, 1], [LABEL_GROW_FROM, 1], clamp);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: marker.label_left,
+        top: marker.label_top,
+        width: marker.label_width,
+        height: marker.label_height,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: spec.label_fill,
+        borderRadius: spec.label_radius_px,
+        fontFamily: style.font_family,
+        fontWeight: style.font_weight,
+        fontSize: marker.label_font_px,
+        letterSpacing: style.letter_spacing_px,
+        color: spec.text_color,
+        textShadow: shadow(style),
+        whiteSpace: "nowrap",
+        opacity: labelIn > 0 ? 1 : 0,
+        transform: `scale(${labelScale})`,
+        // the pill grows out from the side the dot is on
+        transformOrigin: marker.label_left > marker.x ? "0% 50%" : "100% 50%",
+      }}
+    >
+      {marker.name}
+    </div>
   );
 };
 
@@ -140,20 +150,16 @@ export const MapBase: React.FC<{
           ))}
         </g>
       </svg>
-      {spec.pin_drop
-        ? null
-        : spec.markers.map((marker, i) => (
-            <Marker
-              key={i}
-              marker={marker}
-              spec={spec}
-              style={style}
-              lift={0}
-              shown
-              labelIn={1}
-              splash={1}
-            />
+      {spec.pin_drop ? null : (
+        <>
+          {spec.markers.map((marker, i) => (
+            <MarkerPill key={`p${i}`} marker={marker} spec={spec} style={style} labelIn={1} />
           ))}
+          {spec.markers.map((marker, i) => (
+            <MarkerDot key={`d${i}`} marker={marker} spec={spec} lift={0} shown splash={1} />
+          ))}
+        </>
+      )}
     </AbsoluteFill>
   );
 };

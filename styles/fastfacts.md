@@ -1,5 +1,5 @@
 ---
-version: "4"
+version: "5"
 status: shipped
 aliases: [fastfacts, fast facts, facts, fact, quick]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -64,7 +64,9 @@ broll:
                   scale_to: 1.12, dim: 0.3}
     counter: {kind: count_up, grouping: indian}
     map: {kind: travel, markers_max: 6, duration_s: 0.5, padding: 0.15, land: "#2F5597",
-          coast: "#9DBBF5", border: "#0B1D3A", coast_px: 3, border_px: 2}
+          coast: "#9DBBF5", border: "#0B1D3A", coast_px: 3, border_px: 2,
+          # 072: a pill over another pill or dot flips sides, then steps up or down
+          label_step_px: 24, label_steps_max: 3}
     # 061: 1-4 bold words pinned on the picture, landing on the spoken word; `fill` is
     # the pop yellow, white is white, and the accent (years, numbers) is `palette.accent`.
     text_pop: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 6,
