@@ -1,7 +1,8 @@
 // The component registry (decision 9.2). registry.json is the checked-in list the
 // style loader (008) cross-checks and the Node test asserts against these files. The
 // six enter transitions (9.4, ticket 030) are registered like any component: each is a
-// file that wraps a beat's picture; 060 adds the seventh, `flash`.
+// file that wraps a beat's picture; 060 adds the seventh, `flash`. 061 adds `text_pop`,
+// the bold words pinned on the picture that land on the spoken word.
 import type React from "react";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
@@ -25,6 +26,7 @@ import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
 import { Spring } from "./components/spring";
 import { Stamp } from "./components/stamp";
+import { TextPop } from "./components/text_pop";
 import { Wall } from "./components/wall";
 import { Whip } from "./components/whip";
 import { Wipe } from "./components/wipe";
@@ -54,6 +56,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   split: Split,
   spring: Spring,
   stamp: Stamp,
+  text_pop: TextPop,
   wall: Wall,
   whip: Whip,
   wipe: Wipe,

@@ -26,6 +26,12 @@ which becomes a `fade` under every style that does not enable it - the four ship
 draft styles today. Where the style also allows whooshes (`sound.whoosh` present and
 `whoosh` out of `sound.forbidden`), the sound story cues one `whoosh` at that beat's
 start, the one cue a bare transition may carry.
+
+Ticket 061: where the style's `broll.text_pops_max_per_60s` is over 0 (none of the four
+shipped and draft styles; the smoke's `--text-pops` copy and 059's recipe styles), b03
+also carries one text pop, "THIS", landing on word 2 ("this" at 1.2 s, 0.2 s into the
+beat) at the frame's centre-ish, and the sound story cues a `popup_tick` at its event.
+Under a cap of 0 the plan is byte-identical to before.
 """
 
 from __future__ import annotations
@@ -64,6 +70,9 @@ from shortsmith.contracts import (
 )
 from shortsmith.contracts import (
     SetPieceItem as Item,
+)
+from shortsmith.contracts import (
+    TextPop as Pop,
 )
 from shortsmith.planner.base import Planner
 
@@ -127,6 +136,16 @@ def whoosh_allowed(style: PlanStyle) -> bool:
     return not banned and numbers.get(WHOOSH) is not None
 
 
+def text_pops_allowed(style: PlanStyle) -> bool:
+    """061: the style's `broll.text_pops_max_per_60s` is over 0; a request with no
+    numbers allows none (the explainer's rule)."""
+    broll = style.numbers.get("broll")
+    if not isinstance(broll, Mapping):
+        return False
+    cap = cast(Mapping[str, object], broll).get("text_pops_max_per_60s", 0)
+    return isinstance(cap, int | float) and cap > 0
+
+
 def enter_for(wanted: Transition, enabled: Sequence[Transition]) -> Transition:
     """`wanted` when the style enables it, else its first enabled fallback, else `cut`."""
     if wanted in enabled:
@@ -144,6 +163,9 @@ class FakePlanner(Planner):
         self, request: PlanRequest, *, feedback: PlanFeedback | None = None
     ) -> PicturePlan:
         enabled = enabled_enters(request.style)
+        # 061: one pop on the presenter full beat where the style allows pops at all.
+        allowed = text_pops_allowed(request.style)
+        pops = [Pop(text="THIS", word=2, x=50.0, y=42.0)] if allowed else []
 
         def enter(wanted: Transition) -> Transition:
             return enter_for(wanted, enabled)
@@ -166,7 +188,7 @@ class FakePlanner(Planner):
               enter=enter("whip"), event=Event(kind="lower_third", text="India Gate · Delhi")),
             # 060: the turn back to the presenter flashes where the style enables it.
             B(id="b03", start=1.0, end=1.5, mode="full", reason="emotional_line",
-              kind="presenter_full", enter=enter("flash")),
+              kind="presenter_full", enter=enter("flash"), text_pops=pops),
             # 057: b04 is the plan's one planned `card` (every tier-1 kind is named once),
             # the opening's first image again, re-dressed as a card with the stamp.
             B(id="b04", start=1.5, end=2.0, mode="pip", kind="card", motion="push_in",
@@ -253,6 +275,12 @@ class FakePlanner(Planner):
             Cue(beat_id=b.id, intent="money" if b.money_reveal else "popup_tick", at="event")
             for b in picture.beats
             if b.event.kind == "stamp" or b.counter is not None
+        ]
+        # 061: a tick where the text pop lands, on the beat that carries one.
+        cues += [
+            Cue(beat_id=b.id, intent="popup_tick", at="event")
+            for b in picture.beats
+            if b.text_pops and b.event.kind == "none" and b.counter is None
         ]
         cues.append(Cue(beat_id=last, intent="finale_hit", at="start"))
         # 060: one whoosh on the first flash, where the style allows whooshes at all.

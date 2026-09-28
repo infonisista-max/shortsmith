@@ -181,6 +181,8 @@ from shortsmith.contracts import (
     SplitPane,
     SplitSpec,
     StampSpec,
+    TextPop,
+    TextPopSpec,
     TitleWord,
     TransitionStyle,
     VisualSpec,
@@ -267,6 +269,14 @@ class BrollNumbers:
     wall_dim: float
     # 029: the counter's digit grouping; it lands in the stamp's time with its shake.
     counter_grouping: str
+    # 061: the text pop row - the overshoot's length, how long a pop may stay, the
+    # per-beat cap, the tilt, the type size and the style's pop yellow.
+    pop_s: float
+    pop_hold_max_s: float
+    pop_max_per_beat: int
+    pop_tilt_deg: float
+    pop_font_px: int
+    pop_fill: str
 
 
 @dataclass(frozen=True)
@@ -296,6 +306,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         photo, card = motion["photo"], motion["card"]
         stamp, lower, finale = motion["stamp"], motion["lower_third"], motion["finale"]
         rows, split, wall = motion["list"], motion["split"], motion["wall"]
+        pop = motion["text_pop"]
         return BrollNumbers(
             photo_scale_from=float(photo["scale_from"]),
             photo_scale_to=float(photo["scale_to"]),
@@ -330,6 +341,12 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             wall_scale_to=float(wall["scale_to"]),
             wall_dim=float(wall["dim"]),
             counter_grouping=str(motion["counter"]["grouping"]),
+            pop_s=float(pop["duration_s"]),
+            pop_hold_max_s=float(pop["hold_max_s"]),
+            pop_max_per_beat=int(pop["max_per_beat"]),
+            pop_tilt_deg=float(pop["tilt_deg"]),
+            pop_font_px=int(pop["size_px"]),
+            pop_fill=str(pop["fill"]),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -782,6 +799,7 @@ def stamp_spec(text: str, *, numbers: StyleNumbers, max_font_px: int = STAMP_FON
 # leaves today's placement. The 6.3 top zone is the gate's number (qa.technical).
 
 SAFE_TOP_PX = 250.0
+SAFE_BOTTOM_PX = 320.0  # 061: the text pops stay above the platform's bottom zone too
 STAMP_BELOW_GAP_PX = 24.0
 
 
@@ -924,6 +942,183 @@ def stamp_clear_of(
     if best is None:
         return stamp, None
     return best[2], best[1]
+
+
+# --- text pops (061; 4.1 as amended) ----------------------------------------------------
+#
+# 1-4 bold words pinned on the picture near the thing they name, landing on the spoken
+# word. The style row (`broll.motion.text_pop`) carries the overshoot length, the hold,
+# the per-beat cap, the tilt, the type size and the pop yellow; the treatment below
+# (weight, outline, shadow, padding) is the engine's look like the stamp's. Placement:
+# the planner's `{x, y, anchor}` in percent, clamped into the safe area, then moved to
+# the nearest free spot when the box lands on the PIP circle, the caption band or a
+# detected face (`place_text_pop`); no free spot means a dropped pop when a face was
+# in the way and a build failure otherwise.
+
+EPS = 1e-6
+TEXT_POP_WEIGHT = 900
+TEXT_POP_MIN_FONT_PX = 40
+TEXT_POP_PAD_X, TEXT_POP_PAD_Y = 12.0, 8.0
+TEXT_POP_LINE_HEIGHT = 1.2
+TEXT_POP_STROKE_PX, TEXT_POP_DROP_PX = 6, 6
+TEXT_POP_SCALE_FROM = 0.4
+TEXT_POP_WHITE = "#FFFFFF"
+TEXT_POP_GAP_PX = 24.0  # clearance kept from the circle, the caption band and a face
+TEXT_POP_ANCHOR_SHIFT: Mapping[str, float] = {"left": 0.0, "center": 0.5, "right": 1.0}
+
+
+def _pop_fill(fill: str, numbers: StyleNumbers) -> str:
+    if fill == "white":
+        return TEXT_POP_WHITE
+    if fill == "accent":
+        return numbers.palette.accent
+    return numbers.broll.pop_fill
+
+
+def _pop_size(text: str, *, numbers: StyleNumbers) -> tuple[int, float, float]:
+    """The pop's type size (shrunk in steps until the words fit the width between the
+    safe margins) and its box."""
+    style = numbers.captions
+    room = WIDTH - SAFE_RIGHT_PX - SAFE_LEFT - 2 * TEXT_POP_PAD_X
+    font_px = numbers.broll.pop_font_px
+    while (
+        font_px > TEXT_POP_MIN_FONT_PX
+        and _measured(text, font_px=font_px, style=style, weight=TEXT_POP_WEIGHT) > room
+    ):
+        font_px -= FONT_STEP_PX
+    width = min(
+        _measured(text, font_px=font_px, style=style, weight=TEXT_POP_WEIGHT) + 2 * TEXT_POP_PAD_X,
+        room + 2 * TEXT_POP_PAD_X,
+    )
+    height = font_px * TEXT_POP_LINE_HEIGHT + 2 * TEXT_POP_PAD_Y
+    return font_px, width, height
+
+
+@dataclass(frozen=True)
+class Placement:
+    """Where a pop ended up: its centre, and the obstacles it was moved off (none when
+    it sits where it was asked)."""
+
+    cx: float
+    cy: float
+    cleared: tuple[str, ...]
+
+
+def _tilted(cx: float, cy: float, width: float, half: float) -> Box:
+    return Box(cx - width / 2, cy - half, width, 2 * half)
+
+
+def _clamped_centre(
+    cx: float, cy: float, *, width: float, half: float, lowest: float, highest: float
+) -> tuple[float, float] | None:
+    """The centre moved so the tilted box lies inside the safe margins and between
+    `lowest` and `highest` (box top and bottom limits); None when it cannot fit."""
+    if width > WIDTH - SAFE_RIGHT_PX - SAFE_LEFT + EPS or lowest + 2 * half > highest + EPS:
+        return None
+    x = min(max(cx, SAFE_LEFT + width / 2), WIDTH - SAFE_RIGHT_PX - width / 2)
+    y = min(max(cy, lowest + half), highest - half)
+    return x, y
+
+
+def place_text_pop(
+    cx: float,
+    cy: float,
+    *,
+    width: float,
+    height: float,
+    rotate_deg: float,
+    blocked: Mapping[str, Box],
+    image: Box | None,
+    highest: float,
+) -> Placement | None:
+    """The asked-for centre clamped into the safe area (the top zone to `highest`, the
+    bottom zone's edge; the rails), then, when the tilted box lands on a `blocked`
+    obstacle (the PIP circle, the caption band, a face), the nearest free centre among
+    the spots beside each obstacle and the image's face-free bands; None when no spot
+    is free. The caption band is an obstacle rather than a clamp so a move off it is
+    reported like the others."""
+    half = _tilt_extent(width, height, rotate_deg)
+    gap = TEXT_POP_GAP_PX
+    asked = _clamped_centre(cx, cy, width=width, half=half, lowest=SAFE_TOP_PX, highest=highest)
+    if asked is None:
+        return None
+
+    def hits(centre: tuple[float, float]) -> list[str]:
+        box = _tilted(*centre, width=width, half=half)
+        return [name for name, obstacle in blocked.items() if box.overlaps(obstacle)]
+
+    cleared = hits(asked)
+    if not cleared:
+        return Placement(asked[0], asked[1], ())
+    candidates: list[tuple[float, float]] = []
+    for obstacle in blocked.values():
+        candidates += [
+            (asked[0], obstacle.top - gap - half),
+            (asked[0], obstacle.bottom + gap + half),
+            (obstacle.right + gap + width / 2, asked[1]),
+            (obstacle.left - gap - width / 2, asked[1]),
+        ]
+    if image is not None:
+        candidates += [
+            (asked[0], image.top + image.height / 6),
+            (asked[0], image.top + image.height * 5 / 6),
+            (asked[0], image.bottom + gap + half),
+        ]
+    free: list[tuple[float, float, float]] = []
+    for x, y in candidates:
+        centre = _clamped_centre(x, y, width=width, half=half, lowest=SAFE_TOP_PX, highest=highest)
+        if centre is None or hits(centre):
+            continue
+        free.append((math.hypot(centre[0] - asked[0], centre[1] - asked[1]), *centre))
+    if not free:
+        return None
+    _, x, y = min(free)
+    return Placement(x, y, tuple(cleared))
+
+
+def presenter_face_box(face: FaceBox) -> Box:
+    """The presenter's own face on a `full` beat, in composition pixels: the measured
+    box (already in cut pixels, 013) through the punch-in (research S2) at rest and at
+    its widest, taken together."""
+    at_rest = Box(float(face.left), float(face.top), float(face.width), float(face.height))
+    ox, oy = WIDTH / 2, PUNCH_IN.origin_y * HEIGHT
+    return _union(at_rest, _scaled_about(at_rest, ox, oy, PUNCH_IN.scale_from))
+
+
+def text_pop_spec(
+    pop: TextPop,
+    index: int,
+    *,
+    beat_start_s: float,
+    beat_end_s: float,
+    numbers: StyleNumbers,
+    blocked: Mapping[str, Box],
+    image: Box | None,
+) -> tuple[TextPopSpec | None, Placement | None]:
+    """One pop of a beat, measured, placed (`place_text_pop`) and timed: it lands at
+    its word's output time (`at_s`, the grammar's; the beat's start when never
+    written) and leaves at the beat's end or `hold_max_s` later, whichever is first;
+    pops of one beat tilt alternately. None when no spot is free."""
+    b = numbers.broll
+    font_px, width, height = _pop_size(pop.text, numbers=numbers)
+    tilt = -b.pop_tilt_deg if index % 2 == 0 else b.pop_tilt_deg
+    cx = pop.x / 100 * WIDTH + (0.5 - TEXT_POP_ANCHOR_SHIFT[pop.anchor]) * width
+    cy = pop.y / 100 * HEIGHT
+    placed = place_text_pop(
+        cx, cy, width=width, height=height, rotate_deg=tilt, blocked=blocked, image=image,
+        highest=HEIGHT - SAFE_BOTTOM_PX,
+    )  # fmt: skip
+    if placed is None:
+        return None, None
+    length = beat_end_s - beat_start_s
+    at = 0.0 if pop.at_s is None else min(max(pop.at_s - beat_start_s, 0.0), max(length - EPS, 0.0))
+    return TextPopSpec(
+        text=pop.text, left=placed.cx - width / 2, top=placed.cy - height / 2, width=width,
+        height=height, rotate_deg=tilt, font_px=font_px, font_weight=TEXT_POP_WEIGHT,
+        color=_pop_fill(pop.fill, numbers), stroke_px=TEXT_POP_STROKE_PX,
+        drop_px=TEXT_POP_DROP_PX, scale_from=TEXT_POP_SCALE_FROM, at_s=round(at, 3),
+        pop_s=b.pop_s, until_s=round(min(length, at + b.pop_hold_max_s), 3),
+    ), placed  # fmt: skip
 
 
 def counter_spec(
@@ -1420,6 +1615,7 @@ def build_spec(
     pip: PipGeometry | None = None,
     geocoder: geo.Geocoder | None = None,
     detector: presenter.FaceDetector | None = None,
+    presenter_face: FaceBox | None = None,
     log: Callable[[str], None] | None = None,
 ) -> RenderSpec:
     """`pip` is the measured geometry from `job.json.presenter` (013); None falls back
@@ -1427,9 +1623,11 @@ def build_spec(
     composite are placed against the top of the circle the spec draws, not the style's
     fixed `pip.top` (051). `geocoder` places the map markers (020); None is the bundled
     gazetteer, and whichever it is, it is bound to the job's directory for its cache.
-    `detector` is the 3.3 face detector the stamps and counters are kept off faces with
-    (056 (4)); None runs no detection and keeps today's placement. `log` gets one line
-    per stamp moved, or left in place with no free band."""
+    `detector` is the 3.3 face detector the stamps, counters and text pops are kept off
+    faces with (056 (4), 061); None runs no detection and keeps today's placement.
+    `presenter_face` is the measured face of the presenter cut (`job.json.presenter`),
+    which a text pop on a `full` beat is kept off (061). `log` gets one line per stamp
+    moved, or left in place with no free band, and one per text pop moved or dropped."""
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     geometry = pip or fixed_pip(source_size, numbers)
@@ -1470,6 +1668,46 @@ def build_spec(
                     "the image (056)")  # fmt: skip
         return cast("S", moved)
 
+    def text_pops(b: Beat, mode: Mode, visual: VisualSpec | None) -> tuple[TextPopSpec, ...]:
+        """061: the beat's pops placed off the circle (a `pip` beat), the caption band
+        and the face - the image's (detected) or the presenter's own (a `full` beat)."""
+        if not b.text_pops:
+            return ()
+        blocked: dict[str, Box] = {}
+        if mode == "pip":
+            blocked["the PIP circle"] = Box(
+                float(geometry.left), float(geometry.top), float(geometry.diameter),
+                float(geometry.diameter),
+            )  # fmt: skip
+        band_top = styles.caption_block_top(numbers.captions)
+        blocked["the caption band"] = Box(0.0, band_top, float(WIDTH), HEIGHT - band_top)
+        face = presenter_face_box(presenter_face) if mode == "full" and presenter_face else None
+        face = face if face is not None else face_on(visual)
+        if face is not None:
+            blocked["the face"] = face
+        placed: list[TextPopSpec] = []
+        for i, pop in enumerate(b.text_pops):
+            spec, placement = text_pop_spec(
+                pop, i, beat_start_s=b.start, beat_end_s=b.end, numbers=numbers,
+                blocked=blocked, image=image_box_on(visual) if visual is not None else None,
+            )  # fmt: skip
+            if spec is None or placement is None:
+                if face is None:
+                    raise RenderError(
+                        f"{b.id}: text pop {pop.text!r} at ({pop.x:g} %, {pop.y:g} %) has no "
+                        "spot clear of the PIP circle and the captions inside the safe area (061)"
+                    )
+                if log is not None:
+                    log(f"text pop: {b.id}: {pop.text!r} dropped, no spot clear of the face, "
+                        "the circle and the captions (061)")  # fmt: skip
+                continue
+            if placement.cleared and log is not None:
+                log(f"text pop: {b.id}: {pop.text!r} moved off {' and '.join(placement.cleared)} "
+                    f"to ({spec.left + spec.width / 2:.0f}, {spec.top + spec.height / 2:.0f}) "
+                    "(061)")  # fmt: skip
+            placed.append(spec)
+        return tuple(placed)
+
     beats: list[BeatSpec] = []
     for b in plan.beats:
         if b.enter not in numbers.transitions.enabled:
@@ -1503,6 +1741,7 @@ def build_spec(
                     if label and not labelled and b.id not in two_lines
                     else None
                 ),
+                text_pops=text_pops(b, mode, visual),
                 finale=(
                     finale_spec(plan.finale.text, sources, numbers=numbers)
                     if finale_beat is not None and b.id == finale_beat.id
@@ -1681,7 +1920,8 @@ def spec_for_job(
     (`work/cut.mp4`, 005) and the measured PIP geometry (`job.json.presenter`, 013),
     with the numbers of the job's resolved style (`job.json.style`, 008). The short is
     as long as the cut list. `geocoder` places the map markers (020); `detector` keeps
-    the stamps off faces (056 (4)), its lines going to `job.log`."""
+    the stamps off faces (056 (4)), its lines going to `job.log`; a text pop on a `full`
+    beat is kept off the measured presenter face the same way (061)."""
     numbers = numbers or style_numbers(job.record.style)
     plan = _load_plan(job)
     captions = load_captions(job)
@@ -1700,6 +1940,7 @@ def spec_for_job(
         pip=measured_pip(job),
         geocoder=geocoder,
         detector=detector,
+        presenter_face=job.record.presenter.face if job.record.presenter else None,
         log=lambda line: jobs.note(job, line),
     )
 

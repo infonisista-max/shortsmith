@@ -60,6 +60,7 @@ from shortsmith.contracts import (
     PresenterMeasurement,
     RenderSpec,
     Span,
+    TextPopSpec,
     Transcript,
     ValidatedPlan,
     Word,
@@ -530,6 +531,30 @@ def test_t6_fails_a_whoosh_on_a_plain_cut_a_long_one_and_any_under_explainer() -
     assert both.detail.startswith(
         "R1 at 2.00 s in cue sfx_whoosh on f1 ('whoosh'): flat; whoosh cue"
     )
+
+
+def test_t6_passes_a_whoosh_riding_a_text_pop_and_refuses_one_where_pop_is_not_a_trigger() -> None:
+    """061 (6): with `pop` in `sound.whoosh.on`, a whoosh on a beat carrying text pops
+    keeps the allowance whatever its enter; with `on: [flash]` alone the same cue is a
+    fault naming the triggers, and a beat with no pop on a plain cut stays a fault."""
+    sheet = _whoosh_sheet(2.0)
+    riding = technical.t6([], sheet, enters={"f1": "cut"}, nums=WHOOSHY, runtime_s=60.0,
+                          pops={"f1"})  # fmt: skip
+    assert riding.passed, riding.detail
+    assert riding.detail == "R1-R4 clean on the SFX stem (1 cue; 1 whoosh under sound.whoosh)"
+    flash_only = WHOOSHY.model_copy(deep=True)
+    assert flash_only.whoosh is not None
+    flash_only.whoosh.on = ["flash"]
+    refused = technical.t6([], sheet, enters={"f1": "cut"}, nums=flash_only, runtime_s=60.0,
+                           pops={"f1"})  # fmt: skip
+    assert not refused.passed
+    assert refused.detail == (
+        "whoosh cue sfx_whoosh on f1: on a 'cut' enter; sound.whoosh.on allows a whoosh only "
+        "on flash"
+    )
+    elsewhere = technical.t6([], sheet, enters={"f1": "cut"}, nums=WHOOSHY, runtime_s=60.0,
+                             pops={"f2"})  # fmt: skip
+    assert not elsewhere.passed and "on a 'cut' enter; sound.whoosh.on" in elsewhere.detail
 
 
 def test_t6_caps_whooshes_per_60s_and_keeps_them_apart() -> None:
@@ -1115,9 +1140,33 @@ def test_t12_passes_a_spec_whose_text_stays_out_of_the_reserved_zones() -> None:
     check = technical.t12(spec)
     assert (check.name, check.passed) == ("T12", True)
     assert check.detail == (
-        "2 caption words, 1 stamp, 1 lower-third: none inside the reserved zones "
+        "2 caption words, 1 stamp, 1 lower-third, 0 text pops: none inside the reserved zones "
         "(top 250, bottom 320, right 140 px)"
     )
+
+
+def _pop_spec(text: str = "HELLO", **fields: Any) -> TextPopSpec:
+    base = {
+        "text": text, "left": 300.0, "top": 500.0, "width": 400.0, "height": 130.0,
+        "rotate_deg": -6.0, "font_px": 96, "font_weight": 900, "color": "#FFD60A",
+        "stroke_px": 6, "drop_px": 6, "scale_from": 0.4, "at_s": 0.2, "pop_s": 0.2,
+        "until_s": 0.5,
+    }
+    return TextPopSpec.model_validate({**base, **fields})
+
+
+def test_t12_judges_text_pops_like_the_other_overlays() -> None:
+    """061: a text pop's box is judged against the 6.3 zones and counted in the detail;
+    one reaching the top zone or the right rail fails naming the beat and the words."""
+    inside = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec()])]))
+    assert inside.passed
+    assert inside.detail.startswith("0 caption words, 0 stamps, 0 lower-thirds, 1 text pop:")
+    high = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec(top=249.5)])]))
+    assert not high.passed
+    assert "b03 text pop 'HELLO' reaches y 249.5, inside the top zone" in high.detail
+    wide = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec("1945", left=700.0)])]))
+    assert not wide.passed
+    assert "b03 text pop '1945' reaches x 1100, inside the right rail" in wide.detail
 
 
 @pytest.mark.parametrize(("right", "ok"), [(940.0, True), (940.5, False)])

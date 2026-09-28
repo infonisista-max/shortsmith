@@ -87,6 +87,20 @@ SMOKE_CUT: dict[str, float] = {
 }
 
 
+# 061: the cap the pops-on copy raises text pops to: ceil(10 x 6 / 60) = 1 on the fixture.
+POPS_PER_60S = 10
+
+
+def pops_on(spec: StyleSpec) -> StyleSpec:
+    """`spec` copied with text pops turned on (`broll.text_pops_max_per_60s` =
+    `POPS_PER_60S`): every shipped and draft style keeps the cap at 0 until 059's recipe
+    styles, so the smoke's `--text-pops` and the tests judge and render the fake plan's
+    one pop under this copy. Nothing else changes."""
+    styled = spec.model_copy(deep=True)
+    styled.broll.text_pops_max_per_60s = POPS_PER_60S
+    return styled
+
+
 def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> dict[str, StyleSpec]:
     """`specs` with the style `name` (the default unless told otherwise) replaced by its
     fixture-shaped copy. Ticket 048 renders the fixture under the `hitech` draft, so

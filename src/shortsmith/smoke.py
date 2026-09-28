@@ -38,6 +38,11 @@ the current directory, survives, and the summary line ends with the absolute pat
 one), and every check reads that spec's numbers - its palette, typography, PIP ring,
 four-transition subset with `wipe` on a beat - through the same T1-T13. The draft stays
 `draft`; nothing about it is judged here.
+
+`--text-pops` (ticket 061) runs the walk under the selected style's copy with text pops
+turned on (`fixture.pops_on`; every existing style keeps them off): the fake plan's b03
+carries one pop, the grammar writes its landing on the word, the render draws it clear of
+the circle, the captions and the presenter's face, and T12 counts it.
 """
 
 from __future__ import annotations
@@ -180,10 +185,14 @@ def run_smoke(
     root: Path,
     *,
     style: str = styles.DEFAULT,
+    text_pops: bool = False,
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
     renderer: Renderer | None = None,
 ) -> SmokeResult:
+    """`text_pops` (061) judges and renders the walk under the selected style's copy
+    with text pops turned on (`fixture.pops_on`), so the fake plan's one pop is drawn;
+    every existing style keeps them off, so the plain walk draws none."""
     started = time.perf_counter()
     transcriber = transcriber or FakeTranscriber()
     planner = planner or FakePlanner()
@@ -227,10 +236,12 @@ def run_smoke(
     # 009: the fake plan is judged by the fixture-shaped copy of the selected style. 033:
     # the fake critic records what it was shown, so the strips are proved real below.
     critic = FakeCritic()
+    judged = fixture.smoke_specs(specs, style)
+    if text_pops:
+        judged[style] = fixture.pops_on(judged[style])
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
-        sourcing=smoke_sourcing(), specs=fixture.smoke_specs(specs, style), library=library,
-        critic=critic,
+        sourcing=smoke_sourcing(), specs=judged, library=library, critic=critic,
     )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
@@ -320,6 +331,7 @@ def run_smoke(
     check(short.is_file(), "rendering did not write out/short.mp4")
     short_s, short_lufs = check_short(short, picture)
     check_qa(reloaded)
+    pops = check_text_pops(reloaded, plan, on=text_pops)
     sheet = job.out_dir / "contact.jpg"
     check_contact_sheet(sheet)
     verdict = check_critic(reloaded, critic, plan)
@@ -349,6 +361,7 @@ def run_smoke(
         f"smoke ok: style {style}, job {job.id} -> {reloaded.status}, "
         f"{len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
+        f"text pops {pops}, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
@@ -833,6 +846,54 @@ def check_sound(
     return cues
 
 
+def check_text_pops(job: jobs.Job, plan: PicturePlan, *, on: bool) -> int:
+    """061: with pops on, the fake plan's b03 carries its one pop ("THIS" on word 2),
+    the grammar wrote its landing (1.2 s on the cut, 0.2 s into the beat), the render
+    spec draws it inside the 6.3 zones with the style's pop look, T12 counted it and
+    job.log dropped nothing; with pops off (every existing style) no beat carries one.
+    Returns the pops drawn."""
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    planned = {b.id: b.text_pops for b in plan.beats if b.text_pops}
+    drawn = {b.id: b.text_pops for b in spec.beats if b.text_pops}
+    report = technical.load_report(job)
+    assert report is not None
+    t12 = next(c.detail for c in report.checks if c.name == "T12")
+    if not on:
+        check(not planned and not drawn, f"text pops without the pops style: {planned} {drawn}")
+        check("0 text pops" in t12, f"T12 did not count the text pops: {t12}")
+        return 0
+    check(list(planned) == ["b03"], f"the fake plan pops on {list(planned)}, not on b03")
+    (pop,) = planned["b03"]
+    check((pop.text, pop.word, pop.at_s) == ("THIS", 2, 1.2), f"b03's pop is {pop}")
+    check(list(drawn) == ["b03"], f"the render spec draws pops on {list(drawn)}, not on b03")
+    (placed,) = drawn["b03"]
+    beat = next(b for b in spec.beats if b.id == "b03")
+    numbers = render.style_numbers(job.record.style)
+    row = numbers.broll
+    check(placed.text == "THIS" and placed.font_weight == render.TEXT_POP_WEIGHT,
+          f"b03's pop is drawn as {placed.text!r} at weight {placed.font_weight}")  # fmt: skip
+    styled = (placed.color, placed.pop_s) == (row.pop_fill, row.pop_s)
+    check(styled and placed.font_px <= row.pop_font_px,
+          f"b03's pop look is not {job.record.style}'s text_pop row: {placed}")  # fmt: skip
+    check(abs(beat.start_frame / spec.fps + placed.at_s - 1.2) <= 0.15,
+          f"b03's pop lands {placed.at_s:g} s into the beat, not on the word at 1.2 s")  # fmt: skip
+    check(placed.until_s <= (beat.end_frame - beat.start_frame) / spec.fps + 1e-6,
+          "b03's pop outlives its beat")  # fmt: skip
+    hits = technical.zone_hits(placed.left, placed.top, placed.width, placed.height)
+    check(not hits, f"b03's pop reaches a reserved zone: {hits}")
+    check("1 text pop" in t12, f"T12 did not count the text pop: {t12}")
+    # only the render's own `text pop:` lines: the sound director also writes "dropped"
+    # when the disk spec's cue cap (two in 6 s) cuts the fake story's cues
+    dropped = [
+        line for line in job.log_path.read_text(encoding="utf-8").splitlines()
+        if "text pop:" in line and "dropped" in line
+    ]
+    check(not dropped, f"a text pop was dropped: {dropped}")
+    return len(drawn["b03"])
+
+
 def check_qa(job: jobs.Job) -> None:
     """`out/qa.json`: T1-T13 ran in order and every one passed (10.1; 006, 016, 023,
     031, 032). The smoke mixes cues, so T6 must have scanned a real SFX stem - its
@@ -1107,6 +1168,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help=f"the style spec to render under; a draft such as hitech (048). "
         f"Default: {styles.DEFAULT}",
     )
+    parser.add_argument(
+        "--text-pops",
+        action="store_true",
+        help="judge and render under the style's copy with text pops turned on (061), so "
+        "the fake plan's one pop is drawn",
+    )
     return parser.parse_args(argv if argv is not None else [])
 
 
@@ -1121,8 +1188,9 @@ def main(
     with workspace(keep) as root:
         try:
             result = run_smoke(
-                root, style=args.style, transcriber=transcriber, planner=planner
-            )
+                root, style=args.style, text_pops=args.text_pops, transcriber=transcriber,
+                planner=planner,
+            )  # fmt: skip
         except Exception as exc:  # noqa: BLE001 - the smoke reports every failure the same way
             print(f"smoke FAILED: {exc}", file=sys.stderr)
             return 1

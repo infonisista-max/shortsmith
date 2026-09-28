@@ -1,5 +1,5 @@
 ---
-version: "6"
+version: "7"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
@@ -59,11 +59,14 @@ broll:
     infographic: {kind: fly_in, labels_max: 5, duration_s: 0.30, scale_from: 1.04,
                   scale_to: 1.1, dim: 0.35}
     counter: {kind: count_up, grouping: indian}
+    text_pop: {kind: pop, duration_s: 0.18, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 4,
+               size_px: 92, fill: "#FFD60A"}  # 061
     map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#0F2A44",
           coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2}
   enter_transitions: [cut, fade, wipe, zoom]
   whip_max_per_3_beats: 0
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
+  text_pops_max_per_60s: 0  # 061: off here
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}

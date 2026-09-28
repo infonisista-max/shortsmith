@@ -64,6 +64,7 @@ from shortsmith.contracts import (
     SoundStory,
     Span,
     StrictModel,
+    TextPop,
     Transcript,
     ValidatedPlan,
     Violation,
@@ -94,6 +95,9 @@ MAP_OVERLAYS = frozenset({"pin_drop", "route_arrow", "object_path"})
 ROUTED_OVERLAYS = frozenset({"route_arrow", "object_path"})
 MAX_MAP_LAT = 85.0  # Mercator's edge; a bbox past it has nothing to draw
 TIER2_SUBSTITUTES: dict[str, str] = {"parallax": "photo", "vector_illustration": "card"}
+# 061: the picture beats a text pop may sit on (a moving `clip` joins them with 058).
+TEXT_POP_KINDS = frozenset({"photo", "card", "presenter_full"})
+TEXT_POP_WORDS_MAX = 4  # 061 (1): one to four words
 
 
 class Violations(StrictModel):
@@ -200,6 +204,8 @@ def validate_picture(
     found += _charts(beats, spec)
     found += _maps(beats, spec)
     found += _overlays(beats)
+    pop_found, beats = _text_pops(beats, runtime, spec, words, spans)
+    found += pop_found
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
@@ -465,7 +471,7 @@ def _density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
         if b.kind in DENSITY_EXEMPT_KINDS or b.overlays:
             continue
         length = _len(b)
-        landed = b.event.kind != "none"
+        landed = b.event.kind != "none" or bool(b.text_pops)  # 061: a pop is a change
         gap = round(length / 2, 3) if landed else length
         if gap > gap_max + EPS:
             found.append(
@@ -871,6 +877,84 @@ def _overlays(beats: Sequence[Beat]) -> list[Violation]:
     return found
 
 
+def text_pop_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """061: `broll.text_pops_max_per_60s` scaled to the runtime, rounded up like the
+    other per-60 s maxima (4.3), so a six-second fixture allows one pop under a style
+    that allows ten a minute; 0 stays 0."""
+    return math.ceil(spec.broll.text_pops_max_per_60s * runtime / 60 - EPS)
+
+
+def _text_pops(
+    beats: Sequence[Beat],
+    runtime: float,
+    spec: StyleSpec,
+    words: Sequence[Word],
+    spans: Sequence[Span],
+) -> tuple[list[Violation], list[Beat]]:
+    """061 (4.1 as amended): a text pop sits on a picture beat (`TEXT_POP_KINDS`), is
+    one to `TEXT_POP_WORDS_MAX` words, names a transcript word the beat covers, and
+    there are at most `broll.motion.text_pop.max_per_beat` per beat and `text_pop_cap`
+    over the runtime (a style with the cap at 0 has none). Beats are output seconds
+    here, so every pop's `at_s` is rewritten as its word's start on the output timeline
+    (`presenter.output_time`), whatever the planner put there."""
+    found: list[Violation] = []
+    out: list[Beat] = []
+    cap = text_pop_cap(spec, runtime=runtime)
+    per_beat = int(spec.broll.motion.get("text_pop", {}).get("max_per_beat", 0))
+    total = 0
+    for b in beats:
+        if not b.text_pops:
+            out.append(b)
+            continue
+        kind = "presenter_full" if b.mode == "full" else b.kind
+        if kind not in TEXT_POP_KINDS:
+            picture_kinds = ", ".join(sorted(TEXT_POP_KINDS))
+            found.append(
+                _v("4.1", b.id, f"text pops sit on a picture beat ({picture_kinds}); this "
+                                f"beat is a {b.kind!r}")  # fmt: skip
+            )
+        if len(b.text_pops) > per_beat:
+            found.append(
+                _v("4.1", b.id, f"{len(b.text_pops)} text pops on one beat; broll.motion."
+                                f"text_pop.max_per_beat allows {per_beat}")  # fmt: skip
+            )
+        resolved: list[TextPop] = []
+        for i, pop in enumerate(b.text_pops):
+            total += 1
+            if total > cap:
+                found.append(
+                    _v("4.1", b.id, f"text pop {total} over {runtime:g} s; "
+                                    f"broll.text_pops_max_per_60s "
+                                    f"{spec.broll.text_pops_max_per_60s} allows {cap} "
+                                    "(061)")  # fmt: skip
+                )
+            count = len(pop.text.split())
+            if not 1 <= count <= TEXT_POP_WORDS_MAX:
+                found.append(
+                    _v("4.1", b.id, f"text pop {i} {pop.text!r} is {count} words; a pop is 1-"
+                                    f"{TEXT_POP_WORDS_MAX} words")  # fmt: skip
+                )
+            if not 0 <= pop.word < len(words):
+                found.append(
+                    _v("4.1", b.id, f"text pop {i} {pop.text!r} lands on word {pop.word}; "
+                                    f"the transcript has {len(words)} words "
+                                    f"(0-{len(words) - 1})")  # fmt: skip
+                )
+                resolved.append(pop)
+                continue
+            at = round(presenter.output_time(spans, words[pop.word].start), 3)
+            if not b.start - CONTIGUITY_TOL_S <= at < b.end:
+                found.append(
+                    _v("4.1", b.id, f"text pop {i} {pop.text!r} lands on word {pop.word} "
+                                    f"({words[pop.word].text!r} at {at:g} s on the cut), "
+                                    f"which this beat ({b.start:g}-{b.end:g} s) does not "
+                                    "cover")  # fmt: skip
+                )
+            resolved.append(pop.model_copy(update={"at_s": max(at, b.start)}))
+        out.append(b.model_copy(update={"text_pops": resolved}))
+    return found, out
+
+
 def _subjects(beats: Sequence[Beat], runtime: float, brief: str) -> list[Violation]:
     """4.2: subject_kind and query on every B-roll beat; an entity beat per 60 s when
     the brief names something."""
@@ -1095,12 +1179,20 @@ def validate_sound(
                 _v("8.2", cue.beat_id, f"cue {cue.intent!r} names a beat that is not in the plan")
             )
             continue
-        bare = beat.event.kind == "none" and beat.counter is None  # 029: a counter lands
-        # 060 (7.3 as amended): a whoosh rides only a flash enter (or a pop-in, once
-        # 061-063 exist), and only where the style carries the allowance.
+        # 029: a counter lands; 061: a text pop pops in, so an `event` cue has something
+        # to hit there too.
+        bare = beat.event.kind == "none" and beat.counter is None and not beat.text_pops
+        # 060 (7.3 as amended): a whoosh rides only a flash enter or a pop-in (061: a
+        # `whoosh` at the `event` of a beat carrying text pops rides the first pop),
+        # and only where the style's allowance names that trigger.
         whoosh = styles.is_whoosh(cue.intent)
         on_flash = cue.at == "start" and beat.enter == "flash"
-        whoosh_ok = whoosh and allowance is not None and "flash" in allowance.on and on_flash
+        on_pop = cue.at == "event" and bool(beat.text_pops)
+        whoosh_ok = (
+            whoosh
+            and allowance is not None
+            and (("flash" in allowance.on and on_flash) or ("pop" in allowance.on and on_pop))
+        )
         if whoosh and allowance is None:
             found.append(
                 _v(
@@ -1116,7 +1208,8 @@ def validate_sound(
                     "7.3",
                     beat.id,
                     f"cue {cue.intent!r} at {cue.at!r} on a {beat.enter!r} enter: a whoosh is "
-                    f"allowed only at the start of a beat entering on {allowance.on} (060)"
+                    f"allowed only on {allowance.on} - at the start of a `flash` beat, or at "
+                    "the event of a beat carrying text pops (060, 061)"
                     if allowance is not None
                     else f"cue {cue.intent!r}: whooshes are forbidden (060)",
                 )

@@ -138,6 +138,27 @@ export type CounterSpec = StampSpec & {
   land_frame: number;
 };
 
+// 061: a text pop, placed and timed by `render.text_pop_spec`: the box before its tilt,
+// the pop-in (`scale_from` -> 1 over `pop_s`, from `at_s` seconds into the beat), the
+// leave (`until_s`) and the type treatment (weight, fill, dark outline, drop shadow).
+export type TextPopSpec = {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  rotate_deg: number;
+  font_px: number;
+  font_weight: number;
+  color: string;
+  stroke_px: number;
+  drop_px: number;
+  scale_from: number;
+  at_s: number;
+  pop_s: number;
+  until_s: number;
+};
+
 export type LowerThirdSpec = {
   name: string;
   role: string;
@@ -432,6 +453,7 @@ export type BeatSpec = {
   infographic?: DiagramLayout | null;
   map?: MapLayout | null;
   counter?: CounterSpec | null;
+  text_pops?: TextPopSpec[];
 };
 
 export type PipGeometry = {

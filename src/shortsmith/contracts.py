@@ -275,6 +275,29 @@ class MapPlan(StrictModel):
     object: MapObject | None = None
 
 
+PopFill = Literal["yellow", "white", "accent"]
+
+
+class TextPop(StrictModel):
+    """One text pop (061; 4.1 as amended): 1-4 bold words pinned on the picture near
+    the thing they name, at `{x, y, anchor}` in percent of the frame, popping in on the
+    spoken word `word` (a transcript word index inside the beat). `fill` is the style's
+    pop yellow, white, or the palette accent (for years and numbers). `at_s` is that
+    word's start on the output timeline, written by the grammar when the plan is
+    validated (as beat times are mapped onto the cut); the planner leaves it empty.
+    Code keeps the pop inside the safe area, off the PIP circle, the captions and any
+    detected face, and on screen to the end of its beat or `broll.motion.text_pop.
+    hold_max_s`, whichever is first."""
+
+    text: str
+    word: int = Field(ge=0)
+    x: float = Field(ge=0.0, le=100.0)
+    y: float = Field(ge=0.0, le=100.0)
+    anchor: LabelAnchor = "center"
+    fill: PopFill = "yellow"
+    at_s: float | None = None
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -310,6 +333,9 @@ class Beat(StrictModel):
     map: MapPlan | None = None
     # 029: the `counter` overlay's from/to values, unit and decimals.
     counter: CounterPlan | None = None
+    # 061: text pops on a picture beat (photo, card, presenter full), at most
+    # `broll.motion.text_pop.max_per_beat`, under `broll.text_pops_max_per_60s`.
+    text_pops: list[TextPop] = []
     motion: Motion | None = None
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
@@ -971,6 +997,30 @@ class StampSpec(StrictModel):
     shake_s: float
 
 
+class TextPopSpec(StrictModel):
+    """A text pop placed and timed (061): the words in their box (composition pixels,
+    before the tilt), popping in from `scale_from` over `pop_s` at `at_s` seconds into
+    the beat and leaving at `until_s`; Poppins `font_weight` in `color` with a
+    `stroke_px` dark outline and a `drop_px` shadow. Placed by `render.text_pop_spec`
+    inside the safe area, off the PIP circle, the caption band and any detected face."""
+
+    text: str
+    left: float
+    top: float
+    width: float
+    height: float
+    rotate_deg: float
+    font_px: int
+    font_weight: int
+    color: str
+    stroke_px: int
+    drop_px: int
+    scale_from: float
+    at_s: float
+    pop_s: float
+    until_s: float
+
+
 class CounterSpec(StampSpec):
     """The `counter` overlay (029; 4.2, 9.2): the stamp's box, measured on the widest
     text it will show and clamped as a stamp is, with the digits it shows on each frame
@@ -1335,6 +1385,9 @@ class BeatSpec(StrictModel):
     punch_in: PunchIn | None = None
     stamp: StampSpec | None = None
     lower_third: LowerThirdSpec | None = None
+    # 061: the beat's text pops, placed and timed; empty on every other beat. A tuple
+    # because the `list` field shadows the builtin inside this class body.
+    text_pops: tuple[TextPopSpec, ...] = ()
     finale: FinaleCardSpec | None = None
     split: SplitSpec | None = None
     wall: WallSpec | None = None

@@ -160,7 +160,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v9"
+    assert prompt.PROMPT_VERSION == "v10"
 
 
 def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:
@@ -185,6 +185,31 @@ def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:
         "`sound.whoosh.max_per_60s`",
         "`sound.whoosh.min_gap_s`",
         "Code refuses a whoosh anywhere else",
+    ):
+        assert needle in sound, needle
+
+
+def test_the_v10_prompts_say_when_to_pop_text_and_where_its_cue_sits() -> None:
+    """061: the picture file's text pop rule (1-4 words from the script on a picture
+    beat, at `{x, y, anchor}` near the thing named, landing on the spoken `word`, under
+    `broll.motion.text_pop.max_per_beat` and `broll.text_pops_max_per_60s`, never where
+    the cap is 0, `at_s` left to code) and the sound file's pop-in wording (an `event`
+    cue may hit a pop; a whoosh may ride it under `sound.whoosh` with `pop` in `on`)."""
+    picture = prompt.build_prompt(_request(), "picture")
+    for needle in (
+        "`text_pops`",
+        "1-4 words",
+        "`broll.motion.text_pop.max_per_beat`",
+        "`broll.text_pops_max_per_60s`",
+        "Never write `at_s`",
+        "the transcript word index",
+    ):
+        assert needle in picture, needle
+    sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
+    for needle in (
+        "`text_pops`",
+        "`at: event`",
+        "`pop` in `sound.whoosh.on`",
     ):
         assert needle in sound, needle
 

@@ -13,7 +13,7 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
-from shortsmith import sound, styles
+from shortsmith import fixture, sound, styles
 from shortsmith.fixture import make_catalogue, make_clip, make_fixture, make_image, make_wav
 
 Floats = npt.NDArray[np.float64]
@@ -32,6 +32,19 @@ def flash_whoosh_style(spec: styles.StyleSpec) -> styles.StyleSpec:
     styled.sound.forbidden = [f for f in styled.sound.forbidden if f != "whoosh"]
     styled.sound.whoosh = styles.Whoosh.model_validate(WHOOSH_ALLOWANCE)
     return styled
+
+
+# 061: the cap the test style raises text pops to: ceil(10 x 6 / 60) = 1 on the fixture.
+TEXT_POPS_PER_60S = fixture.POPS_PER_60S
+
+
+def text_pop_style(spec: styles.StyleSpec) -> styles.StyleSpec:
+    """061's test style: a deep copy of `spec` with text pops turned on
+    (`broll.text_pops_max_per_60s` = `TEXT_POPS_PER_60S`), the smoke's `--text-pops`
+    copy (`fixture.pops_on`). The four shipped and draft specs keep the cap at 0; this
+    copy is what the grammar, the fake planner, the render and the smoke are judged
+    under."""
+    return fixture.pops_on(spec)
 
 
 @pytest.fixture(scope="session")

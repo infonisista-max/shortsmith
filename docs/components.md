@@ -39,6 +39,7 @@ it. A blank cell means the style does not enable that component.
 | `spring` | transition | implemented | b08 |  | hitech does not enable it; the fake swaps it for a zoom |
 | `wipe` | transition | implemented |  | b02 | 0.25 s; exercised only by the hitech render |
 | `flash` | transition | implemented |  |  | 060: a 0.3 s full-frame colour flash peaking on the cut, over the picture layers only (the PIP circle and captions never blink); no shipped or draft style enables it yet (059's recipe styles will), so no smoke draws it - `tests/test_render.py` renders a fixture beat pair through it |
+| `text_pop` | 1 | implemented |  |  | 061: 1-4 bold words (Poppins 900, yellow / white / accent, dark outline) pinned on a picture beat at the planner's `{x, y, anchor}`, popping in with an overshoot on the spoken word and staying to the beat's end or `hold_max_s`; placed clear of the PIP circle, the caption band and any detected face. Every existing style sets `text_pops_max_per_60s: 0` (059's recipe styles turn it on), so the plain smokes draw none; `python -m shortsmith.smoke --text-pops` renders the fake plan's one pop (b03, "THIS", on the presenter full beat) under the explainer copy with pops on |
 
 ## The hitech render (ticket 048)
 

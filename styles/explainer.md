@@ -1,5 +1,5 @@
 ---
-version: "6"
+version: "7"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
@@ -61,9 +61,14 @@ broll:
     counter: {kind: count_up, grouping: indian}
     map: {kind: travel, markers_max: 6, duration_s: 0.5, padding: 0.15, land: "#2F5597",
           coast: "#9DBBF5", border: "#0B1D3A", coast_px: 3, border_px: 2}
+    # 061: 1-4 bold words pinned on the picture, landing on the spoken word; `fill` is
+    # the pop yellow, white is white, and the accent (years, numbers) is `palette.accent`.
+    text_pop: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 6,
+               size_px: 96, fill: "#FFD60A"}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
+  text_pops_max_per_60s: 0  # 061: off here; the recipe styles of 059 turn pops on
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -167,6 +172,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture, flying in one after another (`label_flyin`); a label that would land outside the phone's safe area fails the build.
 - A `map` beat is drawn from bundled map data, never sourced as a picture (9.3): it carries `map` with a `region` by name (a country, a state, "South Asia", or a city for a close-up) or a `bbox` of west, south, east, north degrees, 1 to `motion.map.markers_max` `markers` each `{name}` (write the place name; code looks the coordinate up and refuses a name it cannot find, so use the common English name), an optional `route` of two or more place names in order and an `object` (plane, ship or arrow) that travels it. The beat needs no `asset_id`. Its overlays are `pin_drop`, `route_arrow` (needs the route) and `object_path` (needs the route and the object).
 - Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. Where a style enables `flash` (9.4 as amended by 060; this one does not), it is a full-frame colour flash peaking on the cut, for a turn back to the presenter or a section change: at most `flash_max_per_60s` per minute and never on two consecutive beats; the PIP circle and the captions stay on top of it. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
+- Text pops (4.1 as amended by 061; off here: `text_pops_max_per_60s` is 0): where a style allows them, a `photo`, `card` or presenter-full beat carries `text_pops`, 1–4 bold words from the script pinned near the thing they name at `{x, y, anchor}` in percent of the frame, each landing on its spoken `word`, at most `motion.text_pop.max_per_beat` per beat; code keeps them inside the safe area, off the circle, the captions and any face.
 
 ## Captions
 - Word-synced from the ASR word list only; the planner never touches word times (6.1). Pages hold `words_per_page` words, preferring `prefer`; never split a marked name or number run; break on segment punctuation and on inter-word gaps over `gap_break_s`.

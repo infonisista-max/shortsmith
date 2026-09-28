@@ -171,11 +171,12 @@ def test_plan_assertion_failure_names_the_gap(capsys: pytest.CaptureFixture[str]
 def test_main_passes_the_style_flag_to_run_smoke(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """048: `--style hitech` selects the draft; no flag keeps the default."""
-    seen: list[str] = []
+    """048: `--style hitech` selects the draft; no flag keeps the default. 061:
+    `--text-pops` turns the pops style on; no flag keeps them off."""
+    seen: list[tuple[str, bool]] = []
 
     def fake_run(root: Path, **kwargs: object) -> smoke.SmokeResult:
-        seen.append(str(kwargs.get("style")))
+        seen.append((str(kwargs.get("style")), bool(kwargs.get("text_pops"))))
         picture = root / "picture.mp4"
         picture.write_bytes(b"")
         return smoke.SmokeResult(job_dir=root, summary="smoke ok: faked", picture=picture)
@@ -184,8 +185,9 @@ def test_main_passes_the_style_flag_to_run_smoke(
     monkeypatch.delenv(smoke.KEEP_ENV, raising=False)
     assert smoke.main(["--style", "hitech"]) == 0
     assert smoke.main([]) == 0
-    assert seen == ["hitech", "explainer"]
-    assert capsys.readouterr().out == "smoke ok: faked\nsmoke ok: faked\n"
+    assert smoke.main(["--text-pops"]) == 0
+    assert seen == [("hitech", False), ("explainer", False), ("explainer", True)]
+    assert capsys.readouterr().out == "smoke ok: faked\n" * 3
 
 
 def test_run_smoke_renders_the_hitech_draft_end_to_end(tmp_path: Path) -> None:
@@ -216,6 +218,36 @@ def test_run_smoke_renders_the_hitech_draft_end_to_end(tmp_path: Path) -> None:
     assert [c.name for c in report.checks] == list(technical.CHECK_ORDER)
     assert all(c.status == "pass" for c in report.checks)
     assert "style hitech" in result.summary and "T13 pass" in result.summary
+
+
+def test_run_smoke_renders_one_text_pop_under_the_pops_style(tmp_path: Path) -> None:
+    """061: under the explainer copy with text pops on, the fake plan's b03 carries one
+    pop landing on "this" (1.2 s), the render spec draws it clear of the reserved
+    zones and the presenter's face, T1-T13 pass with T12 counting it, and the summary
+    says so; the plain walk draws none."""
+    result = smoke.run_smoke(tmp_path, text_pops=True)
+    job = load(result.job_dir)
+    assert job.status == "delivered"
+    plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    (pop,) = next(b for b in plan.beats if b.id == "b03").text_pops
+    assert (pop.text, pop.word, pop.at_s) == ("THIS", 2, 1.2)
+    spec = RenderSpec.model_validate_json((job.work_dir / "render_spec.json").read_text("utf-8"))
+    b03 = next(b for b in spec.beats if b.id == "b03")
+    (placed,) = b03.text_pops
+    assert b03.mode == "full" and placed.text == "THIS" and placed.at_s == 0.2
+    assert technical.zone_hits(placed.left, placed.top, placed.width, placed.height) == []
+    measured = job.record.presenter
+    assert measured is not None
+    face = render.presenter_face_box(measured.face)
+    box = render.Box(placed.left, placed.top, placed.width, placed.height)
+    assert not box.overlaps(face)
+    report = technical.load_report(job)
+    assert report is not None and report.passed
+    assert "1 text pop" in next(c.detail for c in report.checks if c.name == "T12")
+    assert "text pops 1" in result.summary and "T13 pass" in result.summary
+    noted = job.log_path.read_text(encoding="utf-8").splitlines()
+    pop_lines = [line for line in noted if "text pop:" in line]
+    assert not any("dropped" in line for line in pop_lines), pop_lines
 
 
 def test_module_entry_point() -> None:

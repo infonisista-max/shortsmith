@@ -29,6 +29,10 @@
 // / 2 either side (`flashAt`): it rises through the previous beat's last frames and falls
 // through the new beat's first. The overlay sits above both beats' picture layers and
 // below the PIP circle, the landed overlays and the captions, which never blink.
+//
+// Ticket 061 (4.1 as amended): a beat's text pops (`text_pop`) are drawn with the landed
+// overlays, above the PIP circle and below the captions; they are placed clear of both,
+// so the order only settles what a stray pixel would cover.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Captions } from "./components/captions";
@@ -50,6 +54,7 @@ import { Pip, Presenter } from "./components/pip";
 import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
 import { Stamp } from "./components/stamp";
+import { TextPop } from "./components/text_pop";
 import { Transition, holdFrames, holdsPrevious } from "./components/transitions";
 import { Wall } from "./components/wall";
 import { fontsReady } from "./fonts";
@@ -185,6 +190,9 @@ export const Short: React.FC<RenderSpec> = (spec) => {
           frame={since}
           fps={spec.fps}
         />
+      ) : null}
+      {beat?.text_pops?.length ? (
+        <TextPop pops={beat.text_pops} style={spec.caption_style} frame={since} fps={spec.fps} />
       ) : null}
       <Captions spec={spec} t={t} />
     </AbsoluteFill>

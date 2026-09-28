@@ -229,6 +229,44 @@ def test_under_a_style_that_flashes_the_fake_flashes_back_to_the_presenter_with_
     assert isinstance(result, ValidatedPlan), getattr(result, "items", result)
 
 
+def test_under_a_style_with_text_pops_on_the_fake_pops_one_word_on_the_full_beat(
+    request_: PlanRequest,
+) -> None:
+    """061: where the style's `broll.text_pops_max_per_60s` is over 0, b03 (the presenter
+    full beat, 1.0-1.5 s) carries one text pop, "THIS", landing on word 2 ("this" at
+    1.2 s), and the sound story cues a `popup_tick` at its event; under explainer (cap
+    0) no beat carries a pop and no such cue exists. The pair passes the grammar under
+    the fixture-shaped copy of the pops style, which writes the pop's `at_s`."""
+    from shortsmith import grammar, render, styles
+    from shortsmith.contracts import Cue, ValidatedPlan
+    from tests.conftest import text_pop_style
+
+    popped = text_pop_style(styles.load_all(render.registry())["explainer"])
+    styled = request_.model_copy(
+        update={
+            "style": PlanStyle(
+                name="explainer", status="shipped", numbers=popped.numbers(), prose=popped.prose
+            )
+        }
+    )
+    plan = FakePlanner().plan_picture(styled)
+    with_pops = {b.id: b.text_pops for b in plan.beats if b.text_pops}
+    assert list(with_pops) == ["b03"]
+    (pop,) = with_pops["b03"]
+    assert (pop.text, pop.word, pop.at_s) == ("THIS", 2, None)
+    assert request_.transcript.words[2].text == "this"
+    story = FakePlanner().plan_sound(styled, plan)
+    assert Cue(beat_id="b03", intent="popup_tick", at="event") in story.cues
+    plain = FakePlanner().plan_picture(request_)
+    assert all(not b.text_pops for b in plain.beats)
+    assert all(c.beat_id != "b03" for c in FakePlanner().plan_sound(request_, plain).cues)
+    judged = fixture.smoke_specs({"explainer": popped})["explainer"]
+    result = grammar.validate(plan, story, request_.transcript, judged)
+    assert isinstance(result, ValidatedPlan), getattr(result, "items", result)
+    landed = next(b for b in result.picture.beats if b.id == "b03").text_pops[0]
+    assert landed.at_s == request_.transcript.words[2].start == 1.2
+
+
 def test_from_settings_selects_the_fake_only_for_planner_fake(
     request_: PlanRequest, tmp_path: Path
 ) -> None:

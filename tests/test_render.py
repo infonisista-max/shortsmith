@@ -51,13 +51,16 @@ from shortsmith.contracts import (
     RenderSpec,
     SoundStory,
     Span,
+    TextPop,
+    TextPopSpec,
     TransitionStyle,
     ValidatedPlan,
     WordBox,
 )
 from shortsmith.planner import FakePlanner
+from shortsmith.qa import technical
 from shortsmith.transcriber import FakeTranscriber
-from tests.conftest import Media
+from tests.conftest import Media, text_pop_style
 
 WORDS = FakeTranscriber().transcribe(Path("unused.mp4")).words
 EXPLAINER = render.style_numbers("explainer")  # from styles/explainer.md front matter (008)
@@ -1600,6 +1603,222 @@ def test_a_flash_peaks_on_the_boundary_and_leaves_the_pip_and_captions_on_top(
     area = int(word.width) * int(word.height)
     for frame in (frames[13], boundary):
         assert _bright_text_pixels(frame, word) > area * 0.02
+
+
+# --- text pops (ticket 061; 4.1 as amended) -----------------------------------------------------
+#
+# The fake plan's b01 (0-0.5 s, a `photo` in `pip`) speaks "hello" (word 0, 0.2 s) and
+# "there" (word 1, 0.36 s); b03 (1.0-1.5 s) is the presenter full frame speaking "this".
+
+POP_YELLOW = (255, 214, 10)  # explainer's broll.motion.text_pop.fill
+
+
+def _popped(plan: PicturePlan, beat_id: str, *pops: TextPop) -> PicturePlan:
+    return plan.model_copy(update={"beats": [
+        b.model_copy(update={"text_pops": list(pops)}) if b.id == beat_id else b
+        for b in plan.beats
+    ]})  # fmt: skip
+
+
+def _pop_beat(plan: PicturePlan, beat_id: str, log: list[str] | None = None, **kwargs: object):  # noqa: ANN202
+    spec = render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        log=log.append if log is not None else None, **kwargs,  # pyright: ignore[reportArgumentType]
+    )  # fmt: skip
+    return next(b for b in spec.beats if b.id == beat_id), spec
+
+
+def _box(pop: TextPopSpec) -> render.Box:
+    return render.Box(pop.left, pop.top, pop.width, pop.height)
+
+
+def test_text_pops_are_placed_at_the_planners_point_and_timed_on_their_word() -> None:
+    """061 (1-3): two pops on b01 sit at their `{x, y, anchor}` in percent of the frame,
+    in the explainer's pop look (Poppins 900 at `size_px`, the row's fill for `yellow`,
+    white for `white`, tilted by `tilt_deg` alternating), popping in over `duration_s`
+    at their word's time (`at_s`, seconds into the beat) and leaving at the beat's end
+    (0.5 s, under `hold_max_s`); every other beat carries none."""
+    plan = _popped(
+        _plan(), "b01",
+        TextPop(text="HELLO", word=0, x=70.0, y=30.0, at_s=0.2),
+        TextPop(text="THERE", word=1, x=50.0, y=45.0, anchor="left", fill="white", at_s=0.36),
+    )  # fmt: skip
+    beat, spec = _pop_beat(plan, "b01")
+    hello, there = beat.text_pops
+    row = EXPLAINER_SPEC.broll.motion["text_pop"]
+    assert (hello.text, hello.font_weight, hello.font_px) == ("HELLO", 900, int(row["size_px"]))
+    assert hello.color == row["fill"] == "#FFD60A" and there.color == "#FFFFFF"
+    assert hello.left + hello.width / 2 == pytest.approx(0.70 * render.WIDTH)
+    assert hello.top + hello.height / 2 == pytest.approx(0.30 * render.HEIGHT)
+    assert there.left == pytest.approx(0.50 * render.WIDTH)
+    assert there.top + there.height / 2 == pytest.approx(0.45 * render.HEIGHT)
+    assert (hello.rotate_deg, there.rotate_deg) == (-float(row["tilt_deg"]), float(row["tilt_deg"]))
+    assert (hello.at_s, hello.pop_s, hello.until_s) == (0.2, float(row["duration_s"]), 0.5)
+    assert (there.at_s, there.until_s) == (0.36, 0.5)
+    assert hello.scale_from < 1.0 and hello.stroke_px > 0 and hello.drop_px > 0
+    assert all(not b.text_pops for b in spec.beats if b.id != "b01")
+    for pop in (hello, there):
+        assert technical.zone_hits(pop.left, pop.top, pop.width, pop.height) == []
+
+
+def test_a_text_pop_stays_on_screen_at_most_hold_max_s() -> None:
+    """A pop on a long beat leaves `hold_max_s` after it lands, not at the beat's end."""
+    plan = _plan()
+    long_beat = plan.model_copy(update={"beats": [
+        plan.beats[0].model_copy(update={"end": 4.0}),
+        *[b.model_copy(update={"start": max(b.start, 4.0)}) for b in plan.beats[1:] if b.end > 4.0],
+    ]})  # fmt: skip
+    popped = _popped(long_beat, "b01", TextPop(text="HELLO", word=0, x=70.0, y=30.0, at_s=0.2))
+    beat, _ = _pop_beat(popped, "b01")
+    assert beat.text_pops[0].until_s == pytest.approx(0.2 + 2.5)
+
+
+def test_a_text_pop_on_the_pip_circle_or_the_caption_band_is_moved_into_the_allowed_area() -> None:
+    """061 (2): a pop asked for on the PIP circle (b01 is `pip`) moves off it, one asked
+    for in the caption band moves above it, one asked for under the platform chrome
+    moves into the safe area; each move is one `text pop:` line in job.log naming the
+    beat and what it cleared."""
+    on_circle = TextPop(text="HELLO", word=0, x=15.0, y=58.0, at_s=0.2)
+    in_band = TextPop(text="THERE", word=1, x=50.0, y=72.0, at_s=0.36)
+    log: list[str] = []
+    beat, spec = _pop_beat(_popped(_plan(), "b01", on_circle, in_band), "b01", log)
+    circle = render.Box(spec.pip.left, spec.pip.top, spec.pip.diameter, spec.pip.diameter)
+    band_top = styles.caption_block_top(spec.caption_style)
+    hello, there = beat.text_pops
+    assert not _box(hello).overlaps(circle) and _box(hello).bottom <= band_top + 1e-6
+    assert not _box(there).overlaps(circle) and _box(there).bottom <= band_top + 1e-6
+    assert any("b01" in line and "HELLO" in line and "circle" in line for line in log), log
+    assert any("b01" in line and "THERE" in line and "caption" in line for line in log), log
+    too_high = TextPop(text="HELLO", word=0, x=50.0, y=3.0, at_s=0.2)
+    beat, _ = _pop_beat(_popped(_plan(), "b01", too_high), "b01")
+    assert beat.text_pops[0].top >= render.SAFE_TOP_PX - 1e-6
+    for pop in beat.text_pops:
+        assert technical.zone_hits(pop.left, pop.top, pop.width, pop.height) == []
+
+
+def test_a_text_pop_over_a_face_is_moved_and_one_with_no_free_spot_is_dropped(
+    tmp_path: Path,
+) -> None:
+    """061 (2) reusing 056 (4): on a photo with a detected face under the pop's box the
+    pop moves to a face-free spot (still off the circle and the captions) and job.log
+    says so; a face filling the whole photo leaves no spot, so the pop is dropped and
+    job.log says that too. No detector: the pop stays where it was asked."""
+    pop = TextPop(text="1953", word=0, x=50.0, y=30.0, at_s=0.2)
+    plan = _popped(_plan().model_copy(update={"beats": [
+        _stamped(1, kind="photo", query=PORTRAIT_SKY).model_copy(update={"event": Event()}),
+    ]}), "b1", pop)  # fmt: skip
+    face = FaceBox(left=240, top=280, width=600, height=640)  # image pixels, 1080x1920
+    log: list[str] = []
+    beat = _faced_spec(tmp_path, plan, face, log).beats[0]
+    plain = _faced_spec(tmp_path, plan, None).beats[0]
+    assert beat.visual is not None and plain.text_pops and beat.text_pops
+    face_box = render.face_box_on(beat.visual, face)
+    assert _box(plain.text_pops[0]).overlaps(face_box), "the asked-for spot sat on the face"
+    assert not _box(beat.text_pops[0]).overlaps(face_box)
+    assert any("b1" in line and "text pop" in line and "face" in line for line in log), log
+    whole = FaceBox(left=0, top=0, width=1080, height=1920)
+    dropped_log: list[str] = []
+    dropped = _faced_spec(tmp_path, plan, whole, dropped_log).beats[0]
+    assert dropped.text_pops == ()
+    assert any("b1" in line and "dropped" in line and "face" in line for line in dropped_log)
+
+
+def test_a_text_pop_on_the_presenter_full_frame_clears_the_measured_face() -> None:
+    """061 (2): on a `full` beat the face is the presenter's own (`job.json.presenter`),
+    punched in; a pop asked for over it moves off it."""
+    face = FaceBox(left=320, top=150, width=440, height=460)  # the fixture's drawn face
+    pop = TextPop(text="THIS", word=2, x=50.0, y=20.0, at_s=1.2)
+    log: list[str] = []
+    beat, _ = _pop_beat(_popped(_plan(), "b03", pop), "b03", log, presenter_face=face)
+    assert beat.mode == "full" and len(beat.text_pops) == 1
+    punched = render.presenter_face_box(face)
+    assert not _box(beat.text_pops[0]).overlaps(punched)
+    assert any("b03" in line and "face" in line for line in log), log
+    plain, _ = _pop_beat(_popped(_plan(), "b03", pop), "b03")
+    assert _box(plain.text_pops[0]).overlaps(punched), "the asked-for spot sat on the face"
+
+
+def test_text_pops_land_within_a_frame_of_the_spoken_word_through_the_grammar() -> None:
+    """061 (3): the fake plan's pop (b03, word 2 "this" at 1.2 s) validated under the
+    pops style lands 0.2 s into b03 - within 0.15 s of the transcript word's time."""
+    from shortsmith import grammar
+
+    request = _plan_request()
+    popped = text_pop_style(EXPLAINER_SPEC)
+    styled = request.model_copy(update={"style": PlanStyle(
+        name="explainer", status="shipped", numbers=popped.numbers(), prose=popped.prose,
+    )})  # fmt: skip
+    plan = FakePlanner().plan_picture(styled)
+    story = FakePlanner().plan_sound(styled, plan)
+    judged = fixture.smoke_specs({"explainer": popped})["explainer"]
+    validated = grammar.validate(plan, story, request.transcript, judged)
+    assert isinstance(validated, ValidatedPlan), getattr(validated, "items", validated)
+    beat, spec = _pop_beat(validated.picture, "b03")
+    (pop,) = beat.text_pops
+    landing = beat.start_frame / spec.fps + pop.at_s
+    assert abs(landing - request.transcript.words[2].start) <= 0.15
+    assert pop.at_s == pytest.approx(0.2)
+
+
+RGB = tuple[int, int, int]
+
+
+def _colour_pixels(frame: tuple[int, int, bytes], box: render.Box, colour: RGB) -> int:
+    width, _, data = frame
+    count = 0
+    for y in range(max(0, int(box.top)), min(render.HEIGHT, int(box.bottom))):
+        for x in range(max(0, int(box.left)), min(render.WIDTH, int(box.right))):
+            i = 3 * (y * width + x)
+            if _near((data[i], data[i + 1], data[i + 2]), colour, 40):
+                count += 1
+    return count
+
+
+def test_text_pops_render_their_fill_in_their_box_after_landing(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """061 end to end through Remotion: b01 carries two pops on its full-bleed photo (the
+    sky, no yellow or white in it). Before the first landing (0.1 s) neither box holds
+    the pop's colour; after each landing its box shows the fill: yellow for "HELLO" at
+    0.43 s, white for "THERE" at 0.47 s."""
+    plan = _popped(
+        _plan(), "b01",
+        TextPop(text="HELLO", word=0, x=70.0, y=30.0, at_s=0.2),
+        TextPop(text="THERE", word=1, x=62.0, y=45.0, anchor="left", fill="white", at_s=0.36),
+    )  # fmt: skip
+    job = _job_with(tmp_path, fixture_clip, plan)
+    manifest = assets.source_assets(
+        ValidatedPlan(picture=plan, sound=SoundStory(
+            prompt_version="t", theme="t", mood_curve=[],
+            bed_query=BedQuery(theme="t", mood="t", energy=3), cues=[])),
+        [], "any", spec=SPECS["explainer"], job_dir=job.path,
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY}),
+            "commons": assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)}),
+        },
+    )  # fmt: skip
+    assets.write_manifest(job.path, manifest)
+    render.cut_presenter(job)
+    spec = render.spec_for_job(job)
+    beat = next(b for b in spec.beats if b.id == "b01")
+    assert beat.visual is not None and beat.visual.treatment == "photo"
+    hello, there = beat.text_pops
+    picture = job.work_dir / "picture.mp4"
+    render.run_driver(
+        spec, spec_path=job.work_dir / "render_spec.json", out_path=picture,
+        log_path=job.work_dir / "render.log",
+    )  # fmt: skip
+    frames = ffmpeg.frames_rgb(picture, fps=30, width=1080, duration_s=0.5)
+    before, hello_landed, there_landed = frames[3], frames[13], frames[14]
+    hello_box, there_box = _box(hello), _box(there)
+    white = (255, 255, 255)
+    assert _colour_pixels(before, hello_box, POP_YELLOW) == 0
+    assert _colour_pixels(before, there_box, white) == 0
+    hello_area = hello_box.width * hello_box.height
+    there_area = there_box.width * there_box.height
+    assert _colour_pixels(hello_landed, hello_box, POP_YELLOW) > hello_area * 0.02
+    assert _colour_pixels(there_landed, there_box, white) > there_area * 0.01
 
 
 # --- maps (ticket 020; decisions 9.3, 12.1) ----------------------------------------------------

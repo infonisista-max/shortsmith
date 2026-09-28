@@ -36,8 +36,9 @@ every listed check is present and `pass`: a report that stopped short never deli
         inscribed in the box the detector found (the face, not the box's corners) sits
         fully inside the PIP circle once the window is scaled into it, and the chin is
         above 90 % of the window; from job.json.presenter, never pixels
-    T12 safe area (6.3): no caption word box, stamp, counter or lower-third of the render
-        spec reaches the top 250, bottom 320 or right 140 px; from geometry, not pixels.
+    T12 safe area (6.3): no caption word box, stamp, counter, lower-third or text pop (061)
+        of the render spec reaches the top 250, bottom 320 or right 140 px; from geometry,
+        not pixels.
         The hook title and the finale word are set pieces read off the reference frames
         (the title sits at y 170 by design) and are not in 10.1's list, so not here.
     T13 budget (11.3): the ledger total, the per-step totals, the style's allowances
@@ -53,7 +54,7 @@ from __future__ import annotations
 
 import math
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -431,13 +432,15 @@ def whoosh_faults(
     enters: Mapping[str, str],
     nums: StyleSound,
     runtime_s: float,
+    pops: Collection[str] = (),
 ) -> dict[int, str]:
     """060 (7.3 as amended): every `whoosh` cue of `sheet` that breaks the style's
     allowance, by its index in the sheet, with the reason. Under a style that forbids
     whooshes every whoosh cue is a fault. Under an allowance a whoosh must sit on a
-    beat entering with one of `sound.whoosh.on` (`flash` today; a pop-in once 061-063
-    exist), be no longer than `max_len_s`, and the whooshes together stay within
-    `max_per_60s` (scaled to the runtime, rounded up) and `min_gap_s` apart."""
+    trigger `sound.whoosh.on` names - a beat entering with `flash`, or (061) a beat in
+    `pops`, one carrying text pops - be no longer than `max_len_s`, and the whooshes
+    together stay within `max_per_60s` (scaled to the runtime, rounded up) and
+    `min_gap_s` apart."""
     whooshes = [(i, c) for i, c in enumerate(sheet.cues) if styles.is_whoosh(c.intent)]
     if not whooshes:
         return {}
@@ -457,7 +460,9 @@ def whoosh_faults(
         where = f"whoosh cue {cue.entry_id} on {cue.beat_id}"
         enter = enters.get(cue.beat_id, "cut")
         length = cue.end_s - cue.start_s
-        if "flash" not in allowance.on or enter != "flash":
+        on_flash = "flash" in allowance.on and enter == "flash"
+        on_pop = "pop" in allowance.on and cue.beat_id in pops
+        if not (on_flash or on_pop):
             faults[i] = (
                 f"{where}: on a {enter!r} enter; sound.whoosh.on allows a whoosh only on "
                 f"{triggers}"
@@ -488,6 +493,7 @@ def t6(
     enters: Mapping[str, str] | None = None,
     nums: StyleSound | None = None,
     runtime_s: float | None = None,
+    pops: Collection[str] = (),
 ) -> QaCheck:
     """No sweep (7.3): R1-R4 on `work/stems/sfx.wav`, each hit named by its cue. `hits`
     is None when there is no SFX stem - a pass, with the reason written down. `sheet`
@@ -497,7 +503,8 @@ def t6(
     allowance is judged too (`whoosh_faults`): a whoosh cue that keeps the allowance is
     the one cue whose own detector hits are not faults (its noise is the point); one
     that breaks it, or any whoosh under a style that forbids them, fails naming the cue,
-    after the detector's own findings. Without `nums` the check is the detector alone."""
+    after the detector's own findings. Without `nums` the check is the detector alone.
+    061: `pops` are the beats carrying text pops, the allowance's other trigger."""
     if hits is None:
         return QaCheck(
             name="T6",
@@ -508,8 +515,9 @@ def t6(
     exempt: set[int] = set()
     if sheet is not None and nums is not None:
         faults = whoosh_faults(
-            sheet, enters=enters or {}, nums=nums, runtime_s=runtime_s or sheet_runtime(sheet)
-        )
+            sheet, enters=enters or {}, nums=nums, runtime_s=runtime_s or sheet_runtime(sheet),
+            pops=pops,
+        )  # fmt: skip
         exempt = {
             i for i, c in enumerate(sheet.cues) if styles.is_whoosh(c.intent) and i not in faults
         }
@@ -773,12 +781,12 @@ def _plural(count: int, noun: str) -> str:
 
 
 def t12(spec: RenderSpec | None) -> QaCheck:
-    """No caption word, stamp, counter or lower-third box of the render spec inside the
-    6.3 reserved zones, each offender named with its page or beat."""
+    """No caption word, stamp, counter, lower-third or text pop box of the render spec
+    inside the 6.3 reserved zones, each offender named with its page or beat."""
     if spec is None:
         return QaCheck(name="T12", passed=False, detail="work/render_spec.json is missing")
     problems: list[str] = []
-    words = stamps = lowers = 0
+    words = stamps = lowers = pops = 0
 
     def judge(label: str, left: float, top: float, width: float, height: float) -> None:
         problems.extend(f"{label} {hit}" for hit in zone_hits(left, top, width, height))
@@ -799,12 +807,15 @@ def t12(spec: RenderSpec | None) -> QaCheck:
             lowers += 1
             label = f"{beat.id} lower-third {lower.name!r}"
             judge(label, lower.left, lower.top, lower.width, lower.height)
+        for pop in beat.text_pops:  # 061: an overlay like the stamp
+            pops += 1
+            judge(f"{beat.id} text pop {pop.text!r}", pop.left, pop.top, pop.width, pop.height)
     if problems:
         return QaCheck(name="T12", passed=False, detail="; ".join(problems))
     detail = (
         f"{_plural(words, 'caption word')}, {_plural(stamps, 'stamp')}, "
-        f"{_plural(lowers, 'lower-third')}: none inside the reserved zones "
-        f"(top {SAFE_TOP_PX}, bottom {SAFE_BOTTOM_PX}, right {SAFE_RIGHT_PX} px)"
+        f"{_plural(lowers, 'lower-third')}, {_plural(pops, 'text pop')}: none inside the "
+        f"reserved zones (top {SAFE_TOP_PX}, bottom {SAFE_BOTTOM_PX}, right {SAFE_RIGHT_PX} px)"
     )
     return QaCheck(name="T12", passed=True, detail=detail)
 
@@ -1010,6 +1021,7 @@ def run(job: Job, *, specs: Mapping[str, StyleSpec] | None = None) -> QaReport:
             enters={b.id: b.enter for b in plan.beats},
             nums=spec.sound if spec else None,
             runtime_s=plan.beats[-1].end if plan.beats else None,
+            pops={b.id for b in plan.beats if b.text_pops},
         ),
         lambda: _t7(job, plan, info),
         lambda: _t8(job, specs),

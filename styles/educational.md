@@ -1,5 +1,5 @@
 ---
-version: "6"
+version: "7"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -46,9 +46,12 @@ broll:
     stamp: {kind: fade, duration_s: 0.3, shake: false, palette: teal}
     lower_third: {kind: fade, duration_s: 0.35, top_y: 1150, bottom_y: 1240}
     finale: {kind: fade, duration_s: 0.5, cards: 3}
+    text_pop: {kind: pop, duration_s: 0.22, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 3,
+               size_px: 88, fill: "#FFD60A"}  # 061
   enter_transitions: [cut, fade]
   whip_max_per_3_beats: 0
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
+  text_pops_max_per_60s: 0  # 061: off here
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}

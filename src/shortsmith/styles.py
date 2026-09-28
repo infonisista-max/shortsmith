@@ -128,6 +128,10 @@ class Broll(StrictModel):
     # 060 (9.4 as amended): at most this many `flash` enters per 60 s of runtime (the
     # references use at most 4), and never on two consecutive beats.
     flash_max_per_60s: int = Field(ge=0)
+    # 061 (4.1 as amended): at most this many text pops per 60 s of runtime, rounded up;
+    # 0 turns them off. The pop's own numbers are the `motion.text_pop` row, which the
+    # renderer requires of every spec (`render.broll_numbers`) as it does the other rows.
+    text_pops_max_per_60s: int = Field(ge=0)
     # 030: the 9.4 vocabulary's numbers. Every spec carries all six rows, enabled or
     # not, so the renderer reads one shape; `enter_transitions` is the subset it may use.
     transitions: Transitions

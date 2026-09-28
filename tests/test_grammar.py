@@ -43,13 +43,14 @@ from shortsmith.contracts import (
     SetPieceItem,
     SoundStory,
     Span,
+    TextPop,
     Transcript,
     Word,
 )
 from shortsmith.planner import FakePlanner
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import FakeTranscriber
-from tests.conftest import flash_whoosh_style
+from tests.conftest import flash_whoosh_style, text_pop_style
 
 BRIEF = "Topic: why the sky is blue. Angle: scattering in one breath. Hook wish: none."
 # Each beat's one word starts this far into it (the first beat's at its start), so the
@@ -873,6 +874,128 @@ def test_a_cue_may_sit_on_a_counters_landing(spec: StyleSpec) -> None:
 def test_label_flyin_rides_only_on_an_infographic(spec: StyleSpec) -> None:
     plan = replace(make_plan(), "b05", overlays=["label_flyin"])
     assert ("b05", "9.3") in rules(picture(plan, spec))
+
+
+# --- text pops (ticket 061; 4.1 as amended) ------------------------------------------------
+#
+# The base plan's b05 is a `photo` beat (beats[4]) whose one word is w4; b06 a `card`.
+
+
+@pytest.fixture(scope="module")
+def popped(spec: StyleSpec) -> StyleSpec:
+    """061's test style: the explainer with `text_pops_max_per_60s` 10."""
+    return text_pop_style(spec)
+
+
+def _pop(text: str = "1945", word: int = 4, **fields: Any) -> TextPop:
+    return TextPop(text=text, word=word, x=60.0, y=40.0, **fields)
+
+
+def _with_pops(plan: PicturePlan, beat_id: str, *pops: TextPop) -> PicturePlan:
+    return replace(plan, beat_id, text_pops=list(pops))
+
+
+def test_text_pops_pass_on_a_picture_beat_and_land_on_their_words_output_time(
+    popped: StyleSpec,
+) -> None:
+    """061 (2, 3): one or two pops on a `photo` or `card` beat pass under a style with
+    pops on; the validated plan's pop carries `at_s`, the named word's start on the
+    output timeline; the plan's own `at_s` is never trusted."""
+    plan = _with_pops(make_plan(), "b05", _pop(at_s=99.0))
+    result = checked(plan, popped)
+    (pop,) = next(b for b in result.picture.beats if b.id == "b05").text_pops
+    assert pop.at_s == transcript_for(plan).words[4].start == 10.4
+    two = _with_pops(make_plan(), "b06", _pop("DARA SINGH", 5), _pop("1947", 5, fill="accent"))
+    assert [p.at_s for p in checked(two, popped).picture.beats[5].text_pops] == [12.9, 12.9]
+
+
+def test_text_pops_map_onto_the_cut_like_beat_boundaries(popped: StyleSpec) -> None:
+    """055 / 061: a pop's landing is written in output seconds. With 0.8 s tightened
+    out of the pause before b06's word, a pop on b07 lands 0.8 s earlier than the
+    word's recording time, inside the mapped beat."""
+    plan = _with_pops(make_plan(), "b07", _pop("w6", 6))
+    transcript = transcript_for(plan, gap_before={"b06": 1.4})
+    result = checked(plan, popped, transcript=transcript)
+    b07 = next(b for b in result.picture.beats if b.id == "b07")
+    at = b07.text_pops[0].at_s
+    assert at is not None and at == pytest.approx(transcript.words[6].start - 0.8)
+    assert b07.start <= at < b07.end
+    again = checked(result.picture, popped, transcript=transcript, timeline="output")
+    assert again.picture == result.picture
+
+
+def test_text_pops_are_rejected_where_the_style_caps_them_at_zero(spec: StyleSpec) -> None:
+    """061 (4): the four existing styles set `broll.text_pops_max_per_60s` 0, so any
+    pop fails validation naming the beat."""
+    found = rules(picture(_with_pops(make_plan(), "b05", _pop()), spec))
+    assert ("b05", "4.1") in found
+
+
+def test_text_pops_are_capped_per_beat_and_per_60s_rounding_up(popped: StyleSpec) -> None:
+    """061 (4): at most `broll.motion.text_pop.max_per_beat` (2) on one beat and
+    ceil(`text_pops_max_per_60s` x runtime / 60) over the short: 10 on the 56 s plan,
+    1 on the six-second fixture; the violation names the beat that crosses the cap."""
+    three = _with_pops(make_plan(), "b05", _pop("a"), _pop("b"), _pop("c"))
+    assert ("b05", "4.1") in rules(picture(three, popped))
+    plan = make_plan()
+    ids = [f"b{n:02d}" for n in range(3, 23)]  # the twenty body beats
+    for beat_id, index in zip(ids[:10], range(2, 12), strict=True):
+        plan = _with_pops(plan, beat_id, _pop(word=index))
+    checked(plan, popped)
+    eleventh = _with_pops(plan, ids[10], _pop(word=12))
+    found = rules(picture(eleventh, popped))
+    assert (ids[10], "4.1") in found and (ids[9], "4.1") not in found
+    assert grammar.text_pop_cap(popped, runtime=6.0) == 1
+    assert grammar.text_pop_cap(popped, runtime=56.0) == 10
+    assert grammar.text_pop_cap(popped, runtime=60.0) == 10
+
+
+def test_a_text_pop_names_a_word_spoken_inside_its_beat(popped: StyleSpec) -> None:
+    """061 (3): the pop lands on the spoken word, so the word must be one the beat
+    covers; a word of another beat or an index past the transcript is rejected naming
+    the beat."""
+    assert ("b05", "4.1") in rules(picture(_with_pops(make_plan(), "b05", _pop(word=5)), popped))
+    assert ("b05", "4.1") in rules(picture(_with_pops(make_plan(), "b05", _pop(word=99)), popped))
+
+
+def test_a_text_pop_is_one_to_four_words_on_a_picture_beat(popped: StyleSpec) -> None:
+    """061 (1, 2): 1-4 words; on `photo`, `card` or the presenter full frame only, never
+    on a set piece, a map or a chart."""
+    five = _with_pops(make_plan(), "b05", _pop("one two three four five"))
+    assert ("b05", "4.1") in rules(picture(five, popped))
+    blank = _with_pops(make_plan(), "b05", _pop("   "))
+    assert ("b05", "4.1") in rules(picture(blank, popped))
+    on_list = _with_pops(replace(make_plan(), "b05", **AS_LIST), "b05", _pop())
+    assert ("b05", "4.1") in rules(picture(on_list, popped))
+    full = replace(
+        make_plan(), "b05", mode="full", reason="emotional_line", kind="presenter_full",
+        motion=None, event=Event(), asset_id=None, text_pops=[_pop("THIS IS IT")],
+    )  # fmt: skip
+    checked(full, popped)
+
+
+def test_an_event_cue_may_sit_on_a_text_pop_and_a_whoosh_rides_a_pop_in(
+    popped: StyleSpec, spec: StyleSpec
+) -> None:
+    """061 (6): a pop is something to hit, so an `event` cue on a beat with no landed
+    event but a text pop passes 9.4; under a style that allows whooshes with `pop` in
+    `sound.whoosh.on`, a `whoosh` at the pop's landing (`at: event`) passes 7.3, while
+    one at the beat's start (no flash there) or on a beat with no pop is refused."""
+    bare = replace(make_plan(), "b05", event=Event())
+    assert ("b05", "9.4") in rules(cued(bare, popped, Cue(beat_id="b05", intent="pop", at="event")))
+    with_pop = _with_pops(bare, "b05", _pop())
+    ok = cued(with_pop, popped, Cue(beat_id="b05", intent="pop", at="event"))
+    assert isinstance(ok, grammar.SoundCheck)
+    both = text_pop_style(flash_whoosh_style(spec))
+    whoosh = Cue(beat_id="b05", intent="whoosh", at="event")
+    assert isinstance(cued(with_pop, both, whoosh), grammar.SoundCheck)
+    at_start = Cue(beat_id="b05", intent="whoosh", at="start")
+    assert ("b05", "7.3") in rules(cued(with_pop, both, at_start))
+    assert ("b05", "7.3") in rules(cued(bare, both, whoosh))
+    flash_only = both.model_copy(deep=True)
+    assert flash_only.sound.whoosh is not None
+    flash_only.sound.whoosh.on = ["flash"]
+    assert ("b05", "7.3") in rules(cued(with_pop, flash_only, whoosh))
 
 
 # --- assets (4.3) ------------------------------------------------------------------------

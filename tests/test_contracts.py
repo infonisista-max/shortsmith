@@ -128,6 +128,33 @@ def test_tier_lists_are_disjoint_and_complete() -> None:
     assert not set(TIER1_KINDS) & set(TIER2_KINDS)
 
 
+def test_a_beat_carries_text_pops_at_a_frame_point_landing_on_a_word() -> None:
+    """061 (4.1 as amended): a picture beat may carry `text_pops`, each 1-4 words at
+    `{x, y, anchor}` in percent of the frame, landing on transcript word `word`; `at_s`
+    is the word's output time, written by the grammar and never by the planner; `fill`
+    is yellow, white or the style's accent. A percentage outside 0-100 or an unknown
+    fill does not parse."""
+    beat = FakePlanner().plan_picture(_request()).beats[0]
+    popped = Beat.model_validate({
+        **beat.model_dump(),
+        "text_pops": [{"text": "DARA SINGH", "word": 0, "x": 60.0, "y": 40.0}],
+    })  # fmt: skip
+    pop = popped.text_pops[0]
+    assert (pop.text, pop.word, pop.x, pop.y) == ("DARA SINGH", 0, 60.0, 40.0)
+    assert (pop.anchor, pop.fill, pop.at_s) == ("center", "yellow", None)
+    assert Beat.model_validate(popped.model_dump()) == popped
+    assert beat.text_pops == []
+    for bad in (
+        {"text": "1945", "word": 0, "x": 101.0, "y": 40.0},
+        {"text": "1945", "word": 0, "x": 60.0, "y": -1.0},
+        {"text": "1945", "word": 0, "x": 60.0, "y": 40.0, "fill": "neon_green"},
+        {"text": "1945", "word": 0, "x": 60.0, "y": 40.0, "anchor": "top"},
+    ):
+        with pytest.raises(ValidationError):
+            Beat.model_validate({**beat.model_dump(), "text_pops": [bad]})
+    assert "text_pops" in PicturePlan.model_json_schema()["$defs"]["Beat"]["properties"]
+
+
 def test_span_and_beat_reject_backwards_times() -> None:
     with pytest.raises(ValidationError):
         Span(start=1.0, end=0.5)

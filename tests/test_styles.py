@@ -82,7 +82,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "6", spec.name  # the front matter changed again (060)
+        assert spec.version == "7", spec.name  # the front matter changed again (061)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -371,6 +371,60 @@ def test_a_style_allows_whooshes_by_the_row_and_the_forbidden_list_together(
 
     with pytest.raises(StyleError, match=r"explainer.*whoosh.*on"):
         styles.load_all(REGISTRY, _variant_dir(tmp_path / "c", "explainer", bad_trigger))
+
+
+# --- text pops (ticket 061; 4.1 and 9.2 as amended) ---------------------------------------
+
+
+def test_every_spec_carries_the_text_pop_row_and_a_cap_of_zero(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """061 (1, 4): the pop's numbers are a `broll.motion.text_pop` row in every spec
+    (a 0.15-0.25 s overshoot, at most 2.5 s on screen, at most 2 per beat, a tilt of
+    up to 8 degrees, Poppins 900) and `broll.text_pops_max_per_60s` is 0 in the four
+    existing styles: off until the recipe styles of 059 turn it on."""
+    for spec in specs.values():
+        row = spec.broll.motion["text_pop"]
+        assert row["kind"] == "pop", spec.name
+        assert 0.15 <= float(row["duration_s"]) <= 0.25, spec.name
+        assert float(row["hold_max_s"]) == 2.5, spec.name
+        assert int(row["max_per_beat"]) == 2, spec.name
+        assert 0 < float(row["tilt_deg"]) <= 8.0, spec.name
+        assert int(row["size_px"]) > 0 and str(row["fill"]).startswith("#"), spec.name
+        assert spec.broll.text_pops_max_per_60s == 0, spec.name
+        assert "text_pop" not in spec.requires_components, spec.name
+    assert "text_pop" in REGISTRY
+
+
+def test_the_text_pop_row_or_cap_missing_fails_the_loader_naming_the_spec(tmp_path: Path) -> None:
+    def drop_row(fm: dict[str, Any]) -> None:
+        del fm["broll"]["motion"]["text_pop"]
+
+    with pytest.raises(StyleError, match=r"explainer.*text_pop"):
+        render.numbers_for(
+            styles.load_all(REGISTRY, _variant_dir(tmp_path / "a", "explainer", drop_row))[
+                "explainer"
+            ]
+        )
+
+    def drop_cap(fm: dict[str, Any]) -> None:
+        del fm["broll"]["text_pops_max_per_60s"]
+
+    with pytest.raises(StyleError, match=r"hitech.*text_pops_max_per_60s"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", drop_cap))
+
+
+def test_the_test_style_helper_turns_text_pops_on(specs: dict[str, StyleSpec]) -> None:
+    """The copy the grammar, the fake planner, the render and the smoke exercise 061
+    under: the explainer with `text_pops_max_per_60s` raised to 10, so a six-second
+    fixture allows one pop; nothing else changes and the original is untouched."""
+    from tests.conftest import TEXT_POPS_PER_60S, text_pop_style
+
+    styled = text_pop_style(specs["explainer"])
+    assert styled.broll.text_pops_max_per_60s == TEXT_POPS_PER_60S == 10
+    assert styled.broll.motion["text_pop"] == specs["explainer"].broll.motion["text_pop"]
+    assert specs["explainer"].broll.text_pops_max_per_60s == 0, "the original is untouched"
+    assert styled.model_dump(exclude={"broll"}) == specs["explainer"].model_dump(exclude={"broll"})
 
 
 def test_the_test_style_helper_enables_flash_and_allows_whooshes(

@@ -1,5 +1,5 @@
 ---
-version: "6"
+version: "7"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -47,9 +47,12 @@ broll:
     stamp: {kind: pop, duration_s: 0.12, shake: true, palette: accent}
     lower_third: {kind: spring, duration_s: 0.3, top_y: 1150, bottom_y: 1240}
     finale: {kind: spring, duration_s: 0.4, cards: 3}
+    text_pop: {kind: pop, duration_s: 0.18, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 8,
+               size_px: 100, fill: "#FFD60A"}  # 061
   enter_transitions: [cut, fade, whip, zoom, spring, wipe]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
+  text_pops_max_per_60s: 0  # 061: off here
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}

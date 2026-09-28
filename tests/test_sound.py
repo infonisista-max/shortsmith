@@ -445,6 +445,37 @@ def test_a_counter_lands_with_the_stamps_bass_at_its_landing(
     assert money["b06"].hit == "drum" and money["b06"].at_s == pytest.approx(b06.end - LAND_S)
 
 
+def test_an_event_cue_on_a_text_pop_fires_where_the_pop_lands(
+    plan: PicturePlan, library: sound.Library, nums: styles.Sound
+) -> None:
+    """061 (6): on a beat with no landed event that carries text pops, an `event` cue
+    fires at the first pop's `at_s` (the validated plan's output time), not at the
+    beat's start; a pop earns no floor hit of its own (7.1's floor is unchanged)."""
+    from shortsmith.contracts import TextPop
+
+    pops = [TextPop(text="THIS", word=2, x=50.0, y=42.0, at_s=1.2)]
+    popped = plan.model_copy(update={"beats": [
+        b.model_copy(update={"text_pops": pops}) if b.id == "b03" else b for b in plan.beats
+    ]})  # fmt: skip
+    b03 = next(b for b in popped.beats if b.id == "b03")
+    assert sound.landing_s(b03, None) == 1.2 and b03.start == 1.0
+    assert "b03" not in {h.beat_id for h in sound.floor_hits(popped, nums)}
+    story = SoundStory(
+        prompt_version="t", theme="t", mood_curve=[MoodPoint(t=0.0, level=0.0)],
+        bed_query=BedQuery(theme="tech", mood="curious", energy=3),
+        cues=[Cue(beat_id="b03", intent="popup_tick", at="event")],
+    )  # fmt: skip
+    # the fixture-shaped cap (six cues in 6 s): under the shipped 20 per 60 s only two
+    # survive, the classed floor hits, so the unclassed tick would be cut for cost
+    judged = fixture.smoke_specs(render.loaded_styles())[styles.DEFAULT].sound
+    placed = sound.place_cues(popped, story, library, judged, runtime_s=6.0)
+    cue = next(c for c in placed.cues if c.beat_id == "b03")
+    assert (cue.at_s, cue.entry_id, cue.source) == (1.2, "sfx_tick", "planner")
+    # a pop whose landing the grammar never wrote (an unvalidated plan) fires at the start
+    unwritten = b03.model_copy(update={"text_pops": [pops[0].model_copy(update={"at_s": None})]})
+    assert sound.landing_s(unwritten, None) == 1.0
+
+
 def test_an_event_cue_on_a_counter_fires_at_its_landing(
     plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
 ) -> None:
