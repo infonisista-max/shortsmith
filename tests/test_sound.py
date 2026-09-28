@@ -476,6 +476,40 @@ def test_an_event_cue_on_a_text_pop_fires_where_the_pop_lands(
     assert sound.landing_s(unwritten, None) == 1.0
 
 
+def test_an_event_cue_on_a_bubble_fires_where_the_first_bubble_lands(
+    plan: PicturePlan, library: sound.Library, nums: styles.Sound
+) -> None:
+    """063 (5): on a beat with no landed event that carries bubbles, an `event` cue
+    fires at the first bubble's `at_s` (the validated plan's output time), not at the
+    beat's start; a bubble earns no floor hit of its own; a beat carrying both text
+    pops and bubbles lands on its first pop."""
+    from shortsmith.contracts import Bubble, TextPop
+
+    bubbles = [
+        Bubble(text="Hello there?", first=0, last=1, x=19.4, y=50.0, at_s=1.15),
+        Bubble(shape="thought", text="This is", first=2, last=3, x=62.0, y=30.0, at_s=1.35),
+    ]
+    bubbled = plan.model_copy(update={"beats": [
+        b.model_copy(update={"bubbles": bubbles}) if b.id == "b03" else b for b in plan.beats
+    ]})  # fmt: skip
+    b03 = next(b for b in bubbled.beats if b.id == "b03")
+    assert sound.landing_s(b03, None) == 1.15 and b03.start == 1.0
+    assert "b03" not in {h.beat_id for h in sound.floor_hits(bubbled, nums)}
+    story = SoundStory(
+        prompt_version="t", theme="t", mood_curve=[MoodPoint(t=0.0, level=0.0)],
+        bed_query=BedQuery(theme="tech", mood="curious", energy=3),
+        cues=[Cue(beat_id="b03", intent="popup_tick", at="event")],
+    )  # fmt: skip
+    judged = fixture.smoke_specs(render.loaded_styles())[styles.DEFAULT].sound
+    placed = sound.place_cues(bubbled, story, library, judged, runtime_s=6.0)
+    cue = next(c for c in placed.cues if c.beat_id == "b03")
+    assert (cue.at_s, cue.entry_id, cue.source) == (1.15, "sfx_tick", "planner")
+    unwritten = b03.model_copy(update={"bubbles": [bubbles[0].model_copy(update={"at_s": None})]})
+    assert sound.landing_s(unwritten, None) == 1.0
+    pop = TextPop(text="THIS", word=2, x=50.0, y=42.0, at_s=1.2)
+    assert sound.landing_s(b03.model_copy(update={"text_pops": [pop]}), None) == 1.2
+
+
 def test_an_event_cue_on_a_counter_fires_at_its_landing(
     plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
 ) -> None:

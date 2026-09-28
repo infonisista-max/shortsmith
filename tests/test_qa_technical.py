@@ -46,6 +46,7 @@ from shortsmith.contracts import (
     Beat,
     BeatAsset,
     BeatSpec,
+    BubbleSpec,
     CaptionPage,
     CaptionPageSpec,
     Captions,
@@ -555,6 +556,23 @@ def test_t6_passes_a_whoosh_riding_a_text_pop_and_refuses_one_where_pop_is_not_a
     elsewhere = technical.t6([], sheet, enters={"f1": "cut"}, nums=WHOOSHY, runtime_s=60.0,
                              pops={"f2"})  # fmt: skip
     assert not elsewhere.passed and "on a 'cut' enter; sound.whoosh.on" in elsewhere.detail
+
+
+def test_the_gate_hands_t6_every_beat_that_pops_something_in() -> None:
+    """061 / 063: the beats T6 accepts a `pop`-triggered whoosh on are those carrying
+    text pops or bubbles, read off the plan."""
+    from shortsmith.contracts import Bubble, TextPop
+
+    plan = _good_plan()
+    popped = plan.model_copy(update={"beats": [
+        b.model_copy(update={"text_pops": [TextPop(text="THIS", word=2, x=50.0, y=42.0)]})
+        if b.id == "b1" else
+        b.model_copy(update={"bubbles": [Bubble(text="Hello?", first=0, last=1, x=19.0, y=50.0)]})
+        if b.id == "b2" else b
+        for b in plan.beats
+    ]})  # fmt: skip
+    assert technical.pop_in_beats(popped) == {"b1", "b2"}
+    assert technical.pop_in_beats(plan) == set()
 
 
 def test_t6_caps_whooshes_per_60s_and_keeps_them_apart() -> None:
@@ -1140,8 +1158,8 @@ def test_t12_passes_a_spec_whose_text_stays_out_of_the_reserved_zones() -> None:
     check = technical.t12(spec)
     assert (check.name, check.passed) == ("T12", True)
     assert check.detail == (
-        "2 caption words, 1 stamp, 1 lower-third, 0 text pops: none inside the reserved zones "
-        "(top 250, bottom 320, right 140 px)"
+        "2 caption words, 1 stamp, 1 lower-third, 0 text pops, 0 bubbles: none inside the "
+        "reserved zones (top 250, bottom 320, right 140 px)"
     )
 
 
@@ -1160,13 +1178,43 @@ def test_t12_judges_text_pops_like_the_other_overlays() -> None:
     one reaching the top zone or the right rail fails naming the beat and the words."""
     inside = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec()])]))
     assert inside.passed
-    assert inside.detail.startswith("0 caption words, 0 stamps, 0 lower-thirds, 1 text pop:")
+    assert inside.detail.startswith(
+        "0 caption words, 0 stamps, 0 lower-thirds, 1 text pop, 0 bubbles:"
+    )
     high = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec(top=249.5)])]))
     assert not high.passed
     assert "b03 text pop 'HELLO' reaches y 249.5, inside the top zone" in high.detail
     wide = technical.t12(_spec([_beat_spec("b03", text_pops=[_pop_spec("1945", left=700.0)])]))
     assert not wide.passed
     assert "b03 text pop '1945' reaches x 1100, inside the right rail" in wide.detail
+
+
+def _bubble_spec(text: str = "Who asked?", **fields: Any) -> BubbleSpec:
+    base = {
+        "shape": "speech", "text": text, "lines": [text], "left": 300.0, "top": 500.0,
+        "width": 420.0, "height": 110.0, "radius_px": 28.0, "tip_x": 510.0, "tip_y": 700.0,
+        "path": "M 0 0 Z", "dots": [], "font_px": 56, "font_weight": 800, "fill": "#FFFFFF",
+        "ink": "#111111", "stroke_px": 5, "scale_from": 0.5, "at_s": 0.2, "pop_s": 0.2,
+        "until_s": 0.5,
+    }
+    return BubbleSpec.model_validate({**base, **fields})
+
+
+def test_t12_judges_bubble_bodies_like_the_other_overlays() -> None:
+    """063: a bubble's body box is judged against the 6.3 zones and counted in the
+    detail; one reaching the bottom zone or the right rail fails naming the beat and
+    the words. The tail may point into a zone (at the PIP circle); only the body counts."""
+    inside = technical.t12(_spec([_beat_spec("b04", bubbles=[_bubble_spec(tip_y=1700.0)])]))
+    assert inside.passed
+    assert inside.detail.startswith(
+        "0 caption words, 0 stamps, 0 lower-thirds, 0 text pops, 1 bubble:"
+    )
+    low = technical.t12(_spec([_beat_spec("b04", bubbles=[_bubble_spec(top=1500.0)])]))
+    assert not low.passed
+    assert "b04 bubble 'Who asked?' reaches y 1610, inside the bottom zone" in low.detail
+    wide = technical.t12(_spec([_beat_spec("b04", bubbles=[_bubble_spec("Nobody", left=700.0)])]))
+    assert not wide.passed
+    assert "b04 bubble 'Nobody' reaches x 1120, inside the right rail" in wide.detail
 
 
 @pytest.mark.parametrize(("right", "ok"), [(940.0, True), (940.5, False)])

@@ -41,12 +41,18 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v10 (ticket 061): the picture file says when to write `text_pops` (1-4 words from the
+# v11 (ticket 063): the picture file says when to write `bubbles` (speech or thought
+# bubbles of 1-`broll.motion.bubble.words_max` words the recording itself carries, on a
+# photo, card or presenter-full beat, `first`-`last` naming the source words, the tail at
+# `{x, y}`, a dialogue pair landing `dialogue_gap_min_s`-`dialogue_gap_max_s` apart, under
+# `broll.bubbles_max_per_60s`, `at_s` left to code); the sound file says an `event` cue
+# may hit a bubble and a whoosh may ride its pop-in like a text pop's.
+# (v10, ticket 061: the picture file says when to write `text_pops` (1-4 words from the
 # script on a photo, card or presenter-full beat, at `{x, y, anchor}` near the thing
 # named, landing on the transcript `word`, under `broll.motion.text_pop.max_per_beat`
 # and `broll.text_pops_max_per_60s`, `at_s` left to code); the sound file says an
-# `event` cue may hit a pop and a whoosh may ride a pop-in with `pop` in `sound.whoosh.on`.
-# (v9, ticket 060: the picture file says when to ask `flash` (a turn back to the
+# `event` cue may hit a pop and a whoosh may ride a pop-in with `pop` in `sound.whoosh.on`;
+# v9, ticket 060: the picture file says when to ask `flash` (a turn back to the
 # presenter or a section change, under `broll.flash_max_per_60s`, never two in a row,
 # only where the style lists it); the sound file says a whoosh is allowed only where
 # section 1 carries `sound.whoosh`, and then only at the start of a `flash` beat (or a
@@ -58,7 +64,7 @@ Call = Literal["picture", "sound"]
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
 # diagram data; v2, ticket 027: the set-piece content rules.)
-PROMPT_VERSION = "v10"
+PROMPT_VERSION = "v11"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

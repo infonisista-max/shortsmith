@@ -101,6 +101,25 @@ def pops_on(spec: StyleSpec) -> StyleSpec:
     return styled
 
 
+# 063: the cap the bubbles-on copy raises bubbles to: ceil(20 x 6 / 60) = 2 on the
+# fixture, the one dialogue pair.
+BUBBLES_PER_60S = 20
+# 063: no 0.5 s fake beat can hold a real 0.6-1.2 s dialogue gap, so the fixture-shaped
+# copy scales `motion.bubble`'s gap as it scales the beat lengths: the second bubble of
+# the fake's pair lands 0.2 s after the first on the 0.5 s card beat.
+SMOKE_BUBBLE: dict[str, float] = {"dialogue_gap_min_s": 0.2, "dialogue_gap_max_s": 0.4}
+
+
+def bubbles_on(spec: StyleSpec) -> StyleSpec:
+    """`spec` copied with bubbles turned on (`broll.bubbles_max_per_60s` =
+    `BUBBLES_PER_60S`): every shipped and draft style keeps the cap at 0 until 059's
+    recipe styles, so the smoke's `--bubbles` and the tests judge and render the fake
+    plan's one dialogue pair under this copy. Nothing else changes."""
+    styled = spec.model_copy(deep=True)
+    styled.broll.bubbles_max_per_60s = BUBBLES_PER_60S
+    return styled
+
+
 def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> dict[str, StyleSpec]:
     """`specs` with the style `name` (the default unless told otherwise) replaced by its
     fixture-shaped copy. Ticket 048 renders the fixture under the `hitech` draft, so
@@ -116,6 +135,7 @@ def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> d
         setattr(scaled.sound, field, value)
     for field, value in SMOKE_CUT.items():
         setattr(scaled.cut, field, value)
+    scaled.broll.motion["bubble"] = {**scaled.broll.motion["bubble"], **SMOKE_BUBBLE}
     return {**specs, name: scaled}
 
 

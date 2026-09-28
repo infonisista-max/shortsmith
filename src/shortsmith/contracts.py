@@ -298,6 +298,40 @@ class TextPop(StrictModel):
     at_s: float | None = None
 
 
+BubbleShape = Literal["speech", "thought"]
+
+
+class Bubble(StrictModel):
+    """One comic bubble (063; 4.1 as amended): a `speech` bubble (a rounded box with a
+    tail) or a `thought` bubble (a cloud with a trail of dots) of words from the
+    recording - what the speaker says someone said or thought, or his own question,
+    shortened or put in the caption language, never a quote the recording does not
+    carry. `first`-`last` are the transcript words (inclusive) the text came from; they
+    are written to job.log beside the text. The tail points at `{x, y}` in percent of
+    the frame: a person in the picture, or the PIP circle when the presenter is the one
+    asking. `at_s` is the landing on the output timeline, written by the grammar (the
+    first source word's time, the beat's start when the words came earlier; a second
+    bubble on the beat lands `broll.motion.bubble.dialogue_gap_min_s`-`_max_s` after the
+    first); the planner leaves it empty. Code keeps the body inside the safe area, off
+    the captions, the PIP circle and any face (the tail points at it instead)."""
+
+    shape: BubbleShape = "speech"
+    text: str
+    first: int = Field(ge=0)
+    last: int = Field(ge=0)
+    x: float = Field(ge=0.0, le=100.0)
+    y: float = Field(ge=0.0, le=100.0)
+    at_s: float | None = None
+
+    @model_validator(mode="after")
+    def _run_in_order(self) -> Bubble:
+        if self.last < self.first:
+            raise ValueError(
+                f"bubble {self.text!r}: last word {self.last} before first {self.first}"
+            )
+        return self
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -336,6 +370,9 @@ class Beat(StrictModel):
     # 061: text pops on a picture beat (photo, card, presenter full), at most
     # `broll.motion.text_pop.max_per_beat`, under `broll.text_pops_max_per_60s`.
     text_pops: list[TextPop] = []
+    # 063: speech and thought bubbles on a picture beat, at most
+    # `broll.motion.bubble.max_per_beat` (a dialogue pair), under `broll.bubbles_max_per_60s`.
+    bubbles: list[Bubble] = []
     motion: Motion | None = None
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
@@ -1021,6 +1058,47 @@ class TextPopSpec(StrictModel):
     until_s: float
 
 
+class BubbleDot(StrictModel):
+    """One dot of a thought bubble's trail (063), in composition pixels."""
+
+    cx: float
+    cy: float
+    r: float
+
+
+class BubbleSpec(StrictModel):
+    """A bubble placed, wrapped and timed (063): the body box (composition pixels) with
+    its `lines` of text, the outline `path` (an SVG path in composition pixels: the
+    rounded body, with the tail to `tip_x`, `tip_y` on a speech bubble), the thought
+    trail `dots`, and the pop-in from `scale_from` over `pop_s` at `at_s` seconds into
+    the beat, leaving at `until_s`. Poppins `font_weight` in `ink` on `fill` with a
+    `stroke_px` outline. Placed by `render.bubble_spec` inside the safe area, off the
+    PIP circle, the caption band, the stamp, any detected face and the beat's other
+    bubble; the tail tip is the planner's anchor."""
+
+    shape: BubbleShape
+    text: str
+    lines: list[str]
+    left: float
+    top: float
+    width: float
+    height: float
+    radius_px: float
+    tip_x: float
+    tip_y: float
+    path: str
+    dots: list[BubbleDot]
+    font_px: int
+    font_weight: int
+    fill: str
+    ink: str
+    stroke_px: int
+    scale_from: float
+    at_s: float
+    pop_s: float
+    until_s: float
+
+
 class CounterSpec(StampSpec):
     """The `counter` overlay (029; 4.2, 9.2): the stamp's box, measured on the widest
     text it will show and clamped as a stamp is, with the digits it shows on each frame
@@ -1388,6 +1466,8 @@ class BeatSpec(StrictModel):
     # 061: the beat's text pops, placed and timed; empty on every other beat. A tuple
     # because the `list` field shadows the builtin inside this class body.
     text_pops: tuple[TextPopSpec, ...] = ()
+    # 063: the beat's bubbles, placed and timed; a tuple for the same reason.
+    bubbles: tuple[BubbleSpec, ...] = ()
     finale: FinaleCardSpec | None = None
     split: SplitSpec | None = None
     wall: WallSpec | None = None

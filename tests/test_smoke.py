@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from shortsmith import assets, contact_sheet, ffmpeg, render, rights, smoke, styles
+from shortsmith import assets, contact_sheet, ffmpeg, fixture, render, rights, smoke, styles
 from shortsmith.contracts import (
     PicturePlan,
     PlanFeedback,
@@ -172,11 +172,13 @@ def test_main_passes_the_style_flag_to_run_smoke(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """048: `--style hitech` selects the draft; no flag keeps the default. 061:
-    `--text-pops` turns the pops style on; no flag keeps them off."""
-    seen: list[tuple[str, bool]] = []
+    `--text-pops` turns the pops style on; 063: `--bubbles` the bubbles style; no flag
+    keeps both off."""
+    seen: list[tuple[str, bool, bool]] = []
 
     def fake_run(root: Path, **kwargs: object) -> smoke.SmokeResult:
-        seen.append((str(kwargs.get("style")), bool(kwargs.get("text_pops"))))
+        seen.append((str(kwargs.get("style")), bool(kwargs.get("text_pops")),
+                     bool(kwargs.get("bubbles"))))  # fmt: skip
         picture = root / "picture.mp4"
         picture.write_bytes(b"")
         return smoke.SmokeResult(job_dir=root, summary="smoke ok: faked", picture=picture)
@@ -186,8 +188,12 @@ def test_main_passes_the_style_flag_to_run_smoke(
     assert smoke.main(["--style", "hitech"]) == 0
     assert smoke.main([]) == 0
     assert smoke.main(["--text-pops"]) == 0
-    assert seen == [("hitech", False), ("explainer", False), ("explainer", True)]
-    assert capsys.readouterr().out == "smoke ok: faked\n" * 3
+    assert smoke.main(["--bubbles"]) == 0
+    assert seen == [
+        ("hitech", False, False), ("explainer", False, False), ("explainer", True, False),
+        ("explainer", False, True),
+    ]  # fmt: skip
+    assert capsys.readouterr().out == "smoke ok: faked\n" * 4
 
 
 def test_run_smoke_renders_the_hitech_draft_end_to_end(tmp_path: Path) -> None:
@@ -248,6 +254,44 @@ def test_run_smoke_renders_one_text_pop_under_the_pops_style(tmp_path: Path) -> 
     noted = job.log_path.read_text(encoding="utf-8").splitlines()
     pop_lines = [line for line in noted if "text pop:" in line]
     assert not any("dropped" in line for line in pop_lines), pop_lines
+
+
+def test_run_smoke_renders_the_dialogue_pair_under_the_bubbles_style(tmp_path: Path) -> None:
+    """063: under the explainer copy with bubbles on, the fake plan's b04 carries a
+    dialogue pair landing at the beat's start and the fixture-scaled gap later, the
+    render spec draws both clear of the reserved zones, the circle, the stamp and each
+    other with the tail tips on their anchors, T1-T13 pass with T12 counting them,
+    job.log names each bubble's source words, and the summary says so; the plain walk
+    draws none."""
+    result = smoke.run_smoke(tmp_path, bubbles=True)
+    job = load(result.job_dir)
+    assert job.status == "delivered"
+    plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    speech, thought = next(b for b in plan.beats if b.id == "b04").bubbles
+    gap = fixture.SMOKE_BUBBLE["dialogue_gap_min_s"]
+    assert (speech.shape, speech.at_s) == ("speech", 1.5)
+    assert (thought.shape, thought.at_s) == ("thought", 1.5 + gap)
+    spec = RenderSpec.model_validate_json((job.work_dir / "render_spec.json").read_text("utf-8"))
+    b04 = next(b for b in spec.beats if b.id == "b04")
+    first, second = b04.bubbles
+    assert (first.at_s, second.at_s) == (0.0, gap)
+    assert (first.tip_x, first.tip_y) == (19.4 / 100 * render.WIDTH, 0.5 * render.HEIGHT)
+    circle = render.Box(spec.pip.left, spec.pip.top, spec.pip.diameter, spec.pip.diameter)
+    for bubble in (first, second):
+        body = render.Box(bubble.left, bubble.top, bubble.width, bubble.height)
+        assert technical.zone_hits(bubble.left, bubble.top, bubble.width, bubble.height) == []
+        assert not body.overlaps(circle)
+    report = technical.load_report(job)
+    assert report is not None and report.passed
+    assert "2 bubbles" in next(c.detail for c in report.checks if c.name == "T12")
+    assert "bubbles 2" in result.summary and "text pops 0" in result.summary
+    assert "T13 pass" in result.summary
+    noted = job.log_path.read_text(encoding="utf-8").splitlines()
+    bubble_lines = [line for line in noted if "bubble: " in line]
+    hello = "'Hello there?' from words 0-1 'hello there'"
+    sourced = [line for line in bubble_lines if hello in line]
+    assert sourced, bubble_lines
+    assert not any("dropped" in line for line in bubble_lines), bubble_lines
 
 
 def test_module_entry_point() -> None:

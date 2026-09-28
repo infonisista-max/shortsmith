@@ -1,5 +1,5 @@
 ---
-version: "7"
+version: "8"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -48,10 +48,14 @@ broll:
     finale: {kind: fade, duration_s: 0.5, cards: 3}
     text_pop: {kind: pop, duration_s: 0.22, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 3,
                size_px: 88, fill: "#FFD60A"}  # 061
+    bubble: {kind: pop, duration_s: 0.22, hold_max_s: 3.0, max_per_beat: 2, words_max: 7,
+             dialogue_gap_min_s: 0.7, dialogue_gap_max_s: 1.2, size_px: 54, min_size_px: 36,
+             width_px: 640, fill: "#FFFFFF", ink: "#123B3A"}  # 063
   enter_transitions: [cut, fade]
   whip_max_per_3_beats: 0
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here
+  bubbles_max_per_60s: 0  # 063: off here
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}

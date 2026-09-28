@@ -1,5 +1,6 @@
 {
   "components": [
+    "bubble",
     "captions",
     "card",
     "chart",

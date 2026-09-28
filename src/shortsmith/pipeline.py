@@ -106,6 +106,7 @@ from pydantic import BaseModel, TypeAdapter
 from shortsmith import assets, captions, grammar, jobs, meta, presenter, render, sound, subproc
 from shortsmith.contracts import (
     Constraints,
+    PicturePlan,
     PlanFeedback,
     PlanReference,
     PlanRequest,
@@ -367,6 +368,22 @@ def _with_one_retry[Raw: BaseModel, Checked](
     raise AssertionError("unreachable")
 
 
+def bubble_lines(picture: PicturePlan, transcript: Transcript) -> list[str]:
+    """063 (2): one job.log line per bubble of the validated plan - the beat, the
+    shape, the text and the transcript words (`first`-`last`) it came from - so every
+    bubble's words can be checked against the recording."""
+    words = transcript.words
+    lines: list[str] = []
+    for beat in picture.beats:
+        for bubble in beat.bubbles:
+            said = " ".join(w.text for w in words[bubble.first : bubble.last + 1])
+            lines.append(
+                f"bubble: {beat.id}: {bubble.shape} {bubble.text!r} from words "
+                f"{bubble.first}-{bubble.last} {said!r} (063)"
+            )
+    return lines
+
+
 def _plan(job: Job, planner: Planner, specs: Specs, library: sound.Library) -> None:
     request = build_plan_request(job, specs)
     spec = style_of(job, specs)
@@ -387,6 +404,8 @@ def _plan(job: Job, planner: Planner, specs: Specs, library: sound.Library) -> N
     picture = checked.picture
     # 8.3 / 035: the prompt and the spec the plan was judged by, for `meta.json`.
     jobs.amend(job, prompt_version=picture.prompt_version, style_version=spec.version)
+    for line in bubble_lines(picture, transcript):
+        jobs.note(job, line)
 
     sound = _with_one_retry(
         job,

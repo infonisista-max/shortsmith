@@ -134,7 +134,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 from shortsmith import (
     assets,
@@ -154,6 +154,9 @@ from shortsmith.contracts import (
     BadgeSpec,
     Beat,
     BeatSpec,
+    Bubble,
+    BubbleDot,
+    BubbleSpec,
     CaptionPageSpec,
     Captions,
     CaptionStyle,
@@ -277,6 +280,18 @@ class BrollNumbers:
     pop_tilt_deg: float
     pop_font_px: int
     pop_fill: str
+    # 063: the bubble row - the overshoot's length, how long a bubble may stay, the
+    # per-beat cap, the word cap, the type size and its floor, the body width, the white
+    # fill and the dark ink. The dialogue gap is the grammar's, not drawn.
+    bubble_s: float
+    bubble_hold_max_s: float
+    bubble_max_per_beat: int
+    bubble_words_max: int
+    bubble_font_px: int
+    bubble_min_font_px: int
+    bubble_width_px: int
+    bubble_fill: str
+    bubble_ink: str
 
 
 @dataclass(frozen=True)
@@ -306,7 +321,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         photo, card = motion["photo"], motion["card"]
         stamp, lower, finale = motion["stamp"], motion["lower_third"], motion["finale"]
         rows, split, wall = motion["list"], motion["split"], motion["wall"]
-        pop = motion["text_pop"]
+        pop, bubble = motion["text_pop"], motion["bubble"]
         return BrollNumbers(
             photo_scale_from=float(photo["scale_from"]),
             photo_scale_to=float(photo["scale_to"]),
@@ -347,6 +362,15 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             pop_tilt_deg=float(pop["tilt_deg"]),
             pop_font_px=int(pop["size_px"]),
             pop_fill=str(pop["fill"]),
+            bubble_s=float(bubble["duration_s"]),
+            bubble_hold_max_s=float(bubble["hold_max_s"]),
+            bubble_max_per_beat=int(bubble["max_per_beat"]),
+            bubble_words_max=int(bubble["words_max"]),
+            bubble_font_px=int(bubble["size_px"]),
+            bubble_min_font_px=int(bubble["min_size_px"]),
+            bubble_width_px=int(bubble["width_px"]),
+            bubble_fill=str(bubble["fill"]),
+            bubble_ink=str(bubble["ink"]),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -1121,6 +1145,211 @@ def text_pop_spec(
     ), placed  # fmt: skip
 
 
+# --- bubbles (063; 4.1 as amended) ------------------------------------------------------
+#
+# Speech and thought bubbles of the recording's own words. The style row
+# (`broll.motion.bubble`) carries the overshoot length, the hold, the per-beat and word
+# caps, the type size and its floor, the body width, the white fill and the dark ink; the
+# treatment below (weight, padding, corner radius, outline, tail and dot sizes) is the
+# engine's look like the stamp's. Placement: the body sits over the planner's anchor
+# `{x, y}` (the tail's tip) at `BUBBLE_TAIL_LEN_PX`, clamped into the safe area, then moved
+# to the nearest free spot (`place_text_pop`, 061's search) when it lands on the PIP
+# circle, the caption band, the stamp, a detected face, the beat's earlier bubble or the
+# anchor's own keep-out; the tail then leaves whichever side of the body faces the tip.
+
+BUBBLE_WEIGHT = 800
+BUBBLE_PAD_X, BUBBLE_PAD_Y = 28.0, 18.0
+BUBBLE_LINE_HEIGHT = 1.2
+BUBBLE_LINES_MAX = 4
+BUBBLE_RADIUS_PX = 28.0
+BUBBLE_STROKE_PX = 5
+BUBBLE_SCALE_FROM = 0.5
+BUBBLE_TAIL_LEN_PX = 90.0  # the body's edge sits this far from the tip when unobstructed
+BUBBLE_TAIL_BASE_PX = 56.0
+BUBBLE_ANCHOR_KEEPOUT_PX = 40.0  # half-size of the box around the anchor the body avoids
+BUBBLE_DOT_RADII_PX = (14.0, 10.0, 6.0)  # the thought trail, body to anchor
+BUBBLE_DOT_FRACTIONS = (0.3, 0.55, 0.8)
+
+TailSide = Literal["top", "bottom", "left", "right"]
+
+
+@dataclass(frozen=True)
+class Tail:
+    """A speech bubble's tail: the side of the body it leaves, its two base points on
+    that edge (`a` before `b` along the edge's clockwise trace) and the tip."""
+
+    side: TailSide
+    a: tuple[float, float]
+    b: tuple[float, float]
+    tip: tuple[float, float]
+
+    @property
+    def base(self) -> tuple[float, float]:
+        return (self.a[0] + self.b[0]) / 2, (self.a[1] + self.b[1]) / 2
+
+
+def _wrapped(
+    words: Sequence[str], *, font_px: int, room: float, style: CaptionStyle
+) -> list[str] | None:
+    """Greedy lines of `words` no wider than `room` at `font_px`; None when one word
+    alone is wider than the room."""
+    lines: list[list[str]] = [[]]
+    for word in words:
+        if _measured(word, font_px=font_px, style=style, weight=BUBBLE_WEIGHT) > room:
+            return None
+        candidate = [*lines[-1], word]
+        if lines[-1] and _measured(" ".join(candidate), font_px=font_px, style=style,
+                                   weight=BUBBLE_WEIGHT) > room:  # fmt: skip
+            lines.append([word])
+        else:
+            lines[-1] = candidate
+    return [" ".join(line) for line in lines]
+
+
+def bubble_lines(text: str, *, numbers: StyleNumbers) -> tuple[int, list[str], float, float] | None:
+    """The bubble's type size, its wrapped lines and its body box: the words wrapped
+    inside `width_px` at `size_px`, the type shrinking in steps to `min_size_px` until
+    they fit on at most `BUBBLE_LINES_MAX` lines; None when they never do."""
+    b, style = numbers.broll, numbers.captions
+    words = text.split()
+    room = b.bubble_width_px - 2 * BUBBLE_PAD_X
+    font_px = b.bubble_font_px
+    while font_px >= b.bubble_min_font_px:
+        lines = _wrapped(words, font_px=font_px, room=room, style=style)
+        if lines is not None and len(lines) <= BUBBLE_LINES_MAX:
+            widest = max(_measured(line, font_px=font_px, style=style, weight=BUBBLE_WEIGHT)
+                         for line in lines)  # fmt: skip
+            width = widest + 2 * BUBBLE_PAD_X
+            height = len(lines) * font_px * BUBBLE_LINE_HEIGHT + 2 * BUBBLE_PAD_Y
+            return font_px, lines, width, height
+        font_px -= FONT_STEP_PX
+    return None
+
+
+def bubble_tail(body: Box, tip: tuple[float, float]) -> Tail | None:
+    """The tail from `body` to `tip`: it leaves the side facing the tip, its base
+    `BUBBLE_TAIL_BASE_PX` wide (narrower on a small body) and kept clear of the rounded
+    corners; None when the tip is inside the body (nothing to point at)."""
+    tx, ty = tip
+    if ty >= body.bottom or ty <= body.top:
+        side: TailSide = "bottom" if ty >= body.bottom else "top"
+        base = max(0.0, min(BUBBLE_TAIL_BASE_PX, body.width - 2 * BUBBLE_RADIUS_PX))
+        lo, hi = body.left + BUBBLE_RADIUS_PX + base / 2, body.right - BUBBLE_RADIUS_PX - base / 2
+        cx = min(max(tx, lo), hi)
+        y = body.bottom if side == "bottom" else body.top
+        return Tail(side, (cx - base / 2, y), (cx + base / 2, y), tip)
+    if tx >= body.right or tx <= body.left:
+        side = "right" if tx >= body.right else "left"
+        base = max(0.0, min(BUBBLE_TAIL_BASE_PX, body.height - 2 * BUBBLE_RADIUS_PX))
+        lo, hi = body.top + BUBBLE_RADIUS_PX + base / 2, body.bottom - BUBBLE_RADIUS_PX - base / 2
+        cy = min(max(ty, lo), hi)
+        x = body.right if side == "right" else body.left
+        return Tail(side, (x, cy - base / 2), (x, cy + base / 2), tip)
+    return None
+
+
+def _pt(x: float, y: float) -> str:
+    return f"{x:g} {y:g}"
+
+
+def bubble_path(body: Box, radius: float, tail: Tail | None) -> str:
+    """The outline as one SVG path in composition pixels: the rounded body traced
+    clockwise from the top-left corner, with the tail's two edges to the tip spliced
+    into the side it leaves, so fill and outline are one shape with no seam."""
+    r = min(radius, body.width / 2, body.height / 2)
+    left, top, right, bottom = body.left, body.top, body.right, body.bottom
+    arc = f"A {r:g} {r:g} 0 0 1"
+
+    def edge(side: TailSide, end: str) -> str:
+        if tail is None or tail.side != side:
+            return end
+        (ax, ay), (bx, by), (tx, ty) = tail.a, tail.b, tail.tip
+        # the trace runs left-to-right on top, top-to-bottom on the right, right-to-left
+        # along the bottom and bottom-to-top up the left, so the base points are met in
+        # that order
+        first, second = ((ax, ay), (bx, by)) if side in ("top", "right") else ((bx, by), (ax, ay))
+        return f"L {_pt(*first)} L {_pt(tx, ty)} L {_pt(*second)} {end}"
+
+    return " ".join([
+        f"M {_pt(left + r, top)}",
+        edge("top", f"H {right - r:g}"),
+        f"{arc} {_pt(right, top + r)}",
+        edge("right", f"V {bottom - r:g}"),
+        f"{arc} {_pt(right - r, bottom)}",
+        edge("bottom", f"H {left + r:g}"),
+        f"{arc} {_pt(left, bottom - r)}",
+        edge("left", f"V {top + r:g}"),
+        f"{arc} {_pt(left + r, top)}",
+        "Z",
+    ])  # fmt: skip
+
+
+def bubble_dots(body: Box, tip: tuple[float, float]) -> list[BubbleDot]:
+    """A thought bubble's trail: `BUBBLE_DOT_RADII_PX` dots along the line from the
+    body's edge (where a tail's base would sit) to the tip, largest first."""
+    tail = bubble_tail(body, tip)
+    if tail is None:
+        return []
+    (sx, sy), (tx, ty) = tail.base, tip
+    return [
+        BubbleDot(cx=round(sx + (tx - sx) * f, 2), cy=round(sy + (ty - sy) * f, 2), r=r)
+        for f, r in zip(BUBBLE_DOT_FRACTIONS, BUBBLE_DOT_RADII_PX, strict=True)
+    ]
+
+
+def bubble_spec(
+    bubble: Bubble,
+    *,
+    beat_id: str,
+    beat_start_s: float,
+    beat_end_s: float,
+    numbers: StyleNumbers,
+    blocked: Mapping[str, Box],
+    image: Box | None,
+) -> tuple[BubbleSpec | None, Placement | None]:
+    """One bubble of a beat, wrapped (`bubble_lines`; text that never fits fails the
+    build naming the beat), placed over its anchor at `BUBBLE_TAIL_LEN_PX` and moved
+    off the obstacles and the anchor's own keep-out (`place_text_pop`), then given its
+    tail (a speech bubble) or trail of dots (a thought bubble) to the anchor, and timed:
+    it lands at `at_s` (the grammar's; the beat's start when never written) and leaves
+    at the beat's end or `hold_max_s` later. None when no spot is free."""
+    b = numbers.broll
+    fitted = bubble_lines(bubble.text, numbers=numbers)
+    if fitted is None:
+        raise RenderError(
+            f"{beat_id}: bubble {bubble.text!r} does not fit {b.bubble_width_px} px on "
+            f"{BUBBLE_LINES_MAX} lines even at broll.motion.bubble.min_size_px "
+            f"{b.bubble_min_font_px} (063)"
+        )
+    font_px, lines, width, height = fitted
+    ax = min(max(bubble.x / 100 * WIDTH, 0.0), float(WIDTH))
+    ay = min(max(bubble.y / 100 * HEIGHT, 0.0), float(HEIGHT))
+    keep = BUBBLE_ANCHOR_KEEPOUT_PX
+    obstacles = {**blocked, "its anchor": Box(ax - keep, ay - keep, 2 * keep, 2 * keep)}
+    placed = place_text_pop(
+        ax, ay - BUBBLE_TAIL_LEN_PX - height / 2, width=width, height=height, rotate_deg=0.0,
+        blocked=obstacles, image=image, highest=HEIGHT - SAFE_BOTTOM_PX,
+    )  # fmt: skip
+    if placed is None:
+        return None, None
+    body = Box(placed.cx - width / 2, placed.cy - height / 2, width, height)
+    radius = min(BUBBLE_RADIUS_PX, height / 2)
+    tail = bubble_tail(body, (ax, ay)) if bubble.shape == "speech" else None
+    length = beat_end_s - beat_start_s
+    at = 0.0
+    if bubble.at_s is not None:
+        at = min(max(bubble.at_s - beat_start_s, 0.0), max(length - EPS, 0.0))
+    return BubbleSpec(
+        shape=bubble.shape, text=bubble.text, lines=lines, left=body.left, top=body.top,
+        width=width, height=height, radius_px=radius, tip_x=ax, tip_y=ay,
+        path=bubble_path(body, radius, tail),
+        dots=bubble_dots(body, (ax, ay)) if bubble.shape == "thought" else [],
+        font_px=font_px, font_weight=BUBBLE_WEIGHT, fill=b.bubble_fill, ink=b.bubble_ink,
+        stroke_px=BUBBLE_STROKE_PX, scale_from=BUBBLE_SCALE_FROM, at_s=round(at, 3),
+        pop_s=b.bubble_s, until_s=round(min(length, at + b.bubble_hold_max_s), 3),
+    ), placed  # fmt: skip
+
+
 def counter_spec(
     counter: CounterPlan, *, frames: int, fps: int, numbers: StyleNumbers
 ) -> CounterSpec:
@@ -1623,11 +1852,12 @@ def build_spec(
     composite are placed against the top of the circle the spec draws, not the style's
     fixed `pip.top` (051). `geocoder` places the map markers (020); None is the bundled
     gazetteer, and whichever it is, it is bound to the job's directory for its cache.
-    `detector` is the 3.3 face detector the stamps, counters and text pops are kept off
-    faces with (056 (4), 061); None runs no detection and keeps today's placement.
-    `presenter_face` is the measured face of the presenter cut (`job.json.presenter`),
-    which a text pop on a `full` beat is kept off (061). `log` gets one line per stamp
-    moved, or left in place with no free band, and one per text pop moved or dropped."""
+    `detector` is the 3.3 face detector the stamps, counters, text pops and bubbles
+    are kept off faces with (056 (4), 061, 063); None runs no detection and keeps
+    today's placement. `presenter_face` is the measured face of the presenter cut
+    (`job.json.presenter`), which a text pop or a bubble on a `full` beat is kept off
+    (061, 063). `log` gets one line per stamp moved, or left in place with no free
+    band, and one per text pop or bubble moved or dropped."""
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     geometry = pip or fixed_pip(source_size, numbers)
@@ -1708,6 +1938,55 @@ def build_spec(
             placed.append(spec)
         return tuple(placed)
 
+    def bubbles(
+        b: Beat, mode: Mode, visual: VisualSpec | None, stamp: StampSpec | None
+    ) -> tuple[BubbleSpec, ...]:
+        """063: the beat's bubbles placed off the circle (a `pip` beat), the caption
+        band, the stamp, the face - the image's (detected) or the presenter's own (a
+        `full` beat) - and each other."""
+        if not b.bubbles:
+            return ()
+        blocked: dict[str, Box] = {}
+        if mode == "pip":
+            blocked["the PIP circle"] = Box(
+                float(geometry.left), float(geometry.top), float(geometry.diameter),
+                float(geometry.diameter),
+            )  # fmt: skip
+        band_top = styles.caption_block_top(numbers.captions)
+        blocked["the caption band"] = Box(0.0, band_top, float(WIDTH), HEIGHT - band_top)
+        if stamp is not None:
+            blocked["the stamp"] = stamp_box(stamp)
+        face = presenter_face_box(presenter_face) if mode == "full" and presenter_face else None
+        face = face if face is not None else face_on(visual)
+        if face is not None:
+            blocked["the face"] = face
+        placed: list[BubbleSpec] = []
+        for i, bubble in enumerate(b.bubbles):
+            spec, placement = bubble_spec(
+                bubble, beat_id=b.id, beat_start_s=b.start, beat_end_s=b.end, numbers=numbers,
+                blocked=blocked, image=image_box_on(visual) if visual is not None else None,
+            )  # fmt: skip
+            label = f"{bubble.shape} bubble {bubble.text!r}"
+            if spec is None or placement is None:
+                if face is None:
+                    raise RenderError(
+                        f"{b.id}: {label} at ({bubble.x:g} %, {bubble.y:g} %) has no spot clear "
+                        "of the PIP circle, the captions and the stamp inside the safe area (063)"
+                    )
+                if log is not None:
+                    log(f"bubble: {b.id}: {label} dropped, no spot clear of the face, the circle, "
+                        "the captions and the stamp (063)")  # fmt: skip
+                continue
+            if placement.cleared and log is not None:
+                log(f"bubble: {b.id}: {label} moved off {' and '.join(placement.cleared)} "
+                    f"to ({spec.left + spec.width / 2:.0f}, {spec.top + spec.height / 2:.0f}); "
+                    f"the tail still points at ({spec.tip_x:.0f}, {spec.tip_y:.0f}) "
+                    "(063)")  # fmt: skip
+            blocked = {**blocked, "the first bubble" if i == 0 else f"bubble {i + 1}":
+                       Box(spec.left, spec.top, spec.width, spec.height)}  # fmt: skip
+            placed.append(spec)
+        return tuple(placed)
+
     beats: list[BeatSpec] = []
     for b in plan.beats:
         if b.enter not in numbers.transitions.enabled:
@@ -1723,6 +2002,7 @@ def build_spec(
                                       pip_top=geometry.top)  # fmt: skip
         chart, diagram = infographic(b, manifest, job_dir, numbers=numbers)
         start_frame, end_frame = round(b.start * fps), round(b.end * fps)
+        placed_stamp = off_face(b.id, stamp_spec(stamp, numbers=numbers), visual) if stamp else None
         beats.append(
             BeatSpec(
                 id=b.id,
@@ -1733,15 +2013,14 @@ def build_spec(
                 enter=b.enter,
                 visual=visual,
                 punch_in=PUNCH_IN if mode == "full" else None,
-                stamp=(
-                    off_face(b.id, stamp_spec(stamp, numbers=numbers), visual) if stamp else None
-                ),
+                stamp=placed_stamp,
                 lower_third=(
                     lower_third_spec(label, numbers=numbers)
                     if label and not labelled and b.id not in two_lines
                     else None
                 ),
                 text_pops=text_pops(b, mode, visual),
+                bubbles=bubbles(b, mode, visual, placed_stamp),
                 finale=(
                     finale_spec(plan.finale.text, sources, numbers=numbers)
                     if finale_beat is not None and b.id == finale_beat.id

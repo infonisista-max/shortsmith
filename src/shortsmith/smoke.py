@@ -43,6 +43,12 @@ four-transition subset with `wipe` on a beat - through the same T1-T13. The draf
 turned on (`fixture.pops_on`; every existing style keeps them off): the fake plan's b03
 carries one pop, the grammar writes its landing on the word, the render draws it clear of
 the circle, the captions and the presenter's face, and T12 counts it.
+
+`--bubbles` (ticket 063) likewise with bubbles on (`fixture.bubbles_on`): the fake plan's
+b04 carries a dialogue pair, the grammar lands the first at the beat's start and the
+second the fixture-scaled gap later, the render draws both clear of the circle, the
+captions, the stamp and each other with their tails on their anchors, T12 counts them,
+and job.log carries each bubble's text beside its source words.
 """
 
 from __future__ import annotations
@@ -186,13 +192,16 @@ def run_smoke(
     *,
     style: str = styles.DEFAULT,
     text_pops: bool = False,
+    bubbles: bool = False,
     transcriber: Transcriber | None = None,
     planner: Planner | None = None,
     renderer: Renderer | None = None,
 ) -> SmokeResult:
     """`text_pops` (061) judges and renders the walk under the selected style's copy
     with text pops turned on (`fixture.pops_on`), so the fake plan's one pop is drawn;
-    every existing style keeps them off, so the plain walk draws none."""
+    `bubbles` (063) likewise with bubbles on (`fixture.bubbles_on`), so the fake plan's
+    dialogue pair is drawn; every existing style keeps both off, so the plain walk
+    draws none."""
     started = time.perf_counter()
     transcriber = transcriber or FakeTranscriber()
     planner = planner or FakePlanner()
@@ -239,6 +248,8 @@ def run_smoke(
     judged = fixture.smoke_specs(specs, style)
     if text_pops:
         judged[style] = fixture.pops_on(judged[style])
+    if bubbles:
+        judged[style] = fixture.bubbles_on(judged[style])
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
         sourcing=smoke_sourcing(), specs=judged, library=library, critic=critic,
@@ -332,6 +343,7 @@ def run_smoke(
     short_s, short_lufs = check_short(short, picture)
     check_qa(reloaded)
     pops = check_text_pops(reloaded, plan, on=text_pops)
+    drawn_bubbles = check_bubbles(reloaded, plan, on_disk, on=bubbles)
     sheet = job.out_dir / "contact.jpg"
     check_contact_sheet(sheet)
     verdict = check_critic(reloaded, critic, plan)
@@ -361,7 +373,7 @@ def run_smoke(
         f"smoke ok: style {style}, job {job.id} -> {reloaded.status}, "
         f"{len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
-        f"text pops {pops}, "
+        f"text pops {pops}, bubbles {drawn_bubbles}, "
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
@@ -894,6 +906,80 @@ def check_text_pops(job: jobs.Job, plan: PicturePlan, *, on: bool) -> int:
     return len(drawn["b03"])
 
 
+def check_bubbles(job: jobs.Job, plan: PicturePlan, transcript: Transcript, *, on: bool) -> int:
+    """063: with bubbles on, the fake plan's b04 carries its dialogue pair (a speech
+    bubble of words 0-1 at the PIP circle, a thought bubble of words 2-3 over the
+    card), the grammar landed the first at the beat's start and the second the
+    fixture-scaled gap later, the render spec draws both inside the 6.3 zones in the
+    style's bubble look, apart from each other, the stamp and the circle, with the tail
+    tips on their anchors, T12 counted them, and job.log carries each text beside its
+    source words and dropped nothing; with bubbles off (every existing style) no beat
+    carries one. Returns the bubbles drawn."""
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    planned = {b.id: b.bubbles for b in plan.beats if b.bubbles}
+    drawn = {b.id: b.bubbles for b in spec.beats if b.bubbles}
+    report = technical.load_report(job)
+    assert report is not None
+    t12 = next(c.detail for c in report.checks if c.name == "T12")
+    log_lines = job.log_path.read_text(encoding="utf-8").splitlines()
+    bubble_lines = [line.split(" ", 1)[1] for line in log_lines if "bubble: " in line]
+    if not on:
+        check(not planned and not drawn, f"bubbles without the bubbles style: {planned} {drawn}")
+        check("0 bubbles" in t12, f"T12 did not count the bubbles: {t12}")
+        check(not bubble_lines, f"job.log has bubble lines without the style: {bubble_lines}")
+        return 0
+    check(list(planned) == ["b04"], f"the fake plan bubbles on {list(planned)}, not on b04")
+    speech, thought = planned["b04"]
+    gap = fixture.SMOKE_BUBBLE["dialogue_gap_min_s"]
+    check((speech.shape, speech.first, speech.last, speech.at_s) == ("speech", 0, 1, 1.5),
+          f"b04's first bubble is {speech}")  # fmt: skip
+    check((thought.shape, thought.first, thought.last) == ("thought", 2, 3)
+          and thought.at_s == 1.5 + gap, f"b04's second bubble is {thought}")  # fmt: skip
+    check(list(drawn) == ["b04"], f"the render spec draws bubbles on {list(drawn)}, not on b04")
+    beat = next(b for b in spec.beats if b.id == "b04")
+    check(beat.stamp is not None, "b04 lost its stamp")
+    assert beat.stamp is not None
+    row = render.style_numbers(job.record.style).broll
+    circle = render.Box(spec.pip.left, spec.pip.top, spec.pip.diameter, spec.pip.diameter)
+    stamp = render.stamp_box(beat.stamp)
+    bodies: list[render.Box] = []
+    for asked, placed in zip(planned["b04"], drawn["b04"], strict=True):
+        drawn_as = (placed.shape, placed.text, placed.font_weight)
+        check(drawn_as == (asked.shape, asked.text, render.BUBBLE_WEIGHT),
+              f"b04's bubble is drawn as {drawn_as}")  # fmt: skip
+        look = (placed.fill, placed.ink, placed.pop_s)
+        styled = look == (row.bubble_fill, row.bubble_ink, row.bubble_s)
+        check(styled and row.bubble_min_font_px <= placed.font_px <= row.bubble_font_px,
+              f"b04's bubble look is not {job.record.style}'s bubble row: {placed}")  # fmt: skip
+        anchor = (asked.x / 100 * render.WIDTH, asked.y / 100 * render.HEIGHT)
+        check((placed.tip_x, placed.tip_y) == anchor,
+              f"b04's bubble tail tip is off its anchor: {placed}")  # fmt: skip
+        assert asked.at_s is not None
+        landing = beat.start_frame / spec.fps + placed.at_s
+        check(abs(landing - asked.at_s) <= 0.15,
+              f"b04's bubble lands at {landing:g} s, not at {asked.at_s:g} s")  # fmt: skip
+        check(placed.until_s <= (beat.end_frame - beat.start_frame) / spec.fps + 1e-6,
+              "b04's bubble outlives its beat")  # fmt: skip
+        body = render.Box(placed.left, placed.top, placed.width, placed.height)
+        hits = technical.zone_hits(placed.left, placed.top, placed.width, placed.height)
+        check(not hits, f"b04's bubble reaches a reserved zone: {hits}")
+        check(not body.overlaps(circle) and not body.overlaps(stamp),
+              f"b04's bubble {placed.text!r} sits on the circle or the stamp")  # fmt: skip
+        check(all(not body.overlaps(other) for other in bodies), "b04's bubbles overlap")
+        bodies.append(body)
+    first, second = drawn["b04"]
+    check(second.at_s - first.at_s == gap, f"the pair lands {second.at_s - first.at_s:g} s apart")
+    check(first.dots == [] and len(second.dots) == 3, "the speech or thought trail is wrong")
+    check("2 bubbles" in t12, f"T12 did not count the bubbles: {t12}")
+    for line in pipeline.bubble_lines(plan, transcript):
+        check(line in bubble_lines, f"job.log lacks the bubble's source words: {bubble_lines}")
+    dropped = [line for line in bubble_lines if "dropped" in line]
+    check(not dropped, f"a bubble was dropped: {dropped}")
+    return len(drawn["b04"])
+
+
 def check_qa(job: jobs.Job) -> None:
     """`out/qa.json`: T1-T13 ran in order and every one passed (10.1; 006, 016, 023,
     031, 032). The smoke mixes cues, so T6 must have scanned a real SFX stem - its
@@ -1174,6 +1260,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="judge and render under the style's copy with text pops turned on (061), so "
         "the fake plan's one pop is drawn",
     )
+    parser.add_argument(
+        "--bubbles",
+        action="store_true",
+        help="judge and render under the style's copy with bubbles turned on (063), so "
+        "the fake plan's dialogue pair is drawn",
+    )
     return parser.parse_args(argv if argv is not None else [])
 
 
@@ -1188,8 +1280,8 @@ def main(
     with workspace(keep) as root:
         try:
             result = run_smoke(
-                root, style=args.style, text_pops=args.text_pops, transcriber=transcriber,
-                planner=planner,
+                root, style=args.style, text_pops=args.text_pops, bubbles=args.bubbles,
+                transcriber=transcriber, planner=planner,
             )  # fmt: skip
         except Exception as exc:  # noqa: BLE001 - the smoke reports every failure the same way
             print(f"smoke FAILED: {exc}", file=sys.stderr)

@@ -160,7 +160,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v10"
+    assert prompt.PROMPT_VERSION == "v11"
 
 
 def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:
@@ -209,6 +209,35 @@ def test_the_v10_prompts_say_when_to_pop_text_and_where_its_cue_sits() -> None:
     for needle in (
         "`text_pops`",
         "`at: event`",
+        "`pop` in `sound.whoosh.on`",
+    ):
+        assert needle in sound, needle
+
+
+def test_the_v11_prompts_say_when_to_bubble_and_that_the_words_are_the_recordings() -> None:
+    """063: the picture file's bubble rule (speech or thought, 1-`words_max` words only
+    from the recording with `first`-`last` naming them, the tail at `{x, y}`, a dialogue
+    pair landing the gap apart, under `broll.bubbles_max_per_60s`, never where the cap
+    is 0, `at_s` left to code) and the sound file's wording (an `event` cue may hit a
+    bubble; a whoosh may ride it under `sound.whoosh` with `pop` in `on`)."""
+    picture = prompt.build_prompt(_request(), "picture")
+    for needle in (
+        "`bubbles`",
+        "`speech`",
+        "`thought`",
+        "never a quote the recording does not carry",
+        "`first` and `last` are the\n  transcript word indices",
+        "`broll.motion.bubble.words_max`",
+        "`broll.motion.bubble.max_per_beat`",
+        "`broll.motion.bubble.dialogue_gap_min_s`",
+        "`broll.bubbles_max_per_60s`",
+        "Never write\n  `at_s`",
+    ):
+        assert needle in picture, needle
+    sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
+    for needle in (
+        "`text_pops` or `bubbles`",
+        "A text pop or a bubble may carry a hit",
         "`pop` in `sound.whoosh.on`",
     ):
         assert needle in sound, needle

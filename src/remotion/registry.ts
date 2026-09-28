@@ -2,8 +2,10 @@
 // style loader (008) cross-checks and the Node test asserts against these files. The
 // six enter transitions (9.4, ticket 030) are registered like any component: each is a
 // file that wraps a beat's picture; 060 adds the seventh, `flash`. 061 adds `text_pop`,
-// the bold words pinned on the picture that land on the spoken word.
+// the bold words pinned on the picture that land on the spoken word; 063 adds `bubble`,
+// the speech and thought bubbles of the recording's own words.
 import type React from "react";
+import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
@@ -34,6 +36,7 @@ import { Zoom } from "./components/zoom";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const REGISTRY: Record<string, React.ComponentType<any>> = {
+  bubble: Bubble,
   captions: Captions,
   card: Card,
   chart: Chart,

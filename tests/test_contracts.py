@@ -155,6 +155,41 @@ def test_a_beat_carries_text_pops_at_a_frame_point_landing_on_a_word() -> None:
     assert "text_pops" in PicturePlan.model_json_schema()["$defs"]["Beat"]["properties"]
 
 
+def test_a_beat_carries_bubbles_with_their_source_words_and_tail_target() -> None:
+    """063 (4.1 as amended): a picture beat may carry `bubbles`, each a `speech` or
+    `thought` bubble of words from the recording (`first`-`last` are the transcript
+    words it came from, inclusive), its tail pointing at `{x, y}` in percent of the
+    frame; `at_s` is the landing on the output timeline, written by the grammar and
+    never by the planner. A percentage outside 0-100, an unknown shape or a backwards
+    word run does not parse."""
+    beat = FakePlanner().plan_picture(_request()).beats[0]
+    bubbled = Beat.model_validate({
+        **beat.model_dump(),
+        "bubbles": [
+            {"text": "Who asked?", "first": 0, "last": 1, "x": 30.0, "y": 40.0},
+            {"shape": "thought", "text": "Nobody", "first": 2, "last": 2, "x": 60.0, "y": 35.0},
+        ],
+    })  # fmt: skip
+    speech, thought = bubbled.bubbles
+    assert (speech.shape, speech.text, speech.first, speech.last) == (
+        "speech", "Who asked?", 0, 1,
+    )  # fmt: skip
+    assert (speech.x, speech.y, speech.at_s) == (30.0, 40.0, None)
+    assert (thought.shape, thought.first, thought.last) == ("thought", 2, 2)
+    assert Beat.model_validate(bubbled.model_dump()) == bubbled
+    assert beat.bubbles == []
+    for bad in (
+        {"text": "Who?", "first": 0, "last": 1, "x": 101.0, "y": 40.0},
+        {"text": "Who?", "first": 0, "last": 1, "x": 30.0, "y": -1.0},
+        {"text": "Who?", "first": 2, "last": 1, "x": 30.0, "y": 40.0},
+        {"text": "Who?", "first": -1, "last": 1, "x": 30.0, "y": 40.0},
+        {"text": "Who?", "first": 0, "last": 1, "x": 30.0, "y": 40.0, "shape": "cloud"},
+    ):
+        with pytest.raises(ValidationError):
+            Beat.model_validate({**beat.model_dump(), "bubbles": [bad]})
+    assert "bubbles" in PicturePlan.model_json_schema()["$defs"]["Beat"]["properties"]
+
+
 def test_span_and_beat_reject_backwards_times() -> None:
     with pytest.raises(ValidationError):
         Span(start=1.0, end=0.5)

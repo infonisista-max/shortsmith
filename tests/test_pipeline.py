@@ -563,6 +563,34 @@ def test_planning_validates_the_plan_and_writes_the_validated_files(
     assert [p.keyword for p in pages] == [1, None, 5, None, None]
 
 
+def test_planning_logs_every_bubbles_text_beside_its_source_words(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """063 (2): under a spec with bubbles on, the fake plan's dialogue pair on b04 is
+    written to job.log at planning, each bubble's text beside the transcript words
+    (`first`-`last`) it came from; under the plain spec no such line exists."""
+    from tests.conftest import bubble_style
+
+    job = _uploaded(tmp_path, fixture_clip)
+    bubbled = {**SPECS, "explainer": bubble_style(SPECS["explainer"])}
+    done = pipeline.run_job(
+        job, transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
+        gate=FakeGate(), sourcing=_sourcing(), specs=bubbled,
+        detector=presenter.FakeFaceDetector(),
+    )  # fmt: skip
+    assert done.status == "delivered", done.record.error
+    log = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
+    lines = [line for line in log if line.startswith("bubble: ")]
+    assert lines == [
+        "bubble: b04: speech 'Hello there?' from words 0-1 'hello there' (063)",
+        "bubble: b04: thought 'This is...' from words 2-3 'this is' (063)",
+    ]
+    assert log.index(lines[0]) < log.index("planning -> sourcing")
+    plain = _uploaded(tmp_path / "plain", fixture_clip)
+    assert _run(plain).status == "delivered"
+    assert "bubble:" not in plain.log_path.read_text("utf-8")
+
+
 class _RetryPlanner(FakePlanner):
     """Rejected `bad_picture` / `bad_sound` times, then the canned plan; records what
     it was re-sent with."""

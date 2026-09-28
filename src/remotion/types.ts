@@ -159,6 +159,37 @@ export type TextPopSpec = {
   until_s: number;
 };
 
+// 063: a speech or thought bubble, placed, wrapped and timed by `render.bubble_spec`:
+// the body box with its text lines, the outline `path` (body plus tail, one shape) in
+// composition pixels, the thought trail `dots`, the tail tip (the planner's anchor), the
+// pop-in (`scale_from` -> 1 over `pop_s` from `at_s`), the leave (`until_s`) and the type
+// treatment (weight, ink on fill, outline).
+export type BubbleDot = { cx: number; cy: number; r: number };
+
+export type BubbleSpec = {
+  shape: "speech" | "thought";
+  text: string;
+  lines: string[];
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  radius_px: number;
+  tip_x: number;
+  tip_y: number;
+  path: string;
+  dots: BubbleDot[];
+  font_px: number;
+  font_weight: number;
+  fill: string;
+  ink: string;
+  stroke_px: number;
+  scale_from: number;
+  at_s: number;
+  pop_s: number;
+  until_s: number;
+};
+
 export type LowerThirdSpec = {
   name: string;
   role: string;
@@ -454,6 +485,7 @@ export type BeatSpec = {
   map?: MapLayout | null;
   counter?: CounterSpec | null;
   text_pops?: TextPopSpec[];
+  bubbles?: BubbleSpec[];
 };
 
 export type PipGeometry = {

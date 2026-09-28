@@ -35,6 +35,8 @@ from shortsmith.contracts import (
     AssetManifest,
     Beat,
     BedQuery,
+    Bubble,
+    BubbleSpec,
     CaptionPage,
     Captions,
     Constraints,
@@ -60,7 +62,7 @@ from shortsmith.contracts import (
 from shortsmith.planner import FakePlanner
 from shortsmith.qa import technical
 from shortsmith.transcriber import FakeTranscriber
-from tests.conftest import Media, text_pop_style
+from tests.conftest import Media, bubble_style, text_pop_style
 
 WORDS = FakeTranscriber().transcribe(Path("unused.mp4")).words
 EXPLAINER = render.style_numbers("explainer")  # from styles/explainer.md front matter (008)
@@ -1819,6 +1821,254 @@ def test_text_pops_render_their_fill_in_their_box_after_landing(
     there_area = there_box.width * there_box.height
     assert _colour_pixels(hello_landed, hello_box, POP_YELLOW) > hello_area * 0.02
     assert _colour_pixels(there_landed, there_box, white) > there_area * 0.01
+
+
+# --- bubbles (ticket 063; 4.1 as amended) -------------------------------------------------------
+#
+# The fake plan's b01 (0-0.5 s, a `photo` in `pip`) speaks "hello" (word 0, 0.2 s) and
+# "there" (word 1, 0.36 s); b04 (1.5-2.0 s) is the card beat with the stamp.
+
+BUBBLE_ROW = EXPLAINER_SPEC.broll.motion["bubble"]
+
+
+def _bubbled(plan: PicturePlan, beat_id: str, *bubbles: Bubble) -> PicturePlan:
+    return plan.model_copy(update={"beats": [
+        b.model_copy(update={"bubbles": list(bubbles)}) if b.id == beat_id else b
+        for b in plan.beats
+    ]})  # fmt: skip
+
+
+def _body(bubble: BubbleSpec) -> render.Box:
+    return render.Box(bubble.left, bubble.top, bubble.width, bubble.height)
+
+
+def _anchor_px(x: float, y: float) -> tuple[float, float]:
+    return x / 100 * render.WIDTH, y / 100 * render.HEIGHT
+
+
+def test_a_speech_bubble_sits_above_its_anchor_with_the_tail_tip_on_it() -> None:
+    """063 (1, 4): a speech bubble on b01 is a white rounded body in the explainer's
+    bubble look (Poppins 800 at `size_px`, `fill`, `ink`), centred over the planner's
+    `{x, y}` with its tail tip exactly on that point (the AC's 40 px), popping in over
+    `duration_s` at `at_s` and leaving at the beat's end; the body stays out of the 6.3
+    zones; every other beat carries none."""
+    asked = Bubble(text="Who asked?", first=0, last=1, x=62.0, y=30.0, at_s=0.2)
+    beat, spec = _pop_beat(_bubbled(_plan(), "b01", asked), "b01")
+    (bubble,) = beat.bubbles
+    ax, ay = _anchor_px(62.0, 30.0)
+    assert (bubble.shape, bubble.text, bubble.lines) == ("speech", "Who asked?", ["Who asked?"])
+    assert (bubble.font_px, bubble.font_weight) == (int(BUBBLE_ROW["size_px"]), 800)
+    assert (bubble.fill, bubble.ink) == (BUBBLE_ROW["fill"], BUBBLE_ROW["ink"])
+    assert (bubble.fill, bubble.ink) == ("#FFFFFF", "#111111")
+    assert (bubble.tip_x, bubble.tip_y) == (ax, ay)
+    assert bubble.left + bubble.width / 2 == pytest.approx(ax)
+    assert bubble.top + bubble.height == pytest.approx(ay - render.BUBBLE_TAIL_LEN_PX)
+    assert bubble.width <= int(BUBBLE_ROW["width_px"]) and bubble.radius_px > 0
+    tail = render.bubble_tail(_body(bubble), (ax, ay))
+    assert bubble.path == render.bubble_path(_body(bubble), bubble.radius_px, tail)
+    assert bubble.dots == [] and bubble.stroke_px > 0 and bubble.scale_from < 1.0
+    assert (bubble.at_s, bubble.pop_s) == (0.2, float(BUBBLE_ROW["duration_s"]))
+    assert bubble.until_s == 0.5
+    assert technical.zone_hits(bubble.left, bubble.top, bubble.width, bubble.height) == []
+    assert all(not b.bubbles for b in spec.beats if b.id != "b01")
+
+
+def test_a_thought_bubble_trails_dots_to_its_anchor_and_has_no_tail() -> None:
+    """063 (1): a thought bubble is the rounded body without a tail, with a trail of
+    dots shrinking from the body's edge to the anchor."""
+    asked = Bubble(shape="thought", text="Nobody", first=0, last=0, x=40.0, y=35.0, at_s=0.2)
+    beat, _ = _pop_beat(_bubbled(_plan(), "b01", asked), "b01")
+    (bubble,) = beat.bubbles
+    ax, ay = _anchor_px(40.0, 35.0)
+    assert bubble.shape == "thought" and (bubble.tip_x, bubble.tip_y) == (ax, ay)
+    assert bubble.path == render.bubble_path(_body(bubble), bubble.radius_px, None)
+    radii = [d.r for d in bubble.dots]
+    assert len(radii) == 3 and radii == sorted(radii, reverse=True)
+    body = _body(bubble)
+    for dot in bubble.dots:
+        assert body.bottom < dot.cy < ay and abs(dot.cx - ax) < 1e-6
+
+
+def test_the_tail_leaves_the_side_of_the_body_that_faces_the_anchor() -> None:
+    """The tail's base sits on the body edge nearest the tip, clear of the corners."""
+    body = render.Box(300.0, 500.0, 400.0, 120.0)
+    below = render.bubble_tail(body, (520.0, 800.0))
+    assert below is not None and below.side == "bottom"
+    assert below.a[1] == below.b[1] == body.bottom and below.a[0] < 520.0 < below.b[0]
+    above = render.bubble_tail(body, (320.0, 300.0))
+    assert above is not None and above.side == "top" and above.a[1] == body.top
+    assert above.a[0] >= body.left + render.BUBBLE_RADIUS_PX
+    right = render.bubble_tail(body, (900.0, 560.0))
+    assert right is not None and right.side == "right" and right.a[0] == body.right
+    left = render.bubble_tail(body, (100.0, 560.0))
+    assert left is not None and left.side == "left" and left.a[0] == body.left
+    assert render.bubble_tail(body, (500.0, 560.0)) is None  # inside: nothing to point at
+    path = render.bubble_path(body, 28.0, below)
+    assert path.startswith("M") and path.endswith("Z") and "L 520 800" in path
+    assert "L" not in render.bubble_path(body, 28.0, None)
+
+
+def test_a_dialogue_pair_keeps_apart_and_the_second_lands_after_the_first() -> None:
+    """063 (3): two bubbles on one beat never overlap - the second asked for the same
+    spot is moved off the first, logged - and each keeps its own landing: here 0.6 s
+    apart, the real dialogue gap, on b01 stretched to 4 s."""
+    plan = _plan()
+    long_beat = plan.model_copy(update={"beats": [
+        plan.beats[0].model_copy(update={"end": 4.0}),
+        *[b.model_copy(update={"start": max(b.start, 4.0)}) for b in plan.beats[1:] if b.end > 4.0],
+    ]})  # fmt: skip
+    question = Bubble(text="Who asked?", first=0, last=1, x=62.0, y=30.0, at_s=0.25)
+    answer = Bubble(shape="thought", text="Nobody did", first=2, last=3, x=62.0, y=30.0, at_s=0.85)
+    log: list[str] = []
+    beat, _ = _pop_beat(_bubbled(long_beat, "b01", question, answer), "b01", log)
+    first, second = beat.bubbles
+    assert not _body(first).overlaps(_body(second))
+    assert (first.at_s, second.at_s) == (0.25, 0.85)
+    assert second.at_s - first.at_s == pytest.approx(0.6)
+    assert first.until_s == pytest.approx(0.25 + float(BUBBLE_ROW["hold_max_s"]))
+    moved = [line for line in log if "bubble:" in line and "Nobody did" in line]
+    assert moved and "the first bubble" in moved[0], log
+
+
+def test_bubble_text_wraps_and_shrinks_to_fit_and_fails_below_the_minimum() -> None:
+    """063 (4): seven long words wrap onto lines inside `width_px`, the type shrinking
+    from `size_px` towards `min_size_px` until they fit; text that cannot fit at the
+    minimum fails the build naming the beat."""
+    seven = "Remarkable discoveries throughout centuries transformed humanity completely"
+    plan = _bubbled(_plan(), "b01", Bubble(text=seven, first=0, last=1, x=50.0, y=30.0, at_s=0.2))
+    beat, _ = _pop_beat(plan, "b01")
+    (bubble,) = beat.bubbles
+    assert int(BUBBLE_ROW["min_size_px"]) <= bubble.font_px < int(BUBBLE_ROW["size_px"])
+    assert 2 <= len(bubble.lines) <= render.BUBBLE_LINES_MAX
+    assert " ".join(bubble.lines) == seven
+    assert bubble.width <= int(BUBBLE_ROW["width_px"])
+    one_word = "Supercalifragilisticexpialidocious" * 3
+    asked = Bubble(text=one_word, first=0, last=1, x=50.0, y=30.0, at_s=0.2)
+    too_long = _bubbled(_plan(), "b01", asked)
+    with pytest.raises(render.RenderError, match=r"b01.*bubble.*min_size_px|b01.*does not fit"):
+        _pop_beat(too_long, "b01")
+
+
+def test_a_bubble_in_the_caption_band_or_on_the_pip_circle_is_moved_into_the_allowed_area() -> None:
+    """063 (4): a bubble whose body would sit in the caption band moves above it; one
+    whose body would cover the PIP circle (b01 is `pip`) moves off it; the tail still
+    points at the anchor; each move is one `bubble:` line in job.log."""
+    in_band = Bubble(text="Down here", first=0, last=1, x=50.0, y=80.0, at_s=0.2)
+    log: list[str] = []
+    beat, spec = _pop_beat(_bubbled(_plan(), "b01", in_band), "b01", log)
+    (bubble,) = beat.bubbles
+    band_top = styles.caption_block_top(spec.caption_style)
+    assert _body(bubble).bottom <= band_top + 1e-6
+    assert (bubble.tip_x, bubble.tip_y) == _anchor_px(50.0, 80.0)
+    assert any("b01" in line and "bubble:" in line and "caption" in line for line in log), log
+    on_circle = Bubble(text="Me", first=0, last=0, x=19.4, y=62.0, at_s=0.2)
+    log.clear()
+    beat, spec = _pop_beat(_bubbled(_plan(), "b01", on_circle), "b01", log)
+    circle = render.Box(spec.pip.left, spec.pip.top, spec.pip.diameter, spec.pip.diameter)
+    (bubble,) = beat.bubbles
+    assert not _body(bubble).overlaps(circle)
+    assert any("b01" in line and "bubble:" in line and "circle" in line for line in log), log
+    for placed in beat.bubbles:
+        assert technical.zone_hits(placed.left, placed.top, placed.width, placed.height) == []
+
+
+def test_a_bubble_over_a_face_is_moved_and_its_tail_still_points_at_the_face(
+    tmp_path: Path,
+) -> None:
+    """063 (4) reusing 056 (4): on a photo with a detected face under the body the
+    bubble moves to a face-free spot (the tail still on its anchor, the face) and
+    job.log says so; a face filling the whole photo leaves no spot, so the bubble is
+    dropped and job.log says that too."""
+    bubble = Bubble(text="Who, me?", first=0, last=0, x=50.0, y=31.0, at_s=0.2)
+    plan = _bubbled(_plan().model_copy(update={"beats": [
+        _stamped(1, kind="photo", query=PORTRAIT_SKY).model_copy(update={"event": Event()}),
+    ]}), "b1", bubble)  # fmt: skip
+    face = FaceBox(left=240, top=280, width=600, height=640)  # image pixels, 1080x1920
+    log: list[str] = []
+    beat = _faced_spec(tmp_path, plan, face, log).beats[0]
+    plain = _faced_spec(tmp_path, plan, None).beats[0]
+    assert beat.visual is not None and plain.bubbles and beat.bubbles
+    face_box = render.face_box_on(beat.visual, face)
+    assert _body(plain.bubbles[0]).overlaps(face_box), "the asked-for spot sat on the face"
+    assert not _body(beat.bubbles[0]).overlaps(face_box)
+    assert (beat.bubbles[0].tip_x, beat.bubbles[0].tip_y) == _anchor_px(50.0, 31.0)
+    assert any("b1" in line and "bubble:" in line and "face" in line for line in log), log
+    whole = FaceBox(left=0, top=0, width=1080, height=1920)
+    dropped_log: list[str] = []
+    dropped = _faced_spec(tmp_path, plan, whole, dropped_log).beats[0]
+    assert dropped.bubbles == ()
+    assert any("b1" in line and "dropped" in line and "face" in line for line in dropped_log)
+
+
+def test_the_fake_dialogue_pair_lands_through_the_grammar_on_the_card_beat() -> None:
+    """063: the fake plan's pair (b04, the card beat) validated under the bubbles style
+    lands at the beat's start (its words came earlier) and the fixture-scaled gap
+    later; the render keeps both off the stamp, the circle and each other."""
+    from shortsmith import grammar
+
+    request = _plan_request()
+    bubbled = bubble_style(EXPLAINER_SPEC)
+    styled = request.model_copy(update={"style": PlanStyle(
+        name="explainer", status="shipped", numbers=bubbled.numbers(), prose=bubbled.prose,
+    )})  # fmt: skip
+    plan = FakePlanner().plan_picture(styled)
+    story = FakePlanner().plan_sound(styled, plan)
+    judged = fixture.smoke_specs({"explainer": bubbled})["explainer"]
+    validated = grammar.validate(plan, story, request.transcript, judged)
+    assert isinstance(validated, ValidatedPlan), getattr(validated, "items", validated)
+    beat, spec = _pop_beat(validated.picture, "b04")
+    first, second = beat.bubbles
+    assert (first.shape, second.shape) == ("speech", "thought")
+    assert (first.at_s, second.at_s) == (0.0, fixture.SMOKE_BUBBLE["dialogue_gap_min_s"])
+    assert beat.stamp is not None
+    stamp = render.stamp_box(beat.stamp)
+    circle = render.Box(spec.pip.left, spec.pip.top, spec.pip.diameter, spec.pip.diameter)
+    for bubble in beat.bubbles:
+        assert not _body(bubble).overlaps(stamp) and not _body(bubble).overlaps(circle)
+        assert technical.zone_hits(bubble.left, bubble.top, bubble.width, bubble.height) == []
+    assert not _body(first).overlaps(_body(second))
+
+
+def test_bubbles_render_their_white_bodies_after_landing(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """063 end to end through Remotion: b01 carries a dialogue pair on its full-bleed
+    photo (the sky, no white in it). At 0 s neither body is drawn; at 0.47 s both
+    bodies are mostly the bubble's white fill."""
+    plan = _bubbled(
+        _plan(), "b01",
+        Bubble(text="Who asked?", first=0, last=1, x=62.0, y=30.0, at_s=0.05),
+        Bubble(shape="thought", text="Nobody", first=2, last=3, x=30.0, y=42.0, at_s=0.3),
+    )  # fmt: skip
+    job = _job_with(tmp_path, fixture_clip, plan)
+    manifest = assets.source_assets(
+        ValidatedPlan(picture=plan, sound=SoundStory(
+            prompt_version="t", theme="t", mood_curve=[],
+            bed_query=BedQuery(theme="t", mood="t", energy=3), cues=[])),
+        [], "any", spec=SPECS["explainer"], job_dir=job.path,
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY}),
+            "commons": assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)}),
+        },
+    )  # fmt: skip
+    assets.write_manifest(job.path, manifest)
+    render.cut_presenter(job)
+    spec = render.spec_for_job(job)
+    beat = next(b for b in spec.beats if b.id == "b01")
+    assert beat.visual is not None and beat.visual.treatment == "photo"
+    speech, thought = beat.bubbles
+    picture = job.work_dir / "picture.mp4"
+    render.run_driver(
+        spec, spec_path=job.work_dir / "render_spec.json", out_path=picture,
+        log_path=job.work_dir / "render.log",
+    )  # fmt: skip
+    frames = ffmpeg.frames_rgb(picture, fps=30, width=1080, duration_s=0.5)
+    before, landed = frames[0], frames[14]
+    white = (255, 255, 255)
+    for bubble in (speech, thought):
+        box = _body(bubble)
+        assert _colour_pixels(before, box, white) == 0
+        assert _colour_pixels(landed, box, white) > box.width * box.height * 0.3
 
 
 # --- maps (ticket 020; decisions 9.3, 12.1) ----------------------------------------------------

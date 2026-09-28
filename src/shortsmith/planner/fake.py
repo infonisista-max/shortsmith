@@ -32,6 +32,13 @@ shipped and draft styles; the smoke's `--text-pops` copy and 059's recipe styles
 also carries one text pop, "THIS", landing on word 2 ("this" at 1.2 s, 0.2 s into the
 beat) at the frame's centre-ish, and the sound story cues a `popup_tick` at its event.
 Under a cap of 0 the plan is byte-identical to before.
+
+Ticket 063: where the style's `broll.bubbles_max_per_60s` is over 0 (none of the four
+shipped and draft styles; the smoke's `--bubbles` copy and 059's recipe styles), b04 (the
+card beat with the stamp) carries a dialogue pair (`FAKE_BUBBLES`): a speech bubble of
+words 0-1 pointing at the PIP circle and a thought bubble of words 2-3 over the card. The
+stamp stays the beat's landed event, so the sound story is unchanged. Under a cap of 0
+the plan is byte-identical to before.
 """
 
 from __future__ import annotations
@@ -44,6 +51,7 @@ from shortsmith.contracts import (
 )
 from shortsmith.contracts import (
     BedQuery,
+    Bubble,
     Cue,
     CutPlan,
     Event,
@@ -146,6 +154,28 @@ def text_pops_allowed(style: PlanStyle) -> bool:
     return isinstance(cap, int | float) and cap > 0
 
 
+def bubbles_allowed(style: PlanStyle) -> bool:
+    """063: the style's `broll.bubbles_max_per_60s` is over 0; a request with no
+    numbers allows none (the explainer's rule)."""
+    broll = style.numbers.get("broll")
+    if not isinstance(broll, Mapping):
+        return False
+    cap = cast(Mapping[str, object], broll).get("bubbles_max_per_60s", 0)
+    return isinstance(cap, int | float) and cap > 0
+
+
+# 063: the fake's dialogue pair on b04 (the card beat, 1.5-2.0 s): the presenter's own
+# question from words 0-1 ("hello there"), its tail at the top of the PIP circle (explainer
+# pip.left 60 + diameter 300 / 2 = 210 px, pip.top 960 px), and the thought it prompts
+# from words 2-3 ("this is"), over the card's picture. Both quote words said before the
+# beat, so the grammar lands the first at the beat's start and the second the dialogue
+# gap later.
+FAKE_BUBBLES: tuple[Bubble, ...] = (
+    Bubble(shape="speech", text="Hello there?", first=0, last=1, x=19.4, y=50.0),
+    Bubble(shape="thought", text="This is...", first=2, last=3, x=62.0, y=30.0),
+)
+
+
 def enter_for(wanted: Transition, enabled: Sequence[Transition]) -> Transition:
     """`wanted` when the style enables it, else its first enabled fallback, else `cut`."""
     if wanted in enabled:
@@ -166,6 +196,8 @@ class FakePlanner(Planner):
         # 061: one pop on the presenter full beat where the style allows pops at all.
         allowed = text_pops_allowed(request.style)
         pops = [Pop(text="THIS", word=2, x=50.0, y=42.0)] if allowed else []
+        # 063: the dialogue pair on the card beat where the style allows bubbles at all.
+        bubbles = list(FAKE_BUBBLES) if bubbles_allowed(request.style) else []
 
         def enter(wanted: Transition) -> Transition:
             return enter_for(wanted, enabled)
@@ -194,7 +226,7 @@ class FakePlanner(Planner):
             B(id="b04", start=1.5, end=2.0, mode="pip", kind="card", motion="push_in",
               subject_kind="concept", depicts="scene", query="slow colour gradient sky",
               query_fallback="abstract gradient", source_intent="search", asset_id="a1",
-              event=Event(kind="stamp", text="NOTHING")),
+              event=Event(kind="stamp", text="NOTHING"), bubbles=bubbles),
             # 020: the map is drawn from the bundled geodata with the markers at the
             # geocoder's points; it sources no picture. 028 animates its three overlays.
             B(id="b05", start=2.0, end=2.5, mode="off", kind="map",

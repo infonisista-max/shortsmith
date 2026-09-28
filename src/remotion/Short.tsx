@@ -32,9 +32,11 @@
 //
 // Ticket 061 (4.1 as amended): a beat's text pops (`text_pop`) are drawn with the landed
 // overlays, above the PIP circle and below the captions; they are placed clear of both,
-// so the order only settles what a stray pixel would cover.
+// so the order only settles what a stray pixel would cover. Ticket 063: a beat's speech
+// and thought bubbles (`bubble`) sit in the same layer, after the text pops.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
+import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
@@ -193,6 +195,16 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       ) : null}
       {beat?.text_pops?.length ? (
         <TextPop pops={beat.text_pops} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat?.bubbles?.length ? (
+        <Bubble
+          bubbles={beat.bubbles}
+          style={spec.caption_style}
+          frame={since}
+          fps={spec.fps}
+          width={spec.width}
+          height={spec.height}
+        />
       ) : null}
       <Captions spec={spec} t={t} />
     </AbsoluteFill>

@@ -1,5 +1,5 @@
 ---
-version: "7"
+version: "8"
 status: shipped
 aliases: [explainer, explain, explained, explanation, fact, facts, story, news, dhruv]
 requires_components: [captions, pip, photo, card, stamp, lower_third, finale, list,
@@ -65,10 +65,17 @@ broll:
     # the pop yellow, white is white, and the accent (years, numbers) is `palette.accent`.
     text_pop: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 6,
                size_px: 96, fill: "#FFD60A"}
+    # 063: speech and thought bubbles of the recording's own words; a beat may carry a
+    # dialogue pair, the second landing dialogue_gap_min_s-dialogue_gap_max_s after the
+    # first; the text shrinks from size_px to min_size_px to fit width_px, then fails.
+    bubble: {kind: pop, duration_s: 0.2, hold_max_s: 3.0, max_per_beat: 2, words_max: 7,
+             dialogue_gap_min_s: 0.6, dialogue_gap_max_s: 1.2, size_px: 56, min_size_px: 36,
+             width_px: 640, fill: "#FFFFFF", ink: "#111111"}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here; the recipe styles of 059 turn pops on
+  bubbles_max_per_60s: 0  # 063: off here; the recipe styles of 059 turn bubbles on
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -173,6 +180,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - A `map` beat is drawn from bundled map data, never sourced as a picture (9.3): it carries `map` with a `region` by name (a country, a state, "South Asia", or a city for a close-up) or a `bbox` of west, south, east, north degrees, 1 to `motion.map.markers_max` `markers` each `{name}` (write the place name; code looks the coordinate up and refuses a name it cannot find, so use the common English name), an optional `route` of two or more place names in order and an `object` (plane, ship or arrow) that travels it. The beat needs no `asset_id`. Its overlays are `pin_drop`, `route_arrow` (needs the route) and `object_path` (needs the route and the object).
 - Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. Where a style enables `flash` (9.4 as amended by 060; this one does not), it is a full-frame colour flash peaking on the cut, for a turn back to the presenter or a section change: at most `flash_max_per_60s` per minute and never on two consecutive beats; the PIP circle and the captions stay on top of it. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
 - Text pops (4.1 as amended by 061; off here: `text_pops_max_per_60s` is 0): where a style allows them, a `photo`, `card` or presenter-full beat carries `text_pops`, 1–4 bold words from the script pinned near the thing they name at `{x, y, anchor}` in percent of the frame, each landing on its spoken `word`, at most `motion.text_pop.max_per_beat` per beat; code keeps them inside the safe area, off the circle, the captions and any face.
+- Bubbles (4.1 as amended by 063; off here: `bubbles_max_per_60s` is 0): where a style allows them, a `photo`, `card` or presenter-full beat carries `bubbles`, each a `speech` or `thought` bubble of 1–`motion.bubble.words_max` words that the recording itself carries (what the speaker says someone said or thought, or his own question, shortened or in the caption language; `first`–`last` name the transcript words it came from), its tail pointing at `{x, y}` in percent of the frame — a person in the picture, or the PIP circle when the presenter is the one asking. At most `motion.bubble.max_per_beat` per beat; a dialogue pair's second bubble lands `dialogue_gap_min_s`–`dialogue_gap_max_s` after the first. Code keeps the body inside the safe area, off the captions, the circle, the stamp and any face (the tail points at it instead).
 
 ## Captions
 - Word-synced from the ASR word list only; the planner never touches word times (6.1). Pages hold `words_per_page` words, preferring `prefer`; never split a marked name or number run; break on segment punctuation and on inter-word gaps over `gap_break_s`.

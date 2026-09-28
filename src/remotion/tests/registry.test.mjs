@@ -101,7 +101,8 @@ test("the flash is drawn over the picture layers and under the pip, overlays and
   const overlay = short.indexOf("<FlashOverlay");
   assert.ok(overlay > 0, "Short.tsx never draws the FlashOverlay");
   assert.ok(short.lastIndexOf("</Transition>") < overlay, "the flash is under the beat's picture");
-  for (const above of ["<Pip ", "<Stamp ", "<Counter ", "<LowerThird", "<TextPop ", "<Captions "]) {
+  for (const above of ["<Pip ", "<Stamp ", "<Counter ", "<LowerThird", "<TextPop ", "<Bubble",
+                       "<Captions "]) {
     assert.ok(short.indexOf(above) > overlay, `${above.trim()} is drawn under the flash`);
   }
   // Both sides of the boundary: the next beat's flash rises through this beat's last frames.
@@ -131,6 +132,26 @@ test("the composition lists text_pop after ticket 061 and draws it over the pip,
   assert.match(source, /Easing\.back\(/, "the pop has no overshoot");
 });
 
+test("the composition lists bubble after ticket 063 and draws it over the text pops, under the captions", () => {
+  assert.ok(registry.components.includes("bubble"), "bubble is not registered");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const bubbles = short.indexOf("<Bubble");
+  assert.ok(bubbles > 0, "Short.tsx never draws Bubble");
+  assert.ok(short.indexOf("<Pip ") < bubbles, "bubbles are drawn under the PIP circle");
+  assert.ok(short.indexOf("<TextPop ") < bubbles, "bubbles are drawn under the text pops");
+  assert.ok(bubbles < short.indexOf("<Captions "), "bubbles are drawn over the captions");
+  // Every number is the spec's: the landing, the overshoot, the leave, the outline path,
+  // the trail, the lines and the type treatment.
+  const source = readFileSync(join(root, "components", "bubble.tsx"), "utf-8");
+  for (const field of ["at_s", "pop_s", "until_s", "scale_from", "path", "dots", "lines",
+                       "font_weight", "font_px", "fill", "ink", "stroke_px"]) {
+    assert.ok(source.includes(`.${field}`), `bubble.tsx never reads ${field}`);
+  }
+  assert.match(source, /Easing\.back\(/, "the bubble has no overshoot");
+  assert.match(source, /<path/, "the bubble body is not drawn as one path");
+  assert.match(source, /<circle/, "the thought trail is never drawn");
+});
+
 test("the registry holds the whole tier-1 set the explainer requires (030)", () => {
   const tier1 = ["captions", "pip", "photo", "card", "stamp", "lower_third", "hook_cards",
                  "finale", "list", "chart", "split", "wall", "infographic", "label_flyin",
@@ -149,7 +170,7 @@ test("Short.tsx draws every registered component", () => {
                   wall: "Wall", chart: "Chart", infographic: "Infographic",
                   label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase",
                   pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath",
-                  text_pop: "TextPop" };
+                  text_pop: "TextPop", bubble: "Bubble" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   for (const name of registry.components) {

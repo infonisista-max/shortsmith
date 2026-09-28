@@ -267,6 +267,47 @@ def test_under_a_style_with_text_pops_on_the_fake_pops_one_word_on_the_full_beat
     assert landed.at_s == request_.transcript.words[2].start == 1.2
 
 
+def test_under_a_style_with_bubbles_on_the_fake_puts_a_dialogue_pair_on_the_card_beat(
+    request_: PlanRequest,
+) -> None:
+    """063: where the style's `broll.bubbles_max_per_60s` is over 0, b04 (the card beat,
+    1.5-2.0 s) carries a dialogue pair - a speech bubble of words 0-1 ("hello there")
+    pointing at the PIP circle and a thought bubble of words 2-3 ("this is") over the
+    card - and the sound story cues nothing extra (the stamp is the beat's event);
+    under explainer (cap 0) no beat carries a bubble. The pair passes the grammar under
+    the fixture-shaped copy of the bubbles style, which writes both landings."""
+    from shortsmith import grammar, render, styles
+    from shortsmith.contracts import ValidatedPlan
+    from tests.conftest import bubble_style
+
+    bubbled = bubble_style(styles.load_all(render.registry())["explainer"])
+    styled = request_.model_copy(
+        update={
+            "style": PlanStyle(
+                name="explainer", status="shipped", numbers=bubbled.numbers(), prose=bubbled.prose
+            )
+        }
+    )
+    plan = FakePlanner().plan_picture(styled)
+    with_bubbles = {b.id: b.bubbles for b in plan.beats if b.bubbles}
+    assert list(with_bubbles) == ["b04"]
+    speech, thought = with_bubbles["b04"]
+    assert (speech.shape, speech.first, speech.last, speech.at_s) == ("speech", 0, 1, None)
+    assert (thought.shape, thought.first, thought.last, thought.at_s) == ("thought", 2, 3, None)
+    words = [w.text for w in request_.transcript.words]
+    assert words[0:2] == ["hello", "there"] and words[2:4] == ["this", "is"]
+    assert speech.text.lower().split()[0].strip("?!.,") == "hello"
+    story = FakePlanner().plan_sound(styled, plan)
+    plain = FakePlanner().plan_picture(request_)
+    assert story.cues == FakePlanner().plan_sound(request_, plain).cues
+    assert all(not b.bubbles for b in plain.beats)
+    judged = fixture.smoke_specs({"explainer": bubbled})["explainer"]
+    result = grammar.validate(plan, story, request_.transcript, judged)
+    assert isinstance(result, ValidatedPlan), getattr(result, "items", result)
+    landed = next(b for b in result.picture.beats if b.id == "b04").bubbles
+    assert [b.at_s for b in landed] == [1.5, 1.5 + fixture.SMOKE_BUBBLE["dialogue_gap_min_s"]]
+
+
 def test_from_settings_selects_the_fake_only_for_planner_fake(
     request_: PlanRequest, tmp_path: Path
 ) -> None:

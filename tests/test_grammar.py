@@ -23,6 +23,7 @@ from shortsmith.contracts import (
     CATEGORIES,
     Beat,
     BedQuery,
+    Bubble,
     Constraints,
     CounterPlan,
     Cue,
@@ -50,7 +51,7 @@ from shortsmith.contracts import (
 from shortsmith.planner import FakePlanner
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import FakeTranscriber
-from tests.conftest import flash_whoosh_style, text_pop_style
+from tests.conftest import bubble_style, flash_whoosh_style, text_pop_style
 
 BRIEF = "Topic: why the sky is blue. Angle: scattering in one breath. Hook wish: none."
 # Each beat's one word starts this far into it (the first beat's at its start), so the
@@ -996,6 +997,152 @@ def test_an_event_cue_may_sit_on_a_text_pop_and_a_whoosh_rides_a_pop_in(
     assert flash_only.sound.whoosh is not None
     flash_only.sound.whoosh.on = ["flash"]
     assert ("b05", "7.3") in rules(cued(with_pop, flash_only, whoosh))
+
+
+# --- bubbles (ticket 063; 4.1 as amended) ------------------------------------------------
+#
+# The base plan's b05 (10.0-12.5 s, a `photo`) speaks w4 at 10.4; b06 (a `card`) w5 at
+# 12.9; w2 and w3 were said on b03 and b04.
+
+
+@pytest.fixture(scope="module")
+def bubbled(spec: StyleSpec) -> StyleSpec:
+    """063's test style: the explainer with `bubbles_max_per_60s` 20."""
+    return bubble_style(spec)
+
+
+def _bubble(
+    text: str = "Who asked?", first: int = 4, last: int | None = None, **fields: Any
+) -> Bubble:
+    return Bubble(text=text, first=first, last=first if last is None else last, x=60.0, y=40.0,
+                  **fields)  # fmt: skip
+
+
+def _with_bubbles(plan: PicturePlan, beat_id: str, *bubbles: Bubble) -> PicturePlan:
+    return replace(plan, beat_id, bubbles=list(bubbles))
+
+
+def test_bubbles_pass_on_a_picture_beat_and_land_on_their_first_source_word(
+    bubbled: StyleSpec,
+) -> None:
+    """063 (1, 2): a bubble on a `photo` or `card` beat passes under a style with
+    bubbles on; the validated plan's bubble carries `at_s`, its first source word's
+    start on the output timeline (the plan's own `at_s` is never trusted); a bubble
+    quoting words said before the beat lands at the beat's start."""
+    plan = _with_bubbles(make_plan(), "b05", _bubble(at_s=99.0))
+    (bubble,) = next(b for b in checked(plan, bubbled).picture.beats if b.id == "b05").bubbles
+    assert bubble.at_s == transcript_for(plan).words[4].start == 10.4
+    earlier = _with_bubbles(make_plan(), "b05", _bubble("They said so", 2, 3, shape="thought"))
+    (quoted,) = checked(earlier, bubbled).picture.beats[4].bubbles
+    assert quoted.at_s == 10.0 and quoted.shape == "thought"
+    on_card = _with_bubbles(make_plan(), "b06", _bubble("Really?", 5))
+    assert checked(on_card, bubbled).picture.beats[5].bubbles[0].at_s == 12.9
+
+
+def _two_words_on_b05(plan: PicturePlan) -> Transcript:
+    """The base transcript with b05 speaking two words: w4 at 10.4-10.8 and w4b at
+    11.3-12.5 (index 5; the later indices shift by one)."""
+    base = transcript_for(plan)
+    words = list(base.words)
+    words[4] = Word(text="w4", start=10.4, end=10.8, segment=words[4].segment)
+    words.insert(5, Word(text="w4b", start=11.3, end=12.5, segment=words[4].segment))
+    return base.model_copy(update={"words": words})
+
+
+def test_a_dialogue_pairs_second_bubble_lands_inside_the_gap_window(bubbled: StyleSpec) -> None:
+    """063 (3): the second bubble of a beat lands `motion.bubble.dialogue_gap_min_s`-
+    `dialogue_gap_max_s` (0.6-1.2 s) after the first: its own word's time when that
+    falls inside the window, else the nearer edge; a beat too short to hold the pair
+    is rejected naming it."""
+    plan = make_plan()
+    two = _two_words_on_b05(plan)
+    question, answer = _bubble("Who asked?", 4), _bubble("Nobody", 5, shape="thought")
+    pair = checked(_with_bubbles(plan, "b05", question, answer), bubbled, transcript=two)
+    first, second = pair.picture.beats[4].bubbles
+    assert (first.at_s, second.at_s) == (10.4, 11.3)  # w4b at 11.3 is inside 11.0-11.6
+    early = checked(_with_bubbles(plan, "b05", question, _bubble("Me", 3)), bubbled, transcript=two)
+    assert [b.at_s for b in early.picture.beats[4].bubbles] == [10.4, 11.0]  # w3 came earlier
+    quoted = _with_bubbles(plan, "b05", _bubble("They said", 2, 3), answer)
+    late = checked(quoted, bubbled, transcript=two)
+    assert [b.at_s for b in late.picture.beats[4].bubbles] == [10.0, 11.2]  # w4b past 11.2
+    short = make_plan(body_lengths=[*([2.5] * 19), 0.8])
+    (b22,) = [b for b in short.beats if b.id == "b22"]
+    assert b22.end - b22.start == pytest.approx(0.8)
+    cramped = _with_bubbles(short, "b22", _bubble("Who asked?", 21), _bubble("Nobody", 21))
+    assert ("b22", "4.1") in rules(picture(cramped, bubbled))
+    assert grammar.bubble_gap(bubbled) == (0.6, 1.2)
+
+
+def test_bubbles_are_rejected_where_the_style_caps_them_at_zero(spec: StyleSpec) -> None:
+    """063 (5): the four existing styles set `broll.bubbles_max_per_60s` 0, so any
+    bubble fails validation naming the beat."""
+    assert ("b05", "4.1") in rules(picture(_with_bubbles(make_plan(), "b05", _bubble()), spec))
+
+
+def test_bubbles_are_capped_per_beat_and_per_60s_rounding_up(bubbled: StyleSpec) -> None:
+    """063 (3, 5): at most `motion.bubble.max_per_beat` (2) on one beat and
+    ceil(`bubbles_max_per_60s` x runtime / 60) over the short: 19 on the 56 s plan,
+    2 on the six-second fixture; the violation names the beat that crosses the cap."""
+    three = _with_bubbles(make_plan(), "b05", _bubble("a"), _bubble("b"), _bubble("c"))
+    assert ("b05", "4.1") in rules(picture(three, bubbled))
+    plan = make_plan()
+    ids = [f"b{n:02d}" for n in range(3, 23)]  # the twenty body beats
+    for beat_id, index in zip(ids[:19], range(2, 21), strict=True):
+        plan = _with_bubbles(plan, beat_id, _bubble(first=index))
+    checked(plan, bubbled)
+    twentieth = _with_bubbles(plan, ids[19], _bubble(first=21))
+    found = rules(picture(twentieth, bubbled))
+    assert (ids[19], "4.1") in found and (ids[18], "4.1") not in found
+    assert grammar.bubble_cap(bubbled, runtime=6.0) == 2
+    assert grammar.bubble_cap(bubbled, runtime=56.0) == 19
+    assert grammar.bubble_cap(bubbled, runtime=60.0) == 20
+
+
+def test_a_bubble_is_one_to_seven_words_from_the_recording_on_a_picture_beat(
+    bubbled: StyleSpec,
+) -> None:
+    """063 (1, 2, 4): 1-`motion.bubble.words_max` words; its source words exist in the
+    transcript and are spoken before the beat ends; on `photo`, `card` or the presenter
+    full frame only, never on a set piece."""
+    eight = _with_bubbles(make_plan(), "b05", _bubble("one two three four five six seven eight"))
+    assert ("b05", "4.1") in rules(picture(eight, bubbled))
+    seven = _with_bubbles(make_plan(), "b05", _bubble("one two three four five six seven"))
+    checked(seven, bubbled)
+    blank = _with_bubbles(make_plan(), "b05", _bubble("   "))
+    assert ("b05", "4.1") in rules(picture(blank, bubbled))
+    past = _with_bubbles(make_plan(), "b05", _bubble("Later", 4, 99))
+    assert ("b05", "4.1") in rules(picture(past, bubbled))
+    not_yet = _with_bubbles(make_plan(), "b05", _bubble("Not yet said", 5))
+    assert ("b05", "4.1") in rules(picture(not_yet, bubbled))
+    on_list = _with_bubbles(replace(make_plan(), "b05", **AS_LIST), "b05", _bubble())
+    assert ("b05", "4.1") in rules(picture(on_list, bubbled))
+    full = replace(
+        make_plan(), "b05", mode="full", reason="emotional_line", kind="presenter_full",
+        motion=None, event=Event(), asset_id=None, bubbles=[_bubble("Is it?")],
+    )  # fmt: skip
+    checked(full, bubbled)
+
+
+def test_a_bubble_is_a_change_on_screen_and_something_a_cue_may_hit(
+    bubbled: StyleSpec, spec: StyleSpec
+) -> None:
+    """063 (5): a bubble counts as a change for the 3.1 density rule and is something to
+    hit: an `event` cue on a beat with no landed event but a bubble passes 9.4, and under
+    a style allowing whooshes with `pop` in `sound.whoosh.on` a `whoosh` at its pop-in
+    (`at: event`) passes 7.3, while one at the beat's start is refused."""
+    bare = replace(make_plan(), "b05", event=Event())
+    assert ("b05", "3.1") in rules(picture(bare, bubbled))
+    with_bubble = _with_bubbles(bare, "b05", _bubble())
+    checked(with_bubble, bubbled)
+    pop = Cue(beat_id="b05", intent="pop", at="event")
+    assert ("b05", "9.4") in rules(cued(bare, bubbled, pop))
+    assert isinstance(cued(with_bubble, bubbled, pop), grammar.SoundCheck)
+    both = bubble_style(flash_whoosh_style(spec))
+    whoosh = Cue(beat_id="b05", intent="whoosh", at="event")
+    assert isinstance(cued(with_bubble, both, whoosh), grammar.SoundCheck)
+    at_start = Cue(beat_id="b05", intent="whoosh", at="start")
+    assert ("b05", "7.3") in rules(cued(with_bubble, both, at_start))
+    assert ("b05", "7.3") in rules(cued(bare, both, whoosh))
 
 
 # --- assets (4.3) ------------------------------------------------------------------------

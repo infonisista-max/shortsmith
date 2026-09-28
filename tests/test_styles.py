@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 import yaml
 
-from shortsmith import render, styles
+from shortsmith import fixture, render, styles
 from shortsmith.styles import KEY_GROUPS, PROSE_SECTIONS, Resolution, StyleError, StyleSpec
 from tests.conftest import flash_whoosh_style
 
@@ -82,7 +82,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "7", spec.name  # the front matter changed again (061)
+        assert spec.version == "8", spec.name  # the front matter changed again (063)
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -425,6 +425,79 @@ def test_the_test_style_helper_turns_text_pops_on(specs: dict[str, StyleSpec]) -
     assert styled.broll.motion["text_pop"] == specs["explainer"].broll.motion["text_pop"]
     assert specs["explainer"].broll.text_pops_max_per_60s == 0, "the original is untouched"
     assert styled.model_dump(exclude={"broll"}) == specs["explainer"].model_dump(exclude={"broll"})
+
+
+# --- bubbles (ticket 063; 4.1 and 9.2 as amended) -----------------------------------------
+
+
+def test_every_spec_carries_the_bubble_row_and_a_cap_of_zero(specs: dict[str, StyleSpec]) -> None:
+    """063 (1, 3, 5): the bubble's numbers are a `broll.motion.bubble` row in every spec
+    (a 0.15-0.25 s overshoot, a hold, at most 2 per beat, 1-7 words, the dialogue gap
+    inside 0.6-1.2 s, the type size with its minimum, the body width, white fill and dark
+    ink) and `broll.bubbles_max_per_60s` is 0 in the four existing styles: off until the
+    recipe styles of 059 turn it on."""
+    for spec in specs.values():
+        row = spec.broll.motion["bubble"]
+        assert row["kind"] == "pop", spec.name
+        assert 0.15 <= float(row["duration_s"]) <= 0.25, spec.name
+        assert float(row["hold_max_s"]) > 0, spec.name
+        assert int(row["max_per_beat"]) == 2, spec.name
+        assert int(row["words_max"]) == 7, spec.name
+        lo, hi = float(row["dialogue_gap_min_s"]), float(row["dialogue_gap_max_s"])
+        assert 0.6 <= lo < hi <= 1.2, spec.name
+        assert 0 < int(row["min_size_px"]) < int(row["size_px"]), spec.name
+        assert int(row["width_px"]) > 0, spec.name
+        assert str(row["fill"]).startswith("#") and str(row["ink"]).startswith("#"), spec.name
+        assert spec.broll.bubbles_max_per_60s == 0, spec.name
+        assert "bubble" not in spec.requires_components, spec.name
+    assert "bubble" in REGISTRY
+
+
+def test_the_bubble_row_or_cap_missing_fails_the_loader_naming_the_spec(tmp_path: Path) -> None:
+    def drop_row(fm: dict[str, Any]) -> None:
+        del fm["broll"]["motion"]["bubble"]
+
+    with pytest.raises(StyleError, match=r"explainer.*bubble"):
+        render.numbers_for(
+            styles.load_all(REGISTRY, _variant_dir(tmp_path / "a", "explainer", drop_row))[
+                "explainer"
+            ]
+        )
+
+    def drop_cap(fm: dict[str, Any]) -> None:
+        del fm["broll"]["bubbles_max_per_60s"]
+
+    with pytest.raises(StyleError, match=r"hitech.*bubbles_max_per_60s"):
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", drop_cap))
+
+
+def test_the_test_style_helper_turns_bubbles_on(specs: dict[str, StyleSpec]) -> None:
+    """The copy the grammar, the fake planner, the render and the smoke exercise 063
+    under: the explainer with `bubbles_max_per_60s` raised to 20, so a six-second fixture
+    allows the one dialogue pair; nothing else changes and the original is untouched."""
+    from tests.conftest import BUBBLES_PER_60S, bubble_style
+
+    styled = bubble_style(specs["explainer"])
+    assert styled.broll.bubbles_max_per_60s == BUBBLES_PER_60S == 20
+    assert styled.broll.motion["bubble"] == specs["explainer"].broll.motion["bubble"]
+    assert specs["explainer"].broll.bubbles_max_per_60s == 0, "the original is untouched"
+    assert styled.model_dump(exclude={"broll"}) == specs["explainer"].model_dump(exclude={"broll"})
+
+
+def test_the_fixture_shaped_copy_scales_the_dialogue_gap_to_the_clip(
+    specs: dict[str, StyleSpec],
+) -> None:
+    """063: no 0.5 s fake beat can hold a real 0.6 s dialogue gap, so the fixture-shaped
+    copy scales `motion.bubble.dialogue_gap_*` as it scales the beat lengths; the
+    shipped row is untouched."""
+    scaled = fixture.smoke_specs(specs)["explainer"].broll.motion["bubble"]
+    real = specs["explainer"].broll.motion["bubble"]
+    assert scaled["dialogue_gap_min_s"] == fixture.SMOKE_BUBBLE["dialogue_gap_min_s"] == 0.2
+    assert scaled["dialogue_gap_max_s"] == fixture.SMOKE_BUBBLE["dialogue_gap_max_s"] == 0.4
+    assert float(real["dialogue_gap_min_s"]) == 0.6
+    assert {k: v for k, v in scaled.items() if not k.startswith("dialogue_gap")} == {
+        k: v for k, v in real.items() if not k.startswith("dialogue_gap")
+    }
 
 
 def test_the_test_style_helper_enables_flash_and_allows_whooshes(

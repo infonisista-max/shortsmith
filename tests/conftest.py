@@ -47,6 +47,17 @@ def text_pop_style(spec: styles.StyleSpec) -> styles.StyleSpec:
     return fixture.pops_on(spec)
 
 
+# 063: the cap the test style raises bubbles to: ceil(20 x 6 / 60) = 2 on the fixture.
+BUBBLES_PER_60S = fixture.BUBBLES_PER_60S
+
+
+def bubble_style(spec: styles.StyleSpec) -> styles.StyleSpec:
+    """063's test style: a deep copy of `spec` with bubbles turned on
+    (`broll.bubbles_max_per_60s` = `BUBBLES_PER_60S`), the smoke's `--bubbles` copy
+    (`fixture.bubbles_on`). The four shipped and draft specs keep the cap at 0."""
+    return fixture.bubbles_on(spec)
+
+
 @pytest.fixture(scope="session")
 def fixture_clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
     path = tmp_path_factory.mktemp("fixture") / "fixture.mp4"

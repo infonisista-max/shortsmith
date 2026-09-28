@@ -55,6 +55,7 @@ from shortsmith.contracts import (
     CATEGORIES,
     TIER2_KINDS,
     Beat,
+    Bubble,
     Clamp,
     Cue,
     CutPlan,
@@ -98,6 +99,9 @@ TIER2_SUBSTITUTES: dict[str, str] = {"parallax": "photo", "vector_illustration":
 # 061: the picture beats a text pop may sit on (a moving `clip` joins them with 058).
 TEXT_POP_KINDS = frozenset({"photo", "card", "presenter_full"})
 TEXT_POP_WORDS_MAX = 4  # 061 (1): one to four words
+# 063: a bubble sits on the same picture beats (its tail points at a person in the
+# picture, or at the PIP circle).
+BUBBLE_KINDS = TEXT_POP_KINDS
 
 
 class Violations(StrictModel):
@@ -206,6 +210,8 @@ def validate_picture(
     found += _overlays(beats)
     pop_found, beats = _text_pops(beats, runtime, spec, words, spans)
     found += pop_found
+    bubble_found, beats = _bubbles(beats, runtime, spec, words, spans)
+    found += bubble_found
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
@@ -471,7 +477,8 @@ def _density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
         if b.kind in DENSITY_EXEMPT_KINDS or b.overlays:
             continue
         length = _len(b)
-        landed = b.event.kind != "none" or bool(b.text_pops)  # 061: a pop is a change
+        # 061: a pop is a change; 063: so is a bubble
+        landed = b.event.kind != "none" or bool(b.text_pops) or bool(b.bubbles)
         gap = round(length / 2, 3) if landed else length
         if gap > gap_max + EPS:
             found.append(
@@ -955,6 +962,109 @@ def _text_pops(
     return found, out
 
 
+def bubble_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """063: `broll.bubbles_max_per_60s` scaled to the runtime, rounded up like the other
+    per-60 s maxima (4.3): a six-second fixture allows two (one dialogue pair) under a
+    style that allows twenty a minute; 0 stays 0."""
+    return math.ceil(spec.broll.bubbles_max_per_60s * runtime / 60 - EPS)
+
+
+def bubble_gap(spec: StyleSpec) -> tuple[float, float]:
+    """063 (3): how long after the first bubble of a beat the second lands, the style's
+    `broll.motion.bubble.dialogue_gap_min_s` and `dialogue_gap_max_s`."""
+    row = spec.broll.motion.get("bubble", {})
+    return float(row.get("dialogue_gap_min_s", 0.0)), float(row.get("dialogue_gap_max_s", 0.0))
+
+
+def _bubbles(
+    beats: Sequence[Beat],
+    runtime: float,
+    spec: StyleSpec,
+    words: Sequence[Word],
+    spans: Sequence[Span],
+) -> tuple[list[Violation], list[Beat]]:
+    """063 (4.1 as amended): a bubble sits on a picture beat (`BUBBLE_KINDS`), is one to
+    `broll.motion.bubble.words_max` words, names the transcript words it came from
+    (`first`-`last`, which exist and start before the beat ends), and there are at most
+    `motion.bubble.max_per_beat` per beat and `bubble_cap` over the runtime (a style
+    with the cap at 0 has none). Beats are output seconds here, so every bubble's
+    `at_s` is rewritten: the first source word's start on the output timeline, or the
+    beat's start when the words were said earlier; a second bubble lands
+    `dialogue_gap_min_s`-`dialogue_gap_max_s` after the one before it (its word's time
+    when inside that window, else the nearer edge), and a beat that ends before the
+    window opens cannot hold the pair."""
+    found: list[Violation] = []
+    out: list[Beat] = []
+    cap = bubble_cap(spec, runtime=runtime)
+    row = spec.broll.motion.get("bubble", {})
+    per_beat, words_max = int(row.get("max_per_beat", 0)), int(row.get("words_max", 0))
+    gap_min, gap_max = bubble_gap(spec)
+    total = 0
+    for b in beats:
+        if not b.bubbles:
+            out.append(b)
+            continue
+        kind = "presenter_full" if b.mode == "full" else b.kind
+        if kind not in BUBBLE_KINDS:
+            picture_kinds = ", ".join(sorted(BUBBLE_KINDS))
+            found.append(
+                _v("4.1", b.id, f"bubbles sit on a picture beat ({picture_kinds}); this beat "
+                                f"is a {b.kind!r}")  # fmt: skip
+            )
+        if len(b.bubbles) > per_beat:
+            found.append(
+                _v("4.1", b.id, f"{len(b.bubbles)} bubbles on one beat; broll.motion.bubble."
+                                f"max_per_beat allows {per_beat}")  # fmt: skip
+            )
+        resolved: list[Bubble] = []
+        previous: float | None = None
+        for i, bubble in enumerate(b.bubbles):
+            total += 1
+            if total > cap:
+                found.append(
+                    _v("4.1", b.id, f"bubble {total} over {runtime:g} s; "
+                                    f"broll.bubbles_max_per_60s {spec.broll.bubbles_max_per_60s} "
+                                    f"allows {cap} (063)")  # fmt: skip
+                )
+            count = len(bubble.text.split())
+            if not 1 <= count <= words_max:
+                found.append(
+                    _v("4.1", b.id, f"bubble {i} {bubble.text!r} is {count} words; a bubble is "
+                                    f"1-{words_max} words")  # fmt: skip
+                )
+            if not 0 <= bubble.first <= bubble.last < len(words):
+                found.append(
+                    _v("4.1", b.id, f"bubble {i} {bubble.text!r} comes from words {bubble.first}-"
+                                    f"{bubble.last}; the transcript has {len(words)} words "
+                                    f"(0-{len(words) - 1})")  # fmt: skip
+                )
+                resolved.append(bubble)
+                continue
+            said = round(presenter.output_time(spans, words[bubble.first].start), 3)
+            if said >= b.end - CONTIGUITY_TOL_S:
+                found.append(
+                    _v("4.1", b.id, f"bubble {i} {bubble.text!r} quotes word {bubble.first} "
+                                    f"({words[bubble.first].text!r} at {said:g} s on the cut), "
+                                    f"said only after this beat ({b.start:g}-{b.end:g} s) "
+                                    "ends")  # fmt: skip
+                )
+            at = max(said, b.start)
+            if previous is not None:
+                window = (round(previous + gap_min, 3), round(previous + gap_max, 3))
+                at = min(max(at, window[0]), window[1])
+                if window[0] >= b.end - CONTIGUITY_TOL_S:
+                    found.append(
+                        _v("4.1", b.id, f"bubble {i} {bubble.text!r} would land {gap_min:g} s "
+                                        f"after the one before it, at {window[0]:g} s, past this "
+                                        f"beat's end ({b.end:g} s): too short for a dialogue pair "
+                                        "(063)")  # fmt: skip
+                    )
+            previous = at
+            resolved.append(bubble.model_copy(update={"at_s": round(at, 3)}))
+        out.append(b.model_copy(update={"bubbles": resolved}))
+    return found, out
+
+
 def _subjects(beats: Sequence[Beat], runtime: float, brief: str) -> list[Violation]:
     """4.2: subject_kind and query on every B-roll beat; an entity beat per 60 s when
     the brief names something."""
@@ -1179,15 +1289,16 @@ def validate_sound(
                 _v("8.2", cue.beat_id, f"cue {cue.intent!r} names a beat that is not in the plan")
             )
             continue
-        # 029: a counter lands; 061: a text pop pops in, so an `event` cue has something
-        # to hit there too.
-        bare = beat.event.kind == "none" and beat.counter is None and not beat.text_pops
-        # 060 (7.3 as amended): a whoosh rides only a flash enter or a pop-in (061: a
-        # `whoosh` at the `event` of a beat carrying text pops rides the first pop),
-        # and only where the style's allowance names that trigger.
+        # 029: a counter lands; 061 / 063: a text pop or a bubble pops in, so an `event`
+        # cue has something to hit there too.
+        pops_in = bool(beat.text_pops) or bool(beat.bubbles)
+        bare = beat.event.kind == "none" and beat.counter is None and not pops_in
+        # 060 (7.3 as amended): a whoosh rides only a flash enter or a pop-in (061 / 063:
+        # a `whoosh` at the `event` of a beat carrying text pops or bubbles rides the
+        # first one), and only where the style's allowance names that trigger.
         whoosh = styles.is_whoosh(cue.intent)
         on_flash = cue.at == "start" and beat.enter == "flash"
-        on_pop = cue.at == "event" and bool(beat.text_pops)
+        on_pop = cue.at == "event" and pops_in
         whoosh_ok = (
             whoosh
             and allowance is not None
@@ -1209,7 +1320,7 @@ def validate_sound(
                     beat.id,
                     f"cue {cue.intent!r} at {cue.at!r} on a {beat.enter!r} enter: a whoosh is "
                     f"allowed only on {allowance.on} - at the start of a `flash` beat, or at "
-                    "the event of a beat carrying text pops (060, 061)"
+                    "the event of a beat carrying text pops or bubbles (060, 061, 063)"
                     if allowance is not None
                     else f"cue {cue.intent!r}: whooshes are forbidden (060)",
                 )
