@@ -111,6 +111,7 @@ from shortsmith.contracts import (
     RightsRow,
     SoundStory,
 )
+from shortsmith.sound.kinds import BED, Kinds, load_kinds, refusal
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOGUE_NAME = "catalog.yaml"
@@ -344,25 +345,58 @@ class AudioSearch(ABC):
         style allows no whoosh and the detector runs as for any cue."""
 
 
+def kind_refusal(entry: AudioEntry, intent: str, kinds: Kinds) -> str | None:
+    """068: why a catalogued entry is not the kind it is wanted for, judged on its
+    source's own name and tags (`kinds.yaml`); None when it is. An entry with no source
+    name was seeded by hand after the operator listened, so its tags stand."""
+    if entry.source_name is None:
+        return None
+    kind = kinds.kind(BED) if entry.kind == "bed" else kinds.for_sfx(intent)
+    return refusal(kind, entry.source_name, entry.source_tags)
+
+
 class FakeAudioSearch(AudioSearch):
     """12.1: answers from a shelf of catalogue entries - the library it is asked with,
     unless given one - so no test reaches the network, and records every query so a
-    test can assert the ladder. An empty shelf makes every search a miss."""
+    test can assert the ladder. An empty shelf makes every search a miss. 068: a shelf
+    entry whose source name and tags fail the kind is refused with a note, as the
+    Freesound adapter refuses a hit."""
 
-    def __init__(self, shelf: Library | None = None) -> None:
+    def __init__(self, shelf: Library | None = None, *, kinds: Kinds | None = None) -> None:
         self.shelf = shelf
         self.calls: list[str] = []
         self.sfx_calls: list[str] = []
         self.sfx_max_len_s: list[float | None] = []
+        self._kinds = kinds
+
+    @property
+    def kinds(self) -> Kinds:
+        if self._kinds is None:
+            self._kinds = load_kinds()
+        return self._kinds
 
     def _shelf(self, library: Library) -> Library:
         return self.shelf if self.shelf is not None else library
 
+    def _checked(
+        self, entries: Iterable[AudioEntry], intent: str
+    ) -> tuple[list[AudioEntry], tuple[str, ...]]:
+        kept: list[AudioEntry] = []
+        notes: list[str] = []
+        for entry in entries:
+            why = kind_refusal(entry, intent, self.kinds)
+            if why is None:
+                kept.append(entry)
+            else:
+                notes.append(f"fake: {entry.source_name} ({entry.id}) skipped: {why}")
+        return kept, tuple(notes)
+
     def bed(self, words: str, query: BedQuery, library: Library) -> SearchOutcome:
         self.calls.append(words)
-        beds = self._shelf(library).beds()
+        shelved = self._shelf(library).beds()
+        beds, notes = self._checked(shelved, BED)
         best = min(beds, key=lambda e: (abs(e.energy - query.energy), e.id)) if beds else None
-        return SearchOutcome("fake", "bed", words, "200", len(beds), adopted=best)
+        return SearchOutcome("fake", "bed", words, "200", len(shelved), adopted=best, notes=notes)
 
     def sfx(
         self, words: str, intent: str, library: Library, *, whoosh_max_len_s: float | None = None
@@ -370,8 +404,16 @@ class FakeAudioSearch(AudioSearch):
         self.sfx_calls.append(words)
         self.sfx_max_len_s.append(whoosh_max_len_s)
         limit = whoosh_max_len_s if styles.is_whoosh(intent) else None
-        found = match_sfx(intent, self._shelf(library), max_duration_s=limit)
-        return SearchOutcome("fake", "sfx", words, "200", int(found is not None), adopted=found)
+        shelf = self._shelf(library)
+        wanted = intent.strip().lower()
+        tagged = [e for e in shelf.sfx() if wanted in {t.strip().lower() for t in e.tags.intent}]
+        kept, notes = self._checked(tagged, intent)
+        refused = {e.id for e in tagged} - {e.id for e in kept}
+        clean = Library(shelf.root, tuple(e for e in shelf.entries if e.id not in refused))
+        found = match_sfx(intent, clean, max_duration_s=limit)
+        return SearchOutcome(
+            "fake", "sfx", words, "200", int(found is not None), adopted=found, notes=notes
+        )
 
 
 def bed_candidates(

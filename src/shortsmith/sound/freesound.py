@@ -18,6 +18,15 @@ only the token, so the HQ mp3 preview (else the HQ ogg) is what lands under
 `<library>/fetched/` - git-ignored like every audio file - and the original's download
 URL is kept on the candidate for the log. A hit with no preview is dropped.
 
+**What it is (068).** Run04 catalogued a car exhaust as a bed and a beeping score counter
+as a cue: the first hit was adopted and tagged with the query's words. Now every hit's
+own name and tags are checked against the kind it is fetched for (`assets/audio/
+kinds.yaml`, `sound.kinds`) before the catalogue is asked or anything is downloaded; a
+miss costs one candidate and names the words. An adopted entry keeps Freesound's
+`source_name` and `source_tags`, and its planner-facing tags are derived from them
+(`derived_tags`), never from the query. `retag` (`seed retag`) applies the same check to
+what is already in the fetched catalogue.
+
 **What is checked.** A fetched SFX goes through R1-R4 like a seeded one (7.3) and is
 rejected on any hit. A bed is one sound longer than 5 s by definition (R3) and swells by
 design (R2, R4), so the detector is the cue rule and does not run on beds - the same
@@ -45,6 +54,7 @@ candidate rejected once is remembered by id and never downloaded again in this p
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,10 +78,14 @@ from shortsmith.sound import (
     seed,
     sweep,
 )
+from shortsmith.sound.kinds import BED, Kind, Kinds, load_kinds, refusal
 
 log = logging.getLogger(__name__)
 
 API_URL = "https://freesound.org/apiv2/search/text/"
+# 068: one sound read back by id, for `seed retag`.
+SOUND_URL = "https://freesound.org/apiv2/sounds/{id}/"
+SOUND_FIELDS = "id,name,tags"
 FIELDS = "id,name,tags,license,username,url,previews,download,duration,type"
 PAGE_SIZE = 5
 TIMEOUT_S = 30.0
@@ -130,6 +144,21 @@ def licence_allowed(text: str) -> bool:
 
 def entry_id(candidate: AudioCandidate) -> str:
     return f"{ID_PREFIX}{candidate.id}"
+
+
+def derived_tags(
+    kind: AudioKind, source_tags: Sequence[str], *, mood: Sequence[str] = (), intent: str = ""
+) -> AudioTags:
+    """068: the planner-facing tags of a fetched sound, from what Freesound says it is.
+    A bed's theme is its own tags, lower-cased; its mood is those of `mood` (the query's
+    mood words, or the entry's old ones on a retag) that Freesound also tagged it with.
+    A cue carries the intent it was checked against. A word only in the query never
+    lands."""
+    own = list(dict.fromkeys(t.strip().lower() for t in source_tags if t.strip()))
+    if kind == "bed":
+        wanted = {m.strip().lower() for m in mood}
+        return AudioTags(theme=own, mood=[t for t in own if t in wanted])
+    return AudioTags(intent=[intent] if intent else [])
 
 
 @dataclass(frozen=True)
@@ -207,14 +236,26 @@ class FreesoundAudioSearch(AudioSearch):
         timeout_s: float = TIMEOUT_S,
         page_size: int = PAGE_SIZE,
         max_bytes: int = MAX_BYTES,
+        kinds: Kinds | None = None,
     ) -> None:
         self._api_key = api_key
         self._client = client
         self._timeout_s = timeout_s
         self._page_size = page_size
         self._max_bytes = max_bytes
+        self._kinds = kinds
         self.searches = 0
         self._rejected: dict[str, str] = {}  # candidate id -> why, so no second download
+
+    @property
+    def kinds(self) -> Kinds:
+        """`assets/audio/kinds.yaml` (068), read on first use unless given."""
+        if self._kinds is None:
+            self._kinds = load_kinds()
+        return self._kinds
+
+    def kind_for(self, kind: AudioKind, intent: str = "") -> Kind:
+        return self.kinds.kind(BED) if kind == "bed" else self.kinds.for_sfx(intent)
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Token {self._api_key.get_secret_value()}"}
@@ -265,6 +306,22 @@ class FreesoundAudioSearch(AudioSearch):
                 found.append(candidate)
         return SearchPage(tuple(found), status, total)
 
+    def sound_info(self, sound_id: str) -> tuple[str, list[str]]:
+        """068: Freesound's own name and tags for one sound id; a `SoundError` with the
+        status when it cannot be read."""
+        url = SOUND_URL.format(id=sound_id)
+        try:
+            response = self._get(url, params={"fields": SOUND_FIELDS})
+        except httpx.HTTPError as exc:
+            raise SoundError(f"{url}: {type(exc).__name__}") from None
+        if response.is_error:
+            raise SoundError(f"{url}: status {response.status_code}")
+        try:
+            body: object = response.json()
+        except ValueError:
+            raise SoundError(f"{url}: status {response.status_code} unreadable body") from None
+        return _text(_field(body, "name")), _strings(_field(body, "tags"))
+
     def fetch(self, candidate: AudioCandidate, *, into: Path) -> Path:
         """Download the candidate's preview to `<into>/fetched/<entry id><suffix>`; a
         download that fails, is empty or is over the cap is a `SoundError` and nothing
@@ -301,15 +358,16 @@ class FreesoundAudioSearch(AudioSearch):
         candidate: AudioCandidate,
         *,
         library: Library,
-        theme: Sequence[str] = (),
         mood: Sequence[str] = (),
         intent: str = "",
         whoosh_max_len_s: float | None = None,
     ) -> AudioEntry:
         """Fetch `candidate` into `library`, measure it (023), run a cue through R1-R4,
-        and append it to the library's catalogue tagged with the query words it
-        answered. `Rejected` on a detector hit; `SoundError` when it cannot be fetched
-        or read. A rejected or unreadable file is removed.
+        and append it to the library's catalogue with Freesound's own name and tags and
+        the tags `derived_tags` reads from them (068) - never the query's words.
+        `Rejected` on a detector hit; `SoundError` when it cannot be fetched or read. A
+        rejected or unreadable file is removed. The kind check runs before this, in
+        `_first_adopted`, so nothing refused is ever downloaded.
 
         060 (5): a file fetched for the `whoosh` intent under an allowance
         (`whoosh_max_len_s`, the style's `sound.whoosh.max_len_s`) is exempt from the
@@ -349,12 +407,14 @@ class FreesoundAudioSearch(AudioSearch):
             file=path.relative_to(library.root).as_posix(),
             source=SOURCE,
             source_url=candidate.page_url,
+            source_name=candidate.name,
+            source_tags=list(candidate.tags),
             licence=candidate.licence,
             author=candidate.author,
             duration_s=measured.duration_s,
             bpm=measured.bpm,
             key=measured.key,
-            tags=AudioTags(theme=list(theme), mood=list(mood), intent=[intent] if intent else []),
+            tags=derived_tags(candidate.kind, candidate.tags, mood=mood, intent=intent),
             drop_points_s=[],
             loop_ok=candidate.kind == "bed" and bool(LOOP_TAGS & {t.lower() for t in candidate.tags}),  # noqa: E501
             energy=measured.energy,
@@ -365,10 +425,9 @@ class FreesoundAudioSearch(AudioSearch):
 
     def bed(self, words: str, query: BedQuery, library: Library) -> SearchOutcome:
         """The director's bed call for one ladder rung (7.2, 054 (2)): the first result
-        that is adopted, tagged with the query's theme and mood words."""
-        return self._first_adopted(
-            words, "bed", library, theme=keywords(query.theme), mood=keywords(query.mood)
-        )
+        that is a bed by its own name and tags (068) and is adopted; its mood tags are the
+        query's mood words Freesound also used."""
+        return self._first_adopted(words, "bed", library, mood=keywords(query.mood))
 
     def sfx(
         self, words: str, intent: str, library: Library, *, whoosh_max_len_s: float | None = None
@@ -385,21 +444,28 @@ class FreesoundAudioSearch(AudioSearch):
         kind: AudioKind,
         library: Library,
         *,
-        theme: Sequence[str] = (),
         mood: Sequence[str] = (),
         intent: str = "",
         whoosh_max_len_s: float | None = None,
     ) -> SearchOutcome:
         """Freesound's order is kept; a result already in the catalogue is reused without
-        a download; a licence outside CC0 / CC BY, a candidate rejected earlier, a failed
-        fetch or a detector hit each cost one candidate and leave one note."""
+        a download; a licence outside CC0 / CC BY, a name and tags that do not fit the
+        kind (068, checked before the catalogue is even asked, so a mislabelled entry is
+        never reused), a candidate rejected earlier, a failed fetch or a detector hit
+        each cost one candidate and leave one note."""
         page = self.search(words, kind)
+        checked = self.kind_for(kind, intent)
         notes: list[str] = []
         adopted: AudioEntry | None = None
         for candidate in page.candidates:
             where = f"{SOURCE}: {candidate.name} ({candidate.page_url})"
             if not licence_allowed(candidate.licence):
                 notes.append(f"{where} skipped: licence {candidate.licence} is not CC0 or CC BY")
+                continue
+            why = refusal(checked, candidate.name, candidate.tags)
+            if why is not None:
+                notes.append(f"{where} skipped: {why}")
+                log.info("freesound: %s skipped: %s", candidate.name, why)
                 continue
             if candidate.id in self._rejected:
                 notes.append(f"{where} rejected earlier: {self._rejected[candidate.id]}")
@@ -410,7 +476,7 @@ class FreesoundAudioSearch(AudioSearch):
                 break
             try:
                 adopted = self.adopt(
-                    candidate, library=library, theme=theme, mood=mood, intent=intent,
+                    candidate, library=library, mood=mood, intent=intent,
                     whoosh_max_len_s=whoosh_max_len_s,
                 )  # fmt: skip
             except SoundError as exc:
@@ -435,6 +501,62 @@ def append_entry(catalogue: Path, entry: AudioEntry) -> None:
     parse_catalogue(new_text, name=catalogue.name)  # SoundError names the problem
     catalogue.parent.mkdir(parents=True, exist_ok=True)
     catalogue.write_text(new_text, encoding="utf-8")
+
+
+def retag(catalogue: Path, search: FreesoundAudioSearch) -> int:
+    """068, `seed retag`: read every Freesound entry of the fetched catalogue beside
+    `catalogue` back by id, keep its source name and tags and re-derive its tags, and
+    remove every entry - and its file - whose own name and tags fail its kind. One line
+    per entry. The tracked `catalogue` is never touched. Any entry that cannot be read
+    back stops the command before anything is written or removed (exit 1)."""
+    fetched = catalogue.parent / FETCHED_DIR / sound_module.CATALOGUE_NAME
+    if not fetched.is_file():
+        print(f"no fetched catalogue at {fetched}")
+        return 0
+    text = fetched.read_text(encoding="utf-8")
+    name = f"{FETCHED_DIR}/{fetched.name}"
+    entries = parse_catalogue(text, name=name).entries
+    kept: list[AudioEntry] = []
+    removed: list[AudioEntry] = []
+    lines: list[str] = []
+    failures: list[str] = []
+    for entry in entries:
+        if entry.source != SOURCE or not entry.id.startswith(ID_PREFIX):
+            kept.append(entry)
+            lines.append(f"{entry.id}: kept (source {entry.source}, not read back)")
+            continue
+        try:
+            source_name, source_tags = search.sound_info(entry.id.removeprefix(ID_PREFIX))
+        except SoundError as exc:
+            failures.append(f"{entry.id}: could not be read back: {exc}")
+            continue
+        intent = entry.tags.intent[0] if entry.tags.intent else ""
+        kind = search.kind_for(entry.kind, intent)
+        why = refusal(kind, source_name, source_tags)
+        if why is not None:
+            removed.append(entry)
+            lines.append(f"{entry.id}: removed ({source_name!r}: {why})")
+            continue
+        tags = derived_tags(entry.kind, source_tags, mood=entry.tags.mood, intent=intent)
+        kept.append(entry.model_copy(
+            update={"source_name": source_name, "source_tags": source_tags, "tags": tags}
+        ))  # fmt: skip
+        lines.append(f"{entry.id}: kept as {kind.name} ({source_name!r})")
+    if failures:
+        for failure in failures:
+            print(failure, file=sys.stderr)
+        print(f"{name} not written; nothing removed", file=sys.stderr)
+        return 1
+    new_text = seed.catalogue_text(text, [seed.entry_dict(e) for e in kept])
+    parse_catalogue(new_text, name=name)  # SoundError names the problem
+    fetched.write_text(new_text, encoding="utf-8")
+    root = catalogue.parent
+    for entry in removed:
+        (root / entry.file).unlink(missing_ok=True)
+    for line in lines:
+        print(line)
+    print(f"{len(kept)} kept, {len(removed)} removed from {name}")
+    return 0
 
 
 def from_settings(settings: Settings) -> AudioSearch | None:

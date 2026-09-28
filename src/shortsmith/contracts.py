@@ -563,6 +563,10 @@ class AudioEntry(StrictModel):
     file: str
     source: str
     source_url: str = ""
+    # 068: what the source itself calls the sound, kept as it answered; the planner-facing
+    # tags are derived from these, never from the words it was searched with.
+    source_name: str | None = None
+    source_tags: list[str] = []
     licence: str
     author: str | None = None
     duration_s: float

@@ -252,6 +252,9 @@ def test_fetch_refuses_an_empty_or_failed_download(tmp_path: Path) -> None:
 
 
 COOKING = BedQuery(theme="cooking", mood="nostalgic", energy=2)
+# 068: a query the adopted Curious Tech Loop answers by its own tags, and the seeded
+# `bed_tech_curious` does not.
+SYNTH = BedQuery(theme="synth", mood="nostalgic", energy=2)
 
 
 def _bed(adapter: freesound.FreesoundAudioSearch, library: sound.Library) -> sound.SearchOutcome:
@@ -275,15 +278,19 @@ def test_a_fetched_bed_is_measured_scored_and_appended_to_the_catalogue(
     assert entry.source == freesound.SOURCE
     assert entry.source_url == "https://freesound.org/people/synthsmith/sounds/512345/"
     assert (entry.licence, entry.author) == ("CC BY 4.0", "synthsmith")
-    assert entry.tags.theme == ["cooking"] and entry.tags.mood == ["nostalgic"]
+    # 068: tagged from what Freesound says it is, never the query's cooking / nostalgic
+    assert entry.source_name == "Curious Tech Loop"
+    assert entry.source_tags == ["tech", "curious", "loop", "electronic", "synth"]
+    assert entry.tags.theme == entry.source_tags and entry.tags.mood == []
     assert entry.loop_ok is True, "Freesound tagged it a loop"
     # measured by the 023 script, not copied from the reply
     bed_file = _bed_file(own_library)
     assert entry.duration_s == pytest.approx(sound.ffmpeg.duration_s(bed_file), abs=0.05)
     assert 1 <= entry.energy <= 5
     assert own_library.file(entry).is_file()
-    # scored like a local entry: both tags hit, so it clears the threshold
-    assert sound.bed_score(entry, query) >= THRESHOLD
+    # scored like a local entry: a word Freesound tagged it with clears the threshold
+    assert sound.bed_score(entry, query) < THRESHOLD
+    assert sound.bed_score(entry, SYNTH) >= THRESHOLD
     # appended to catalog.yaml, after the seeded entries, and the file still loads
     reloaded = sound.load_catalogue(own_library.catalogue)
     assert [e.id for e in reloaded.entries][-1] == "freesound_512345"
@@ -390,7 +397,7 @@ def test_when_the_best_result_is_rejected_the_next_is_taken(
     unreadable = own_library.root / "not-audio.bin"
     unreadable.write_bytes(b"this is not audio at all, ffmpeg cannot decode it" * 10)
     tape = Tape(
-        _results(duration=2.0, license=CC0),
+        _results(duration=2.0, license=CC0, tags=["curious", "loop"]),  # every hit a bed (068)
         audio_by_url={FIRST_PREVIEW: unreadable, THIRD_PREVIEW: _bed_file(own_library)},
     )
     outcome = _adapter(tape).bed("lab curious", BedQuery(theme="lab", mood="curious", energy=3),
@@ -431,7 +438,7 @@ def test_a_rejected_candidate_is_remembered_and_not_downloaded_twice(
     own_library: sound.Library, sounds: Sounds
 ) -> None:
     """An SFX that tripped the detector once is skipped by id on the next search."""
-    body = _results(duration=1.0, license=CC0)
+    body = _results(duration=1.0, license=CC0, tags=["reveal", "drop"])  # the kind's words (068)
     tape = Tape(body, audio=sounds("noise_500ms"))
     adapter = _adapter(tape)
     first = adapter.sfx("reveal drop", "reveal_drop", own_library)
@@ -495,7 +502,7 @@ def test_an_adoption_never_changes_the_tracked_catalogue(
     assert reloaded.file(bed).is_file() and reloaded.file(sfx).is_file()
     searches = adapter.searches
     chosen, lines = sound.choose_bed(
-        reloaded, COOKING, first_stamp_s=1.0, threshold=THRESHOLD, search=adapter,
+        reloaded, SYNTH, first_stamp_s=1.0, threshold=THRESHOLD, search=adapter,
         default_query="cinematic ambient documentary",
     )  # fmt: skip
     assert chosen is not None and chosen.id == bed.id and adapter.searches == searches
@@ -567,7 +574,8 @@ def test_an_empty_sfx_catalogue_is_filled_from_the_search_through_the_sweep_dete
     story = FakePlanner().plan_sound(request, plan)
     nums = render.loaded_styles()[styles.DEFAULT].sound
     empty = sound.Library(root=tmp_path / "audio")  # no catalogue file at all
-    body = _results(duration=1.0, license=CC0)
+    # 068: hits whose own tags name every floor class, so the kind check lets them by
+    body = _results(duration=1.0, license=CC0, tags=["hit", "drum", "bass", "thump"])
     served = {FIRST_PREVIEW: sounds("noise_500ms"), THIRD_PREVIEW: sounds("clicks")}
     tape = Tape(body, audio_by_url=served)
     placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0, search=_adapter(tape))

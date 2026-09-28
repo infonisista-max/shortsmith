@@ -30,8 +30,16 @@ word. The search stops at the first adoption. Only CC0 and CC BY results are ado
 (the request carries the licence filter and the result is checked again). The adopted
 result's HQ preview is downloaded into `fetched/` (git-ignored like every audio file),
 measured by the same script as a seeded entry, and appended to `catalog.yaml` with
-`source: freesound`, its licence text and its author, tagged with the query words it
-answered; it is then an ordinary library entry with an ordinary rights row (the licence
+`source: freesound`, its licence text, its author, and Freesound's own name and tags
+(`source_name`, `source_tags`); its `theme` / `mood` / `intent` are derived from those,
+never from the query words (ticket 068). Before any of that, the hit's own name and tags
+must fit the kind it is fetched for, per `kinds.yaml`: a bed needs a music word and
+carries no vocals and no field recording; no SFX kind may be a ring, phone, bell, chime,
+alarm, beep, buzzer, ringtone or siren. A hit that fails is skipped with a note naming
+the words. `uv run python -m shortsmith.sound.seed retag` (needs `FREESOUND_API_KEY`)
+reads every `fetched/` entry back from Freesound, keeps its name and tags, and removes
+each entry - and its file - that fails its kind; it never touches the tracked
+`catalog.yaml`. It is then an ordinary library entry with an ordinary rights row (the licence
 also appears on its `credits.md` line), and the next job finds it without a call. A
 fetched SFX goes through the sweep detector first and is rejected on any hit; beds do
 not (a bed is one sound longer than 5 s by definition). Every search is one line in

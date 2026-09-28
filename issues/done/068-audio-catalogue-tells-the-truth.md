@@ -92,6 +92,51 @@ The existing fetched catalogue is re-tagged from Freesound, not wiped.
 
 - Nothing.
 
+## Done (29 Sep 2026)
+
+- `assets/audio/kinds.yaml` (tracked) + `sound/kinds.py`: `bed` needs a music word and
+  forbids vocal and field-recording words; the SFX kinds are 070's palette (tick, whoosh,
+  drum, bass, thump, ding) plus today's `changeover`, and all of them also forbid
+  `sfx_forbids` (ring, ringing, phone, telephone, bell, chime, alarm, beep, buzzer,
+  ringtone, siren). Tokens match as written or with a plural s/es (`mufflers`). A planner
+  intent the file does not name (`date_stamp`) needs its own words and carries the SFX
+  forbidden list, until 070 closes the palette. Loaded at startup in `app.create_app`
+  (`audio_kinds=`); no `needs`, a word in both lists, or no `bed` is a `KindError` naming it.
+- `FreesoundAudioSearch._first_adopted` checks each hit's own name/tags before the
+  catalogue lookup and before any download, so a mislabelled entry already in `fetched/`
+  is not reused either. The note reads e.g. `skipped: name/tags carry 'mufflers',
+  forbidden for bed`.
+- `AudioEntry.source_name` / `source_tags` are written on adoption. Tags come from
+  `freesound.derived_tags`: a bed's theme is its own tags (lower-cased), and its mood is
+  the query's mood words that Freesound also tagged. A cue carries the intent it was
+  checked against. `adopt()` lost its `theme` parameter.
+- `FakeAudioSearch` applies the same check to shelf entries that carry a `source_name`.
+  Hand-seeded entries (no source name) keep their operator tags.
+- `uv run python -m shortsmith.sound.seed retag` (`freesound.retag`) works only on
+  `fetched/catalog.yaml`. If any id cannot be read back, nothing is written or removed
+  (exit 1). Without a key it prints `FREESOUND_API_KEY is not set in .env: nothing
+  changed` and exits 1.
+- Tests: `tests/test_audio_kinds.py` uses the recorded run04 answers in
+  `tests/fixtures/freesound/run04_sounds.json`. Five `test_freesound.py` tests now give
+  their hits kind words, and bed tags are asserted from the source rather than the query.
+
+**Operator step** (with `.env` back in place and network):
+
+    uv run python -m shortsmith.sound.seed retag
+
+You should see `freesound_557546: removed`, `freesound_738836: removed`,
+`freesound_253546: removed` and `freesound_249931: removed`, each with the offending
+words, then `kept as ...` for 669855, 115525, 339437, 118338, 210316 and 63523, and a
+last line `6 kept, 4 removed from fetched/catalog.yaml`. The four files are deleted from
+`assets/audio/fetched/`. The tracked `catalog.yaml` is not touched.
+
+**Amendment line for 7.2** (for the operator to paste): "A fetched sound is adopted only
+when its own source name and tags fit the kind it is fetched for (`assets/audio/kinds.yaml`:
+a bed needs a music word and has no vocals or field recording; no SFX is a ring, phone,
+bell, chime, alarm, beep, buzzer, ringtone or siren). The catalogue keeps the source's own
+name and tags (`source_name`, `source_tags`), and the planner-facing tags are derived from
+them, never from the query (068)."
+
 ## User stories addressed
 
 - Operator, run04 QA (29 Sep 2026): "I heard no background music."

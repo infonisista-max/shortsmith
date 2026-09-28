@@ -129,7 +129,7 @@ from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
 from shortsmith.render import Renderer
-from shortsmith.sound import freesound
+from shortsmith.sound import freesound, kinds
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import Transcriber
 
@@ -242,6 +242,7 @@ def create_app(
     book: ledger.Ledger | None = None,
     specs: Mapping[str, StyleSpec] | None = None,
     sticker_catalogue: Path | None = None,
+    audio_kinds: Path | None = None,
 ) -> FastAPI:
     # 065: settings the app loaded itself are re-read where a value may change between
     # jobs (`PLANNER_CLI_MODEL`); settings a caller passed stay as passed.
@@ -254,6 +255,9 @@ def create_app(
     # 062: the committed sticker catalogue is validated here too; a broken row is a
     # `StickerError` naming it, and the app does not build.
     stickers.load_catalogue(sticker_catalogue or stickers.CATALOGUE_PATH)
+    # 068: the audio kinds every fetched sound is checked against; a broken row is a
+    # `KindError` naming it, and the app does not build.
+    kinds.load_kinds(audio_kinds or kinds.KINDS_PATH)
     chips = styles.shipped(specs)
     # The ledger loads the prices file at startup (5.6), in the lifespan like the
     # passcode check, so `import shortsmith.app` never needs the file: a provider the

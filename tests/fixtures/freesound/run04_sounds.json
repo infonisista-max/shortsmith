@@ -1,0 +1,15 @@
+{
+  "_note": "Ticket 068: what the Freesound API says each run04 fetched id really is, one `/apiv2/sounds/<id>/?fields=id,name,tags` answer per id. The first seven (557546 to 63523) are the names and tags read back on 29 Sep 2026 (the ticket's table); 669855, 115525 and 339437 are the kept drum, bass and thump written in the same shape for the retag test. No media.",
+  "sounds": [
+    {"id": 557546, "name": "buick regal gs_magnaflow.mp3", "tags": ["buick", "mufflers"]},
+    {"id": 738836, "name": "A cappella - Arabian nights", "tags": ["acappella", "chant", "choir", "male", "voice"]},
+    {"id": 253546, "name": "SCORE COUNT.wav", "tags": ["beep", "ding", "score"]},
+    {"id": 249931, "name": "pressing a light toggle switch", "tags": ["buzzer", "switch", "light"]},
+    {"id": 210316, "name": "stamp coffee machine upwards", "tags": ["coffee", "machine", "lever", "stamp"]},
+    {"id": 118338, "name": "Tick-Tock", "tags": ["tick", "tock", "clock", "loop"]},
+    {"id": 63523, "name": "money4.wav", "tags": ["money", "coin", "spin", "table"]},
+    {"id": 669855, "name": "Snare hit", "tags": ["snare", "drum", "hit"]},
+    {"id": 115525, "name": "Bass stab", "tags": ["bass", "stab"]},
+    {"id": 339437, "name": "Low thump", "tags": ["thump", "impact", "low"]}
+  ]
+}

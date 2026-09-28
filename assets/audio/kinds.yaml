@@ -1,0 +1,34 @@
+# What each audio kind must be (ticket 068; operator, run04 QA, 29 Sep 2026).
+#
+# A fetched sound is adopted only when its own Freesound name or tags carry at least one
+# `needs` word of the kind it is fetched for, and none of its `forbids` words. Words are
+# single lower-case tokens; a tag's plural matches (`mufflers` hits `muffler`). Every SFX
+# kind also forbids `sfx_forbids` (operator: "no rings, bells or chimes"). A bed has no
+# vocals and is not a field recording. The loader (`sound.kinds.load_kinds`) refuses a
+# kind with no `needs`, or a word in both lists, at startup.
+#
+# The SFX kinds are 070's palette plus the floor classes the director places today; a
+# planner intent this file does not name needs its own words until 070 closes the palette.
+sfx_forbids: [ring, ringing, phone, telephone, bell, chime, alarm, beep, buzzer, ringtone, siren]
+kinds:
+  bed:
+    needs: [music, musical, loop, ambient, soundtrack, instrumental, score, cinematic,
+            orchestral, melody, piano, strings, synth, drone, pad, track, song, beat]
+    forbids: [vocal, voice, chant, choir, acappella, cappella, singing, singer, sing, lyrics,
+              speech, spoken, talk, car, engine, muffler, exhaust, traffic, vehicle, motor,
+              street, crowd, field, recording]
+  tick:
+    needs: [tick, click, tap, pop, ui]
+    forbids: [clock, tock]  # run04's `question_tick` was a 2 s clock loop
+  whoosh:
+    needs: [whoosh, woosh, swoosh, swish, swipe]
+  drum:
+    needs: [drum, snare, kick, percussion, hit, impact]
+  bass:
+    needs: [bass, sub, boom, stab]
+  thump:
+    needs: [thump, thud, impact, knock, hit]
+  ding:
+    needs: [ding]
+  changeover:
+    needs: [transition, riser, swell, reverse, sweep, whoosh, swoosh, hit, impact]

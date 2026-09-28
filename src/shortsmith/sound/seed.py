@@ -2,6 +2,12 @@
 
     python -m shortsmith.sound.seed check   [--catalogue PATH]
     python -m shortsmith.sound.seed measure [--catalogue PATH]
+    python -m shortsmith.sound.seed retag   [--catalogue PATH]
+
+`retag` (068) reads every entry of the git-ignored `fetched/catalog.yaml` back from
+Freesound by id (it needs `FREESOUND_API_KEY`), keeps Freesound's own name and tags on
+it, re-derives its tags and removes - with its file - every entry whose name and tags
+fail its kind in `assets/audio/kinds.yaml`; see `sound.freesound.retag`.
 
 `check` runs the sweep detector (`sound.sweep`, R1-R4) on every SFX in the catalogue and
 exits 1 naming the entry, its file and each rule it breaks; 7.2 wants every SFX through
@@ -44,6 +50,7 @@ import numpy.typing as npt
 import yaml
 
 from shortsmith import ffmpeg
+from shortsmith.config import Settings
 from shortsmith.contracts import AudioEntry
 from shortsmith.sound import CATALOGUE_PATH, SoundError, load_catalogue, parse_catalogue, sweep
 
@@ -325,12 +332,31 @@ def check(path: Path) -> int:
     return 0
 
 
+def retag_command(catalogue: Path, settings: Settings) -> int:
+    """068: `retag` with the configured Freesound key; without one it says so and
+    changes nothing."""
+    from shortsmith.sound import freesound  # freesound imports this module
+
+    search = freesound.from_settings(settings)
+    if not isinstance(search, freesound.FreesoundAudioSearch):
+        print("FREESOUND_API_KEY is not set in .env: nothing changed", file=sys.stderr)
+        return 1
+    return freesound.retag(catalogue, search)
+
+
+COMMANDS = ("check", "measure", "retag")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m shortsmith.sound.seed")
-    parser.add_argument("command", choices=("check", "measure"))
+    parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("--catalogue", type=Path, default=CATALOGUE_PATH)
     args = parser.parse_args(argv)
     catalogue = cast(Path, args.catalogue)
+    if args.command == "retag":
+        from shortsmith import config
+
+        return retag_command(catalogue, config.load())
     return check(catalogue) if args.command == "check" else measure(catalogue)
 
 
