@@ -2,8 +2,10 @@
 // professional - two panes side by side inside one framed card with a thin seam, each
 // labelled, a circular badge overlapping the card's top-left corner, and a title strip
 // along the bottom whose pane words are boxed in the style's accent. The right pane
-// slides in over the style's `broll.motion.split.duration_s` (nkb_08). Every box comes
-// from `render.split_spec`; this file measures nothing.
+// slides in over the style's `broll.motion.split.duration_s` (nkb_08). Ticket 059 adds the
+// stacked layout (two pictures top and bottom): the panes' boxes say where each sits and
+// `title_top` puts the title band between them. Every box comes from `render.split_spec`;
+// this file measures nothing.
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate } from "remotion";
 import type { CaptionStyle, SplitSpec } from "../types";
@@ -90,7 +92,7 @@ export const Split: React.FC<{
           style={{
             position: "absolute",
             left: 0,
-            bottom: 0,
+            top: spec.title_top,
             width: "100%",
             height: spec.title_px,
             background: "#111",
@@ -103,7 +105,7 @@ export const Split: React.FC<{
           style={{
             position: "absolute",
             left: word.left,
-            top: spec.top + spec.height - spec.title_px / 2 - spec.title_font_px * 0.7,
+            top: spec.top + spec.title_top + spec.title_px / 2 - spec.title_font_px * 0.7,
             width: word.width,
             textAlign: "center",
             fontFamily: style.font_family,

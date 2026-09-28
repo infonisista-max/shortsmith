@@ -188,6 +188,7 @@ from shortsmith.contracts import (
     StickerSpec,
     TextPop,
     TextPopSpec,
+    TitleStripSpec,
     TitleWord,
     TransitionStyle,
     VisualSpec,
@@ -266,6 +267,9 @@ class BrollNumbers:
     list_dim: float
     split_panes: int
     split_slide_s: float
+    # 059: `side` (the 5.2 news card, the panes side by side) or `stacked` (two pictures,
+    # top and bottom: the Vishva Gyan panels); a row without `layout` is side by side.
+    split_layout: str
     wall_cells_min: int
     wall_cells_max: int
     wall_spring_s: float
@@ -328,6 +332,8 @@ class StyleNumbers:
     info: infographics.InfographicNumbers
     # 030: the 9.4 enter list and numbers, carried on the spec verbatim.
     transitions: TransitionStyle
+    # 059: the fixed title strip's row, where the style draws one.
+    title_strip: styles.TitleStrip | None = None
 
 
 def broll_numbers(spec: StyleSpec) -> BrollNumbers:
@@ -371,6 +377,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             list_dim=float(rows["dim"]),
             split_panes=int(split["panes"]),
             split_slide_s=float(split["duration_s"]),
+            split_layout=_split_layout(spec.name, split),
             wall_cells_min=int(wall["cells_min"]),
             wall_cells_max=int(wall["cells_max"]),
             wall_spring_s=float(wall["duration_s"]),
@@ -407,6 +414,19 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
 
 
+SPLIT_LAYOUTS = ("side", "stacked")  # 059
+
+
+def _split_layout(name: str, row: Mapping[str, object]) -> str:
+    layout = str(row.get("layout", "side"))
+    if layout not in SPLIT_LAYOUTS:
+        raise styles.StyleError(
+            f"{name}: broll.motion.split.layout {layout!r} is not one of "
+            f"{list(SPLIT_LAYOUTS)} (059)"
+        )
+    return layout
+
+
 def numbers_for(spec: StyleSpec) -> StyleNumbers:
     """The subset of a loaded spec the render spec builder reads."""
     return StyleNumbers(
@@ -426,6 +446,7 @@ def numbers_for(spec: StyleSpec) -> StyleNumbers:
         transitions=TransitionStyle(
             enabled=list(spec.broll.enter_transitions), **spec.broll.transitions.model_dump()
         ),
+        title_strip=spec.broll.title_strip,
     )
 
 
@@ -1683,6 +1704,37 @@ def split_bottom(piece: SplitSpec) -> float:
     return piece.top + piece.height / 2 + _tilt_extent(piece.width, piece.height, piece.rotate_deg)
 
 
+def _stacked(wanted: Sequence[ItemSource], panes: list[SplitPane], *, border: int,
+             numbers: StyleNumbers) -> tuple[float, float, float]:  # fmt: skip
+    """059: the stacked split's panes appended to `panes` - the first picture on top, the
+    title band under it, the second picture under the band, each the card's full inner
+    width - and the card's top, height and title band top. The card fills the band from
+    the badge's overhang under the 6.3 top zone down to the style's
+    `broll.card_max_bottom_y` (tilt included): the lower picture runs under the PIP
+    circle, as a full-screen still does, so each picture is wider than tall rather than a
+    letterbox strip above the circle."""
+    b = numbers.broll
+    ceiling = SAFE_TOP_PX + SPLIT_BADGE_DIAMETER * SPLIT_BADGE_DROP
+    floor = float(b.card_max_bottom_y)
+    theta = math.radians(b.card_rotate_deg)
+    height = ((floor - ceiling) - SPLIT_CARD_W * abs(math.sin(theta))) / math.cos(theta)
+    top = (ceiling + floor) / 2 - height / 2
+    pane_h = (height - 2 * border - SPLIT_TITLE_PX) / 2
+    inner = SPLIT_CARD_W - 2 * border
+    title_top = border + pane_h
+    for i, p in enumerate(wanted):
+        assert p.card is not None
+        panes.append(
+            SplitPane(
+                src=p.card.src, width=p.card.width, height=p.card.height, left=float(border),
+                top=float(border) if i == 0 else title_top + SPLIT_TITLE_PX,
+                pane_width=inner, pane_height=pane_h, label=p.text,
+                from_x=0.0 if i == 0 else SPLIT_CARD_W,
+            )  # fmt: skip
+        )
+    return top, height, title_top
+
+
 def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None, *,
                numbers: StyleNumbers, pip_top: int | None = None) -> SplitSpec:  # fmt: skip
     """The `split` news-card composite (5.2): the style's `broll.motion.split.panes`
@@ -1694,25 +1746,30 @@ def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None
     panes_wanted = [p for p in items[: b.split_panes] if p.card is not None]
     border = b.card_border_px
     inner = SPLIT_CARD_W - 2 * border
-    pane_w = (inner - SPLIT_SEAM_PX * (len(panes_wanted) - 1)) / max(1, len(panes_wanted))
-    pane_h = pane_w * SPLIT_PANE_ASPECT
     labelled = any(p.text for p in panes_wanted)
     label_px = SPLIT_LABEL_PX if labelled else 0
-    height = pane_h + label_px + 2 * border + SPLIT_TITLE_PX
     left = (WIDTH - SPLIT_CARD_W) / 2
-    half = _tilt_extent(SPLIT_CARD_W, height, b.card_rotate_deg)
-    top = _card_limit(b, pip_top) - half - height / 2
     panes: list[SplitPane] = []
-    for i, p in enumerate(panes_wanted):
-        assert p.card is not None
-        panes.append(
-            SplitPane(
-                src=p.card.src, width=p.card.width, height=p.card.height,
-                left=border + i * (pane_w + SPLIT_SEAM_PX), top=float(border),
-                pane_width=pane_w, pane_height=pane_h + label_px, label=p.text,
-                from_x=0.0 if i == 0 else SPLIT_CARD_W,
-            )  # fmt: skip
-        )
+    if b.split_layout == "stacked":
+        # the label strip sits inside each pane's height, as on the side-by-side card
+        top, height, title_top = _stacked(panes_wanted, panes, border=border, numbers=numbers)
+    else:
+        pane_w = (inner - SPLIT_SEAM_PX * (len(panes_wanted) - 1)) / max(1, len(panes_wanted))
+        pane_h = pane_w * SPLIT_PANE_ASPECT
+        height = pane_h + label_px + 2 * border + SPLIT_TITLE_PX
+        half = _tilt_extent(SPLIT_CARD_W, height, b.card_rotate_deg)
+        top = _card_limit(b, pip_top) - half - height / 2
+        title_top = height - SPLIT_TITLE_PX
+        for i, p in enumerate(panes_wanted):
+            assert p.card is not None
+            panes.append(
+                SplitPane(
+                    src=p.card.src, width=p.card.width, height=p.card.height,
+                    left=border + i * (pane_w + SPLIT_SEAM_PX), top=float(border),
+                    pane_width=pane_w, pane_height=pane_h + label_px, label=p.text,
+                    from_x=0.0 if i == 0 else SPLIT_CARD_W,
+                )  # fmt: skip
+            )
     font_px = _fitted(title, font_px=SPLIT_TITLE_FONT_PX, min_font_px=SPLIT_TITLE_MIN_FONT_PX,
                       style=style, room=WIDTH - 2 * SAFE_LEFT)  # fmt: skip
     return SplitSpec(
@@ -1722,6 +1779,7 @@ def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None
         title_font_px=font_px, title_color="#FFFFFF",
         title_words=title_words(title, [p.text for p in panes_wanted], font_px=font_px,
                                 style=style),  # fmt: skip
+        title_top=title_top,
         highlight_fg=style.keyword_fg, highlight_bg=numbers.palette.accent,
         highlight_pad_px=SPLIT_HIGHLIGHT_PAD_PX, highlight_radius_px=SPLIT_HIGHLIGHT_RADIUS_PX,
         badge=(
@@ -1737,6 +1795,31 @@ def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None
         ),
         slide_s=b.split_slide_s,
     )
+
+
+# 059: the title strip's text stays this far inside the bar's ends.
+TITLE_STRIP_PAD_X = 28.0
+
+
+def title_strip_spec(text: str, *, until_frame: int, numbers: StyleNumbers) -> TitleStripSpec:
+    """The fixed title strip (059): the style's `broll.title_strip` bar from `top_y`,
+    across the safe width (the left margin to the platform's right rail), the words in
+    the caption weight fitted from `size_px` down to `min_size_px`."""
+    row = numbers.title_strip
+    assert row is not None, "the style carries no broll.title_strip"
+    style = numbers.captions
+    width = WIDTH - SAFE_LEFT - SAFE_RIGHT_PX
+    font_px = _fitted(text, font_px=row.size_px, min_font_px=row.min_size_px, style=style,
+                      room=width - 2 * TITLE_STRIP_PAD_X)  # fmt: skip
+    return TitleStripSpec(
+        text=text, left=SAFE_LEFT, top=float(row.top_y), width=width, height=float(row.height_px),
+        font_px=font_px, font_weight=style.font_weight, fill=row.fill, ink=row.ink,
+        slide_s=row.duration_s, until_frame=until_frame,
+    )  # fmt: skip
+
+
+def title_strip_box(strip: TitleStripSpec | None) -> Box | None:
+    return None if strip is None else Box(strip.left, strip.top, strip.width, strip.height)
 
 
 def wall_columns(cells: int) -> int:
@@ -1992,6 +2075,19 @@ def build_spec(
     sources = card_sources(plan, manifest, job_dir, count=numbers.broll.finale_cards)
     two_lines = set(captions.beats_with_two_lines)
     faces: dict[str, FaceBox | None] = {}
+    # 059: the style's fixed title strip, shown until the finale; the overlays keep off it.
+    strip = (
+        title_strip_spec(
+            plan.title_strip, numbers=numbers,
+            until_frame=round(finale_beat.start * fps) if finale_beat is not None else frames,
+        )  # fmt: skip
+        if numbers.title_strip is not None and plan.title_strip.strip()
+        else None
+    )
+    strip_box = title_strip_box(strip)
+
+    def clear_of_strip(blocked: dict[str, Box]) -> dict[str, Box]:
+        return blocked if strip_box is None else {**blocked, "the title strip": strip_box}
 
     def face_on(visual: VisualSpec | None) -> Box | None:
         """The face on the beat's image in composition pixels, detected once per file.
@@ -2039,6 +2135,7 @@ def build_spec(
         face = face if face is not None else face_on(visual)
         if face is not None:
             blocked["the face"] = face
+        blocked = clear_of_strip(blocked)
         placed: list[TextPopSpec] = []
         for i, pop in enumerate(b.text_pops):
             spec, placement = text_pop_spec(
@@ -2084,6 +2181,7 @@ def build_spec(
         face = face if face is not None else face_on(visual)
         if face is not None:
             blocked["the face"] = face
+        blocked = clear_of_strip(blocked)
         placed: list[BubbleSpec] = []
         for i, bubble in enumerate(b.bubbles):
             spec, placement = bubble_spec(
@@ -2139,6 +2237,7 @@ def build_spec(
             blocked[f"text pop {i + 1}"] = Box(pop.left, pop.top, pop.width, pop.height)
         for i, bubble in enumerate(said):
             blocked[f"bubble {i + 1}"] = Box(bubble.left, bubble.top, bubble.width, bubble.height)
+        blocked = clear_of_strip(blocked)
         placed: list[StickerSpec] = []
         for sticker in b.stickers:
             record = manifest.sticker(sticker.name) if manifest is not None else None
@@ -2246,6 +2345,7 @@ def build_spec(
         palette=numbers.palette,
         caption_style=numbers.captions,
         transitions=numbers.transitions,
+        title_strip=strip,
     )
 
 

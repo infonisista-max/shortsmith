@@ -1760,3 +1760,34 @@ def test_the_category_must_come_from_the_fixed_list(spec: StyleSpec) -> None:
     (line,) = result.lines()
     assert line.startswith("plan (10.3): category 'cooking' is not one of ")
     assert "history" in line and "other" in line
+
+
+# --- the title strip (ticket 059) ----------------------------------------------------------
+
+
+def _stripped(spec: StyleSpec) -> StyleSpec:
+    """The explainer with fastfacts' title strip row: a style that draws the strip."""
+    styled = spec.model_copy(deep=True)
+    styled.broll.title_strip = render.loaded_styles()["fastfacts"].broll.title_strip
+    return styled
+
+
+def test_a_style_with_a_title_strip_needs_the_topic_in_at_most_its_words(spec: StyleSpec) -> None:
+    """059: under a strip style the plan writes `title_strip`, 1 to `words_max` words;
+    missing or too long is a 4.1 violation on the plan."""
+    stripped = _stripped(spec)
+    ok = make_plan().model_copy(update={"title_strip": "Why cheese exists"})
+    assert checked(ok, stripped).picture.title_strip == "Why cheese exists"
+    assert (None, "4.1") in rules(picture(make_plan(), stripped))
+    long = make_plan().model_copy(update={"title_strip": "one two three four five six"})
+    result = picture(long, stripped)
+    assert rules(result) == {(None, "4.1")}
+    assert isinstance(result, grammar.Violations)
+    (line,) = result.lines()
+    assert "title_strip" in line and "6 words" in line and "5" in line
+
+
+def test_a_style_without_a_title_strip_refuses_one(spec: StyleSpec) -> None:
+    plan = make_plan().model_copy(update={"title_strip": "Why cheese exists"})
+    assert rules(picture(plan, spec)) == {(None, "4.1")}
+    checked(make_plan(), spec)

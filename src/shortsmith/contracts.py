@@ -501,6 +501,13 @@ class PicturePlan(StrictModel):
         default="other",
         description=f"the short's subject category, one of: {', '.join(CATEGORIES)}",
     )
+    # 059: the fixed title strip's words - the topic in at most the style's
+    # `broll.title_strip.words_max` words - where the style draws one; empty elsewhere.
+    title_strip: str = Field(
+        default="",
+        description="only where the style carries broll.title_strip: the topic in at most "
+        "its words_max words, shown at the top of the frame for the whole short; else empty",
+    )
 
 
 # --- sound story (decisions 7.1, 7.2, 8.1) ------------------------------------------
@@ -1315,6 +1322,9 @@ class SplitSpec(StrictModel):
     title_font_px: int
     title_color: str
     title_words: list[TitleWord]
+    # 059: the title band's top edge inside the card: along the bottom of a side-by-side
+    # card, between the two pictures of a stacked one.
+    title_top: float
     highlight_fg: str
     highlight_bg: str
     highlight_pad_px: int
@@ -1704,6 +1714,26 @@ class CaptionStyle(StrictModel):
     glow_px: int
 
 
+class TitleStripSpec(StrictModel):
+    """The fixed title strip (059): the plan's `title_strip` in a `fill` bar of the frame
+    (composition pixels) from the first frame to `until_frame` (the finale's first frame,
+    exclusive), the words in `ink` at `font_px` (fitted from the style's `size_px`), the
+    bar sliding down over `slide_s`. Placed by `render.title_strip_spec` inside the safe
+    area; T12 judges its box."""
+
+    text: str
+    left: float
+    top: float
+    width: float
+    height: float
+    font_px: int
+    font_weight: int
+    fill: str
+    ink: str
+    slide_s: float
+    until_frame: int
+
+
 class RenderSpec(StrictModel):
     width: int = 1080
     height: int = 1920
@@ -1721,6 +1751,8 @@ class RenderSpec(StrictModel):
     # 030: the style's enter list and the 9.4 numbers; the composition animates each
     # beat's `enter` from these.
     transitions: TransitionStyle
+    # 059: the style's fixed title strip, where it has one.
+    title_strip: TitleStripSpec | None = None
 
 
 # --- the job record's shared pieces (decisions 5.6, 8.3, 10.2, 10.3, 14.1; tickets 011, 034) --

@@ -827,12 +827,16 @@ def t12(spec: RenderSpec | None) -> QaCheck:
             judge(f"{beat.id} sticker {sticker.name!r}", sticker.left,
                   sticker.top - sticker.float_px, sticker.size,
                   sticker.size + 2 * sticker.float_px)  # fmt: skip
+    strip = spec.title_strip  # 059: the fixed title strip, one box for the whole short
+    if strip is not None:
+        judge(f"title strip {strip.text!r}", strip.left, strip.top, strip.width, strip.height)
+    strips = f", {_plural(1, 'title strip')}" if strip is not None else ""
     if problems:
         return QaCheck(name="T12", passed=False, detail="; ".join(problems))
     detail = (
         f"{_plural(words, 'caption word')}, {_plural(stamps, 'stamp')}, "
         f"{_plural(lowers, 'lower-third')}, {_plural(pops, 'text pop')}, "
-        f"{_plural(bubbles, 'bubble')}, {_plural(stuck, 'sticker')}: none inside the "
+        f"{_plural(bubbles, 'bubble')}, {_plural(stuck, 'sticker')}{strips}: none inside the "
         "reserved zones "
         f"(top {SAFE_TOP_PX}, bottom {SAFE_BOTTOM_PX}, right {SAFE_RIGHT_PX} px)"
     )

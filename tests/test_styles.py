@@ -22,12 +22,23 @@ from tests.conftest import flash_whoosh_style
 
 REGISTRY = render.registry()  # ["captions", "pip"] today
 NAMES = ("explainer", "educational", "animated", "hitech")
+# 059: the three recipe styles built from the references; tests/test_recipe_styles.py
+# judges their numbers. The facts below that pin the four styles above stay on those four.
+RECIPES = ("fastfacts", "footage", "vishva")
+# 059 changed the explainer's aliases (1.1 as amended): its front matter is v11.
+VERSIONS = {"explainer": "11", "educational": "10", "animated": "10", "hitech": "10"}
 FORBIDDEN = ["sweep", "riser", "rumble_crescendo", "whoosh"]  # 7.1, operator rider
 
 
 @pytest.fixture(scope="module")
 def specs() -> dict[str, StyleSpec]:
     return styles.load_all(REGISTRY)
+
+
+@pytest.fixture(scope="module")
+def existing(specs: dict[str, StyleSpec]) -> dict[str, StyleSpec]:
+    """The four styles before 059, whose overlay caps, flash and whoosh rules are pinned."""
+    return {name: specs[name] for name in NAMES}
 
 
 def _variant_dir(tmp_path: Path, name: str, mutate: Callable[[dict[str, Any]], None]) -> Path:
@@ -44,11 +55,11 @@ def _variant_dir(tmp_path: Path, name: str, mutate: Callable[[dict[str, Any]], N
 # --- the real specs -------------------------------------------------------------
 
 
-def test_load_all_loads_the_four_specs_and_only_explainer_is_shipped(
+def test_load_all_loads_the_seven_specs_and_the_drafts_stay_drafts(
     specs: dict[str, StyleSpec],
 ) -> None:
-    assert set(specs) == set(NAMES)
-    assert specs["explainer"].status == "shipped"
+    assert set(specs) == set(NAMES) | set(RECIPES)
+    assert styles.shipped(specs) == ["explainer", *RECIPES]
     assert [n for n in NAMES if specs[n].status == "draft"] == ["educational", "animated", "hitech"]
     for name, spec in specs.items():
         assert spec.name == name
@@ -82,7 +93,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == "10", spec.name  # the front matter changed again (062)
+        assert spec.version == VERSIONS.get(spec.name, "1"), spec.name
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -153,7 +164,9 @@ def test_forbidden_lists_ban_sweeps_and_risers_and_no_longer_chimes_or_ticks(
     specs: dict[str, StyleSpec],
 ) -> None:
     for spec in specs.values():
-        assert spec.sound.forbidden == FORBIDDEN, spec.name
+        # 059: the recipes allow whooshes, so only they leave `whoosh` off the list
+        wanted = FORBIDDEN if spec.name in NAMES else [f for f in FORBIDDEN if f != "whoosh"]
+        assert spec.sound.forbidden == wanted, spec.name
     assert "7.1" in specs["explainer"].sections["Sound"]
 
 
@@ -294,20 +307,20 @@ def _allow_whoosh(fm: dict[str, Any]) -> None:
 
 
 def test_every_spec_carries_the_flash_row_and_cap_and_none_enables_it(
-    specs: dict[str, StyleSpec],
+    existing: dict[str, StyleSpec],
 ) -> None:
     """060 (1, 2, 4): the flash is the sixth numbered row of the global vocabulary
     (0.3 s in the style's colour: explainer's accent, white elsewhere) and
     `broll.flash_max_per_60s` is 5 in every spec; none of the four existing styles
     enables `flash`."""
-    for spec in specs.values():
+    for spec in existing.values():
         assert spec.broll.transitions.flash.duration_s == 0.3, spec.name
         assert spec.broll.flash_max_per_60s == 5, spec.name
         assert "flash" not in spec.broll.enter_transitions, spec.name
-    explainer = specs["explainer"]
+    explainer = existing["explainer"]
     assert explainer.broll.transitions.flash.color == explainer.palette.accent == "#FFD60A"
     for name in ("educational", "animated", "hitech"):
-        assert specs[name].broll.transitions.flash.color == "#FFFFFF", name
+        assert existing[name].broll.transitions.flash.color == "#FFFFFF", name
 
 
 def test_the_flash_row_missing_fails_the_loader_naming_the_spec(tmp_path: Path) -> None:
@@ -333,10 +346,10 @@ def test_a_shipped_style_may_enable_flash_when_the_registry_exports_it(tmp_path:
     assert "flash" in REGISTRY
 
 
-def test_no_existing_style_allows_whooshes(specs: dict[str, StyleSpec]) -> None:
+def test_no_existing_style_allows_whooshes(existing: dict[str, StyleSpec]) -> None:
     """060 (4): explainer, educational, animated and hitech keep `whoosh` forbidden and
     carry no `sound.whoosh` row."""
-    for spec in specs.values():
+    for spec in existing.values():
         assert "whoosh" in spec.sound.forbidden and spec.sound.whoosh is None, spec.name
         assert not styles.allows_whoosh(spec.sound), spec.name
 
@@ -378,13 +391,13 @@ def test_a_style_allows_whooshes_by_the_row_and_the_forbidden_list_together(
 
 
 def test_every_spec_carries_the_text_pop_row_and_a_cap_of_zero(
-    specs: dict[str, StyleSpec],
+    existing: dict[str, StyleSpec],
 ) -> None:
     """061 (1, 4): the pop's numbers are a `broll.motion.text_pop` row in every spec
     (a 0.15-0.25 s overshoot, at most 2.5 s on screen, at most 2 per beat, a tilt of
     up to 8 degrees, Poppins 900) and `broll.text_pops_max_per_60s` is 0 in the four
     existing styles: off until the recipe styles of 059 turn it on."""
-    for spec in specs.values():
+    for spec in existing.values():
         row = spec.broll.motion["text_pop"]
         assert row["kind"] == "pop", spec.name
         assert 0.15 <= float(row["duration_s"]) <= 0.25, spec.name
@@ -431,23 +444,23 @@ def test_the_test_style_helper_turns_text_pops_on(specs: dict[str, StyleSpec]) -
 # --- moving footage (ticket 058; 4.1 and 5.1 as amended) ----------------------------------
 
 
-def test_every_spec_carries_the_clip_row_and_the_clip_share(specs: dict[str, StyleSpec]) -> None:
+def test_every_spec_carries_the_clip_row_and_the_clip_share(existing: dict[str, StyleSpec]) -> None:
     """058 (6): the clip's numbers are a `broll.motion.clip` row in every spec (no push:
     the clip's own movement is the motion, so 1.0 -> 1.0; speed 1.0) and
     `broll.clip_max_fraction` is 0.35 in the four existing styles (the reference median
     moving-footage share is 31 %); `clip` is a kind every style may plan, and the
     renderer exports it."""
-    for spec in specs.values():
+    for spec in existing.values():
         row = spec.broll.motion["clip"]
         assert row["kind"] == "push", spec.name
         assert (float(row["scale_from"]), float(row["scale_to"])) == (1.0, 1.0), spec.name
         assert float(row["speed"]) == 1.0, spec.name
         assert spec.broll.clip_max_fraction == 0.35, spec.name
         assert "clip" in spec.broll.kinds, spec.name
-        assert spec.version == "10", spec.name  # the front matter changed again (062)
+        assert spec.version == VERSIONS[spec.name], spec.name
     assert "clip" in REGISTRY
-    assert "clip" in specs["explainer"].requires_components
-    assert "clip" in specs["hitech"].requires_components
+    assert "clip" in existing["explainer"].requires_components
+    assert "clip" in existing["hitech"].requires_components
 
 
 def test_the_clip_row_or_share_missing_fails_the_loader_naming_the_spec(tmp_path: Path) -> None:
@@ -477,13 +490,15 @@ def test_the_clip_row_or_share_missing_fails_the_loader_naming_the_spec(tmp_path
 # --- bubbles (ticket 063; 4.1 and 9.2 as amended) -----------------------------------------
 
 
-def test_every_spec_carries_the_bubble_row_and_a_cap_of_zero(specs: dict[str, StyleSpec]) -> None:
+def test_every_spec_carries_the_bubble_row_and_a_cap_of_zero(
+    existing: dict[str, StyleSpec],
+) -> None:
     """063 (1, 3, 5): the bubble's numbers are a `broll.motion.bubble` row in every spec
     (a 0.15-0.25 s overshoot, a hold, at most 2 per beat, 1-7 words, the dialogue gap
     inside 0.6-1.2 s, the type size with its minimum, the body width, white fill and dark
     ink) and `broll.bubbles_max_per_60s` is 0 in the four existing styles: off until the
     recipe styles of 059 turn it on."""
-    for spec in specs.values():
+    for spec in existing.values():
         row = spec.broll.motion["bubble"]
         assert row["kind"] == "pop", spec.name
         assert 0.15 <= float(row["duration_s"]) <= 0.25, spec.name
@@ -550,12 +565,14 @@ def test_the_fixture_shaped_copy_scales_the_dialogue_gap_to_the_clip(
 # --- stickers (ticket 062; 4.1 and 9.2 as amended) ----------------------------------------
 
 
-def test_every_spec_carries_the_sticker_row_and_a_cap_of_zero(specs: dict[str, StyleSpec]) -> None:
+def test_every_spec_carries_the_sticker_row_and_a_cap_of_zero(
+    existing: dict[str, StyleSpec],
+) -> None:
     """062 (3, 4): the sticker's numbers are a `broll.motion.sticker` row in every spec (a
     0.15-0.25 s overshoot, a hold, one per beat, a 180-320 px square, a gentle float)
     and `broll.stickers_max_per_60s` is 0 in the four existing styles: off until the
     recipe styles of 059 set theirs."""
-    for spec in specs.values():
+    for spec in existing.values():
         row = spec.broll.motion["sticker"]
         assert row["kind"] == "pop", spec.name
         assert 0.15 <= float(row["duration_s"]) <= 0.25, spec.name
@@ -565,7 +582,7 @@ def test_every_spec_carries_the_sticker_row_and_a_cap_of_zero(specs: dict[str, S
         assert 0 < float(row["float_px"]) <= 20 and float(row["float_period_s"]) > 0, spec.name
         assert spec.broll.stickers_max_per_60s == 0, spec.name
         assert "sticker" not in spec.requires_components, spec.name
-        assert spec.version == "10", spec.name
+        assert spec.version == VERSIONS[spec.name], spec.name
     assert "sticker" in REGISTRY
 
 

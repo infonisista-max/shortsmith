@@ -15,10 +15,10 @@ spec that requires a component the renderer registry does not export (9.2). Draf
 may require components still to be built.
 
 `resolve(line, specs)` maps the upload form's style line to one spec (1.1): alias
-hits are counted per spec, the highest count wins, zero hits or a tie fall back to
-`explainer`. An alias of a draft spec resolves to `explainer` with a visible notice
-(1.4). The full line is the style note the planner gets for what the spec leaves
-open. No LLM is involved.
+hits are counted per spec (059: a multi-word alias such as "vishva gyan" counts as a
+phrase), the highest count wins, zero hits or a tie fall back to `explainer`. An alias
+of a draft spec resolves to `explainer` with a visible notice (1.4). The full line is
+the style note the planner gets for what the spec leaves open. No LLM is involved.
 
 YAML note: PyYAML reads a bare `off`, `on`, `yes` or `no` as a boolean, so the
 presenter mode `off` is quoted in every spec.
@@ -117,6 +117,23 @@ class Pip(StrictModel):
     ring_color: str
 
 
+class TitleStrip(StrictModel):
+    """059: the fixed title strip a recipe style (`fastfacts`) keeps at the top of the
+    frame for the whole short - the plan's `title_strip`, the topic in at most
+    `words_max` words - as a `height_px` bar starting at `top_y` (at or below the 6.3
+    top zone), its type `size_px` shrinking to `min_size_px` to fit, `fill` behind `ink`,
+    sliding in over `duration_s`. A style without the row has no strip."""
+
+    words_max: int = Field(ge=1)
+    top_y: int
+    height_px: int = Field(gt=0)
+    size_px: int = Field(gt=0)
+    min_size_px: int = Field(gt=0)
+    fill: str
+    ink: str
+    duration_s: float = Field(ge=0.0)
+
+
 class Broll(StrictModel):
     """4.1 / 9.2 kinds and per-kind motion numbers, 9.4 transitions, 4.3 asset counts."""
 
@@ -165,6 +182,8 @@ class Broll(StrictModel):
     # generator builds the sentence, the words are never in code.
     scene_mood: str
     scene_lighting: str
+    # 059: the fixed title strip; only a style that draws one carries the row.
+    title_strip: TitleStrip | None = None
 
 
 class Captions(CaptionStyle):
@@ -417,10 +436,20 @@ def tokens(line: str) -> list[str]:
     return _TOKEN.findall(line.lower())
 
 
+def _hits(words: Sequence[str], alias: str) -> int:
+    """How often `alias` occurs in the line's tokens: a one-word alias per token, a
+    multi-word alias (059: "vishva gyan", "fast facts") as a run of tokens."""
+    phrase = tokens(alias)
+    n = len(phrase)
+    if n == 0:
+        return 0
+    return sum(1 for i in range(len(words) - n + 1) if list(words[i : i + n]) == phrase)
+
+
 def resolve(line: str, specs: Mapping[str, StyleSpec]) -> Resolution:
     words = tokens(line)
     scores = {
-        name: sum(1 for w in words if w in {a.lower() for a in spec.aliases})
+        name: sum(_hits(words, a) for a in {a.lower() for a in spec.aliases})
         for name, spec in specs.items()
     }
     best = max(scores.values(), default=0)

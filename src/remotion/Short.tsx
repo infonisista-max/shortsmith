@@ -38,6 +38,9 @@
 //
 // Ticket 058 (4.1 as amended): a `clip` treatment is a full-screen muted stock video drawn
 // in the photo's layer, under the PIP circle, the overlays and the captions.
+//
+// Ticket 059: a recipe style's fixed title strip (`title_strip`) sits above the beat
+// overlays and under the captions from the first frame to the finale's first frame.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Bubble } from "./components/bubble";
@@ -63,6 +66,7 @@ import { Split } from "./components/split";
 import { Stamp } from "./components/stamp";
 import { Sticker } from "./components/sticker";
 import { TextPop } from "./components/text_pop";
+import { TitleStrip } from "./components/title_strip";
 import { Transition, holdFrames, holdsPrevious } from "./components/transitions";
 import { Wall } from "./components/wall";
 import { fontsReady } from "./fonts";
@@ -217,6 +221,9 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       ) : null}
       {beat?.stickers?.length ? (
         <Sticker stickers={beat.stickers} frame={since} fps={spec.fps} />
+      ) : null}
+      {spec.title_strip ? (
+        <TitleStrip spec={spec.title_strip} style={spec.caption_style} frame={frame} fps={spec.fps} />
       ) : null}
       <Captions spec={spec} t={t} />
     </AbsoluteFill>

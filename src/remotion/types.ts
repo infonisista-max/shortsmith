@@ -305,6 +305,9 @@ export type SplitSpec = {
   title_font_px: number;
   title_color: string;
   title_words: TitleWord[];
+  // 059: the title band's top inside the card (the bottom of a side-by-side card, between
+  // the pictures of a stacked one).
+  title_top: number;
   highlight_fg: string;
   highlight_bg: string;
   highlight_pad_px: number;
@@ -584,6 +587,23 @@ export type RenderSpec = {
   palette: Palette;
   caption_style: CaptionStyle;
   transitions: TransitionStyle;
+  // 059: the style's fixed title strip, where it has one.
+  title_strip?: TitleStripSpec | null;
+};
+
+// 059: the fixed title strip (`render.title_strip_spec`).
+export type TitleStripSpec = {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  font_px: number;
+  font_weight: number;
+  fill: string;
+  ink: string;
+  slide_s: number;
+  until_frame: number;
 };
 
 // What the Studio shows with no spec: one second of gradient, no presenter.

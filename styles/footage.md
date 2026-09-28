@@ -1,19 +1,19 @@
 ---
-version: "11"
+version: "1"
 status: shipped
-# 059 (1.1 as amended): `fact`, `facts` and `dhruv` moved to the fastfacts and footage recipes
-aliases: [explainer, explain, explained, explanation, story, news]
+aliases: [footage, documentary, dhruv, cinematic]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
-                      cut, fade, whip, zoom, spring, wipe]
+                      cut, fade, whip, zoom, spring, wipe, flash,
+                      text_pop, sticker]
 beats:
   min_s: 0.7
-  max_s: 6.0
+  max_s: 5.0
   set_piece_max_s: 8.0
-  target_mean_s: 2.5
-  mean_min_s: 2.0
-  mean_max_s: 3.2
+  target_mean_s: 2.2
+  mean_min_s: 1.8
+  mean_max_s: 2.8
   density_gap_max_s: 1.5
   snap_window_s: 0.15
   opening_beats_min: 2
@@ -79,22 +79,22 @@ broll:
     # size_px square (180-320 px), one per beat at most.
     sticker: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 1, size_px: 240,
               float_px: 10, float_period_s: 1.8}
-  enter_transitions: [cut, fade, whip, zoom, spring]
+  enter_transitions: [cut, fade, whip, zoom, spring, flash]
   whip_max_per_3_beats: 1
-  flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
-  text_pops_max_per_60s: 0  # 061: off here; the recipe styles of 059 turn pops on
-  bubbles_max_per_60s: 0  # 063: off here; the recipe styles of 059 turn bubbles on
-  stickers_max_per_60s: 0  # 062: off here; the recipe styles of 059 set theirs
-  clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
+  flash_max_per_60s: 5  # 060: never two in a row (refs: at most 4 a minute)
+  text_pops_max_per_60s: 6  # 061
+  bubbles_max_per_60s: 0  # 063
+  stickers_max_per_60s: 3  # 062
+  clip_max_fraction: 0.75  # 058: the runtime share clips may take
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
     zoom: {duration_s: 0.3, scale_from: 1.6}
     spring: {damping: 14, stiffness: 160, mass: 0.7}
     wipe: {duration_s: 0.25}
-    flash: {duration_s: 0.3, color: "#FFD60A"}  # 060: the accent; not enabled here
-  unique_assets_min_per_60s: 12
-  unique_assets_max_per_60s: 24
+    flash: {duration_s: 0.3, color: "#FFD60A"}  # 060: the accent
+  unique_assets_min_per_60s: 14
+  unique_assets_max_per_60s: 27
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
   rescued_max_per_60s: 4
   full_bleed_max_upscale: 2.0  # 057: a portrait covering the frame at <= this is full-screen, any origin
@@ -153,7 +153,9 @@ sound:
   cues_per_beat_max: 1
   cue_db_min: -10
   cue_db_max: -2
-  forbidden: [sweep, riser, rumble_crescendo, whoosh]
+  forbidden: [sweep, riser, rumble_crescendo]
+  # 060: whooshes on a flash or a pop-in only (refs: whooshes in all 12, median ~3.5 a minute)
+  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [flash, pop]}  # "on" quoted: YAML reads a bare on as true
 finale:
   kind: finale_card
   mode: "off"
@@ -169,10 +171,11 @@ palette:
   angle_deg: 160
   accent: "#FFD60A"
 ---
-# Style: explainer
-Fact/story explainer for Hindi/Hinglish and English audiences. High information density, presenter-led, B-roll on every beat. The default style (grill decision 1.4); the recipe styles of 059 (`footage`, `vishva`, `fastfacts`) ship beside it. The numbers above are the contract; this prose tells the planner how to use the latitude they leave.
+# Style: footage
+Moving-footage documentary (recipe 059, the Dhruv Rathee move): full-screen stock clips are the base with the presenter in the circle over them, and a full-frame presenter at the argument turns, entered with a flash. Measured from Dhruv Rathee Shorts `S5j-2CWYYwM`, Dhruv `ATkSnL_CdLg` and Facts' Mine `VSJzviqMO7k` / `cKxkAjYHXbk`. Every number traces to the recipe table in `styles/README.md` and to `docs/reference/inventory/`; every reference figure is ESTIMATED.
 
 ## Beat grammar
+- Recipe: a shot every ~2.2 s (refs 4.0-5.2 shots per 10 s): keep the mean near `target_mean_s`. Go full-frame on the presenter (`full`, reason `argument_turn` or `emotional_line`) at the turns of the argument, up to `full_max_fraction`, and enter those beats with `flash` - the turn back to the presenter.
 - A beat is one contiguous span of the cut voice track with one presenter mode, one visual kind, one asset and at most one landed event; beats tile the runtime with no gaps (3.1). Propose boundaries in seconds; code snaps each to the nearest word end within `snap_window_s`, so never plan a cut mid-word.
 - Keep the plan mean between `mean_min_s` and `mean_max_s`; set pieces (list, chart, split, wall, finale) may run to `set_piece_max_s`. Something must change on screen at least every `density_gap_max_s`.
 - The short opens with the speaker's own first words (3.4 as amended by 055): the first sentence is `opening_beats_min`–`opening_beats_max` quick `opening_mode` beats over full-screen images of the main subject, the first `opening_beats_min` of them ending by `opening_max_s`. No line is lifted from elsewhere, no hook title, no hook cards, normal captions. The opening images are the short's strongest: the owner's reference first; else the best sourced image of the main subject (a named person or place under the 5.1/053 rules; a thing or idea from any source); else a generated image. The brief's hook wish steers what those images show, never the order of the voice.
@@ -181,6 +184,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - PIP framing: whole head plus neck/collar, chin at `chin_anchor` of the window, never a tight face crop (3.3).
 
 ## B-roll
+- Recipe: moving footage is the base. Ask `clip` on every concept beat you can - a thing, a kind of place, a process, nature - up to `clip_max_fraction` of the runtime (refs 49-82 %), a clip about 2 s long; named people, places, products and events keep the still ladder. Stamps or text pops on the numbers, about one every 10 s; a sticker at most every ~20 s.
 - Only kinds in `kinds` may be used; `tier2_kinds` is empty here, so parallax depth and vector-illustration looks are validation errors naming the nearest tier-1 substitute (4.1 as amended by 9.2). Every non-presenter beat has exactly one motion; there is never a static still.
 - Label every non-presenter beat with `subject_kind` and a `query` plus a broader `query_fallback` (4.2): `entity` beats get a card or photo from owner references first, then search, then generation as the last resort, plus a lower-third; `concept` beats get a Ken Burns photo and a stamp of the key word; `number` and `quote` beats reuse the previous asset with a stamp and add nothing to the asset count; a `number` beat may instead carry a `counter` that counts up to the real figure and lands on it like a stamp, its digits written in `motion.counter.grouping`.
 - Source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration (5.1). Every image, whatever its source, is re-dressed the same way (5.1 and 5.3 as amended by 057): a portrait or square image asked as `photo` that covers the frame at no more than `full_bleed_max_upscale` is drawn full-screen under the Ken Burns, the PIP circle and the captions; a landscape image, or one that cannot cover the frame at that upscale, is drawn as a card. Ask `photo` wherever a full-screen image would serve; code draws the card when the image cannot fill the frame. Generated depictions of a named person or product are illustration-style (`illustration_look`); scenes and unnamed people may be photoreal (`photo_look`).
@@ -189,20 +193,23 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).
 - The two infographic kinds are drawn in code, never sourced as pictures of themselves (9.2, 9.3): a `chart` beat carries `chart_form` (bar, line or a two-value comparison), 2 to `motion.chart.marks_max` `series` points of `{label, value}` with the real numbers, the `value_unit` they are in and `set_piece_title` as its title strip — code writes the numbers in `motion.chart.grouping` and scales the axes. An `infographic` beat's own asset is a label-free base picture (the generator is told "no text, no labels") and its `labels` are 1 to `motion.infographic.labels_max` of `{text, x, y, anchor}` in percentages of that picture, flying in one after another (`label_flyin`); a label that would land outside the phone's safe area fails the build.
 - A `map` beat is drawn from bundled map data, never sourced as a picture (9.3): it carries `map` with a `region` by name (a country, a state, "South Asia", or a city for a close-up) or a `bbox` of west, south, east, north degrees, 1 to `motion.map.markers_max` `markers` each `{name}` (write the place name; code looks the coordinate up and refuses a name it cannot find, so use the common English name), an optional `route` of two or more place names in order and an `object` (plane, ship or arrow) that travels it. The beat needs no `asset_id`. Its overlays are `pin_drop`, `route_arrow` (needs the route) and `object_path` (needs the route and the object).
-- Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. Where a style enables `flash` (9.4 as amended by 060; this one does not), it is a full-frame colour flash peaking on the cut, for a turn back to the presenter or a section change: at most `flash_max_per_60s` per minute and never on two consecutive beats; the PIP circle and the captions stay on top of it. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
-- Text pops (4.1 as amended by 061; off here: `text_pops_max_per_60s` is 0): where a style allows them, a `photo`, `card` or presenter-full beat carries `text_pops`, 1–4 bold words from the script pinned near the thing they name at `{x, y, anchor}` in percent of the frame, each landing on its spoken `word`, at most `motion.text_pop.max_per_beat` per beat; code keeps them inside the safe area, off the circle, the captions and any face.
-- Bubbles (4.1 as amended by 063; off here: `bubbles_max_per_60s` is 0): where a style allows them, a `photo`, `card` or presenter-full beat carries `bubbles`, each a `speech` or `thought` bubble of 1–`motion.bubble.words_max` words that the recording itself carries (what the speaker says someone said or thought, or his own question, shortened or in the caption language; `first`–`last` name the transcript words it came from), its tail pointing at `{x, y}` in percent of the frame — a person in the picture, or the PIP circle when the presenter is the one asking. At most `motion.bubble.max_per_beat` per beat; a dialogue pair's second bubble lands `dialogue_gap_min_s`–`dialogue_gap_max_s` after the first. Code keeps the body inside the safe area, off the captions, the circle, the stamp and any face (the tail points at it instead).
+- Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. `flash` is enabled here (9.4 as amended by 060): it is a full-frame colour flash peaking on the cut, for a turn back to the presenter or a section change: at most `flash_max_per_60s` per minute and never on two consecutive beats; the PIP circle and the captions stay on top of it. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
+- Text pops (4.1 as amended by 061; on here, at most `text_pops_max_per_60s` per minute): a `photo`, `card` or presenter-full beat carries `text_pops`, 1–4 bold words from the script pinned near the thing they name at `{x, y, anchor}` in percent of the frame, each landing on its spoken `word`, at most `motion.text_pop.max_per_beat` per beat; code keeps them inside the safe area, off the circle, the captions and any face.
+- Bubbles (4.1 as amended by 063): off here, `bubbles_max_per_60s` is 0. Where a style allows them, a `photo`, `card` or presenter-full beat carries `bubbles`, each a `speech` or `thought` bubble of 1–`motion.bubble.words_max` words that the recording itself carries (what the speaker says someone said or thought, or his own question, shortened or in the caption language; `first`–`last` name the transcript words it came from), its tail pointing at `{x, y}` in percent of the frame — a person in the picture, or the PIP circle when the presenter is the one asking. At most `motion.bubble.max_per_beat` per beat; a dialogue pair's second bubble lands `dialogue_gap_min_s`–`dialogue_gap_max_s` after the first. Code keeps the body inside the safe area, off the captions, the circle, the stamp and any face (the tail points at it instead).
+- Stickers (4.1 as amended by 062; on here, at most `stickers_max_per_60s` per minute): a `photo`, `card`, `clip` or presenter-full beat may carry one Fluent Emoji 3D sticker picked by an intent tag from the sticker catalogue, popping in on its spoken `word` and floating gently; above the speaker's circle when no `{x, y}` is given, else near the thing it reacts to. At most `motion.sticker.max_per_beat` per beat; code keeps it off the circle, the captions, the stamp and any face.
 
 ## Captions
+- The captions are the explainer's, number for number (run03: "subtitles perfect").
 - Word-synced from the ASR word list only; the planner never touches word times (6.1). Pages hold `words_per_page` words, preferring `prefer`; never split a marked name or number run; break on segment punctuation and on inter-word gaps over `gap_break_s`.
 - Return `keywords` as word indices in priority order (names, numbers, hidden-truth nouns and verbs, the final question word); code keeps at most `emphasis_max_ratio` of the words and one keyword per page.
 - Typography is the reference look above (Poppins 800 at 74 px, white with dark outline, the active word in yellow, the keyword boxed); block bottom anchored at `anchor_y`, at most `max_lines` lines, above the platform safe area and touching the PIP bottom (6.2, 6.3). Verbatim in the spoken language; Latin script for English loanwords as the ASR returns them.
 
 ## Sound
+- Recipe: SFX about 1.2 per 10 s; a whoosh on each flash is the Dhruv move.
 - Sound is the sound director's job (grill decision 7.1), not a fixed hit table: return a `sound_story` with a theme, a mood curve with build and drop points, a bed query (`theme`, `mood`, `energy`) and a per-beat cue list with intent labels; read the script and choose. Music and SFX come only from the tagged free library; never name a track.
 - Bed target `bed_db_under_voice` dB under the voice, ducking at most `duck_max_db` dB, swells at most `swell_max_db` dB above target and drops at least `drop_min_db` dB below, every ramp at least `ramp_min_s` s. A drop is a step down at a beat boundary followed by a changeover cue, never a rise into a hit (7.3).
 - The floor hits in `floor_hits` are derived by code from plan events so a short is never flat; the planner's cues layer on top within `cues_max_per_60s` and `cues_per_beat_max`, each between `cue_db_min` and `cue_db_max` dB under the voice. A tick on a step change is an ordinary cue choice under those caps (7.1 lifted the old chime/tick ban).
-- Forbidden, checked in code on the SFX stem: `forbidden` (sweeps, risers, rumble crescendos, whooshes). Nothing on whip cuts, punch-ins, rings or lower-thirds. A style that allows whooshes (7.3 as amended by 060; this one does not) leaves `whoosh` out of `forbidden` and carries `sound.whoosh`: a `whoosh` cue then sits only on a `flash` enter or a pop-in, within `max_per_60s`, `min_gap_s` and `max_len_s`; sweeps, risers and rumble crescendos stay banned in every style.
+- Forbidden, checked in code on the SFX stem: `forbidden` (sweeps, risers, rumble crescendos). Nothing on whip cuts, punch-ins, rings or lower-thirds. Whooshes are allowed here (7.3 as amended by 060): `whoosh` is out of `forbidden` and `sound.whoosh` bounds it - a `whoosh` cue sits only on a `flash` enter or a pop-in (a text pop, a bubble or a sticker), at most `max_per_60s` a minute, `min_gap_s` apart, each file at most `max_len_s` long.
 - When the library has no matching bed or SFX, code searches the free library with plain keywords from the bed query, then the mood alone, then `default_bed_query`, and adopts only CC0 / CC BY files that pass the sweep detector (7.2, 054); the planner still never names a track.
 - Voice −19 LUFS / −3 dBTP on the stem, master −14 LUFS / −1.5 dBTP (7.3).
 

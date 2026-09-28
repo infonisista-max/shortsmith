@@ -233,6 +233,7 @@ def validate_picture(
     found += _transitions(beats, runtime, spec)
     found += _must_use(beats, must_use)
     found += _category(plan)
+    found += _title_strip(plan, spec)
 
     if found:
         return Violations(items=found)
@@ -1399,6 +1400,28 @@ def _category(plan: PicturePlan) -> list[Violation]:
             f"category {plan.category!r} is not one of {', '.join(CATEGORIES)}",
         )
     ]
+
+
+def _title_strip(plan: PicturePlan, spec: StyleSpec) -> list[Violation]:
+    """059 (4.1 as amended): a style with `broll.title_strip` draws the plan's
+    `title_strip` for the whole short, so the plan writes the topic in 1 to `words_max`
+    words; a style without the row draws none, so the plan leaves it empty."""
+    row = spec.broll.title_strip
+    count = len(plan.title_strip.split())
+    if row is None:
+        if not count:
+            return []
+        message = (f"title_strip {plan.title_strip!r} is set, but style {spec.name!r} draws "
+                   "no title strip; leave it empty")  # fmt: skip
+    elif count == 0:
+        message = (f"style {spec.name!r} draws a title strip: write title_strip, the topic in "
+                   f"1-{row.words_max} words")  # fmt: skip
+    elif count > row.words_max:
+        message = (f"title_strip {plan.title_strip!r} is {count} words; "
+                   f"broll.title_strip.words_max is {row.words_max}")  # fmt: skip
+    else:
+        return []
+    return [_v("4.1", None, message)]
 
 
 def _clamp_fields(

@@ -39,6 +39,13 @@ one), and every check reads that spec's numbers - its palette, typography, PIP r
 four-transition subset with `wipe` on a beat - through the same T1-T13. The draft stays
 `draft`; nothing about it is judged here.
 
+`--style footage|vishva|fastfacts` (ticket 059) renders the walk under a shipped recipe
+style: the smoke proves the form resolves the name to itself, judges the fake plan under
+the style's fixture-shaped copy with its own overlays on at the fixture's counts
+(`judged_specs`), and `check_recipe` reads the recipe off the render spec - the flash and
+its whoosh on b03, the stacked split (vishva), the title strip until the finale
+(fastfacts), none where the style has no row.
+
 `--text-pops` (ticket 061) runs the walk under the selected style's copy with text pops
 turned on (`fixture.pops_on`; every existing style keeps them off): the fake plan's b03
 carries one pop, the grammar writes its landing on the word, the render draws it clear of
@@ -140,6 +147,8 @@ SMOKE_BRIEF = (
     "Must-say: twelve words on six tone bursts. Hook wish: none."
 )
 SMOKE_STYLE_LINE = "explainer, energetic"
+# 059: the shipped styles, the explainer and the three recipes from the references.
+SHIPPED = ["explainer", "fastfacts", "footage", "vishva"]
 SMOKE_LIMITS = Limits(min_duration_s=fixture.DURATION_S)
 # 016: the fake plan's b01 (the opening's first image) asks for this; Commons answers it
 # with a full-bleed portrait. Web answers everything else with a 1600x1000 landscape, so
@@ -207,7 +216,14 @@ def select_style(style: str, specs: dict[str, styles.StyleSpec]) -> styles.Resol
         )
         return resolution
     check(style in specs, f"style {style!r} is not a loaded spec (loaded: {sorted(specs)})")
-    check(specs[style].status == "draft", f"{style} is shipped; only drafts are selected directly")
+    if specs[style].status == "shipped":
+        # 059: a shipped recipe style resolves from its own name, as the form would.
+        resolution = styles.resolve(style, specs)
+        check(
+            resolution == styles.Resolution(name=style, note=style),
+            f"the form would resolve {style!r} to {resolution}, not to itself",
+        )
+        return resolution
     redirected = styles.resolve(style, specs)
     check(
         redirected.name == styles.DEFAULT
@@ -216,6 +232,25 @@ def select_style(style: str, specs: dict[str, styles.StyleSpec]) -> styles.Resol
         "with the notice",
     )
     return styles.Resolution(name=style, note=style)
+
+
+def judged_specs(
+    specs: dict[str, styles.StyleSpec], style: str, *, text_pops: bool = False,
+    bubbles: bool = False, stickers_on: bool = False,
+) -> dict[str, styles.StyleSpec]:  # fmt: skip
+    """The specs the fake plan is judged by (009): the fixture-shaped copy of `style`,
+    with text pops, bubbles and stickers raised to the fixture's counts where asked for
+    (061-063) or where the style turns them on itself (059's recipes: a cap over 0 per
+    60 s rounds to fewer than the fake's one pop, dialogue pair or sticker in 6 s)."""
+    judged = fixture.smoke_specs(specs, style)
+    broll = specs[style].broll
+    if text_pops or broll.text_pops_max_per_60s > 0:
+        judged[style] = fixture.pops_on(judged[style])
+    if bubbles or broll.bubbles_max_per_60s > 0:
+        judged[style] = fixture.bubbles_on(judged[style])
+    if stickers_on or broll.stickers_max_per_60s > 0:
+        judged[style] = fixture.stickers_on(judged[style])
+    return judged
 
 
 def run_smoke(
@@ -255,8 +290,13 @@ def run_smoke(
 
     # 008: every spec loads against the registry, and the style line resolves in code.
     specs = styles.load_all(render.registry())
-    check(styles.shipped(specs) == ["explainer"], f"shipped styles: {styles.shipped(specs)}")
+    check(styles.shipped(specs) == SHIPPED, f"shipped styles: {styles.shipped(specs)}")
     resolution = select_style(style, specs)
+    # 059: a recipe style turns its overlays on itself; the checks below follow it.
+    broll = specs[style].broll
+    text_pops = text_pops or broll.text_pops_max_per_60s > 0
+    bubbles = bubbles or broll.bubbles_max_per_60s > 0
+    stickers_on = stickers_on or broll.stickers_max_per_60s > 0
 
     job = ingest.accept(
         root / "data",
@@ -278,13 +318,8 @@ def run_smoke(
     # 009: the fake plan is judged by the fixture-shaped copy of the selected style. 033:
     # the fake critic records what it was shown, so the strips are proved real below.
     critic = FakeCritic()
-    judged = fixture.smoke_specs(specs, style)
-    if text_pops:
-        judged[style] = fixture.pops_on(judged[style])
-    if bubbles:
-        judged[style] = fixture.bubbles_on(judged[style])
-    if stickers_on:
-        judged[style] = fixture.stickers_on(judged[style])
+    judged = judged_specs(specs, style, text_pops=text_pops, bubbles=bubbles,
+                          stickers_on=stickers_on)  # fmt: skip
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
         sourcing=smoke_sourcing(root / "stickers"), specs=judged, library=library,
@@ -383,6 +418,7 @@ def run_smoke(
     pops = check_text_pops(reloaded, plan, on=text_pops)
     drawn_bubbles = check_bubbles(reloaded, plan, on_disk, on=bubbles)
     drawn_stickers = check_stickers(reloaded, plan, manifest, on_disk, on=stickers_on)
+    recipe = check_recipe(reloaded, plan, story, specs[style])
     sheet = job.out_dir / "contact.jpg"
     check_contact_sheet(sheet)
     verdict = check_critic(reloaded, critic, plan)
@@ -413,6 +449,7 @@ def run_smoke(
         f"{len(on_disk.words)} words, "
         f"{len(plan.beats)} beats, {len(cues)} cues, {len(pages)} caption pages, "
         f"text pops {pops}, bubbles {drawn_bubbles}, stickers {drawn_stickers}, clip b04, "
+        f"{recipe}"
         f"picture {frames} frames {picture.stat().st_size // 1024} KiB render {render_s:.1f}s, "
         f"short {short_s:.1f} s {short_lufs:.1f} LUFS {short.stat().st_size // 1024} KiB, "
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
@@ -1192,6 +1229,57 @@ def check_stickers(
     return len(drawn["b01"])
 
 
+def check_recipe(
+    job: jobs.Job, plan: PicturePlan, story: SoundStory, spec_style: styles.StyleSpec
+) -> str:
+    """059: the render spec shows the style's recipe. Where `flash` is enabled, b03 (the
+    turn back to the presenter) flashes and, where whooshes are allowed, carries the
+    whoosh; a `stacked` split draws its two pictures one above the other with the title
+    band between; a style with a title strip draws the plan's words at its row until the
+    finale and T12 counted it; a style without one draws none. Returns a summary
+    fragment for the smoke line."""
+    spec = RenderSpec.model_validate_json(
+        (job.work_dir / "render_spec.json").read_text(encoding="utf-8")
+    )
+    numbers = render.numbers_for(spec_style)
+    shown: list[str] = []
+    if "flash" in spec_style.broll.enter_transitions:
+        flashed = [b.id for b in spec.beats if b.enter == "flash"]
+        check(flashed == ["b03"], f"the flash lands on {flashed}, not on b03")
+        shown.append("flash b03")
+        if styles.allows_whoosh(spec_style.sound):
+            whooshed = [c.beat_id for c in story.cues if styles.is_whoosh(c.intent)]
+            check(whooshed == ["b03"], f"the whoosh sits on {whooshed}, not on b03's flash")
+            shown.append("whoosh b03")
+    if numbers.broll.split_layout == "stacked":
+        piece = next((b.split for b in spec.beats if b.split is not None), None)
+        check(piece is not None, "the stacked style draws no split")
+        assert piece is not None
+        top, bottom = piece.panes
+        check(top.left == bottom.left and top.top + top.pane_height <= piece.title_top
+              and bottom.top >= piece.title_top + piece.title_px,
+              f"the split is not stacked with the title between: {piece.panes}")  # fmt: skip
+        shown.append("stacked split")
+    report = technical.load_report(job)
+    assert report is not None
+    t12 = next(c.detail for c in report.checks if c.name == "T12")
+    strip = spec.title_strip
+    if numbers.title_strip is None:
+        check(strip is None and plan.title_strip == "", "a title strip without the style's row")
+    else:
+        check(strip is not None and strip.text == plan.title_strip != "",
+              f"the title strip is {strip}, not the plan's {plan.title_strip!r}")  # fmt: skip
+        assert strip is not None
+        check(strip.top == numbers.title_strip.top_y, f"the title strip sits at y {strip.top:g}")
+        finale = next(b for b in spec.beats if b.id == plan.finale.beat_id)
+        check(strip.until_frame == finale.start_frame, "the title strip runs into the finale")
+        check("1 title strip" in t12, f"T12 did not count the title strip: {t12}")
+        shown.append(f"title strip {strip.text!r}")
+    mean = sum(b.end - b.start for b in plan.beats) / len(plan.beats)
+    shown.append(f"beat mean {mean:.2f} s")
+    return f"recipe {', '.join(shown)}, "
+
+
 def check_qa(job: jobs.Job) -> None:
     """`out/qa.json`: T1-T13 ran in order and every one passed (10.1; 006, 016, 023,
     031, 032). The smoke mixes cues, so T6 must have scanned a real SFX stem - its
@@ -1463,8 +1551,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--style",
         default=styles.DEFAULT,
-        help=f"the style spec to render under; a draft such as hitech (048). "
-        f"Default: {styles.DEFAULT}",
+        help=f"the style spec to render under: a recipe (footage, vishva, fastfacts; 059) "
+        f"or a draft such as hitech (048). Default: {styles.DEFAULT}",
     )
     parser.add_argument(
         "--text-pops",

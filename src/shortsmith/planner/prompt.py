@@ -42,7 +42,10 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v13 (ticket 062): the picture file says when to write `stickers` (a 3D emoji picked by
+# v14 (ticket 059): the picture file says when to write `title_strip` (the topic in at
+# most `broll.title_strip.words_max` words, only where section 1 carries the row; empty
+# elsewhere) and the schema carries the field; the sound file is v13's unchanged.
+# (v13, ticket 062: the picture file says when to write `stickers` (a 3D emoji picked by
 # a tag of the committed catalogue, rendered tag by tag as `$stickers`, and optionally one
 # of that tag's names, never a file; landing on the spoken `word`; above the speaker's
 # circle without `{x, y}`, which a beat without the circle needs; one per beat under
@@ -76,8 +79,8 @@ Call = Literal["picture", "sound"]
 # hook cards; the cut removes only silence, beats are written on the recording's
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
-# diagram data; v2, ticket 027: the set-piece content rules.)
-PROMPT_VERSION = "v13"
+# diagram data; v2, ticket 027: the set-piece content rules.))
+PROMPT_VERSION = "v14"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

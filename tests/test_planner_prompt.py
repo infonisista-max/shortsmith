@@ -160,7 +160,22 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v13"
+    assert prompt.PROMPT_VERSION == "v14"
+
+
+def test_the_v14_picture_prompt_says_when_to_write_the_title_strip() -> None:
+    """059: the picture file says to write `title_strip` (the topic in at most
+    `broll.title_strip.words_max` words) only where section 1 carries the row, and to
+    leave it empty elsewhere; the schema carries the field."""
+    picture = prompt.build_prompt(_request(), "picture")
+    for needle in (
+        "Title strip",
+        "`title_strip`",
+        "`broll.title_strip.words_max`",
+        "leave `title_strip` empty",
+        '"title_strip"',
+    ):
+        assert needle in picture, needle
 
 
 def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:

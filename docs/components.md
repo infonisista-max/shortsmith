@@ -24,7 +24,7 @@ it. A blank cell means the style does not enable that component.
 | `finale` | 1 | implemented | b11 | b11 | hitech: `spec_summary_card` kind, same component; 055: its cards are the short's first three distinct images |
 | `list` | 1 | implemented | b08 | b08 | over the dimmed base still |
 | `chart` | 1 | implemented | b06 | b06 | drawn from the series, never sourced |
-| `split` | 1 | implemented | b09 | b09 | two panes, badge, highlighted title strip |
+| `split` | 1 | implemented | b09 | b09 | two panes, badge, highlighted title strip; 059: `motion.split.layout: stacked` (vishva) draws the two pictures top and bottom with the title band between, the card running from under the top zone to `card_max_bottom_y`, under the PIP circle |
 | `wall` | 1 | implemented | b10 | b10 | 2x2 grid over the dimmed base still |
 | `infographic` | 1 | implemented | b07 | b07 | label-free base under the labels |
 | `label_flyin` | 1 | implemented | b07 | b07 | labels fly in one after another |
@@ -39,10 +39,23 @@ it. A blank cell means the style does not enable that component.
 | `zoom` | transition | implemented | b09 | b08, b09 | 0.3 s from 1.6 |
 | `spring` | transition | implemented | b08 |  | hitech does not enable it; the fake swaps it for a zoom |
 | `wipe` | transition | implemented |  | b02 | 0.25 s; exercised only by the hitech render |
-| `flash` | transition | implemented |  |  | 060: a 0.3 s full-frame colour flash peaking on the cut, over the picture layers only (the PIP circle and captions never blink); no shipped or draft style enables it yet (059's recipe styles will), so no smoke draws it - `tests/test_render.py` renders a fixture beat pair through it |
+| `flash` | transition | implemented |  |  | 060: a 0.3 s full-frame colour flash peaking on the cut, over the picture layers only (the PIP circle and captions never blink); the explainer and the drafts do not enable it; 059's recipe styles do, and their smokes draw it on b03 |
 | `text_pop` | 1 | implemented |  |  | 061: 1-4 bold words (Poppins 900, yellow / white / accent, dark outline) pinned on a picture beat at the planner's `{x, y, anchor}`, popping in with an overshoot on the spoken word and staying to the beat's end or `hold_max_s`; placed clear of the PIP circle, the caption band and any detected face. Every existing style sets `text_pops_max_per_60s: 0` (059's recipe styles turn it on), so the plain smokes draw none; `python -m shortsmith.smoke --text-pops` renders the fake plan's one pop (b03, "THIS", on the presenter full beat) under the explainer copy with pops on |
 | `bubble` | 1 | implemented |  |  | 063: a `speech` bubble (rounded white body with a tail, Poppins 800 in the style's `motion.bubble.ink`) or a `thought` bubble (the body with a trail of dots) of 1-7 words the recording itself carries, its tail tip on the planner's `{x, y}`; pops in with an overshoot at its landing (the grammar's `at_s`: the first source word, or the beat's start; a pair's second bubble lands `dialogue_gap_min_s`-`dialogue_gap_max_s` after the first) and stays to the beat's end or `hold_max_s`; the body wraps and shrinks to `min_size_px`, then fails the build; placed clear of the PIP circle, the caption band, the stamp, any detected face and the beat's other bubble. Every existing style sets `bubbles_max_per_60s: 0` (059's recipe styles turn it on), so the plain smokes draw none; `python -m shortsmith.smoke --bubbles` renders the fake plan's dialogue pair (b04, the card beat: a speech bubble at the PIP circle, a thought bubble over the card) under the explainer copy with bubbles on |
 | `sticker` | 1 | implemented |  |  | 062: a Microsoft Fluent Emoji 3D PNG (MIT; the committed catalogue `assets/stickers/catalog.yaml`, picked by intent tag) in a `motion.sticker.size_px` square (180-320 px), popping in with an overshoot on its spoken word (the grammar's `at_s`), then floating gently under a soft shadow until the beat's end or `hold_max_s`; above the PIP circle when the planner gives no `{x, y}`, else centred on its point; placed clear of the PIP circle, the caption band, the stamp, any detected face and the beat's text pops and bubbles; at most one per beat. The PNG is fetched by the asset step on first use into the data dir's cache and copied into the job; a failed fetch drops the sticker, logged. Every existing style sets `stickers_max_per_60s: 0` (059's recipe styles set theirs), so the plain smokes draw none; `python -m shortsmith.smoke --stickers` renders the fake plan's one sticker (b01, a light bulb above the circle on "there") under the explainer copy with stickers on |
+| `title_strip` | 1 | implemented |  |  | 059: the fixed topic bar a style with `broll.title_strip` (fastfacts) keeps at the top of the frame (y 262, under the 6.3 top zone) from the first frame to the finale: the plan's `title_strip` (at most `words_max` words) in the caption weight, ink on the fill, fitted from `size_px` to `min_size_px`, sliding down over `duration_s`; the text pops, bubbles and stickers are placed off it and T12 judges its box. `python -m shortsmith.smoke --style fastfacts` draws "Twelve words of nothing" |
+
+## The recipe renders (ticket 059)
+
+`python -m shortsmith.smoke --style footage|vishva|fastfacts` renders the fixture under
+each shipped recipe style (the smoke proves the form resolves each name to itself). Every
+recipe enables `flash` and allows whooshes: b03, the turn back to the presenter, flashes
+and carries the one whoosh (its text pop's tick gives way under `cues_per_beat_max`).
+footage: the text pop on b03, the sticker on b01, the clip on b04. vishva: the pop on b03,
+the dialogue pair on b04, the sticker on b01 and the stacked split on b09. fastfacts: the
+pop on b03 and the title strip over b01-b10. The recipes turn their overlays on
+themselves, so the smoke judges them under the fixture's overlay counts (`pops_on`,
+`bubbles_on`, `stickers_on`), as the flags do for the other styles.
 
 ## The hitech render (ticket 048)
 

@@ -5,7 +5,8 @@
 // the bold words pinned on the picture that land on the spoken word; 063 adds `bubble`,
 // the speech and thought bubbles of the recording's own words. 058 adds `clip`, the
 // full-screen muted stock footage drawn where a photo is. 062 adds `sticker`, the Fluent
-// Emoji 3D pop above the PIP circle or near its subject.
+// Emoji 3D pop above the PIP circle or near its subject. 059 adds `title_strip`, the fixed
+// topic bar a recipe style keeps at the top of the frame until the finale.
 import type React from "react";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
@@ -33,6 +34,7 @@ import { Spring } from "./components/spring";
 import { Stamp } from "./components/stamp";
 import { Sticker } from "./components/sticker";
 import { TextPop } from "./components/text_pop";
+import { TitleStrip } from "./components/title_strip";
 import { Wall } from "./components/wall";
 import { Whip } from "./components/whip";
 import { Wipe } from "./components/wipe";
@@ -66,6 +68,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   stamp: Stamp,
   sticker: Sticker,
   text_pop: TextPop,
+  title_strip: TitleStrip,
   wall: Wall,
   whip: Whip,
   wipe: Wipe,

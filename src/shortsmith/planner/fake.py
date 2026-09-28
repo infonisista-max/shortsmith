@@ -47,6 +47,11 @@ landing on word 1. b01 already carries the opening hit, the one cue
 `sound.cues_per_beat_max` allows, so the sound story is unchanged. Under a cap of 0 the
 plan is byte-identical to before.
 
+Ticket 059: under the recipe styles (`footage`, `vishva`, `fastfacts`) b03 flashes, its
+whoosh is its one cue (the pop's tick gives way), and where the style carries
+`broll.title_strip` (fastfacts) the plan writes `FAKE_TITLE_STRIP`. Under the explainer the
+plan is byte-identical to before.
+
 Ticket 058: b04 is the plan's one `clip` beat - a concept ("drifting clouds timelapse",
 `CLIP_QUERY`) asking for moving stock footage under the stamp (and the bubbles), with its
 own asset `a3`; with no clip source configured it takes the still ladder like any clip
@@ -180,6 +185,19 @@ def stickers_allowed(style: PlanStyle) -> bool:
     """062: the style's `broll.stickers_max_per_60s` is over 0; a request with no
     numbers allows none (the explainer's rule)."""
     return _cap_over_zero(style, "stickers_max_per_60s")
+
+
+def title_strip_allowed(style: PlanStyle) -> bool:
+    """059: the style carries a `broll.title_strip` row; a request with no numbers has
+    none (the explainer's rule)."""
+    broll = style.numbers.get("broll")
+    if not isinstance(broll, Mapping):
+        return False
+    return cast(Mapping[str, object], broll).get("title_strip") is not None
+
+
+# 059: the fake's title strip, the topic in four words, where the style draws one.
+FAKE_TITLE_STRIP = "Twelve words of nothing"
 
 
 def _cap_over_zero(style: PlanStyle, key: str) -> bool:
@@ -326,6 +344,7 @@ class FakePlanner(Planner):
             description="Six seconds, twelve words, every kind of picture.",
             hashtags=["#shorts", "#nothing", "#synthetic"],
             category="science",  # 033 / 10.3: a seeded category the library has no data for yet
+            title_strip=FAKE_TITLE_STRIP if title_strip_allowed(request.style) else "",
         )
 
     def plan_sound(
@@ -348,19 +367,21 @@ class FakePlanner(Planner):
             for b in picture.beats
             if b.event.kind == "stamp" or b.counter is not None
         ]
-        # 061: a tick where the text pop lands, on the beat that carries one. (062: the
-        # sticker's beat, b01, already carries the opening hit, the one cue
-        # `sound.cues_per_beat_max` allows, so it gets no ding of its own.)
+        # 060: one whoosh on the first flash, where the style allows whooshes at all.
+        flashed = [b.id for b in picture.beats if b.enter == "flash"]
+        whooshed = flashed[0] if flashed and whoosh_allowed(request.style) else None
+        # 061: a tick where the text pop lands, on the beat that carries one - unless the
+        # beat's flash already carries the whoosh (059: the recipes flash b03 and pop on
+        # it), the one cue `sound.cues_per_beat_max` allows. (062: the sticker's beat, b01,
+        # already carries the opening hit, so it gets no ding of its own.)
         cues += [
             Cue(beat_id=b.id, intent="popup_tick", at="event")
             for b in picture.beats
-            if b.text_pops and b.event.kind == "none" and b.counter is None
+            if b.text_pops and b.event.kind == "none" and b.counter is None and b.id != whooshed
         ]
         cues.append(Cue(beat_id=last, intent="finale_hit", at="start"))
-        # 060: one whoosh on the first flash, where the style allows whooshes at all.
-        flashed = [b.id for b in picture.beats if b.enter == "flash"]
-        if flashed and whoosh_allowed(request.style):
-            cues.append(Cue(beat_id=flashed[0], intent=WHOOSH, at="start"))
+        if whooshed is not None:
+            cues.append(Cue(beat_id=whooshed, intent=WHOOSH, at="start"))
         end = picture.beats[-1].end
         return SoundStory(
             prompt_version=self.PROMPT_VERSION,

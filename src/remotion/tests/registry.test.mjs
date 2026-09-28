@@ -175,6 +175,21 @@ test("the composition lists sticker after ticket 062 and draws it over the bubbl
                "the driver never serves a beat's sticker");  // prettier-ignore
 });
 
+test("the composition lists title_strip after ticket 059 and draws it over the overlays, under the captions", () => {
+  assert.ok(registry.components.includes("title_strip"), "title_strip is not registered");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const strip = short.indexOf("<TitleStrip ");
+  assert.ok(strip > 0, "Short.tsx never draws TitleStrip");
+  assert.ok(short.indexOf("<Sticker ") < strip, "the strip is drawn under the stickers");
+  assert.ok(strip < short.indexOf("<Captions "), "the strip is drawn over the captions");
+  // Every number is the spec's: the box, the type, the colours, the slide and the leave.
+  const source = readFileSync(join(root, "components", "title_strip.tsx"), "utf-8");
+  for (const field of ["text", "left", "top", "width", "height", "font_px", "font_weight",
+                       "fill", "ink", "slide_s", "until_frame"]) {
+    assert.ok(source.includes(`.${field}`), `title_strip.tsx never reads ${field}`);
+  }
+});
+
 test("the composition lists clip after ticket 058 and draws it muted in the photo's layer", () => {
   assert.ok(registry.components.includes("clip"), "clip is not registered");
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
@@ -215,7 +230,8 @@ test("Short.tsx draws every registered component", () => {
                   wall: "Wall", chart: "Chart", infographic: "Infographic",
                   label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase",
                   pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath",
-                  text_pop: "TextPop", bubble: "Bubble", sticker: "Sticker" };
+                  text_pop: "TextPop", bubble: "Bubble", sticker: "Sticker",
+                  title_strip: "TitleStrip" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   for (const name of registry.components) {
