@@ -1,5 +1,11 @@
 # 025 — Seed the audio library: 12 beds and 20 SFX, hand-listened, with licence text
 
+## Superseded (29 Sep 2026, grill on learning from references)
+
+Replaced by `issues/075-audio-shortlist-and-approved-library.md`: the tool shortlists 3
+licence-clear candidates per closed mood, flavour and effect kind, and the operator only
+says yes or no. Moved to `issues/done/` without being built.
+
 ## Type
 
 HITL — operator-supplied input per 7.2: Shubham sources the files by hand from YouTube Audio Library and Mixkit, hand-listens each, and writes the tags and licence text. The agent's part is limited to running the measure and check scripts and validating the catalogue.

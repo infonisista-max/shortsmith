@@ -48,11 +48,24 @@ Operator decisions (run04 QA, 29 Sep 2026):
 - **The cue vocabulary is a closed palette.** Every cue is fetched only after 068's
   name/tag check.
 
+**Amended 29 Sep 2026 (grill on learning from references):**
+
+- **Effect sounds come only from the approved library** (075). The operator has said yes
+  to each file by ear. No SFX search runs at job time. A palette kind with no approved
+  file drops the cue with a `job.log` line.
+- The per-kind search words and length filters below move to 075's shortlist tool. The
+  job never uses them.
+- **One ding exception.** A soft `ding` is allowed only on a 062 sticker whose intent tag
+  is `idea` (the FactTechz lightbulb, `zXK42RMPKUY` 34 s). Rings, bells and chimes stay
+  banned.
+
 What to build:
 
-- **The palette.** Cue kinds are `tick`, `whoosh`, `bass`, `drum`, `thump`; the last
-  three are the existing floor classes. `ding` and every planner-invented intent are
-  gone. The sound-story schema makes `cues[].intent` a literal of the style's palette. A
+- **The palette.** Cue kinds are `tick`, `whoosh`, `bass`, `drum`, `thump`, `ding`; the
+  first two and `ding` are placed by the director, the next three are the existing floor
+  classes. `ding` sits only on an `idea` sticker's pop-in (`ding: {max_per_60s: 2,
+  max_len_s: 0.8, on: [idea_sticker]}` in front matter), soft (tick level). Every
+  planner-invented intent is gone. The sound-story schema makes `cues[].intent` a literal of the style's palette. A
   name outside it is a 7.x validation error with the usual one retry. The prompt lists
   the palette and when each fits. Bump the prompt version.
 - **Where each may sit.** Each style's `sound` front matter gains `tick: {max_per_60s,
@@ -68,16 +81,14 @@ What to build:
   - Levels sit inside the existing `cue_db_min`–`cue_db_max` band, with tick and whoosh at
     the quiet end (thump level or below).
 - **Every kind has a length.** `max_len_s` per palette kind is in front matter. The
-  Freesound request carries it (`duration:[0 TO max_len_s]`), so short files are what
-  come back.
-  - Each kind's search words come from 068's `kinds.yaml`, several rungs per kind (tick:
-    `tick`, `click`, `ui click`, `soft pop`; whoosh: `whoosh short`, `swoosh`,
-    `swish fast`), each asked with the length filter.
+  director matches only approved library files within it (075's shortlist already asked
+  Freesound with `duration:[0 TO max_len_s]`, from 068's `kinds.yaml` words: tick `tick`,
+  `click`, `ui click`, `soft pop`; whoosh `whoosh short`, `swoosh`, `swish fast`).
   - A counter landing, a stamp or a reveal keeps its floor class (bass or drum); it never
     gets a ding.
 - **Docs.** `docs/reference/README.md`'s sound profile is amended to match: ticks and
-  short whooshes allowed only on a visible pop-in or transition; rings, bells, chimes and
-  dings still banned. The line says it is the operator's run04 decision. Per CLAUDE.md,
+  short whooshes allowed only on a visible pop-in or transition; a soft ding only on an
+  idea sticker; rings, bells and chimes still banned. The line says it is the operator's run04 decision. Per CLAUDE.md,
   first check the change against the reference beat tables and the inventory `synced_to`
   counts, and quote that check.
 
@@ -90,8 +101,11 @@ What to build:
       and every non-cut transition, is considered for a tick or whoosh. The placed count
       respects `max_per_60s` and `min_gap_s`. A test asserts no pop-in or transition
       beyond the cap gets one.
-- [ ] With a `MockTransport`, the SFX request for each kind carries that kind's
-      `duration:[0 TO max_len_s]`. A 3.16 s whoosh never reaches download.
+- [ ] No SFX search is made at job time: with a fake search that fails the test when
+      called for an SFX, every cue is matched from a fixture approved library, and a kind
+      with no approved file drops its cue with a log line.
+- [ ] A `ding` on an `idea` sticker passes; a `ding` on any other sticker, pop or
+      transition fails the grammar naming the cue.
 - [ ] No placed cue is longer than its kind's `max_len_s`. Gate T6's check is unchanged:
       the whoosh exemption stays limited to files within the allowance.
 - [ ] All seven style specs carry the `tick` row and the widened `whoosh.on`, with bumped
@@ -100,19 +114,23 @@ What to build:
 - [ ] Smoke on explainer, vishva and fastfacts passes T1–T13. The fake planner emits one
       pop-in tick and one transition whoosh.
 - [ ] Operator step (the afk run has `.env` parked and no network, so it does not
-      render with fetched sounds): the done note gives the exact command for the
-      operator to run with `.env` back in place. It re-renders run04's audio with the
-      fixes into `work/070/mix.wav` (git-ignored) and prints each cue's time, kind and
-      Freesound name, for the operator's phone check.
+      render with real sounds): the done note gives the exact command for the
+      operator to run with `.env` back in place, once 075's library has approved effect
+      files. It re-renders run04's audio with the fixes into `work/070/mix.wav`
+      (git-ignored) and prints each cue's time, kind and library file, for the
+      operator's phone check.
 - [ ] Ruff, pyright and every test file are green in foreground chunks.
 - [ ] Done note: the amendment lines for 7.1 and 7.3 (the closed palette; tick and whoosh
-      only on pop-ins and transitions, all styles; rings, bells, chimes and dings banned)
+      only on pop-ins and transitions, all styles; a soft ding only on an idea sticker;
+      effect files only from the approved library; rings, bells and chimes banned)
       for the operator to paste. Also what to check on run05: each pop-up and transition
       has a soft mark, never on every one, and nothing sounds unrelated to the screen.
 
 ## Blocked by
 
 - 068 (every palette sound is adopted only after its name/tag check).
+- `issues/075-audio-shortlist-and-approved-library.md` (the approved library shape; the
+  tests use a fixture library, so only the operator step needs real approved files).
 
 ## User stories addressed
 

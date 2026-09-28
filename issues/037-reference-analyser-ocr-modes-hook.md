@@ -1,5 +1,12 @@
 # 037 — Reference analyser: caption pages by OCR, presenter mode timeline, hook description
 
+## Parked (29 Sep 2026, grill on learning from references)
+
+Stays parked until 079 (run05) is decided go. The v2 reference card (073) and the
+self-inventory (074) now carry the hook, story parts and pacing as ESTIMATED figures.
+When unparked, rewrite this ticket to measure only what the v2 cards cannot estimate well,
+and to write into the v2 card fields, not into `docs/reference/<category>/README.md`.
+
 ## Type
 
 HITL — needs new package: an OCR engine (`pytesseract` with a Tesseract binary, or `easyocr`/`rapidocr-onnxruntime`), whichever `uv add` and the machine allow. The operator picks and approves; then this ticket becomes AFK. Face detection reuses the 013 package. The approval waits on the tool verdicts required under "Reference tooling" below.

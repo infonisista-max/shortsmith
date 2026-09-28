@@ -1,5 +1,13 @@
 # 038 — Seed the reference library: at least three shorts per category
 
+## Parked (29 Sep 2026, grill on learning from references)
+
+Growing the reference set now goes through `issues/081-reference-url-shortlist-history-geopolitics.md`
+(v2 cards via the Gemini link tool, 3+ per topic, history and geopolitics first, after
+run05). The per-category README format and the yt-dlp download below are superseded by
+the v2 cards. Keep this file only for the anchor ratings listed under Inputs; 082 turns
+the two anchors into cards.
+
 ## Type
 
 HITL — operator-approved input per 10.3: candidate URLs are researched by the paired review chat, Shubham approves the list, the tool does the rest. The agent's part is running the tool and checking the README output.

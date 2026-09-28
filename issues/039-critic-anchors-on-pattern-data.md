@@ -2,7 +2,11 @@
 
 ## Type
 
-AFK
+HITL — **parked until 079 (run05) is decided go** (29 Sep 2026, grill on learning from
+references). The category READMEs this ticket reads were never built. When unparked,
+rewrite it so the critic reads the v2 reference cards (073) for the job's style and topic,
+and the job's own self-inventory comparison table (074), instead of
+`docs/reference/<category>/README.md`. Then it becomes AFK again.
 
 ## Parent PRD
 
