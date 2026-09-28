@@ -160,7 +160,24 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v14"
+    assert prompt.PROMPT_VERSION == "v15"
+
+
+def test_the_v15_picture_prompt_says_each_change_counts_at_its_own_time() -> None:
+    """066: the density line names `beats.density_gap_max_s` and when each change
+    lands (a pop, bubble or sticker at its word, a stamp or lower-third at mid-beat);
+    the text-pop paragraph no longer says a stamp alone makes up for a pop."""
+    picture = prompt.build_prompt(_request(), "picture")
+    for needle in (
+        "`beats.density_gap_max_s`",
+        "at each text pop, bubble and sticker (at its\n  word's time)",
+        "at mid-beat when it carries a landed `event`",
+        "a pop helps only where its word falls",
+        "while a `stamp` or `lower_third` counts at\n  mid-beat",
+        "Put the pop on a word inside the still span, or split the beat.",
+    ):
+        assert needle in picture, needle
+    assert "so the beat may still carry" not in picture
 
 
 def test_the_v14_picture_prompt_says_when_to_write_the_title_strip() -> None:

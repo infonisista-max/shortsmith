@@ -35,11 +35,15 @@ The opening (3.4 as amended by 055): the first `beats.opening_beats_min` beats a
 asset), the last of them ending by `beats.opening_max_s`; when the job has owner
 references the first beat shows one. No hook object, no lifted line, no title card.
 
-Two readings this module fixes where the decisions leave room. Density (3.1): visual
-events are beat starts and landed events; a landed event is taken to land mid-beat,
-so a beat with one event may run to twice `density_gap_max_s` and a beat with none to
-the gap itself. Set pieces (list, chart, split, wall, finale) and beats with overlays
-change on their own and are not measured inside.
+Two readings this module fixes where the decisions leave room. Density (3.1, as
+amended by 066): what changes on screen, and when. A beat's change times are its
+start, every text pop, bubble and sticker at its resolved `at_s` (its word's time on
+the cut), its landed event (stamp, ring, lower-third) taken to land mid-beat, and its end;
+the largest gap between consecutive times is at most `density_gap_max_s`. So a stamp
+alone lets a beat run to twice the gap, a beat with nothing to the gap itself, and a
+pop helps only as far as its word splits the still span. Set pieces (list, chart,
+split, wall, finale) and beats with overlays change on their own and are not measured
+inside.
 """
 
 from __future__ import annotations
@@ -48,6 +52,7 @@ import math
 import re
 from collections import Counter
 from collections.abc import Sequence
+from itertools import pairwise
 from typing import Literal
 
 from shortsmith import assets, presenter, stickers, styles
@@ -211,7 +216,6 @@ def validate_picture(
     clamps += snap_clamps
     found += snap_found
     found += _lengths(beats, spec)
-    found += _density(beats, spec)
     found += _presenter(beats, plan, spec)
     found += _opening(beats, spec, references)
     found += _kinds(beats, spec)
@@ -226,6 +230,7 @@ def validate_picture(
     found += bubble_found
     sticker_found, beats = _stickers(beats, runtime, spec, words, spans)
     found += sticker_found
+    found += density(beats, spec)  # 066: after the passes that resolve each `at_s`
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
     found += asset_found
@@ -490,27 +495,38 @@ def pops_in(beat: Beat) -> bool:
     return bool(beat.text_pops) or bool(beat.bubbles) or bool(beat.stickers)
 
 
-def _density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
-    """3.1: the gap between consecutive visual events (beat starts, landed events) is
-    at most `density_gap_max_s`; see the module docstring for the mid-beat reading."""
+def change_times(beat: Beat) -> list[float]:
+    """066 (3.1): when something changes on screen in `beat`, sorted: its start, every
+    text pop, bubble and sticker at its resolved `at_s` (061 / 063 / 062), its landed
+    event (stamp, ring, lower-third) at mid-beat, and its end. A counter rides an
+    overlay, whose beat `density` does not measure."""
+    times = [beat.start, beat.end]
+    if beat.event.kind != "none":
+        times.append(round((beat.start + beat.end) / 2, 3))
+    for item in (*beat.text_pops, *beat.bubbles, *beat.stickers):
+        if item.at_s is not None:
+            times.append(min(max(item.at_s, beat.start), beat.end))
+    return sorted(times)
+
+
+def density(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
+    """3.1: the largest gap between consecutive `change_times` of a beat is at most
+    `density_gap_max_s`; see the module docstring for the reading. Runs after the pop,
+    bubble and sticker passes, whose resolved `at_s` it reads."""
     gap_max = spec.beats.density_gap_max_s
     found: list[Violation] = []
     for b in beats:
         if b.kind in DENSITY_EXEMPT_KINDS or b.overlays:
             continue
-        length = _len(b)
-        # 061: a pop is a change; 063: so is a bubble; 062: and a sticker
-        landed = b.event.kind != "none" or pops_in(b)
-        gap = round(length / 2, 3) if landed else length
+        times = change_times(b)
+        lo, hi = max(pairwise(times), key=lambda pair: pair[1] - pair[0])
+        gap = round(hi - lo, 3)
         if gap > gap_max + EPS:
             found.append(
-                _v(
-                    "3.1",
-                    b.id,
-                    f"nothing changes on screen for {gap:g} s "
-                    f"({'one landed event' if landed else 'no landed event'} in a {length:g} s "
-                    f"beat), over beats.density_gap_max_s {gap_max:g} s",
-                )
+                _v("3.1", b.id, f"nothing changes on screen from {lo:.2f} s to {hi:.2f} s "
+                                f"({round(gap, 2):g} s), over beats.density_gap_max_s "
+                                f"{gap_max:g} s; add a pop on a word in that span or split "
+                                "the beat")  # fmt: skip
             )
     return found
 

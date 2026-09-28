@@ -77,6 +77,50 @@ tables.
       check on run05: `job.log` shows no 3.1 rejection on a beat that carries a
       well-placed pop.
 
+## Done note (29 Sep 2026, AFK session)
+
+All boxes above are met:
+
+- `grammar.change_times(beat)` lists the times: the start, each pop, bubble and
+  sticker at its resolved `at_s` (clamped into the beat), the landed event (stamp,
+  ring, lower-third) at mid-beat, and the end. `grammar.density` (it was `_density`,
+  now public for the tests) now runs after the sticker pass and rejects when the
+  largest gap is over `beats.density_gap_max_s`. The message is
+  `b05 (3.1): nothing changes on screen from 10.00 s to 12.00 s (2 s), over
+  beats.density_gap_max_s 1.5 s; add a pop on a word in that span or split the beat`.
+  The times are output seconds, as in the 4.1 pop messages. When two gaps tie, the
+  earlier one is named.
+- A counter rides an overlay, so its beat stays exempt, the same as before.
+- `tests/fixtures/run04/` holds run 3's first reply, parsed to a PicturePlan, and the
+  job's transcript (JSON only). Under the new rule the reply is still rejected, and
+  each line names its still span. b20's pop (47.90 s) and its lower-third (48.23 s) are
+  both in the first half, so 48.23–50.14 s stays still. b02 is now flagged too: its one
+  bubble lands at the beat start (1.90 s), which leaves 1.6 s of nothing after it. The
+  old rule counted any bubble as a pass.
+- Five older tests put a pop, bubble or sticker at +0.4 s on a bare 2.5 s beat and
+  expected a pass. They now put the word at +1.0 s (1.0 s + 1.5 s still).
+- `picture_v15.md` adds a still-screen line under Beats and rewrites the text-pop
+  paragraph ("counts at its word's time, while a `stamp` or `lower_third` counts at
+  mid-beat ... Put the pop on a word inside the still span, or split the beat"). The
+  bubble and sticker lines say the same. `sound_v15.md` is v14 unchanged.
+  `PROMPT_VERSION` is v15, and the v15 snapshots are recorded.
+- Checks: ruff and pyright are clean. All 59 test files are green in foreground chunks.
+  Smoke passes T1–T13 on explainer, hitech, footage, vishva and fastfacts; each kept
+  qa.json was read.
+
+Amendment line for 3.1, for the operator to paste:
+> 3.1 (as amended by 066): density measures what changes on screen and when. A beat's
+> change times are its start, each text pop, bubble and sticker at its word's time,
+> its stamp or lower-third at mid-beat, and its end. The largest gap between them is
+> at most `beats.density_gap_max_s`. Set pieces and overlay beats are not measured.
+
+Check on run05: `job.log` shows no 3.1 rejection on a beat that carries a well-placed
+pop. Any 3.1 line left should name a span (`from X s to Y s`) that really has nothing
+in it.
+
+Still open for the operator (out of scope, as the ticket says): the renderer lands the
+stamp and lower-third at the start of the beat, not mid-beat.
+
 ## Blocked by
 
 - Nothing. (065's per-run planner folders would have kept run 2's retry reply; they

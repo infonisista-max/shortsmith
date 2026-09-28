@@ -42,10 +42,15 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v14 (ticket 059): the picture file says when to write `title_strip` (the topic in at
+# v15 (ticket 066): the picture file's Beats section states the still-screen rule (3.1
+# as amended): a pop, bubble or sticker counts at its word's time, a stamp or
+# lower-third at mid-beat, the longest span between changes at most
+# `beats.density_gap_max_s`; the text-pop paragraph no longer implies a stamp makes up
+# for a pop in the same half. The sound file is v14's unchanged.
+# (v14, ticket 059: the picture file says when to write `title_strip` (the topic in at
 # most `broll.title_strip.words_max` words, only where section 1 carries the row; empty
 # elsewhere) and the schema carries the field; the sound file is v13's unchanged.
-# (v13, ticket 062: the picture file says when to write `stickers` (a 3D emoji picked by
+# v13, ticket 062: the picture file says when to write `stickers` (a 3D emoji picked by
 # a tag of the committed catalogue, rendered tag by tag as `$stickers`, and optionally one
 # of that tag's names, never a file; landing on the spoken `word`; above the speaker's
 # circle without `{x, y}`, which a beat without the circle needs; one per beat under
@@ -80,7 +85,7 @@ Call = Literal["picture", "sound"]
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
 # diagram data; v2, ticket 027: the set-piece content rules.))
-PROMPT_VERSION = "v14"
+PROMPT_VERSION = "v15"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

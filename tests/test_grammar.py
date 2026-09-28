@@ -343,6 +343,149 @@ def test_a_beat_with_nothing_changing_for_over_the_density_gap_is_rejected(
     assert ("b05", "3.1") in rules(picture(long_still, spec))
 
 
+# --- 066: density counts each change at its own time ---------------------------------------
+#
+# b05 is a `photo`; with `body_lengths[2]` set it runs from 10.0 s for that long. Its one
+# word is replaced by words starting at the given seconds, so a pop, bubble or sticker on
+# word 4 + i lands at the i-th start.
+
+RUN04 = Path(__file__).parent / "fixtures" / "run04"
+
+
+def _words_on_b05(plan: PicturePlan, starts: Sequence[float]) -> Transcript:
+    """The base transcript with b05's word replaced by one word per start, each ending
+    0.1 s before the next (the last at the beat's end), so no pause is tightened."""
+    base = transcript_for(plan)
+    b05 = next(b for b in plan.beats if b.id == "b05")
+    ends = [*(round(s - 0.1, 3) for s in starts[1:]), b05.end]
+    seg = base.words[4].segment
+    spoken = [Word(text=f"w4{i}", start=s, end=e, segment=seg)
+              for i, (s, e) in enumerate(zip(starts, ends, strict=True))]  # fmt: skip
+    words = [*base.words[:4], *spoken, *base.words[5:]]
+    return base.model_copy(update={"words": words})
+
+
+def _long_b05(length: float, **changes: Any) -> PicturePlan:
+    lengths = [2.5] * 20
+    lengths[2] = length
+    return replace(make_plan(body_lengths=lengths), "b05", **changes)
+
+
+def _density_lines(result: object, beat_id: str = "b05") -> list[str]:
+    assert isinstance(result, grammar.Violations), result
+    return [v.message for v in result.items if (v.beat_id, v.rule) == (beat_id, "3.1")]
+
+
+def test_a_stamp_lands_mid_beat_and_pops_count_at_their_words(popped: StyleSpec) -> None:
+    """066: the change times are the beat start, each pop at its word, the stamp at
+    mid-beat and the beat end; the largest gap between them is at most
+    `density_gap_max_s` (1.5 s, the vishva value too)."""
+    gap_max = popped.beats.density_gap_max_s
+    assert gap_max == 1.5
+    stamped = _long_b05(4.0)  # 10.0, 12.0 (the stamp), 14.0: 2.0 s on each side
+    (line,) = _density_lines(picture(stamped, popped, transcript=_words_on_b05(stamped, [10.4])))
+    assert "from 10.00 s to 12.00 s (2 s)" in line and f"{gap_max:g} s" in line
+    one = _with_pops(stamped, "b05", _pop(word=5))
+    (line,) = _density_lines(picture(one, popped, transcript=_words_on_b05(one, [10.4, 13.0])))
+    assert "from 10.00 s to 12.00 s (2 s)" in line  # 13.0 closes the far side only
+    assert "add a pop on a word in that span or split the beat" in line
+    two = _with_pops(stamped, "b05", _pop(word=4), _pop(word=5))
+    checked(two, popped, transcript=_words_on_b05(two, [11.0, 13.0]))  # four 1.0 s gaps
+
+
+def test_a_pop_alone_splits_a_beat_only_where_it_lands(popped: StyleSpec) -> None:
+    """066: a 3.0 s beat with no stamp and one pop at +1.5 s passes; with the pop at
+    +0.2 s the span from the pop to the beat end is named."""
+    bare = _with_pops(_long_b05(3.0, event=Event()), "b05", _pop(word=4))
+    checked(bare, popped, transcript=_words_on_b05(bare, [11.5]))
+    (line,) = _density_lines(picture(bare, popped, transcript=_words_on_b05(bare, [10.2])))
+    assert "from 10.20 s to 13.00 s (2.8 s)" in line
+
+
+def test_bubbles_and_stickers_count_at_their_words_too(
+    bubbled: StyleSpec, stuck: StyleSpec
+) -> None:
+    """066: a bubble or a sticker is a change at its resolved `at_s`, like a pop."""
+    bare = _long_b05(3.0, event=Event())
+    for style, plan in (
+        (bubbled, _with_bubbles(bare, "b05", _bubble())),
+        (stuck, _with_sticker(bare, "b05", _sticker())),
+    ):
+        checked(plan, style, transcript=_words_on_b05(plan, [11.5]))
+        (line,) = _density_lines(picture(plan, style, transcript=_words_on_b05(plan, [10.2])))
+        assert "from 10.20 s to 13.00 s (2.8 s)" in line
+
+
+def test_set_pieces_and_overlay_beats_stay_unmeasured(spec: StyleSpec) -> None:
+    """066 / 3.1: a set piece and a beat with an overlay change on their own."""
+    as_list = _long_b05(4.0, event=Event(), **AS_LIST)
+    assert "b05" not in {v.beat_id for v in grammar.density(as_list.beats, spec)}
+    overlaid = _long_b05(4.0, event=Event(), overlays=["label_flyin"])
+    assert grammar.density(overlaid.beats, spec) == []
+
+
+def _old_verdict(b: Beat, gap_max: float) -> bool:
+    """3.1 before 066: one landed event halves the beat, none leaves all of it."""
+    length = round(b.end - b.start, 3)
+    gap = round(length / 2, 3) if b.event.kind != "none" else length
+    return gap > gap_max + grammar.EPS
+
+
+def test_beats_with_nothing_popping_are_judged_as_before(spec: StyleSpec) -> None:
+    """066: a beat with no pop, bubble or sticker gets the verdict it got before, over
+    the base plan's variants and every smoke style's fake plan under `smoke_specs`."""
+    specs = styles.load_all(render.registry())
+    transcript = FakeTranscriber().transcribe(Path("unused.mp4"))
+    cases: list[tuple[PicturePlan, StyleSpec]] = []
+    for length in (1.5, 1.6, 2.5, 3.0, 3.1, 4.0):
+        cases += [(_long_b05(length), spec), (_long_b05(length, event=Event()), spec)]
+    for name in ("explainer", "hitech", "footage", "vishva", "fastfacts"):
+        judged = fixture.smoke_specs(specs, name)[name]
+        request = PlanRequest(
+            brief=smoke.SMOKE_BRIEF, style=PlanStyle(name=name), style_note=name,
+            transcript=transcript, references=[],
+            constraints=Constraints(max_duration_s=60.0, target_duration_s=fixture.DURATION_S),
+            asset_policy="any",
+        )  # fmt: skip
+        cases.append((FakePlanner().plan_picture(request), judged))
+    for plan, style in cases:
+        quiet = [b for b in plan.beats if not grammar.pops_in(b)
+                 and b.kind not in grammar.DENSITY_EXEMPT_KINDS and not b.overlays]  # fmt: skip
+        flagged = {v.beat_id for v in grammar.density(plan.beats, style)}
+        gap_max = style.beats.density_gap_max_s
+        assert {b.id for b in quiet if _old_verdict(b, gap_max)} == flagged & {b.id for b in quiet}
+
+
+def test_run04s_run3_first_reply_names_the_span_of_each_flagged_beat() -> None:
+    """066: run04's run-3 first picture reply (job 20260928-140620-f774e1, JSON only),
+    under vishva: every 3.1 line names its still span."""
+    specs = styles.load_all(render.registry())
+    plan = PicturePlan.model_validate_json((RUN04 / "picture_run3_first.json").read_text("utf-8"))
+    transcript = Transcript.model_validate_json((RUN04 / "transcript.json").read_text("utf-8"))
+    result = grammar.validate_picture(
+        plan, transcript, specs["vishva"], references=["ref1", "ref2", "ref3", "ref4"]
+    )
+    lines = [v for v in getattr(result, "items", []) if v.rule == "3.1"]
+    for v in lines:
+        assert v.beat_id is not None
+        assert "nothing changes on screen from " in v.message and " s to " in v.message, v
+        assert "landed event" not in v.message, v
+    spans = {v.beat_id: v.message.split(" (")[0].removeprefix("nothing changes on screen ")
+             for v in lines}  # fmt: skip
+    # b20 carried a pop (47.90 s) and a lower-third (mid-beat, 48.23 s) in a 3.82 s
+    # beat: both land in its first half, so the second half is what stays still.
+    b20 = next(b for b in plan.beats if b.id == "b20")
+    assert b20.text_pops and b20.event.kind == "lower_third"
+    assert spans == {
+        "b02": "from 1.90 s to 3.50 s",  # its one bubble lands at the beat start
+        "b13": "from 23.56 s to 26.42 s",
+        "b14": "from 29.28 s to 31.60 s",
+        "b18": "from 38.38 s to 41.66 s",
+        "b20": "from 48.23 s to 50.14 s",
+        "b21": "from 50.14 s to 51.89 s",
+    }
+
+
 def test_gaps_and_overlaps_between_beats_are_rejected(spec: StyleSpec) -> None:
     plan = make_plan()
     beats = list(plan.beats)
@@ -1061,7 +1204,7 @@ def test_a_text_pop_is_one_to_four_words_on_a_picture_beat(popped: StyleSpec) ->
         make_plan(), "b05", mode="full", reason="emotional_line", kind="presenter_full",
         motion=None, event=Event(), asset_id=None, text_pops=[_pop("THIS IS IT")],
     )  # fmt: skip
-    checked(full, popped)
+    checked(full, popped, transcript=_words_on_b05(full, [11.0]))  # 066: 1.0 s + 1.5 s still
 
 
 def test_an_event_cue_may_sit_on_a_text_pop_and_a_whoosh_rides_a_pop_in(
@@ -1209,7 +1352,7 @@ def test_a_bubble_is_one_to_seven_words_from_the_recording_on_a_picture_beat(
         make_plan(), "b05", mode="full", reason="emotional_line", kind="presenter_full",
         motion=None, event=Event(), asset_id=None, bubbles=[_bubble("Is it?")],
     )  # fmt: skip
-    checked(full, bubbled)
+    checked(full, bubbled, transcript=_words_on_b05(full, [11.0]))  # 066: 1.0 s + 1.5 s still
 
 
 def test_a_bubble_is_a_change_on_screen_and_something_a_cue_may_hit(
@@ -1222,7 +1365,7 @@ def test_a_bubble_is_a_change_on_screen_and_something_a_cue_may_hit(
     bare = replace(make_plan(), "b05", event=Event())
     assert ("b05", "3.1") in rules(picture(bare, bubbled))
     with_bubble = _with_bubbles(bare, "b05", _bubble())
-    checked(with_bubble, bubbled)
+    checked(with_bubble, bubbled, transcript=_words_on_b05(with_bubble, [11.0]))  # 066: at its word
     pop = Cue(beat_id="b05", intent="pop", at="event")
     assert ("b05", "9.4") in rules(cued(bare, bubbled, pop))
     assert isinstance(cued(with_bubble, bubbled, pop), grammar.SoundCheck)
@@ -1319,7 +1462,8 @@ def test_a_sticker_lands_on_a_word_its_picture_beat_covers(stuck: StyleSpec) -> 
         )  # fmt: skip
 
     assert ("b05", "4.1") in rules(picture(full(_sticker()), stuck))
-    checked(full(_sticker(x=50.0, y=30.0)), stuck)
+    placed = full(_sticker(x=50.0, y=30.0))
+    checked(placed, stuck, transcript=_words_on_b05(placed, [11.0]))  # 066: 1.0 s + 1.5 s still
 
 
 def test_a_sticker_is_a_change_on_screen_and_something_a_cue_may_hit(
@@ -1330,7 +1474,7 @@ def test_a_sticker_is_a_change_on_screen_and_something_a_cue_may_hit(
     bare = replace(make_plan(), "b05", event=Event())
     assert ("b05", "3.1") in rules(picture(bare, stuck))
     with_sticker = _with_sticker(bare, "b05", _sticker())
-    checked(with_sticker, stuck)
+    checked(with_sticker, stuck, transcript=_words_on_b05(with_sticker, [11.0]))  # 066: at its word
     ding = Cue(beat_id="b05", intent="popup_tick", at="event")
     assert ("b05", "9.4") in rules(cued(bare, stuck, ding))
     assert isinstance(cued(with_sticker, stuck, ding), grammar.SoundCheck)
