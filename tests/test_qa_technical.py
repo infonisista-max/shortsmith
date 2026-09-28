@@ -412,6 +412,45 @@ def test_t8_fails_an_image_shown_more_than_reuse_max_times_counted_by_file() -> 
     assert technical.t8(before_the_rule, [], CLEAN_LOG, _showing_plan(3)).passed
 
 
+def _entity_plan(*lines: tuple[str, str, str]) -> PicturePlan:
+    """Named-entity beats as (subject kind, query, lower-third), one second each."""
+    beats = [
+        Beat.model_validate({
+            "id": f"b{i:02d}", "start": float(i - 1), "end": float(i), "mode": "pip",
+            "kind": "photo", "motion": "push_in", "subject_kind": subject,
+            "depicts": "named_entity", "query": query, "query_fallback": query,
+            "source_intent": "search", "asset_id": f"a{i}",
+            "event": {"kind": "lower_third", "text": text},
+        })  # fmt: skip
+        for i, (subject, query, text) in enumerate(lines, start=1)
+    ]
+    return PicturePlan(
+        prompt_version="t", cut=CutPlan(keep=[Span(start=0.0, end=float(len(beats)))]),
+        beats=beats, finale=Finale(beat_id=beats[-1].id, text="t"), title="t", description="t",
+    )  # fmt: skip
+
+
+def test_t8_fails_a_named_entity_beat_showing_another_persons_picture() -> None:
+    """071: run04 showed b04's Trump on b05's King Saud line."""
+    trump = _owner("trump")
+    beats = [
+        BeatAsset(beat_id=i, asset_id="trump", treatment="photo", fallback_rung=0)
+        for i in ("b04", "b05")
+    ]
+    plan = _entity_plan(("entity", "Donald Trump portrait", "डोनाल्ड ट्रंप"),
+                        ("entity", "King Saud bin Abdulaziz portrait", "किंग साऊद"))  # fmt: skip
+    plan.beats[0].id, plan.beats[1].id = "b04", "b05"
+    check = technical.t8(_manifest([trump], beats), [], CLEAN_LOG, plan)
+    assert not check.passed
+    assert "named entity crossed" in check.detail
+    assert "b05" in check.detail and "b04" in check.detail
+    # A number carry-on of the same picture is exempt.
+    carried = _entity_plan(("entity", "Donald Trump portrait", "डोनाल्ड ट्रंप"),
+                           ("number", "Donald Trump net worth", "12"))  # fmt: skip
+    carried.beats[0].id, carried.beats[1].id = "b04", "b05"
+    assert technical.t8(_manifest([trump], beats), [], CLEAN_LOG, carried).passed
+
+
 # --- T9 rights completeness (5.4) ----------------------------------------------------------
 
 

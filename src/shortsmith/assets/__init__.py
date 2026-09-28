@@ -19,7 +19,9 @@ an `AssetManifest` (`work/assets.json`):
 - A planned asset id that an earlier beat already sourced is reused as planned
   (4.3). A beat naming a reference id, or whose `query` shares a significant word
   with a reference caption, takes the owner reference first (1.3, 5.1).
-- `source_intent` (5.1): `reuse` always takes the nearest earlier asset; `generate`
+- `source_intent` (5.1): `reuse` takes the nearest earlier asset - on a named-entity
+  beat only one first shown for that entity - unless its planned image is capped, when
+  the beat is searched afresh (071: only number and quote beats carry on); `generate`
   is honoured on `concept` beats only (the generator is tried first); `entity` beats
   always search first. `number` and `quote` beats never search or generate (4.2):
   they take a matching reference or the previous beat's asset.
@@ -236,6 +238,7 @@ __all__ = [
     "choose_file",
     "clip_need_s",
     "covers_frame",
+    "entity_crossings",
     "image_reuse_problems",
     "image_showings",
     "is_showing",
@@ -919,6 +922,51 @@ def image_showings(manifest: AssetManifest, plan: PicturePlan) -> dict[str, list
     return out
 
 
+def entity_words(beat: Beat) -> frozenset[str]:
+    """Who a beat names (071): its subject words and the words of its lower-third."""
+    words = set(subject_words(beat))
+    if beat.event.kind == "lower_third" and beat.event.text:
+        words |= _words(beat.event.text)
+    return frozenset(words)
+
+
+def same_entity(beat: Beat, other: Beat) -> bool:
+    """071: two beats are about one entity when they plan the same asset id or their
+    queries or lower-thirds share a name word."""
+    if beat.asset_id is not None and beat.asset_id == other.asset_id:
+        return True
+    return bool(entity_words(beat) & entity_words(other))
+
+
+def _entity_label(beat: Beat) -> str:
+    return beat.event.text if beat.event.kind == "lower_third" and beat.event.text else beat.query
+
+
+def entity_crossings(manifest: AssetManifest, plan: PicturePlan) -> list[str]:
+    """The 071 rule for gate T8: every named-entity beat showing an image first shown on a
+    named-entity beat about someone else, naming both beats. A number or quote carry-on
+    and a set piece are exempt."""
+    beats = {b.id: b for b in plan.beats}
+    first: dict[str, Beat] = {}
+    problems: list[str] = []
+    for shown in manifest.beats:
+        beat = beats.get(shown.beat_id)
+        record = manifest.asset(shown.asset_id) if shown.asset_id is not None else None
+        if beat is None or record is None:
+            continue
+        origin = first.setdefault(record.sha256, beat)
+        if origin is beat or beat.kind in SET_PIECE_KINDS or beat.subject_kind in REUSING_KINDS:
+            continue
+        if depicts_of(beat) != "named_entity" or depicts_of(origin) != "named_entity":
+            continue
+        if not same_entity(beat, origin):
+            problems.append(
+                f"{beat.id} ({_entity_label(beat)}) shows {record.id}, first shown on "
+                f"{origin.id} ({_entity_label(origin)}), another entity"
+            )
+    return problems
+
+
 def image_reuse_problems(manifest: AssetManifest, plan: PicturePlan) -> list[str]:
     """The 4.3 rule counted by image (056 (3)), for gate T8: every image shown more than
     `manifest.reuse_max` times, named by its ids and its beats. Empty on a manifest
@@ -953,6 +1001,8 @@ class _Walk:
     # 056 (3): showings per image (sha256), and the last asset shown, for the carry-on.
     showings: dict[str, int] = field(default_factory=lambda: {})
     last_asset: str | None = None
+    # 071: the beat that first showed each image (sha256), so a rescue knows whose it is.
+    firsts: dict[str, Beat] = field(default_factory=lambda: {})
 
     def blocked_sha(self, beat: Beat, digest: str) -> str | None:
         """Why the image `digest` may not be shown on `beat` (056 (3)), or None: its
@@ -1039,6 +1089,7 @@ class _Walk:
             crop = redress_crop(times)
         if is_showing(beat, record.id, self.last_asset):
             self.showings[record.sha256] = self.showings.get(record.sha256, 0) + 1
+        self.firsts.setdefault(record.sha256, beat)
         self.last_asset = record.id
         self.beats.append(
             BeatAsset(
@@ -1070,12 +1121,14 @@ class _Walk:
 
     def nearest(
         self, subject: str | None = None, *, free_for: Beat | None = None,
-        stills_only: bool = False,
+        stills_only: bool = False, entity: Beat | None = None,
     ) -> AssetRecord | None:  # fmt: skip
         """The asset of the nearest earlier beat that shows one (of `subject` kind);
         with `free_for`, only one that still has a showing left for that beat (056 (3):
         a rescue never re-dresses a spent image); with `stills_only`, never a clip (058:
-        a rescue re-dresses stills, a clip is carried on only by a number / quote beat)."""
+        a rescue re-dresses stills, a clip is carried on only by a number / quote beat);
+        with `entity` a named-entity beat, only an image first shown for that same
+        entity (071: never another person's picture)."""
         for shown in reversed(self.beats):
             if shown.asset_id is None:
                 continue
@@ -1086,8 +1139,24 @@ class _Walk:
                 continue
             if free_for is not None and self.blocked(free_for, record) is not None:
                 continue
+            if entity is not None and not self.of_entity(entity, record):
+                continue
             return record
         return None
+
+    def of_entity(self, beat: Beat, record: AssetRecord) -> bool:
+        """071: whether `record` may be shown on `beat` as the same entity - always for
+        a beat that names nobody; for a named entity, only an image first shown for it
+        (the same planned id or owner reference, or a shared name word)."""
+        if depicts_of(beat) != "named_entity":
+            return True
+        if record.id == beat.asset_id:
+            return True
+        ref = matching_reference(beat, self.references)
+        if ref is not None and record.file == f"input/{ref.file}":
+            return True
+        first = self.firsts.get(record.sha256)
+        return first is not None and same_entity(beat, first)
 
 
 def clip_speed(spec: StyleSpec) -> float:
@@ -1269,6 +1338,7 @@ def source_assets(
         if beat.kind == CLIP_KIND and source_clip(beat):
             continue
         planned = beat.asset_id
+        capped: list[str] = []  # 071: the planned or matched images this beat may not show
         # 056 (3): a planned reuse, an owner reference or a caption match is taken only
         # while the image has a showing left; past that the beat is sourced afresh.
         if planned is not None and planned in walk.records:
@@ -1287,12 +1357,14 @@ def source_assets(
                 walk.show(beat, record, 0)
                 continue
             skipped(beat, why)
+            capped.append(repr(planned))
         elif planned is not None and planned in by_id:
             why = walk.blocked_ref(beat, by_id[planned])
             if why is None:
                 walk.show(beat, walk.owner(planned, by_id[planned]), 0)
                 continue
             skipped(beat, why)
+            capped.append(repr(planned))
         ref = matching_reference(beat, references)
         if ref is not None:
             why = walk.blocked_ref(beat, ref)
@@ -1300,16 +1372,29 @@ def source_assets(
                 walk.show(beat, walk.owner(walk.new_id(beat), ref), 0)
                 continue
             skipped(beat, why)
+            capped.append(f"owner reference {ref.id!r}")
         if beat.id in opening:
             source_opening(beat)
             continue
-        if beat.subject_kind in REUSING_KINDS or beat.source_intent == "reuse":
+        if beat.subject_kind in REUSING_KINDS:
             previous = walk.nearest()
             if previous is not None and walk.blocked(beat, previous) is None:
                 walk.show(beat, previous, 0)
-                continue
-            if beat.subject_kind in REUSING_KINDS:
+            else:
                 walk.gradient(beat)
+            continue
+        # 071: only number and quote beats carry on the previous picture. A planned
+        # reuse whose image is capped is sourced afresh (056 (3)); an open one takes the
+        # nearest earlier image, of the same entity on a named-entity beat.
+        if beat.source_intent == "reuse" and capped:
+            log(
+                f"sourcing: {beat.id}: planned reuse of {', '.join(capped)} is capped; "
+                f"searched afresh with its own query {beat.query!r} (071)"
+            )
+        elif beat.source_intent == "reuse":
+            previous = walk.nearest(entity=beat)
+            if previous is not None and walk.blocked(beat, previous) is None:
+                walk.show(beat, previous, 0)
                 continue
         tried_generation = False
         if beat.subject_kind == "concept" and beat.source_intent == "generate":
@@ -1337,7 +1422,7 @@ def source_assets(
         if record is not None:
             walk.show(beat, record, 2)
             continue
-        earlier = walk.nearest(beat.subject_kind, free_for=beat, stills_only=True)
+        earlier = walk.nearest(beat.subject_kind, free_for=beat, stills_only=True, entity=beat)
         if earlier is not None:
             walk.show(beat, earlier, 3, redressed=True)
             continue

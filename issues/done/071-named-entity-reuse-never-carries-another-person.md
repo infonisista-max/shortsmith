@@ -60,18 +60,54 @@ What to change:
 
 ## Acceptance criteria
 
-- [ ] Run04's b01–b05 (copied into a test as plan JSON plus fake search results; no
+- [x] Run04's b01–b05 (copied into a test as plan JSON plus fake search results; no
       media) source b05 by searching "King Saud bin Abdulaziz portrait". It never shows
       `trump`. The job log line says the owner portrait was capped and the beat was
       searched.
-- [ ] With every search failing, b05 gets the generated fallback or the gradient, never
+- [x] With every search failing, b05 gets the generated fallback or the gradient, never
       b04's image. A number beat after b04 still carries b04's image on.
-- [ ] T8 fails on the run04 `assets.json` as it was, naming b04 and b05, and passes on the
+- [x] T8 fails on the run04 `assets.json` as it was, naming b04 and b05, and passes on the
       fixed sourcing. Smoke passes T1–T13 on explainer, vishva and fastfacts.
-- [ ] Ruff, pyright and every test file are green in foreground chunks.
-- [ ] Done note: the amendment line for 4.3 (a reuse on a named-entity beat never crosses
+- [x] Ruff, pyright and every test file are green in foreground chunks.
+- [x] Done note: the amendment line for 4.3 (a reuse on a named-entity beat never crosses
       entities; only number and quote beats carry on) for the operator to paste. Also
       what to check on run05: every named person's line shows that person.
+
+## Done (29 Sep 2026)
+
+What changed (`src/shortsmith/assets/__init__.py`, `src/shortsmith/qa/technical.py`):
+
+- Number and quote beats keep the carry-on. Any other `source_intent: "reuse"` beat
+  whose planned asset, named owner reference or caption-matched reference was capped
+  now goes to its own `query` / `query_fallback`. The job log says so:
+  `sourcing: b05: planned reuse of 'ref1', owner reference 'ref1' is capped; searched
+  afresh with its own query 'King Saud bin Abdulaziz portrait' (071)`.
+- A reuse beat whose planned asset is not capped (for example, the id is unknown) still
+  takes the nearest earlier image, as the existing 5.1 test expects. On a named-entity
+  beat, though, that lookup and the rung-3 rescue only return an image of the same
+  entity (`_Walk.of_entity`). "Same entity" means one of: the planned id, the beat's
+  matching owner reference, or a name word shared with the beat that first showed the
+  image. Name words come from the query's `subject_words` plus the lower-third's words
+  (`assets.entity_words` / `same_entity`).
+- Decision: name words come from the assets module's `subject_words` (titles such as
+  King or President and generic words removed), not from `sound.keywords`. Otherwise
+  "King" would link King Saud to King Faisal.
+- T8 adds `named entity crossed: …` from `assets.entity_crossings(manifest, plan)`. It
+  flags a named-entity beat showing an image first shown on another entity's
+  named-entity beat and names both beats. Number and quote carry-ons and set pieces are
+  exempt. On the real run04 `work/assets.json` it reports exactly one crossing: b05
+  (किंग साऊद) shows `trump`, first shown on b04 (डोनाल्ड ट्रंप).
+
+Amendment line for 4.3 (operator to paste): "A reuse never crosses entities. On a
+named-entity beat, a planned reuse or a rescue shows only an image first shown for that
+same entity (same asset id, same owner reference, or a shared name word in the query or
+lower-third). Only number and quote beats carry on the previous picture. A capped
+planned reuse is sourced afresh with the beat's own query. Gate T8 fails any
+named-entity beat showing another entity's picture."
+
+Run05 check: on every line that names a person (each lower-third or named-entity beat),
+the picture shows that person. No earlier person's photo appears on a later person's
+line.
 
 ## Blocked by
 

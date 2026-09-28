@@ -1329,3 +1329,131 @@ def test_image_reuse_problems_name_the_image_over_the_cap(tmp_path: Path) -> Non
     assert assets.image_reuse_problems(manifest, plan) == []
     (problem,) = assets.image_reuse_problems(tripled, plan)
     assert "3 times" in problem and "a1" in problem and "twin" in problem
+
+
+# --- 071: a named-entity beat never carries another person's picture ---------------------
+
+# Run04 (job 20260928-140620-f774e1) b01-b05 as the planner wrote them, overlays left out.
+RUN04_BEATS = """[
+ {"id": "b01", "start": 0.0, "end": 1.9, "mode": "pip", "kind": "photo",
+  "motion": "ken_burns_in", "subject_kind": "entity", "depicts": "named_entity",
+  "query": "King Saud bin Abdulaziz portrait", "query_fallback": "King Saud Saudi Arabia 1950s",
+  "source_intent": "reuse", "asset_id": "ref1"},
+ {"id": "b02", "start": 1.9, "end": 3.5, "mode": "pip", "kind": "photo",
+  "motion": "ken_burns_out", "subject_kind": "entity", "depicts": "named_entity",
+  "query": "King Saud bin Abdulaziz royal robes throne",
+  "query_fallback": "King Saud of Saudi Arabia", "source_intent": "search",
+  "asset_id": "saud_robes"},
+ {"id": "b03", "start": 3.5, "end": 4.4, "mode": "pip", "kind": "photo",
+  "motion": "ken_burns_in", "subject_kind": "entity", "depicts": "named_entity",
+  "query": "Narendra Modi portrait", "query_fallback": "Prime Minister Narendra Modi",
+  "source_intent": "search", "asset_id": "modi",
+  "event": {"kind": "lower_third", "text": "नरेंद्र मोदी"}},
+ {"id": "b04", "start": 4.4, "end": 5.78, "mode": "pip", "kind": "photo",
+  "motion": "ken_burns_out", "subject_kind": "entity", "depicts": "named_entity",
+  "query": "Donald Trump portrait", "query_fallback": "President Donald Trump",
+  "source_intent": "search", "asset_id": "trump",
+  "event": {"kind": "lower_third", "text": "डोनाल्ड ट्रंप"}},
+ {"id": "b05", "start": 5.78, "end": 7.34, "mode": "off", "kind": "photo",
+  "motion": "ken_burns_in", "subject_kind": "entity", "depicts": "named_entity",
+  "query": "King Saud bin Abdulaziz portrait", "query_fallback": "King Saud Saudi Arabia",
+  "source_intent": "reuse", "asset_id": "ref1",
+  "event": {"kind": "lower_third", "text": "किंग साऊद"}}
+]"""
+
+
+def _run04_beats() -> list[Beat]:
+    return [Beat.model_validate(b) for b in json.loads(RUN04_BEATS)]
+
+
+class Asked(assets.FakeImageSource):
+    """The fake web source, recording every query it was asked."""
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__("web", **kwargs)  # pyright: ignore[reportArgumentType]
+        self.asked: list[str] = []
+
+    def search(self, query: str, n: int) -> list[Candidate]:
+        self.asked.append(query)
+        return super().search(query, n)
+
+
+SAUD_QUERIES = ("King Saud bin Abdulaziz portrait", "King Saud Saudi Arabia")
+
+
+def _run04(tmp_path: Path, web: assets.ImageSource, *, log: list[str] | None = None,
+           generating: assets.Generating | None = None,
+           extra: Sequence[Beat] = ()) -> assets.AssetManifest:  # fmt: skip
+    job = _job_dir(tmp_path)
+    ref = _reference(job, "ref1", "king saud image", (819, 1024))
+    return _run(tmp_path, [*_run04_beats(), *extra], sources={"web": web}, references=[ref],
+                job=job, log=log, generating=generating)  # fmt: skip
+
+
+def test_run04_b05_searches_king_saud_when_the_owner_portrait_is_capped(
+    tmp_path: Path,
+) -> None:
+    web = Asked()
+    log: list[str] = []
+    manifest = _run04(tmp_path, web, log=log)
+    shown = {b.beat_id: b.asset_id for b in manifest.beats}
+    assert shown["b04"] == "trump" and shown["b05"] not in (None, "trump")
+    shas = _shas(manifest)
+    assert shas[shown["b05"] or ""] not in (shas["trump"], shas["ref1"])
+    assert SAUD_QUERIES[0] in web.asked
+    assert any(
+        "b05" in line and "'ref1'" in line and "searched afresh" in line for line in log
+    ), log
+
+
+def test_run04_b05_with_every_saud_search_failing_never_shows_trump(tmp_path: Path) -> None:
+    manifest = _run04(tmp_path, Asked(nothing_for=SAUD_QUERIES))
+    b05 = next(b for b in manifest.beats if b.beat_id == "b05")
+    assert (b05.asset_id, b05.fallback_rung) == (None, 4)
+    generated = _run04(tmp_path / "gen", Asked(nothing_for=SAUD_QUERIES),
+                       generating=_generating())  # fmt: skip
+    b05 = next(b for b in generated.beats if b.beat_id == "b05")
+    record = generated.asset(b05.asset_id or "")
+    assert record is not None and (record.origin, b05.fallback_rung) == ("generated", 2)
+
+
+def test_a_number_beat_after_trump_still_carries_trump_on(tmp_path: Path) -> None:
+    trump = _run04_beats()[3]
+    number = _beat(5, "number", asset="n5").model_copy(update={"start": 5.78, "end": 7.0})
+    manifest = _run(tmp_path, [trump, number], sources={"web": Asked()})
+    assert [b.asset_id for b in manifest.beats] == ["trump", "trump"]
+
+
+def test_a_rescue_on_a_named_entity_redresses_only_that_entitys_image(tmp_path: Path) -> None:
+    """Rung 3 on a named-entity beat: the nearest earlier image of the same entity, never
+    the image just before it of someone else."""
+    web = Asked(nothing_for={"King Saud 1960s", "King Saud old age"})
+    saud = _beat(1, "entity", depicts="named_entity", query="King Saud 1950s", asset="s1")
+    trump = _beat(2, "entity", depicts="named_entity", query="Donald Trump portrait",
+                  asset="t2")  # fmt: skip
+    later = _beat(3, "entity", depicts="named_entity", query="King Saud 1960s",
+                  fallback="King Saud old age", asset="s3")  # fmt: skip
+    manifest = _run(tmp_path, [saud, trump, later], sources={"web": web})
+    assert (manifest.beats[2].asset_id, manifest.beats[2].fallback_rung) == ("s1", 3)
+
+
+def test_entity_crossings_name_run04s_b04_and_b05(tmp_path: Path) -> None:
+    """The T8 view (071): run04's manifest showed b04's Trump on b05's King Saud line."""
+    manifest = _run04(tmp_path, Asked())
+    plan = _plan(_run04_beats()).picture
+    assert assets.entity_crossings(manifest, plan) == []
+    as_it_was = manifest.model_copy(update={"beats": [
+        b.model_copy(update={"asset_id": "trump"}) if b.beat_id == "b05" else b
+        for b in manifest.beats
+    ]})  # fmt: skip
+    (problem,) = assets.entity_crossings(as_it_was, plan)
+    assert "b05" in problem and "b04" in problem and "trump" in problem
+
+
+def test_a_number_carry_on_is_not_an_entity_crossing(tmp_path: Path) -> None:
+    trump = _run04_beats()[3]
+    number = _beat(5, "number", asset="n5", depicts="named_entity").model_copy(
+        update={"start": 5.78, "end": 7.0}
+    )
+    manifest = _run(tmp_path, [trump, number], sources={"web": Asked()})
+    assert assets.entity_crossings(manifest, _plan([trump, number]).picture) == []
