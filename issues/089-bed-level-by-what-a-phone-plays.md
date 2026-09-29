@@ -119,6 +119,73 @@ normal level, clearly there, never over my voice". After 088's Trap Hamza approv
 picker puts Trap Hamza under run05's King Saud re-render (079 step 4) on its job page for
 the full-reel check.
 
+## STOPPED (afk, 30 Sep 2026): no declared measure passes; no target ships
+
+All four files were on disk. The three measures were declared as written above (no
+cutoff changed) and run once on the real files. **None passes**, so no level code, front
+matter, test or style changed. This note is the only commit. The operator decides the
+next step.
+
+**How it was measured** (`work/089/measure.py`, git-ignored, re-runnable with
+`uv run python work/089/measure.py`):
+- Voice is `run04_voice.wav` (59.5 s, mono, mean −19.10 dB). run03's own voice stem was
+  swept, so run04's stands in: same presenter, same 7.3 chain.
+- Each bed was looped/trimmed to the voice length and kept in its own channel layout, as
+  `_bed_stem` does (A and B are stereo, C is mono). Its gain was converged until the median
+  of its 1 s RMS windows sat at the ear level under the voice mean (the 7.3 yardstick):
+  A −14.00, B −10.40, C −14.00.
+- Margin = voice − bed on each measure. Measures 1 and 2 use `volumedetect` mean after the
+  filter. Measure 3 uses integrated loudness from ffmpeg's R128 (`loudnorm` analysis) after
+  `highpass=f=300`.
+- Cross-check: B on measure 1 is 21.7 and C is 28.7, matching the ticket's 21.8 and 069's
+  28.7. A is 14.0, not the ticket's ~12.5, because run04's voice replaces run03's.
+
+| Measure (margin, dB) | A 738836 @ −14 | B Trap Hamza @ −10.4 | C exhaust @ −14 | \|A−B\| (pass ≤ 2) | C − max(A,B) (pass > 2) | Pass |
+|---|---|---|---|---|---|---|
+| 1. 250–4000 Hz band | 14.0 | 21.7 | 28.7 | 7.7 | 7.0 | no |
+| 2. phone band, high-pass 300 Hz | 13.9 | 21.3 | 30.0 | 7.4 | 8.7 | no |
+| 3. K-weighted, after high-pass 300 Hz | 11.1 | 18.0 | 28.9 | 7.0 | 10.9 | no |
+
+**What the table suggests (for the operator, not acted on):**
+- Removing the 4 kHz cutoff barely moves B (21.7 → 21.3). So what separates A and B is
+  **not** energy above 4 kHz, which was the ticket's hypothesis. K-weighting closes only
+  0.7 dB of the gap. On all three measures, B sits about 7 dB further under the voice than
+  A, yet both were called right.
+- C is separated on every measure, including today's band. So the ceiling side works. It
+  is the target that no mean-energy measure puts in one place.
+- Possible readings, none tested here (that would mean fitting a fourth measure to two
+  points): (a) the ear follows transients, like trap hats and 808 attacks, more than mean
+  energy, so a peak or upper-percentile window measure might line up where a mean does
+  not; (b) the two verdicts were given in different settings (A: this engine, run03's
+  voice, a full reel; B: the old engine's Dyson master), so they may not be one scale;
+  (c) "right" covers a range, and A and B are its two ends. That would mean a window
+  (floor under A, ceiling over B), not a single target.
+- Side finding: folded to mono first (as most phone speakers play) and re-levelled to the
+  same full-band median, B's measure 1 margin is 24.5 instead of 21.7. A's barely moves
+  (13.9). Trap Hamza's mid and high stereo content partly cancels in the fold, while its
+  centred sub-bass does not. A phone-speaker measure may need the mono fold
+  as well as the high-pass. That would be a new declared measure for the operator to
+  approve, not something to pick after the fact.
+
+**Listening files (step 5, stop branch: the ear-approved levels from step 2):** both are
+stereo, 48 kHz, 59.5 s, with the bed under run04's voice, in `work/089/`:
+- `A_738836_under_run04.wav`: A at −14.
+- `B_trap_hamza_under_run04.wav`: B at −10.4.
+- Also `C_exhaust_under_run04.wav` (C at −14) for comparison, and the levelled beds alone
+  as `{A,B,C}_bed_levelled.wav`.
+
+**Operator step:** play A and B on the phone speaker. If both sound like "a normal level,
+clearly there, never over my voice", the two points hold and a new measure has to be
+declared (see the readings above). If one of them no longer sounds right at this level,
+correct that point by ear. The run can then be repeated with the corrected level on the
+same three measures, without changing any code.
+
+Acceptance status: the first box (exactly the three measures) and the third box (stop
+branch: no source or front-matter change, the table is here, the ticket stays open) are
+met. The second box (a real-file test on the chosen measure) and the fourth box (build)
+do not apply, because no measure was chosen. 090 is not blocked by this ticket (its
+offsets carry their measure's name).
+
 ## Blocked by
 
 - `issues/088-ear-approved-beds-pass-the-ceiling.md` (same functions and front matter;
