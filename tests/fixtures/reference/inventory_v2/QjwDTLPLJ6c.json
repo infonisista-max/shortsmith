@@ -1,0 +1,1081 @@
+{
+  "duration_s": 178.7,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 1.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter introduces the 1400 crore figure on red backdrop"
+    },
+    {
+      "start_s": 1.8,
+      "end_s": 6.6,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, electric meter with falling cash bottom"
+    },
+    {
+      "start_s": 6.6,
+      "end_s": 13.8,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Outlook article headline about Jaipur court ruling against Adani"
+    },
+    {
+      "start_s": 13.8,
+      "end_s": 19.6,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, photo of Gautam Adani with money fan bottom"
+    },
+    {
+      "start_s": 19.6,
+      "end_s": 29.0,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Scroll article headline top, RRVUNL logo seal bottom"
+    },
+    {
+      "start_s": 29.0,
+      "end_s": 40.0,
+      "layout": "presenter_circle",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Scroll article text with presenter in circular cutout at bottom"
+    },
+    {
+      "start_s": 40.0,
+      "end_s": 45.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter full screen addressing state PSU vulnerability"
+    },
+    {
+      "start_s": 45.8,
+      "end_s": 52.8,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, Scroll quote accusing extortion bottom"
+    },
+    {
+      "start_s": 52.8,
+      "end_s": 59.6,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, RRVUNL and Adani logos formed in 2007 bottom"
+    },
+    {
+      "start_s": 59.6,
+      "end_s": 62.8,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, photo of Parsa Kente Colliery Ltd bottom"
+    },
+    {
+      "start_s": 62.8,
+      "end_s": 66.8,
+      "layout": "chart",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Bar chart showing 74% Adani vs 26% RRVUNL share"
+    },
+    {
+      "start_s": 66.8,
+      "end_s": 74.6,
+      "layout": "split",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 7.8,
+      "treatment": [],
+      "note": "Presenter top, open cast coal mine footage bottom"
+    },
+    {
+      "start_s": 74.6,
+      "end_s": 84.8,
+      "layout": "presenter_circle",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter circle bottom, contract quote from Scroll article top"
+    },
+    {
+      "start_s": 84.8,
+      "end_s": 93.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explaining road transport arrangement"
+    },
+    {
+      "start_s": 93.4,
+      "end_s": 100.4,
+      "layout": "split",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 7.0,
+      "treatment": [],
+      "note": "Presenter top, haul truck in mine with PKCL tag bottom"
+    },
+    {
+      "start_s": 100.4,
+      "end_s": 107.4,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, falling rupee notes and RRVUNL payment label bottom"
+    },
+    {
+      "start_s": 107.4,
+      "end_s": 118.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explaining court dispute origins"
+    },
+    {
+      "start_s": 118.4,
+      "end_s": 122.8,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, Scroll news excerpt on interest claim bottom"
+    },
+    {
+      "start_s": 122.8,
+      "end_s": 127.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explaining RRVUNL's legal situation"
+    },
+    {
+      "start_s": 127.8,
+      "end_s": 131.8,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Scroll article text highlighting 65 crore interest demand"
+    },
+    {
+      "start_s": 131.8,
+      "end_s": 142.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explaining court findings on transport liability"
+    },
+    {
+      "start_s": 142.6,
+      "end_s": 157.6,
+      "layout": "presenter_circle",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter circle bottom, Outlook article text highlighting court fine top"
+    },
+    {
+      "start_s": 157.6,
+      "end_s": 166.4,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter top, village houses and Adani-Modi handshake photo bottom"
+    },
+    {
+      "start_s": 166.4,
+      "end_s": 170.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter introducing the environmental aspect"
+    },
+    {
+      "start_s": 170.6,
+      "end_s": 175.6,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "The Hindu article about Hasdeo forest tree felling"
+    },
+    {
+      "start_s": 175.6,
+      "end_s": 178.7,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter concludes on coal mining expansion"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 0.4,
+      "duration_s": 6.2,
+      "emphasis": "number",
+      "name": "badge_pop",
+      "description": "Green badge displaying 1400 CRORE pops up",
+      "component": "stamp",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.3,
+        "size": 0.4,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 7.8,
+      "duration_s": 4.0,
+      "emphasis": "word",
+      "name": "headline_highlight",
+      "description": "Black box highlight sweeps over article headline words",
+      "component": "highlight",
+      "motion": {
+        "entrance": "wipe",
+        "entrance_s": 0.4,
+        "size": 0.9,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 24.6,
+      "duration_s": 4.4,
+      "emphasis": "image",
+      "name": "logo_badge_reveal",
+      "description": "RRVUNL logo seal pops into view",
+      "component": "stamp",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.4,
+        "size": 0.6,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 30.4,
+      "duration_s": 7.6,
+      "emphasis": "word",
+      "name": "sentence_highlight",
+      "description": "Red underline and text highlight sweeps across article paragraph",
+      "component": "highlight",
+      "motion": {
+        "entrance": "wipe",
+        "entrance_s": 0.5,
+        "size": 0.85,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 53.4,
+      "duration_s": 4.6,
+      "emphasis": "number",
+      "name": "year_stamp",
+      "description": "2007 stamp pops up between company logos",
+      "component": "stamp",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.35,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 62.8,
+      "duration_s": 4.0,
+      "emphasis": "number",
+      "name": "animated_bar_chart",
+      "description": "Bar chart animating Adani 74% and RRVUNL 26% shares",
+      "component": "chart",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.8,
+        "size": 0.9,
+        "region": "full"
+      }
+    },
+    {
+      "at_s": 115.6,
+      "duration_s": 8.0,
+      "emphasis": "word",
+      "name": "contract_text_highlight",
+      "description": "Black highlight sweeps over contract clause",
+      "component": "highlight",
+      "motion": {
+        "entrance": "wipe",
+        "entrance_s": 0.6,
+        "size": 0.9,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 128.8,
+      "duration_s": 2.8,
+      "emphasis": "word",
+      "name": "interest_highlight",
+      "description": "Yellow highlight on 65 crore bank loan interest text",
+      "component": "highlight",
+      "motion": {
+        "entrance": "wipe",
+        "entrance_s": 0.4,
+        "size": 0.85,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 143.8,
+      "duration_s": 13.0,
+      "emphasis": "word",
+      "name": "fine_and_stay_highlight",
+      "description": "Sequential text highlight on penalty and stay orders",
+      "component": "highlight",
+      "motion": {
+        "entrance": "wipe",
+        "entrance_s": 0.5,
+        "size": 0.9,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 171.8,
+      "duration_s": 3.6,
+      "emphasis": "word",
+      "name": "tree_felling_highlight",
+      "description": "Yellow highlight over 4.5 lakh trees felling permission text",
+      "component": "highlight",
+      "motion": {
+        "entrance": "wipe",
+        "entrance_s": 0.5,
+        "size": 0.85,
+        "region": "middle"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 1.8,
+      "duration_s": 0.2,
+      "name": "split_in",
+      "description": "Split screen pane slides up from bottom",
+      "component": "split"
+    },
+    {
+      "at_s": 6.6,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Bright flash cut to Outlook news article",
+      "component": "flash"
+    },
+    {
+      "at_s": 13.8,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut back to presenter split with Adani photo",
+      "component": "flash"
+    },
+    {
+      "at_s": 19.6,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut to Scroll article headline",
+      "component": "flash"
+    },
+    {
+      "at_s": 29.0,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut into circle presenter view",
+      "component": "flash"
+    },
+    {
+      "at_s": 40.0,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Plain cut to presenter full frame",
+      "component": "cut"
+    },
+    {
+      "at_s": 45.8,
+      "duration_s": 0.2,
+      "name": "split_in",
+      "description": "Split view pops in",
+      "component": "split"
+    },
+    {
+      "at_s": 52.8,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to joint venture diagram",
+      "component": "cut"
+    },
+    {
+      "at_s": 59.6,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to colliery image",
+      "component": "cut"
+    },
+    {
+      "at_s": 62.8,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to bar chart",
+      "component": "cut"
+    },
+    {
+      "at_s": 66.8,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to split screen with open pit mine",
+      "component": "cut"
+    },
+    {
+      "at_s": 74.6,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut to contract details with circle presenter",
+      "component": "flash"
+    },
+    {
+      "at_s": 84.8,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to presenter full frame",
+      "component": "cut"
+    },
+    {
+      "at_s": 93.4,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut to haulage split screen",
+      "component": "flash"
+    },
+    {
+      "at_s": 100.4,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to money split",
+      "component": "cut"
+    },
+    {
+      "at_s": 107.4,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut to presenter full frame",
+      "component": "flash"
+    },
+    {
+      "at_s": 118.4,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to interest dispute split",
+      "component": "cut"
+    },
+    {
+      "at_s": 122.8,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash transition to presenter with RRVUNL badge",
+      "component": "flash"
+    },
+    {
+      "at_s": 127.8,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to full article screenshot",
+      "component": "cut"
+    },
+    {
+      "at_s": 131.8,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash transition to presenter",
+      "component": "flash"
+    },
+    {
+      "at_s": 142.6,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash transition to court ruling text",
+      "component": "flash"
+    },
+    {
+      "at_s": 157.6,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut to crony capitalism split",
+      "component": "flash"
+    },
+    {
+      "at_s": 166.4,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut to presenter",
+      "component": "flash"
+    },
+    {
+      "at_s": 170.6,
+      "duration_s": 0.3,
+      "name": "flash_transition",
+      "description": "Flash cut to The Hindu report",
+      "component": "flash"
+    },
+    {
+      "at_s": 175.6,
+      "duration_s": 0.2,
+      "name": "cut",
+      "description": "Cut to presenter final beat",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "none",
+    "caption_size": "none",
+    "caption_colours": "none",
+    "active_word": "none",
+    "title_entry": "highlight sweep on article headlines",
+    "number_entry": "pop with bounce in stamp badge"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "investigative_pulse",
+    "effects": [
+      {
+        "at_s": 0.4,
+        "kind": "hit",
+        "synced_to": "1400 crore badge pop",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 6.6,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to Outlook article",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 13.8,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to Adani photo",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 19.6,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to Scroll article",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 24.6,
+        "kind": "hit",
+        "synced_to": "RRVUNL logo stamp",
+        "event": "stamp",
+        "loudness": "soft",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 29.0,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to circle presenter",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 53.4,
+        "kind": "click",
+        "synced_to": "2007 stamp entry",
+        "event": "stamp",
+        "loudness": "soft",
+        "length_s": 0.2
+      },
+      {
+        "at_s": 74.6,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to contract excerpt",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 93.4,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to haul truck",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 107.4,
+        "kind": "whoosh",
+        "synced_to": "Flash cut to presenter full",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 122.8,
+        "kind": "whoosh",
+        "synced_to": "Flash cut to presenter with badge",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 131.8,
+        "kind": "whoosh",
+        "synced_to": "Flash cut to presenter",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 142.6,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to court ruling excerpt",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 157.6,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to Adani and Modi photo",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 170.6,
+        "kind": "whoosh",
+        "synced_to": "Flash transition to The Hindu report",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter gestures as green badge displaying ₹1,400 CRORE appears over red background.",
+    "heard": "1400 crore rupees were wrongfully taken from public electricity bills."
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "QjwDTLPLJ6c",
+  "url": "https://www.youtube.com/watch?v=QjwDTLPLJ6c",
+  "category": "explainer",
+  "tier": "A",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
+  "usage": {
+    "prompt_tokens": 71572,
+    "video_tokens": 63478,
+    "output_tokens": 9910,
+    "thoughts_tokens": 1409,
+    "total_tokens": 82891
+  },
+  "counts": {
+    "shots_per_10s": 1.5,
+    "effects_per_10s": 0.6,
+    "sfx_per_10s": 0.8
+  },
+  "script": {
+    "about": "Jaipur court ruled that Adani wrongfully extracted 1,400 crore rupees from Rajasthan's power utility for transport costs it was contracted to bear.",
+    "topic": "business",
+    "tone": "investigative",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 6.6,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 6.6,
+      "end_s": 131.8,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 131.8,
+      "end_s": 157.6,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    },
+    {
+      "part": "ending",
+      "start_s": 157.6,
+      "end_s": 178.7,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [
+    {
+      "at_s": 131.8,
+      "from_part": "build_up",
+      "to_part": "reveal",
+      "how": "crossfade"
+    }
+  ],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 1.8,
+      "said": "1400 crore rupees taken from public electricity bills to benefit Adani.",
+      "shows": "Presenter introducing the ₹1,400 Crore figure on red background",
+      "match": "number",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "stamp",
+      "sound": "hit"
+    },
+    {
+      "start_s": 1.8,
+      "end_s": 6.6,
+      "said": "Electricity bills were inflated to channel money into Adani's pockets.",
+      "shows": "Split screen of presenter and electricity meter with falling banknotes",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 6.6,
+      "end_s": 13.8,
+      "said": "A Jaipur court ruled that an Adani company gained this wrongfully.",
+      "shows": "Outlook article headline with words highlighted in black",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "highlight",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 13.8,
+      "end_s": 19.6,
+      "said": "Mainstream media ignored this court judgment favoring Adani.",
+      "shows": "Presenter top, photo of Gautam Adani wearing crown with money fan bottom",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 19.6,
+      "end_s": 29.0,
+      "said": "Rajasthan state power company RRVUNL paid Adani wrongfully.",
+      "shows": "Scroll article headline top and RRVUNL emblem seal bottom",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "stamp",
+      "sound": "hit"
+    },
+    {
+      "start_s": 29.0,
+      "end_s": 40.0,
+      "said": "RRVUNL admitted in court that Adani arm-twisted them to avoid shortages.",
+      "shows": "Scroll article screenshot highlighted, presenter in circle at bottom",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "presenter_circle",
+      "effect": "highlight",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 40.0,
+      "end_s": 45.8,
+      "said": "State companies are now intimidated by private corporations.",
+      "shows": "Presenter speaking to camera on red background",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 45.8,
+      "end_s": 52.8,
+      "said": "RRVUNL accused Adani of constant extortion and wrongful gain.",
+      "shows": "Split view with presenter top and Scroll article quote bottom",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 52.8,
+      "end_s": 59.6,
+      "said": "In 2007, RRVUNL and Adani formed a joint venture.",
+      "shows": "RRVUNL and Adani logos with 2007 badge between them",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "stamp",
+      "sound": "click"
+    },
+    {
+      "start_s": 59.6,
+      "end_s": 62.8,
+      "said": "The joint venture was named Parsa Kente Colliery Limited.",
+      "shows": "Team photo with Parsa Kente Colliery Ltd sign",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 62.8,
+      "end_s": 66.8,
+      "said": "Adani owned 74 percent while the government held only 26 percent.",
+      "shows": "Bar chart comparing Adani Enterprises 74% and RRVUNL 26%",
+      "match": "number",
+      "part": "build_up",
+      "layout": "chart",
+      "effect": "chart",
+      "sound": null
+    },
+    {
+      "start_s": 66.8,
+      "end_s": 74.6,
+      "said": "PKCL was tasked to mine and transport Chhattisgarh coal to Rajasthan.",
+      "shows": "Presenter top, aerial b-roll of coal open-cast mine bottom",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 74.6,
+      "end_s": 84.8,
+      "said": "Contract obligated PKCL to build a railway line to transport coal.",
+      "shows": "Scroll article text on railway siding contract clause, presenter in circle",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "presenter_circle",
+      "effect": "highlight",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 84.8,
+      "end_s": 93.4,
+      "said": "PKCL failed to build the line, forcing expensive road transport.",
+      "shows": "Presenter explaining road transport failure on red background",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 93.4,
+      "end_s": 100.4,
+      "said": "A third party was hired, but PKCL was contracted to pay.",
+      "shows": "Dump truck in quarry with PKCL label below",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 100.4,
+      "end_s": 107.4,
+      "said": "Instead, RRVUNL footed the entire 1,400 crore rupee road transportation bill.",
+      "shows": "Falling cash graphic with RRVUNL label and 1400 crore stamp",
+      "match": "number",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "stamp",
+      "sound": null
+    },
+    {
+      "start_s": 107.4,
+      "end_s": 118.4,
+      "said": "Surprisingly, Adani dragged the government to court, not vice versa.",
+      "shows": "Presenter speaking to camera expressing disbelief",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 118.4,
+      "end_s": 122.8,
+      "said": "Adani demanded interest on delayed transport reimbursements from RRVUNL.",
+      "shows": "Scroll excerpt detailing interest demand on bank loans",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 122.8,
+      "end_s": 127.8,
+      "said": "RRVUNL quietly paid 1400 crore but got sued for payment delay.",
+      "shows": "Presenter full screen with RRVUNL emblem on chest",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 127.8,
+      "end_s": 131.8,
+      "said": "Adani demanded an extra 65 crore rupees in interest.",
+      "shows": "Scroll article text highlighting 65 crore interest claim",
+      "match": "number",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "highlight",
+      "sound": null
+    },
+    {
+      "start_s": 131.8,
+      "end_s": 142.6,
+      "said": "The court examined the contract and found PKCL responsible for transport.",
+      "shows": "Presenter detailing court findings",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 142.6,
+      "end_s": 157.6,
+      "said": "Court fined PKCL 50 lakh, ordered CAG audit, but High Court stayed.",
+      "shows": "Outlook article text with highlight on 50 lakh fine and stay order",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "presenter_circle",
+      "effect": "highlight",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 157.6,
+      "end_s": 166.4,
+      "said": "Public bears the loss while private companies reap all profits.",
+      "shows": "Village houses top, photo of Gautam Adani shaking hands with PM Modi bottom",
+      "match": "metaphor",
+      "part": "ending",
+      "layout": "split",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 166.4,
+      "end_s": 170.6,
+      "said": "Meanwhile, another severe environmental impact is underway.",
+      "shows": "Presenter introducing the environmental report",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 170.6,
+      "end_s": 175.6,
+      "said": "Clearance granted to chop 4.5 lakh trees in Hasdeo forest.",
+      "shows": "The Hindu article with yellow highlight on 4.5 lakh trees felling",
+      "match": "literal",
+      "part": "ending",
+      "layout": "full_still",
+      "effect": "highlight",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 175.6,
+      "end_s": 178.7,
+      "said": "Deforestation approved solely to start another coal mining project.",
+      "shows": "Presenter concluding urgently to camera",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    }
+  ],
+  "styles": []
+}

@@ -20,7 +20,6 @@ import pytest
 
 from shortsmith import render
 from shortsmith.reference import (
-    INVENTORY_DIR,
     PROMPT_VERSION,
     PROMPTS_DIR,
     AnswerInvalid,
@@ -40,6 +39,9 @@ from shortsmith.reference import (
 from shortsmith.reference.gemini import FakeAnalyser, Usage
 
 FIXTURES = Path(__file__).parent / "fixtures"
+# The 13 v2 cards as committed before the v3 re-run (079 step 3), frozen so these tests
+# stay pinned when `docs/reference/inventory/` changes; `v2_cards` logs a live miss.
+INVENTORY_V2 = FIXTURES / "reference" / "inventory_v2"
 REGISTRY = render.registry()
 SNAPSHOT_REGISTRY = ("cut", "flash", "stamp", "text_pop", "map", "whip")
 FAILING = {"FbaBcWgMIEY", "ePTZVwipoAM"}
@@ -117,9 +119,9 @@ def test_an_extra_change_where_nothing_differs_passes() -> None:
     assert uncovered_boundaries(_model(answer)) == []
 
 
-def test_the_two_contradicting_committed_cards_fail_and_the_other_eleven_pass() -> None:
+def test_the_two_contradicting_frozen_cards_fail_and_the_other_eleven_pass() -> None:
     failing: set[str] = set()
-    paths = sorted(INVENTORY_DIR.glob("*.json"))
+    paths = sorted(INVENTORY_V2.glob("*.json"))
     assert len(paths) == 13
     for path in paths:
         card = load_card(path.read_text(encoding="utf-8"))

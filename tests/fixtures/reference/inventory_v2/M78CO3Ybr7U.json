@@ -1,0 +1,566 @@
+{
+  "duration_s": 60.0,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter introduces the date 29 June 2022"
+    },
+    {
+      "start_s": 2.6,
+      "end_s": 5.0,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter against orange sunset sky explaining the shortest day"
+    },
+    {
+      "start_s": 5.0,
+      "end_s": 8.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter holding a 3D animated rotating Earth globe"
+    },
+    {
+      "start_s": 8.1,
+      "end_s": 11.5,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Clock graphic overlay appears on the rotating Earth"
+    },
+    {
+      "start_s": 11.5,
+      "end_s": 13.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explains the time difference on June 29"
+    },
+    {
+      "start_s": 13.6,
+      "end_s": 17.0,
+      "layout": "card",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "CBS News screenshot article with yellow highlight"
+    },
+    {
+      "start_s": 17.0,
+      "end_s": 27.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter with cartoon scientist asset and rotating Earth"
+    },
+    {
+      "start_s": 27.0,
+      "end_s": 30.2,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Earth turns fiery red with 3D text Climate Change"
+    },
+    {
+      "start_s": 30.2,
+      "end_s": 35.5,
+      "layout": "split",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 5.3,
+      "treatment": [],
+      "note": "Split screen of melting glaciers and ice sheets"
+    },
+    {
+      "start_s": 35.5,
+      "end_s": 43.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explains mass shift and Moment of Inertia"
+    },
+    {
+      "start_s": 43.1,
+      "end_s": 50.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 7.7,
+      "treatment": [],
+      "note": "Physics demo of person spinning with dumbbells on rotating platform"
+    },
+    {
+      "start_s": 50.8,
+      "end_s": 57.7,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter discussing the negative leap second requirement"
+    },
+    {
+      "start_s": 57.7,
+      "end_s": 60.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter holds calendar flipping from Feb 28 to Feb 29"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 1.0,
+      "duration_s": 1.6,
+      "emphasis": "number",
+      "name": "date_stamp",
+      "description": "Bold banner stamp displaying 29 JUN 2022",
+      "component": "stamp",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.3,
+        "size": 0.85,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 14.6,
+      "duration_s": 2.4,
+      "emphasis": "word",
+      "name": "article_highlighter",
+      "description": "Yellow highlight band sweeps over article text",
+      "component": "highlight",
+      "motion": {
+        "entrance": "wipe",
+        "entrance_s": 0.4,
+        "size": 0.9,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 17.5,
+      "duration_s": 9.5,
+      "emphasis": "image",
+      "name": "cartoon_scientist",
+      "description": "2D animated scientist character pops into view",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.3,
+        "size": 0.3,
+        "region": "left"
+      }
+    },
+    {
+      "at_s": 28.3,
+      "duration_s": 1.9,
+      "emphasis": "word",
+      "name": "climate_change_pop",
+      "description": "Bold red text Climate Change pops across globe",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 39.7,
+      "duration_s": 3.4,
+      "emphasis": "word",
+      "name": "inertia_text_pop",
+      "description": "Red 3D text Moment of Inertia pops over globe",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 54.8,
+      "duration_s": 2.8,
+      "emphasis": "word",
+      "name": "speech_bubble_scientist",
+      "description": "Speech bubble pops above cartoon scientist",
+      "component": "bubble",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.35,
+        "region": "left"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 2.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to sunset sky background",
+      "component": "cut"
+    },
+    {
+      "at_s": 5.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to presenter holding rotating Earth",
+      "component": "cut"
+    },
+    {
+      "at_s": 13.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to CBS News article card",
+      "component": "cut"
+    },
+    {
+      "at_s": 17.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut back to presenter with scientist sticker",
+      "component": "cut"
+    },
+    {
+      "at_s": 30.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to split glacier footage",
+      "component": "cut"
+    },
+    {
+      "at_s": 35.5,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with glowing Earth core",
+      "component": "cut"
+    },
+    {
+      "at_s": 43.1,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to rotating physics demo clip",
+      "component": "cut"
+    },
+    {
+      "at_s": 50.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut back to presenter with Earth globe",
+      "component": "cut"
+    },
+    {
+      "at_s": 57.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to calendar demonstration",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "bottom middle above lower graphics",
+    "caption_size": "medium white text with black bar background",
+    "caption_colours": "white text on translucent black band",
+    "active_word": "none",
+    "title_entry": "slide up or pop overshoot with sound effect",
+    "number_entry": "stamp drop and slide"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "mysterious_curiosity",
+    "effects": [
+      {
+        "at_s": 1.0,
+        "kind": "whoosh",
+        "synced_to": "date stamp appearance",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 17.5,
+        "kind": "whoosh",
+        "synced_to": "cartoon scientist pop in",
+        "event": "sticker",
+        "loudness": "medium",
+        "length_s": 0.2
+      },
+      {
+        "at_s": 28.3,
+        "kind": "hit",
+        "synced_to": "climate change text entry",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 39.7,
+        "kind": "whoosh",
+        "synced_to": "moment of inertia graphic",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 54.8,
+        "kind": "click",
+        "synced_to": "speech bubble popup",
+        "event": "bubble",
+        "loudness": "soft",
+        "length_s": 0.1
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter asking a question with date 29 June 2022 appearing",
+    "heard": "Speaker asks if viewers know about the shortest day in Earth's history"
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "M78CO3Ybr7U",
+  "url": "https://www.youtube.com/watch?v=M78CO3Ybr7U",
+  "category": "explainer",
+  "tier": "A",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
+  "usage": {
+    "prompt_tokens": 29394,
+    "video_tokens": 21300,
+    "output_tokens": 4935,
+    "thoughts_tokens": 596,
+    "total_tokens": 34925
+  },
+  "counts": {
+    "shots_per_10s": 2.2,
+    "effects_per_10s": 1.0,
+    "sfx_per_10s": 0.8
+  },
+  "script": {
+    "about": "Explains why June 29 2022 was the shortest day recorded and how melting polar ice speeds up Earth's rotation.",
+    "topic": "science",
+    "tone": "informative curious",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 5.0,
+      "music_mood": "mysterious_curiosity",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 5.0,
+      "end_s": 27.0,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 27.0,
+      "end_s": 50.8,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "ending",
+      "start_s": 50.8,
+      "end_s": 60.0,
+      "music_mood": "calm_ambient",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [
+    {
+      "at_s": 5.0,
+      "from_part": "hook",
+      "to_part": "build_up",
+      "how": "crossfade"
+    },
+    {
+      "at_s": 50.8,
+      "from_part": "reveal",
+      "to_part": "ending",
+      "how": "crossfade"
+    }
+  ],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.6,
+      "said": "Did you know that 29 June 2022 was unique?",
+      "shows": "Presenter speaking to camera with date stamp overlay",
+      "match": "number",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "stamp",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 2.6,
+      "end_s": 5.0,
+      "said": "It was the shortest day in Earth's history.",
+      "shows": "Presenter against orange sunset background",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 5.0,
+      "end_s": 8.1,
+      "said": "On this day Earth completed its rotation in record time.",
+      "shows": "Presenter holding 3D rotating globe graphic",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 8.1,
+      "end_s": 11.5,
+      "said": "Normally Earth completes one rotation in 24 hours.",
+      "shows": "Globe with analog clock overlay rotating",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 11.5,
+      "end_s": 13.6,
+      "said": "On 29th June it took 1.5 milliseconds less.",
+      "shows": "Presenter holding globe with date banner",
+      "match": "number",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 13.6,
+      "end_s": 17.0,
+      "said": "CBS News reported it was 1.59 milliseconds shorter.",
+      "shows": "News article with highlighted sentence confirming the fact",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": "highlight",
+      "sound": null
+    },
+    {
+      "start_s": 17.0,
+      "end_s": 27.0,
+      "said": "Scientists noticed Earth rotates faster, but exact reasons are debated.",
+      "shows": "Presenter with cartoon scientist and question mark on globe",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 27.0,
+      "end_s": 30.2,
+      "said": "Climate change is considered one probable cause.",
+      "shows": "Globe turns molten red with Climate Change text",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 30.2,
+      "end_s": 35.5,
+      "said": "Ice melting at poles decreases mass at the ends.",
+      "shows": "Aerial footage of melting polar ice and glaciers",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 35.5,
+      "end_s": 43.1,
+      "said": "Mass moves closer to the center, speeding rotation by inertia.",
+      "shows": "Presenter holding globe with inner core mass shift and inertia text",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 43.1,
+      "end_s": 50.8,
+      "said": "Tucking in weights increases spin speed on a spinning platform.",
+      "shows": "Physics teacher spinning faster when pulling weights inward",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 50.8,
+      "end_s": 57.7,
+      "said": "If speed continues to increase, a negative leap second must be added.",
+      "shows": "Presenter with globe and scientist with speech bubble",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": "bubble",
+      "sound": "click"
+    },
+    {
+      "start_s": 57.7,
+      "end_s": 60.0,
+      "said": "Just like leap years add a day every four years.",
+      "shows": "Presenter flipping calendar from February 28 to 29",
+      "match": "literal",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    }
+  ],
+  "styles": []
+}

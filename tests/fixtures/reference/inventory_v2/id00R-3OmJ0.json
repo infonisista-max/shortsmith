@@ -1,0 +1,1754 @@
+{
+  "duration_s": 1062.4,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter introduces the setting date of 10 April 1912"
+    },
+    {
+      "start_s": 3.0,
+      "end_s": 9.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 6.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Archival black and white footage of RMS Titanic at dock"
+    },
+    {
+      "start_s": 9.0,
+      "end_s": 10.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.8,
+      "treatment": [],
+      "note": "Crowd waving from harbor pier as ship departs"
+    },
+    {
+      "start_s": 10.8,
+      "end_s": 14.6,
+      "layout": "map",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 3.8,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Animated map tracing route from Southampton to New York"
+    },
+    {
+      "start_s": 14.6,
+      "end_s": 22.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 7.4,
+      "treatment": [],
+      "note": "Archival footage and stills of passengers of diverse social classes"
+    },
+    {
+      "start_s": 22.0,
+      "end_s": 27.2,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter discusses Captain Edward J. Smith with overlay photo"
+    },
+    {
+      "start_s": 27.2,
+      "end_s": 31.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 4.6,
+      "treatment": [],
+      "note": "Spectators and launch celebration ceremonies for the Titanic"
+    },
+    {
+      "start_s": 31.8,
+      "end_s": 38.8,
+      "layout": "chart",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom",
+        "overlay"
+      ],
+      "note": "Blueprint diagram of the ship highlighting dimensions"
+    },
+    {
+      "start_s": 38.8,
+      "end_s": 52.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter explains construction cost adjusted for inflation"
+    },
+    {
+      "start_s": 52.4,
+      "end_s": 71.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom",
+        "overlay"
+      ],
+      "note": "Stills of luxury amenities, grand staircase, gym, and baths"
+    },
+    {
+      "start_s": 71.0,
+      "end_s": 81.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter explains the popular belief that the ship was unsinkable"
+    },
+    {
+      "start_s": 81.0,
+      "end_s": 92.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Discussion of White Star Line vice president's public claims"
+    },
+    {
+      "start_s": 92.4,
+      "end_s": 110.0,
+      "layout": "map",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 17.6,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Map tracking ship crossing North Atlantic into ice fields"
+    },
+    {
+      "start_s": 110.0,
+      "end_s": 121.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter details high cruising speed despite incoming ice warnings"
+    },
+    {
+      "start_s": 121.6,
+      "end_s": 141.2,
+      "layout": "map",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 19.6,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Animation showing radio communication warnings from other vessels"
+    },
+    {
+      "start_s": 141.2,
+      "end_s": 161.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter discusses the night conditions of 14 April 1912"
+    },
+    {
+      "start_s": 161.8,
+      "end_s": 191.0,
+      "layout": "other",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 29.2,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "3D render depicting the crow's nest lookout scanning dark ocean"
+    },
+    {
+      "start_s": 191.0,
+      "end_s": 204.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 13.0,
+      "treatment": [],
+      "note": "Dramatization clip of lookouts spotting iceberg ahead"
+    },
+    {
+      "start_s": 204.0,
+      "end_s": 221.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 17.8,
+      "treatment": [],
+      "note": "Lookout ringing alarm bell and phoning bridge"
+    },
+    {
+      "start_s": 221.8,
+      "end_s": 227.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 6.0,
+      "treatment": [],
+      "note": "Bridge officers issuing urgent evasive maneuver orders"
+    },
+    {
+      "start_s": 227.8,
+      "end_s": 240.0,
+      "layout": "other",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 12.2,
+      "treatment": [],
+      "note": "Animation showing Titanic side-swiping the iceberg at 11:40 PM"
+    },
+    {
+      "start_s": 240.0,
+      "end_s": 268.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter describes the immense mass and dimensions of the iceberg"
+    },
+    {
+      "start_s": 268.0,
+      "end_s": 291.0,
+      "layout": "chart",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom",
+        "overlay"
+      ],
+      "note": "Diagram showing ship anatomy: bow, keel, and impact point"
+    },
+    {
+      "start_s": 291.0,
+      "end_s": 314.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Car crash analogy illustrating mass and momentum mechanics"
+    },
+    {
+      "start_s": 314.0,
+      "end_s": 340.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 26.0,
+      "treatment": [],
+      "note": "Officers and builder Thomas Andrews examining damage schematics"
+    },
+    {
+      "start_s": 340.0,
+      "end_s": 358.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter explaining why the watertight compartments failed"
+    },
+    {
+      "start_s": 358.0,
+      "end_s": 379.0,
+      "layout": "chart",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 21.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Diagram illustrating flooding of 6 out of 16 compartments"
+    },
+    {
+      "start_s": 379.0,
+      "end_s": 412.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter details the distress calls and radio operator heroics"
+    },
+    {
+      "start_s": 412.0,
+      "end_s": 438.0,
+      "layout": "map",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 26.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Map showing location of Carpathia 107 km away from Titanic"
+    },
+    {
+      "start_s": 438.0,
+      "end_s": 466.0,
+      "layout": "other",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 28.0,
+      "treatment": [],
+      "note": "Animation of distress flares fired into the night sky"
+    },
+    {
+      "start_s": 466.0,
+      "end_s": 490.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter explains the evacuation order and women and children protocol"
+    },
+    {
+      "start_s": 490.0,
+      "end_s": 515.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 25.0,
+      "treatment": [],
+      "note": "Passengers boarding lifeboats with initial lack of panic"
+    },
+    {
+      "start_s": 515.0,
+      "end_s": 543.0,
+      "layout": "other",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 28.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Animated diagram showing lifeboats launched partially empty"
+    },
+    {
+      "start_s": 543.0,
+      "end_s": 565.0,
+      "layout": "other",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 22.0,
+      "treatment": [],
+      "note": "Animation showing the ship tilting and bow submerging into sea"
+    },
+    {
+      "start_s": 565.0,
+      "end_s": 586.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 21.0,
+      "treatment": [],
+      "note": "Interview archive clip of surviving passenger describing chaotic scene"
+    },
+    {
+      "start_s": 586.0,
+      "end_s": 606.0,
+      "layout": "other",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 20.0,
+      "treatment": [],
+      "note": "Animation of the Titanic splitting into two sections before sinking"
+    },
+    {
+      "start_s": 606.0,
+      "end_s": 636.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter discusses the hypothermia cause of death in sub-zero water"
+    },
+    {
+      "start_s": 636.0,
+      "end_s": 662.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 26.0,
+      "treatment": [],
+      "note": "Carpathia arrival rescuing survivors from lifeboats"
+    },
+    {
+      "start_s": 662.0,
+      "end_s": 680.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay",
+        "zoom"
+      ],
+      "note": "Newspaper headlines and inquiry photographs following tragedy"
+    },
+    {
+      "start_s": 680.0,
+      "end_s": 710.0,
+      "layout": "map",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 30.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Animation showing proximity of SS Californian just 37 km away"
+    },
+    {
+      "start_s": 710.0,
+      "end_s": 745.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter outlines the errors and ignored distress signals by Californian"
+    },
+    {
+      "start_s": 745.0,
+      "end_s": 788.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Four main mistakes identified: lifeboats, drills, steering confusion, speed"
+    },
+    {
+      "start_s": 788.0,
+      "end_s": 842.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter reveals White Star Line chairman's pressure to set speed record"
+    },
+    {
+      "start_s": 842.0,
+      "end_s": 890.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom",
+        "overlay"
+      ],
+      "note": "Regulatory documents and establishment of International Ice Patrol and SOLAS"
+    },
+    {
+      "start_s": 890.0,
+      "end_s": 948.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Discovery of the wreck in 1985 and ongoing decomposition by bacteria"
+    },
+    {
+      "start_s": 948.0,
+      "end_s": 1002.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Underwater exploration footage of Titanic bow resting on ocean bed"
+    },
+    {
+      "start_s": 1002.0,
+      "end_s": 1045.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter reviews Titanic II replica project announced by Clive Palmer"
+    },
+    {
+      "start_s": 1045.0,
+      "end_s": 1062.4,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 17.4,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Closing remarks, video suggestions, and production credits"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 1.2,
+      "duration_s": 1.8,
+      "emphasis": "word",
+      "name": "date_badge",
+      "description": "Graphic badge displaying 10 APR 1912 pops up",
+      "component": "stamp",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.3,
+        "size": 0.45,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 3.6,
+      "duration_s": 2.4,
+      "emphasis": "word",
+      "name": "title_text",
+      "description": "Text banner reading RMS TITANIC with chromatic glitch",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 11.2,
+      "duration_s": 2.8,
+      "emphasis": "image",
+      "name": "route_animation",
+      "description": "Dotted ship path line drawn across Atlantic Ocean",
+      "component": "route_arrow",
+      "motion": {
+        "entrance": "draw",
+        "entrance_s": 1.5,
+        "size": 0.9,
+        "region": "full"
+      }
+    },
+    {
+      "at_s": 34.2,
+      "duration_s": 3.6,
+      "emphasis": "number",
+      "name": "dimension_stat",
+      "description": "Bold metric callouts 269 METER and 53 METERS",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.4,
+        "size": 0.5,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 45.6,
+      "duration_s": 3.2,
+      "emphasis": "number",
+      "name": "cost_number",
+      "description": "Digital number badge displaying dollar value",
+      "component": "counter",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.3,
+        "size": 0.6,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 75.4,
+      "duration_s": 3.0,
+      "emphasis": "word",
+      "name": "unsinkable_stamp",
+      "description": "Large bold text UNSINKABLE with glitch outline",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.3,
+        "size": 0.85,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 99.4,
+      "duration_s": 2.2,
+      "emphasis": "word",
+      "name": "ice_warning_stamp",
+      "description": "ICE WARNING stamp popping over the presenter background",
+      "component": "stamp",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 131.0,
+      "duration_s": 2.5,
+      "emphasis": "number",
+      "name": "speed_stat",
+      "description": "Speed readout 21.5 KNOTS and 40 KM/HR",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.3,
+        "size": 0.5,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 191.0,
+      "duration_s": 3.0,
+      "emphasis": "number",
+      "name": "time_display",
+      "description": "Digital clock display counting down night times",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.35,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 361.0,
+      "duration_s": 4.0,
+      "emphasis": "image",
+      "name": "hull_compartments",
+      "description": "Compartment cross-section diagram highlighting flood zones",
+      "component": "chart",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.5,
+        "size": 0.9,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 511.0,
+      "duration_s": 3.5,
+      "emphasis": "number",
+      "name": "boat_capacity_stat",
+      "description": "Lifeboat capacity versus boarded count infographic",
+      "component": "counter",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.4,
+        "size": 0.7,
+        "region": "middle"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 3.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 9.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 10.8,
+      "duration_s": 0.3,
+      "name": "zoom_in",
+      "description": "",
+      "component": "zoom"
+    },
+    {
+      "at_s": 14.6,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 22.0,
+      "duration_s": 0.3,
+      "name": "slide_left",
+      "description": "",
+      "component": "wipe"
+    },
+    {
+      "at_s": 27.2,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 31.8,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 38.8,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 52.4,
+      "duration_s": 0.3,
+      "name": "slide_right",
+      "description": "",
+      "component": "wipe"
+    },
+    {
+      "at_s": 71.0,
+      "duration_s": 0.3,
+      "name": "zoom_out",
+      "description": "",
+      "component": "zoom"
+    },
+    {
+      "at_s": 81.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 92.4,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 110.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 121.6,
+      "duration_s": 0.3,
+      "name": "zoom_in",
+      "description": "",
+      "component": "zoom"
+    },
+    {
+      "at_s": 141.2,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 161.8,
+      "duration_s": 0.3,
+      "name": "fade_to_black",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 191.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 204.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 221.8,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 227.8,
+      "duration_s": 0.2,
+      "name": "flash_cut",
+      "description": "",
+      "component": "flash"
+    },
+    {
+      "at_s": 240.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 268.0,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 291.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 314.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 340.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 358.0,
+      "duration_s": 0.3,
+      "name": "zoom_in",
+      "description": "",
+      "component": "zoom"
+    },
+    {
+      "at_s": 379.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 412.0,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 438.0,
+      "duration_s": 0.3,
+      "name": "fade_transition",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 466.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 490.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 515.0,
+      "duration_s": 0.3,
+      "name": "slide_left",
+      "description": "",
+      "component": "wipe"
+    },
+    {
+      "at_s": 543.0,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 565.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 586.0,
+      "duration_s": 0.3,
+      "name": "fade_black",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 606.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 636.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 662.0,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 680.0,
+      "duration_s": 0.3,
+      "name": "zoom_in",
+      "description": "",
+      "component": "zoom"
+    },
+    {
+      "at_s": 710.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 745.0,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 788.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 842.0,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 890.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 948.0,
+      "duration_s": 0.3,
+      "name": "fade_transition",
+      "description": "",
+      "component": "fade"
+    },
+    {
+      "at_s": 1002.0,
+      "duration_s": 0.3,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 1045.0,
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "",
+      "component": "fade"
+    }
+  ],
+  "text": {
+    "caption_position": "bottom centered, above lower graphic safe zone",
+    "caption_size": "medium, 50 to 70 px sans-serif font",
+    "caption_colours": "white text with subtle dark drop shadow and accent colour keywords",
+    "active_word": "cyan or yellow highlight on active keyword in captions",
+    "title_entry": "pop with scale and subtle motion blur overshoot",
+    "number_entry": "count up roll animation with slight spring settle"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "tense dramatic and investigative pulse with cinematic orchestral undertones",
+    "effects": [
+      {
+        "at_s": 1.2,
+        "kind": "whoosh",
+        "synced_to": "date badge pop-up",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 3.6,
+        "kind": "hit",
+        "synced_to": "RMS Titanic title reveal",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.5
+      },
+      {
+        "at_s": 10.8,
+        "kind": "whoosh",
+        "synced_to": "transition to ocean map",
+        "event": "cut",
+        "loudness": "soft",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 45.6,
+        "kind": "ding",
+        "synced_to": "inflation cost counter",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 75.4,
+        "kind": "hit",
+        "synced_to": "unsinkable text stamp",
+        "event": "stamp",
+        "loudness": "loud",
+        "length_s": 0.6
+      },
+      {
+        "at_s": 99.4,
+        "kind": "hit",
+        "synced_to": "ice warning badge display",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 204.0,
+        "kind": "ding",
+        "synced_to": "lookout bell ringing",
+        "event": "other",
+        "loudness": "loud",
+        "length_s": 0.8
+      },
+      {
+        "at_s": 227.8,
+        "kind": "hit",
+        "synced_to": "iceberg collision impact",
+        "event": "flash",
+        "loudness": "loud",
+        "length_s": 1.0
+      },
+      {
+        "at_s": 438.0,
+        "kind": "whoosh",
+        "synced_to": "flare rocket firing",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.7
+      },
+      {
+        "at_s": 586.0,
+        "kind": "hit",
+        "synced_to": "ship snapping animation",
+        "event": "reveal",
+        "loudness": "loud",
+        "length_s": 1.2
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter on an arctic sea background introduces the April 1912 Titanic maiden voyage",
+    "heard": "Speaker greets viewers and introduces the fateful journey of the RMS Titanic"
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "id00R-3OmJ0",
+  "url": "https://www.youtube.com/watch?v=id00R-3OmJ0",
+  "category": "explainer",
+  "tier": "A",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
+  "usage": {
+    "prompt_tokens": 385322,
+    "video_tokens": 377228,
+    "output_tokens": 15416,
+    "thoughts_tokens": 1531,
+    "total_tokens": 402269
+  },
+  "counts": {
+    "shots_per_10s": 0.5,
+    "effects_per_10s": 0.1,
+    "sfx_per_10s": 0.1
+  },
+  "script": {
+    "about": "A comprehensive investigative documentary uncovering the technical flaws, human errors, and structural failures that caused the Titanic disaster.",
+    "topic": "history",
+    "tone": "investigative serious dramatic",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 38.8,
+      "music_mood": "tense_dramatic",
+      "music_flavour": "european"
+    },
+    {
+      "part": "build_up",
+      "start_s": 38.8,
+      "end_s": 227.8,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 227.8,
+      "end_s": 788.0,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    },
+    {
+      "part": "ending",
+      "start_s": 788.0,
+      "end_s": 1062.4,
+      "music_mood": "calm_ambient",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [
+    {
+      "at_s": 38.8,
+      "from_part": "hook",
+      "to_part": "build_up",
+      "how": "crossfade"
+    },
+    {
+      "at_s": 227.8,
+      "from_part": "build_up",
+      "to_part": "reveal",
+      "how": "hard_cut"
+    },
+    {
+      "at_s": 788.0,
+      "from_part": "reveal",
+      "to_part": "ending",
+      "how": "crossfade"
+    }
+  ],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.0,
+      "said": "The story begins on 10 April 1912 with RMS Titanic.",
+      "shows": "Presenter introducing the topic against an ocean and iceberg backdrop",
+      "match": "literal",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "stamp",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 3.0,
+      "end_s": 9.0,
+      "said": "It was the largest and most luxurious passenger ship of its time.",
+      "shows": "Historical archival footage of Titanic at harbor dock",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 9.0,
+      "end_s": 10.8,
+      "said": "Setting out on its maiden voyage from England.",
+      "shows": "Spectators and passengers waving farewell from the Southampton pier",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 10.8,
+      "end_s": 14.6,
+      "said": "Sailing from Southampton across the Atlantic toward New York City.",
+      "shows": "Animated map tracing the maritime path from England to America",
+      "match": "literal",
+      "part": "hook",
+      "layout": "map",
+      "effect": "route_arrow",
+      "sound": null
+    },
+    {
+      "start_s": 14.6,
+      "end_s": 22.0,
+      "said": "Carrying wealthy elites, celebrities, and immigrants seeking better lives.",
+      "shows": "Vintage footage and photographs of diverse classes on deck",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 22.0,
+      "end_s": 27.2,
+      "said": "Commanded by 62-year-old veteran captain Edward John Smith.",
+      "shows": "Presenter discussing the captain with portrait overlay of Captain Smith",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 27.2,
+      "end_s": 31.8,
+      "said": "Enormous public fanfare and excitement surrounded the ship departure.",
+      "shows": "Archival footage of crowds and champagne christening ceremony",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 31.8,
+      "end_s": 38.8,
+      "said": "Measuring 269 meters in length and over 53 meters tall.",
+      "shows": "Architectural blueprint highlighting ship length and height metrics",
+      "match": "number",
+      "part": "hook",
+      "layout": "chart",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 38.8,
+      "end_s": 52.4,
+      "said": "Built at a staggering cost equal to 400 million dollars today.",
+      "shows": "Presenter calculating inflation cost alongside shipyard construction stills",
+      "match": "number",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "counter",
+      "sound": "ding"
+    },
+    {
+      "start_s": 52.4,
+      "end_s": 71.0,
+      "said": "Lavish interiors rivaled five-star hotels with pools, baths, and courts.",
+      "shows": "Photographs of grand staircase, swimming pool, dining salons, and library",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 71.0,
+      "end_s": 81.0,
+      "said": "Advanced engineering led many to declare the ship completely unsinkable.",
+      "shows": "Presenter discussing unsinkable claim over ocean background",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 81.0,
+      "end_s": 92.4,
+      "said": "White Star Line executives publicly bragged no accident could sink it.",
+      "shows": "Presenter showing portrait of White Star Line vice president",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 92.4,
+      "end_s": 110.0,
+      "said": "Two days into the voyage, repeated ice warnings arrived.",
+      "shows": "Map animation of North Atlantic route showing plotted iceberg areas",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "map",
+      "effect": "stamp",
+      "sound": "hit"
+    },
+    {
+      "start_s": 110.0,
+      "end_s": 121.6,
+      "said": "Titanic altered course slightly but maintained full cruising speed.",
+      "shows": "Map showing adjusted route trajectory cruising at 21.5 knots",
+      "match": "number",
+      "part": "build_up",
+      "layout": "map",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 121.6,
+      "end_s": 141.2,
+      "said": "Other ships radioed urgent warnings of dense surrounding ice fields.",
+      "shows": "Map animation showing radio signal waves exchanged between nearby ships",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "map",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 141.2,
+      "end_s": 161.8,
+      "said": "On the night of April 14, conditions were dark and moonless.",
+      "shows": "Presenter explaining poor visibility and calm flat sea surface",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 161.8,
+      "end_s": 191.0,
+      "said": "Lookouts in the crow's nest faced freezing headwinds without binoculars.",
+      "shows": "3D render depicting lookouts shivering in the elevated crow's nest",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "other",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 191.0,
+      "end_s": 204.0,
+      "said": "At 11:39 PM, lookout Frederick Fleet spotted a massive iceberg ahead.",
+      "shows": "Dramatization of lookout staring in terror into the dark horizon",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 204.0,
+      "end_s": 221.8,
+      "said": "Fleet rang the bell three times and telephoned the bridge.",
+      "shows": "Lookout pulling alarm cord and shouting warning into phone receiver",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "ding"
+    },
+    {
+      "start_s": 221.8,
+      "end_s": 227.8,
+      "said": "First Officer Murdoch ordered hard a-starboard to steer around it.",
+      "shows": "Bridge crew furiously rotating steering wheel and reversing engines",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 227.8,
+      "end_s": 240.0,
+      "said": "Too late: at 11:40 PM the iceberg struck the starboard side.",
+      "shows": "3D simulation of underwater collision tearing along ship hull",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "other",
+      "effect": "unregistered",
+      "sound": "hit"
+    },
+    {
+      "start_s": 240.0,
+      "end_s": 268.0,
+      "said": "The iceberg weighed an estimated 1.5 million tons.",
+      "shows": "Presenter comparing iceberg height to ship and football field dimensions",
+      "match": "number",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "counter",
+      "sound": null
+    },
+    {
+      "start_s": 268.0,
+      "end_s": 291.0,
+      "said": "The impact grazed the bow and punctured lower hull plates.",
+      "shows": "Technical blueprint highlighting bow and keel collision contact areas",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "chart",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 291.0,
+      "end_s": 314.0,
+      "said": "Even strong metal crumples against immense concentrated mass.",
+      "shows": "Presenter comparing the impact to a speeding car crashing into a tree",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 314.0,
+      "end_s": 340.0,
+      "said": "Ship designer Thomas Andrews inspected blueprints with Captain Smith.",
+      "shows": "Movie clip showing officers assessing water levels on ship plans",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 340.0,
+      "end_s": 358.0,
+      "said": "Andrews delivered the grim news: the ship had hours to live.",
+      "shows": "Presenter explaining why the unsinkable compartment design failed",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 358.0,
+      "end_s": 379.0,
+      "said": "Six watertight compartments breached; design could only survive four flooded.",
+      "shows": "Cross-sectional graphic showing cascading water spilling over bulkheads",
+      "match": "number",
+      "part": "reveal",
+      "layout": "chart",
+      "effect": "chart",
+      "sound": null
+    },
+    {
+      "start_s": 379.0,
+      "end_s": 412.0,
+      "said": "Radio operator Jack Phillips worked frantically broadcasting Morse code distress calls.",
+      "shows": "Presenter highlighting portrait and archival key tapping of Jack Phillips",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 412.0,
+      "end_s": 438.0,
+      "said": "RMS Carpathia received the SOS but was 107 kilometers away.",
+      "shows": "Map displaying Carpathia turning toward Titanic with estimated arrival time",
+      "match": "number",
+      "part": "reveal",
+      "layout": "map",
+      "effect": "route_arrow",
+      "sound": null
+    },
+    {
+      "start_s": 438.0,
+      "end_s": 466.0,
+      "said": "Crew fired white distress rockets into the sky for help.",
+      "shows": "Animation of distress rockets illuminating pitch-black ocean",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "other",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 466.0,
+      "end_s": 490.0,
+      "said": "Evacuation began with strict women and children first rule.",
+      "shows": "Presenter explaining protocol alongside lifeboat lowering photos",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 490.0,
+      "end_s": 515.0,
+      "said": "Passengers hesitated to enter lifeboats, still believing ship was safe.",
+      "shows": "Archival footage of initial calm boarding process on boat deck",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 515.0,
+      "end_s": 543.0,
+      "said": "Lifeboats rated for 65 people lowered with only 28 aboard.",
+      "shows": "Infographic showing lifeboat silhouette with majority seats empty",
+      "match": "number",
+      "part": "reveal",
+      "layout": "other",
+      "effect": "counter",
+      "sound": null
+    },
+    {
+      "start_s": 543.0,
+      "end_s": 565.0,
+      "said": "As the bow sank deeper, propellers rose out of water.",
+      "shows": "Animation showing steep downward tilt of the hull at 1:00 AM",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "other",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 565.0,
+      "end_s": 586.0,
+      "said": "Panic erupted as passengers realized lifeboats had all departed.",
+      "shows": "Archival interview clip of survivor recalling the terrifying rush",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 586.0,
+      "end_s": 606.0,
+      "said": "At 2:20 AM, the ship broke in two and disappeared underwater.",
+      "shows": "Animation depicting structural failure and plunging into depths",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "other",
+      "effect": "unregistered",
+      "sound": "hit"
+    },
+    {
+      "start_s": 606.0,
+      "end_s": 636.0,
+      "said": "Over 1,500 perished, most dying of hypothermia in minus 2-degree water.",
+      "shows": "Presenter explaining freezing water physiology and hypothermia timeline",
+      "match": "number",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "counter",
+      "sound": null
+    },
+    {
+      "start_s": 636.0,
+      "end_s": 662.0,
+      "said": "Carpathia arrived hours later, rescuing only 705 survivors from lifeboats.",
+      "shows": "Historical photos and footage of survivors wrapped in blankets aboard Carpathia",
+      "match": "number",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 662.0,
+      "end_s": 680.0,
+      "said": "World shock followed, sparking Senate and British government inquiries.",
+      "shows": "Newspaper headlines and inquiry hearing photographs",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 680.0,
+      "end_s": 710.0,
+      "said": "Inquiries revealed SS Californian was anchored just 37 kilometers away.",
+      "shows": "Map showing Californian stationary in ice field within visible distance",
+      "match": "number",
+      "part": "reveal",
+      "layout": "map",
+      "effect": "route_arrow",
+      "sound": null
+    },
+    {
+      "start_s": 710.0,
+      "end_s": 745.0,
+      "said": "Californian operator turned off radio and captain dismissed white flare rockets.",
+      "shows": "Presenter explaining how Captain Lord ignored distress signals",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "highlight",
+      "sound": null
+    },
+    {
+      "start_s": 745.0,
+      "end_s": 788.0,
+      "said": "Four critical mistakes compounded: insufficient lifeboats, no drills, steering error, speed.",
+      "shows": "Presenter enumerating the four major human and operational failures",
+      "match": "number",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "counter",
+      "sound": null
+    },
+    {
+      "start_s": 788.0,
+      "end_s": 842.0,
+      "said": "White Star chairman Bruce Ismay pressured captain to set transatlantic record.",
+      "shows": "Presenter showing portraits and documents linking Ismay to speed pressure",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 842.0,
+      "end_s": 890.0,
+      "said": "Disaster transformed maritime safety rules, establishing SOLAS and Ice Patrol.",
+      "shows": "Historical treaties and International Ice Patrol emblem documents",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "full_still",
+      "effect": "highlight",
+      "sound": null
+    },
+    {
+      "start_s": 890.0,
+      "end_s": 948.0,
+      "said": "In 1985 Robert Ballard discovered wreckage 3.8 kilometers beneath ocean surface.",
+      "shows": "Presenter showing Robert Ballard discovery photos and wreckage location",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 948.0,
+      "end_s": 1002.0,
+      "said": "Deep-sea bacteria are consuming iron; wreck could vanish by 2030.",
+      "shows": "Submersible camera footage of rusticles decaying on the ship prow",
+      "match": "literal",
+      "part": "ending",
+      "layout": "full_still",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 1002.0,
+      "end_s": 1045.0,
+      "said": "Modern billionaire attempts to build Titanic II faced endless delays.",
+      "shows": "Presenter discussing Clive Palmer replica ship concept art",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": "card",
+      "sound": null
+    },
+    {
+      "start_s": 1045.0,
+      "end_s": 1062.4,
+      "said": "Over a century later, the tragic legend of Titanic endures.",
+      "shows": "Presenter closing recommendations, end screen cards, and video credits",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "full_footage",
+      "effect": "finale",
+      "sound": null
+    }
+  ],
+  "styles": []
+}

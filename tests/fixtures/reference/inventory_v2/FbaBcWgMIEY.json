@@ -1,0 +1,806 @@
+{
+  "duration_s": 59.5,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.1,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Three-tier split screen with cheese varieties at top, Swiss cheese middle, and presenter talking at bottom"
+    },
+    {
+      "start_s": 2.1,
+      "end_s": 3.3,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Arab man in traditional thobe against modern towers at top, presenter at bottom"
+    },
+    {
+      "start_s": 3.3,
+      "end_s": 5.3,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Historical photo of camel rider and drawing of camel rider"
+    },
+    {
+      "start_s": 5.3,
+      "end_s": 7.5,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Antique leather canteen waterskin bag with presenter talking at bottom"
+    },
+    {
+      "start_s": 7.5,
+      "end_s": 11.4,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Camels in field and biological anatomical diagram of rennet source"
+    },
+    {
+      "start_s": 11.4,
+      "end_s": 14.8,
+      "layout": "grid",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Three-tier stack showing milk bottle, bowl of curd, and glass of water"
+    },
+    {
+      "start_s": 14.8,
+      "end_s": 19.0,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Camel caravan traveler photo and camel sketch behind presenter"
+    },
+    {
+      "start_s": 19.0,
+      "end_s": 21.1,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Camels nursing in landscape behind presenter"
+    },
+    {
+      "start_s": 21.1,
+      "end_s": 23.9,
+      "layout": "grid",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Three-tier vertical stack showing milk bottle, cheese cuts, and water drop splash"
+    },
+    {
+      "start_s": 23.9,
+      "end_s": 27.7,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Cheese still and leather pouch with thinking Arab emoji behind presenter"
+    },
+    {
+      "start_s": 27.7,
+      "end_s": 29.5,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 1.8,
+      "treatment": [],
+      "note": "Presenter gesturing in front of a raging fire animation background"
+    },
+    {
+      "start_s": 29.5,
+      "end_s": 31.9,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Various cheeses on wooden board with presenter talking at bottom"
+    },
+    {
+      "start_s": 31.9,
+      "end_s": 33.7,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Map of Europe and Mediterranean filled with country flags"
+    },
+    {
+      "start_s": 33.7,
+      "end_s": 42.4,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Map of Europe/North Africa with medieval cheesemaking illustration overlay"
+    },
+    {
+      "start_s": 42.4,
+      "end_s": 45.7,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Abomasum stomach diagram and video clip of traditional animal rennet preparation"
+    },
+    {
+      "start_s": 45.7,
+      "end_s": 47.9,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Editorial cartoon showing hungry people reacting to non-veg food display"
+    },
+    {
+      "start_s": 47.9,
+      "end_s": 50.9,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Infographic explaining how to identify vegetarian versus non-vegetarian cheese"
+    },
+    {
+      "start_s": 50.9,
+      "end_s": 53.3,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Cheese with vegetarian rennet poster and hands measuring liquid plant rennet into milk vat"
+    },
+    {
+      "start_s": 53.3,
+      "end_s": 56.3,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter gesturing in front of vegetarian cheese infographic poster"
+    },
+    {
+      "start_s": 56.3,
+      "end_s": 59.5,
+      "layout": "map",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Political map of India with news report banner on 1984 animal rennet ban"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 0.4,
+      "duration_s": 1.7,
+      "emphasis": "number",
+      "name": "text_badge_pop",
+      "description": "Text banner reading '7-8000 Years Before' pops onto the top image",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 2.5,
+      "duration_s": 0.8,
+      "emphasis": "word",
+      "name": "label_slide",
+      "description": "Stylized text 'Arab' appears on the upper frame",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.2,
+        "size": 0.4,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 9.8,
+      "duration_s": 1.6,
+      "emphasis": "word",
+      "name": "text_banner",
+      "description": "Yellow label 'Rennet Enzyme' pops up near the bottom",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 11.5,
+      "duration_s": 3.2,
+      "emphasis": "word",
+      "name": "stacked_labels",
+      "description": "Labels 'Milk', 'Curd', 'Water' appear sequentially over the stacked images",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 17.2,
+      "duration_s": 1.7,
+      "emphasis": "number",
+      "name": "text_pop",
+      "description": "'1-2 Day Extra' text pops onto the camel image",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 19.7,
+      "duration_s": 1.4,
+      "emphasis": "word",
+      "name": "speech_bubble",
+      "description": "Speech bubble with 'Rennet' pops above the camel calf",
+      "component": "bubble",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.45,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 21.4,
+      "duration_s": 2.4,
+      "emphasis": "word",
+      "name": "stacked_labels",
+      "description": "Labels 'Milk', 'Cheese', 'Water' sequentially pop onto the three panels",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.55,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 57.8,
+      "duration_s": 1.7,
+      "emphasis": "image",
+      "name": "article_card_pop",
+      "description": "White text card citing the 1984 animal rennet ban pops onto the map of India",
+      "component": "card",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.3,
+        "size": 0.9,
+        "region": "top"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 2.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 3.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 5.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 7.5,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 11.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 14.8,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 19.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 21.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 23.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 27.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 29.5,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 31.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 33.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 42.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 45.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 47.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 50.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 53.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 56.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "none",
+    "caption_size": "none",
+    "caption_colours": "none",
+    "active_word": "none",
+    "title_entry": "pop with overshoot and black drop shadow",
+    "number_entry": "pop with overshoot on vintage wooden plate graphic"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "investigative_pulse",
+    "effects": [
+      {
+        "at_s": 0.4,
+        "kind": "whoosh",
+        "synced_to": "7-8000 Years Before title entry",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 9.8,
+        "kind": "whoosh",
+        "synced_to": "Rennet Enzyme banner entrance",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 17.2,
+        "kind": "whoosh",
+        "synced_to": "1-2 Day Extra text entry",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.2
+      },
+      {
+        "at_s": 19.7,
+        "kind": "ding",
+        "synced_to": "Rennet speech bubble pop",
+        "event": "bubble",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 27.7,
+        "kind": "whoosh",
+        "synced_to": "fire background explosion transition",
+        "event": "cut",
+        "loudness": "loud",
+        "length_s": 0.5
+      },
+      {
+        "at_s": 57.8,
+        "kind": "whoosh",
+        "synced_to": "news article snippet card entrance",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.3
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter explaining cheese origins below cheese wedges and 7-8000 years label",
+    "heard": "Speaker opens stating around 7-8 thousand years ago in Arabia people traveled"
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "FbaBcWgMIEY",
+  "url": "https://www.youtube.com/watch?v=FbaBcWgMIEY",
+  "category": "explainer",
+  "tier": "B",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
+  "usage": {
+    "prompt_tokens": 29253,
+    "video_tokens": 21159,
+    "output_tokens": 6818,
+    "thoughts_tokens": 1041,
+    "total_tokens": 37112
+  },
+  "counts": {
+    "shots_per_10s": 3.4,
+    "effects_per_10s": 1.3,
+    "sfx_per_10s": 1.0
+  },
+  "script": {
+    "about": "How cheese was accidentally discovered thousands of years ago using animal stomach rennet, and why Indian cheese is strictly vegetarian.",
+    "topic": "history",
+    "tone": "informative curious",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 5.3,
+      "music_mood": "investigative_pulse",
+      "music_flavour": "middle_east"
+    },
+    {
+      "part": "build_up",
+      "start_s": 5.3,
+      "end_s": 23.9,
+      "music_mood": "investigative_pulse",
+      "music_flavour": "middle_east"
+    },
+    {
+      "part": "reveal",
+      "start_s": 23.9,
+      "end_s": 47.9,
+      "music_mood": "investigative_pulse",
+      "music_flavour": "european"
+    },
+    {
+      "part": "ending",
+      "start_s": 47.9,
+      "end_s": 59.5,
+      "music_mood": "investigative_pulse",
+      "music_flavour": "indian"
+    }
+  ],
+  "music_changes": [],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.1,
+      "said": "Seven to eight thousand years ago",
+      "shows": "Different cheese types and presenter speaking",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "split",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 2.1,
+      "end_s": 3.3,
+      "said": "some people in Arabia",
+      "shows": "Arab man in traditional thobe with text label",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "split",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 3.3,
+      "end_s": 5.3,
+      "said": "were traveling across the desert on camels",
+      "shows": "Old photo and sketch of camel travelers",
+      "match": "literal",
+      "part": "hook",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 5.3,
+      "end_s": 7.5,
+      "said": "carrying milk stored inside animal skin pouches",
+      "shows": "Historical leather canteen pouch",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 7.5,
+      "end_s": 11.4,
+      "said": "animal stomach lining contains rennet enzyme",
+      "shows": "Camels and stomach organ rennet diagram",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 11.4,
+      "end_s": 14.8,
+      "said": "which curdles milk into solid curds and liquid water",
+      "shows": "Stacked photos of milk, curd, and water",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "grid",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 14.8,
+      "end_s": 19.0,
+      "said": "their journey took extra days in the desert heat",
+      "shows": "Desert nomad photo and label indicating extra days",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 19.0,
+      "end_s": 21.1,
+      "said": "the rennet inside the leather acted on milk",
+      "shows": "Camel mother with calf and rennet bubble",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "bubble",
+      "sound": "ding"
+    },
+    {
+      "start_s": 21.1,
+      "end_s": 23.9,
+      "said": "separating it into cheese curds and whey",
+      "shows": "Milk bottle, block of cheese, and water droplet",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "grid",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 23.9,
+      "end_s": 27.7,
+      "said": "realizing storing milk in leather created this product",
+      "shows": "Presenter with thinking Arab emoji and leather pouch",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 27.7,
+      "end_s": 29.5,
+      "said": "heat produced tasty cheese",
+      "shows": "Presenter talking against roaring fire background",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 29.5,
+      "end_s": 31.9,
+      "said": "this discovery gradually spread westward",
+      "shows": "Presenter explaining beneath various cheeses",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 31.9,
+      "end_s": 33.7,
+      "said": "across Europe and Mediterranean nations",
+      "shows": "Map of Europe displaying national flags",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 33.7,
+      "end_s": 42.4,
+      "said": "reaching Greece and Europe where cheese making evolved",
+      "shows": "Map of Europe and medieval cheesemaking scene",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 42.4,
+      "end_s": 45.7,
+      "said": "traditional cheese used rennet harvested from young calves",
+      "shows": "Calf stomach diagram and stomach lining preparation",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 45.7,
+      "end_s": 47.9,
+      "said": "making authentic cheese strictly non vegetarian",
+      "shows": "Editorial cartoon about non-vegetarian dietary concerns",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 47.9,
+      "end_s": 50.9,
+      "said": "modern vegetarian alternatives now exist",
+      "shows": "Infographic guide on distinguishing vegetarian cheese",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 50.9,
+      "end_s": 53.3,
+      "said": "using microbial or plant based rennet enzymes",
+      "shows": "Plant rennet cheese diagram and liquid enzyme pouring",
+      "match": "literal",
+      "part": "ending",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 53.3,
+      "end_s": 56.3,
+      "said": "which safely mimic animal rennet without slaughter",
+      "shows": "Presenter explaining packaging marks on infographic",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 56.3,
+      "end_s": 59.5,
+      "said": "in India all locally produced cheese is strictly vegetarian",
+      "shows": "Map of India and notification of 1984 animal rennet ban",
+      "match": "literal",
+      "part": "ending",
+      "layout": "map",
+      "effect": "card",
+      "sound": "whoosh"
+    }
+  ],
+  "styles": [
+    "vishva"
+  ]
+}

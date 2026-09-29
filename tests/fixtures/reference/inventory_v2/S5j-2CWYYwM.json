@@ -1,0 +1,839 @@
+{
+  "duration_s": 59.8,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter introduces hypothetical scenario of the Sun disappearing with glowing Sun CGI"
+    },
+    {
+      "start_s": 3.0,
+      "end_s": 9.0,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 6.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Animation showing distance and light delay between Sun and Earth"
+    },
+    {
+      "start_s": 9.0,
+      "end_s": 12.4,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 3.4,
+      "treatment": [],
+      "note": "Earth and Sun from space plunging into total darkness"
+    },
+    {
+      "start_s": 12.4,
+      "end_s": 17.1,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 4.7,
+      "treatment": [],
+      "note": "Moon behind night clouds becoming dark without reflected sunlight"
+    },
+    {
+      "start_s": 17.1,
+      "end_s": 17.8,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 0.7,
+      "treatment": [
+        "colour_grade"
+      ],
+      "note": "Bright flash graphic of yellow sun disappearing"
+    },
+    {
+      "start_s": 17.8,
+      "end_s": 21.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 3.2,
+      "treatment": [],
+      "note": "Night forest time lapse transitioning to Earth hurtling through deep space"
+    },
+    {
+      "start_s": 21.0,
+      "end_s": 23.0,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 2.0,
+      "treatment": [],
+      "note": "2D diagram of solar system with Earth flying out of its orbit"
+    },
+    {
+      "start_s": 23.0,
+      "end_s": 24.6,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 1.6,
+      "treatment": [],
+      "note": "Vortex accretion disk in deep space"
+    },
+    {
+      "start_s": 24.6,
+      "end_s": 26.0,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 1.4,
+      "treatment": [],
+      "note": "Asteroid field drifting in space"
+    },
+    {
+      "start_s": 26.0,
+      "end_s": 29.2,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 3.2,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Heavy snowfall in cold forest with -70 C temperature graphic"
+    },
+    {
+      "start_s": 29.2,
+      "end_s": 32.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter explaining freezing of oceans in front of sun graphic"
+    },
+    {
+      "start_s": 32.1,
+      "end_s": 35.1,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 3.0,
+      "treatment": [],
+      "note": "Deep ocean hydrothermal vents filmed underwater"
+    },
+    {
+      "start_s": 35.1,
+      "end_s": 37.7,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 2.6,
+      "treatment": [],
+      "note": "Stylized 3D rendering of arctic icebergs insulating water below"
+    },
+    {
+      "start_s": 37.7,
+      "end_s": 40.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.3,
+      "treatment": [],
+      "note": "Floating cracked sea ice moving on water surface"
+    },
+    {
+      "start_s": 40.0,
+      "end_s": 41.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.0,
+      "treatment": [],
+      "note": "Sharks swimming underwater under sunbeams"
+    },
+    {
+      "start_s": 41.0,
+      "end_s": 43.6,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.6,
+      "treatment": [],
+      "note": "Dense colony of hydrothermal vent shrimp underwater"
+    },
+    {
+      "start_s": 43.6,
+      "end_s": 45.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter talking about survival of deep ocean organisms"
+    },
+    {
+      "start_s": 45.4,
+      "end_s": 48.4,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 3.0,
+      "treatment": [],
+      "note": "Monochrome 3D render of bare dead trees in frozen ground"
+    },
+    {
+      "start_s": 48.4,
+      "end_s": 50.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.4,
+      "treatment": [],
+      "note": "Close up of dry dead sunflower in barren field"
+    },
+    {
+      "start_s": 50.8,
+      "end_s": 53.2,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.4,
+      "treatment": [],
+      "note": "Dense misty clouds rolling over snowy mountain peak"
+    },
+    {
+      "start_s": 53.2,
+      "end_s": 55.4,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [],
+      "note": "Intense blizzard outside residential building windows"
+    },
+    {
+      "start_s": 55.4,
+      "end_s": 58.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter concluding that human survival would be next to impossible"
+    },
+    {
+      "start_s": 58.6,
+      "end_s": 59.8,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 1.2,
+      "treatment": [],
+      "note": "Earth and fading sun extinguishing into pitch darkness"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 0.6,
+      "duration_s": 2.4,
+      "emphasis": "image",
+      "name": "sun_energy_orb",
+      "description": "Fiery glowing CGI sun sphere floating between presenter's hands",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.4,
+        "size": 0.6,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 4.0,
+      "duration_s": 4.5,
+      "emphasis": "number",
+      "name": "minute_stat_banner",
+      "description": "Bold red and white 8.5 MINUTES text banner over the animation",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 26.2,
+      "duration_s": 2.9,
+      "emphasis": "number",
+      "name": "negative_temperature_gauge",
+      "description": "Red glowing thermometer with -70C text graphic in snowfall",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.3,
+        "size": 0.5,
+        "region": "bottom"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 3.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to space animation",
+      "component": "cut"
+    },
+    {
+      "at_s": 9.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to Earth orbit view",
+      "component": "cut"
+    },
+    {
+      "at_s": 12.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to cloudy moon night",
+      "component": "cut"
+    },
+    {
+      "at_s": 17.1,
+      "duration_s": 0.2,
+      "name": "flash",
+      "description": "Bright yellow flash transition",
+      "component": "flash"
+    },
+    {
+      "at_s": 17.8,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to star timelapse",
+      "component": "cut"
+    },
+    {
+      "at_s": 21.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to 2D solar system graphic",
+      "component": "cut"
+    },
+    {
+      "at_s": 23.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to space vortex accretion disk",
+      "component": "cut"
+    },
+    {
+      "at_s": 24.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to asteroid field",
+      "component": "cut"
+    },
+    {
+      "at_s": 26.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to blizzard woods",
+      "component": "cut"
+    },
+    {
+      "at_s": 29.2,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to presenter",
+      "component": "cut"
+    },
+    {
+      "at_s": 32.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to deep sea footage",
+      "component": "cut"
+    },
+    {
+      "at_s": 35.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to ice sheet landscape",
+      "component": "cut"
+    },
+    {
+      "at_s": 37.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to moving pack ice",
+      "component": "cut"
+    },
+    {
+      "at_s": 40.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to underwater sharks",
+      "component": "cut"
+    },
+    {
+      "at_s": 41.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to hydrothermal vent shrimp",
+      "component": "cut"
+    },
+    {
+      "at_s": 43.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to presenter",
+      "component": "cut"
+    },
+    {
+      "at_s": 45.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to dead tree render",
+      "component": "cut"
+    },
+    {
+      "at_s": 48.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to wilted sunflower",
+      "component": "cut"
+    },
+    {
+      "at_s": 50.8,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to misty mountain",
+      "component": "cut"
+    },
+    {
+      "at_s": 53.2,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to snow storm window",
+      "component": "cut"
+    },
+    {
+      "at_s": 55.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to presenter",
+      "component": "cut"
+    },
+    {
+      "at_s": 58.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Direct cut to dark space eclipse",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "bottom third centered horizontal bar",
+    "caption_size": "medium uppercase sans-serif text",
+    "caption_colours": "white font with translucent black background pill",
+    "active_word": "no color change on active word",
+    "title_entry": "none",
+    "number_entry": "pop with scale bounce"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "tense_dramatic",
+    "effects": [
+      {
+        "at_s": 0.6,
+        "kind": "whoosh",
+        "synced_to": "sun orb appearance",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.5
+      },
+      {
+        "at_s": 4.0,
+        "kind": "hit",
+        "synced_to": "8.5 minutes stat graphic",
+        "event": "text_pop",
+        "loudness": "loud",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 17.1,
+        "kind": "whoosh",
+        "synced_to": "yellow flash cut",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 26.2,
+        "kind": "hit",
+        "synced_to": "-70C temperature graphic",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 58.6,
+        "kind": "whoosh",
+        "synced_to": "final fade to black",
+        "event": "cut",
+        "loudness": "medium",
+        "length_s": 0.6
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter asking what would happen if the Sun suddenly disappeared, holding a fiery Sun orb",
+    "heard": "Speaker asks what would happen if the Sun disappeared from our world"
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "S5j-2CWYYwM",
+  "url": "https://www.youtube.com/watch?v=S5j-2CWYYwM",
+  "category": "facts",
+  "tier": "A",
+  "creator": "Dhruv Rathee Shorts",
+  "title": "What Would Happen If the Sun Disappeared?",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
+  "usage": {
+    "prompt_tokens": 29323,
+    "video_tokens": 21229,
+    "output_tokens": 7328,
+    "thoughts_tokens": 605,
+    "total_tokens": 37256
+  },
+  "counts": {
+    "shots_per_10s": 3.8,
+    "effects_per_10s": 0.5,
+    "sfx_per_10s": 0.8
+  },
+  "script": {
+    "about": "Explaining the catastrophic physical and biological consequences if the Sun suddenly disappeared from the solar system.",
+    "topic": "science",
+    "tone": "curious and alarming",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 3.0,
+      "music_mood": "mysterious_curiosity",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 3.0,
+      "end_s": 26.0,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 26.0,
+      "end_s": 55.4,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    },
+    {
+      "part": "ending",
+      "start_s": 55.4,
+      "end_s": 59.8,
+      "music_mood": "calm_ambient",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [
+    {
+      "at_s": 3.0,
+      "from_part": "hook",
+      "to_part": "build_up",
+      "how": "crossfade"
+    },
+    {
+      "at_s": 55.4,
+      "from_part": "reveal",
+      "to_part": "ending",
+      "how": "crossfade"
+    }
+  ],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.0,
+      "said": "What would happen if the Sun disappeared from our world?",
+      "shows": "Presenter introducing hypothetical question with fiery Sun CGI in hands",
+      "match": "literal",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 3.0,
+      "end_s": 9.0,
+      "said": "First we would only find out after eight point five minutes.",
+      "shows": "Sunlight traveling across space to Earth with 8.5 MINUTES text",
+      "match": "number",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 9.0,
+      "end_s": 12.4,
+      "said": "After nine minutes, Earth would be enveloped in complete darkness.",
+      "shows": "Earth passing into total darkness in space",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 12.4,
+      "end_s": 17.1,
+      "said": "The Moon would become invisible because it only reflects sunlight.",
+      "shows": "Moon seen through night clouds then fading to darkness",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 17.1,
+      "end_s": 17.8,
+      "said": "Without the gravitational pull,",
+      "shows": "Flash effect of vanishing Sun",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 17.8,
+      "end_s": 21.0,
+      "said": "Earth would fly in a forward motion,",
+      "shows": "Earth speeding forward through starfield",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 21.0,
+      "end_s": 23.0,
+      "said": "escaping the solar system",
+      "shows": "2D diagram of planetary orbits with Earth breaking away",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 23.0,
+      "end_s": 24.6,
+      "said": "into outer space.",
+      "shows": "Vortex accretion disk in deep outer space",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 24.6,
+      "end_s": 26.0,
+      "said": "Within a year,",
+      "shows": "Field of asteroids floating through cosmos",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 26.0,
+      "end_s": 29.2,
+      "said": "temperatures would drop lower than minus seventy degrees Celsius.",
+      "shows": "Blizzard in pine forest with -70C thermometer gauge",
+      "match": "number",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": "unregistered",
+      "sound": "hit"
+    },
+    {
+      "start_s": 29.2,
+      "end_s": 32.1,
+      "said": "This means all oceans would freeze.",
+      "shows": "Presenter explaining frozen oceans in front of sun CGI",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 32.1,
+      "end_s": 35.1,
+      "said": "Since only top layers freeze,",
+      "shows": "Deep sea hydrothermal vent structure underwater",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 35.1,
+      "end_s": 37.7,
+      "said": "the bottom layers would stay insulated with liquid water.",
+      "shows": "Animation of frozen glacial surface",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 37.7,
+      "end_s": 40.0,
+      "said": "Because of this, deep sea life",
+      "shows": "Chunky ice sheets drifting on water",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 40.0,
+      "end_s": 41.0,
+      "said": "could survive",
+      "shows": "Sharks swimming in dark ocean depth",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 41.0,
+      "end_s": 43.6,
+      "said": "for thousands of years without the Sun.",
+      "shows": "Vent shrimp swarming on ocean floor rock",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 43.6,
+      "end_s": 45.4,
+      "said": "However on land,",
+      "shows": "Presenter gesturing in front of glowing background",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 45.4,
+      "end_s": 48.4,
+      "said": "all trees would slowly die without photosynthesis.",
+      "shows": "Bare barren dead trees standing in cold ground",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 48.4,
+      "end_s": 50.8,
+      "said": "Plants would fail to function.",
+      "shows": "Dried shriveled sunflower head in cold field",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 50.8,
+      "end_s": 53.2,
+      "said": "Extreme cold would collapse the atmosphere.",
+      "shows": "Fog and thick clouds shrouding mountain ridge",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 53.2,
+      "end_s": 55.4,
+      "said": "In the long term,",
+      "shows": "Snow blowing heavily past residential window panes",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 55.4,
+      "end_s": 58.6,
+      "said": "human survival would be next to impossible in this situation.",
+      "shows": "Presenter delivering conclusion with hands folded in front of sun",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 58.6,
+      "end_s": 59.8,
+      "said": "Everything would go dark.",
+      "shows": "Earth and extinguished sun vanishing into black abyss",
+      "match": "metaphor",
+      "part": "ending",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "whoosh"
+    }
+  ],
+  "styles": [
+    "footage"
+  ]
+}

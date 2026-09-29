@@ -61,6 +61,8 @@ after the four above and before the commit:
 
 # COMMIT
 
+Stage by explicit path only: `git add <path> …` naming each file this ticket changed (the ticket's move to `issues/done/` included), then check that `git diff --cached --name-only` lists exactly those. Never `git add -A`, `git add .` or `git add *`.
+
 Make a git commit. The commit message must:
 
 1. Include key decisions made

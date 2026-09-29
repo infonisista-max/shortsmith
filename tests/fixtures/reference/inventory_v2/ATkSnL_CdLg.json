@@ -1,0 +1,868 @@
+{
+  "duration_s": 59.5,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter speaking holding Rolls Royce hood ornament graphic"
+    },
+    {
+      "start_s": 3.4,
+      "end_s": 6.1,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter with Rolls Royce car cutout and price graphic"
+    },
+    {
+      "start_s": 6.1,
+      "end_s": 8.7,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter with red Porsche cutout and price graphic"
+    },
+    {
+      "start_s": 8.7,
+      "end_s": 14.1,
+      "layout": "split",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter introducing customization reason with car cutout"
+    },
+    {
+      "start_s": 14.1,
+      "end_s": 17.5,
+      "layout": "card",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Screenshot of blog post showing 44,000 paint colours on display"
+    },
+    {
+      "start_s": 17.5,
+      "end_s": 19.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter explaining point 2 with Rolls Royce cutout"
+    },
+    {
+      "start_s": 19.1,
+      "end_s": 20.6,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.5,
+      "treatment": [],
+      "note": "Rolls Royce chassis moved in factory by hand"
+    },
+    {
+      "start_s": 20.6,
+      "end_s": 22.7,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.1,
+      "treatment": [],
+      "note": "Customer handed miniature car model during order"
+    },
+    {
+      "start_s": 22.7,
+      "end_s": 23.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.2,
+      "treatment": [],
+      "note": "Worker assembling bespoke car components"
+    },
+    {
+      "start_s": 23.9,
+      "end_s": 25.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter contrasting with other brands"
+    },
+    {
+      "start_s": 25.1,
+      "end_s": 27.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.8,
+      "treatment": [],
+      "note": "Mass parking lot full of pre-manufactured cars"
+    },
+    {
+      "start_s": 27.9,
+      "end_s": 29.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.0,
+      "treatment": [],
+      "note": "Workers hand-crafting full scale clay / wooden car body"
+    },
+    {
+      "start_s": 29.9,
+      "end_s": 32.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.1,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Detailed fine paintbrush pinstripe applied by hand on wooden trim"
+    },
+    {
+      "start_s": 32.0,
+      "end_s": 33.7,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter introducing soundproofing insulation"
+    },
+    {
+      "start_s": 33.7,
+      "end_s": 35.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [],
+      "note": "Luxury car interior seat pan across leather upholstery"
+    },
+    {
+      "start_s": 35.9,
+      "end_s": 37.5,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.6,
+      "treatment": [],
+      "note": "Luxury interior top-down view showing starlight headliner"
+    },
+    {
+      "start_s": 37.5,
+      "end_s": 39.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.4,
+      "treatment": [],
+      "note": "Close-up of spinning Rolls Royce wheel hub"
+    },
+    {
+      "start_s": 39.9,
+      "end_s": 42.1,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [],
+      "note": "White Rolls Royce driving along scenic coastal mountain road"
+    },
+    {
+      "start_s": 42.1,
+      "end_s": 43.3,
+      "layout": "presenter_full",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.2,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter composited over starlight interior talking about custom interiors"
+    },
+    {
+      "start_s": 43.3,
+      "end_s": 45.3,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.0,
+      "treatment": [],
+      "note": "Artistic dashboard artwork trim options"
+    },
+    {
+      "start_s": 45.3,
+      "end_s": 46.5,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.2,
+      "treatment": [],
+      "note": "Purple bespoke jewel dashboard styling"
+    },
+    {
+      "start_s": 46.5,
+      "end_s": 48.1,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.6,
+      "treatment": [],
+      "note": "Armrest opening to reveal hidden whiskey decanter and glasses"
+    },
+    {
+      "start_s": 48.1,
+      "end_s": 49.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.8,
+      "treatment": [],
+      "note": "Driver inputting code into hidden safe keypad in glove box"
+    },
+    {
+      "start_s": 49.9,
+      "end_s": 52.1,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [],
+      "note": "Mini fridge opening to reveal champagne bottle"
+    },
+    {
+      "start_s": 52.1,
+      "end_s": 55.3,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 3.2,
+      "treatment": [],
+      "note": "Rolls Royce doors opening revealing illuminated starlight headliner"
+    },
+    {
+      "start_s": 55.3,
+      "end_s": 57.3,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.0,
+      "treatment": [],
+      "note": "Technician hand-threading optical fiber lights into headliner"
+    },
+    {
+      "start_s": 57.3,
+      "end_s": 59.5,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [],
+      "note": "Starlight headliner glowing like night sky from backseat"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 4.1,
+      "duration_s": 2.0,
+      "emphasis": "number",
+      "name": "number_badge_pop",
+      "description": "5 Crore bold number card pops up behind car cutout",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 6.3,
+      "duration_s": 2.4,
+      "emphasis": "number",
+      "name": "number_badge_pop",
+      "description": "83 LAKH red bold graphic pops behind Porsche cutout",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 11.2,
+      "duration_s": 2.8,
+      "emphasis": "word",
+      "name": "numbered_tag",
+      "description": "#1 red badge in top-left corner and CUSTOMIZATION label",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.25,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 14.5,
+      "duration_s": 3.0,
+      "emphasis": "word",
+      "name": "text_highlight",
+      "description": "Yellow highlighter sweep on blog text",
+      "component": "highlight",
+      "motion": {
+        "entrance": "draw",
+        "entrance_s": 0.4,
+        "size": 0.9,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 17.6,
+      "duration_s": 10.2,
+      "emphasis": "word",
+      "name": "numbered_tag",
+      "description": "#2 red tag on top-left corner",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.1,
+        "size": 0.25,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 28.0,
+      "duration_s": 4.0,
+      "emphasis": "word",
+      "name": "numbered_tag",
+      "description": "#3 red tag on top-left corner",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.1,
+        "size": 0.25,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 32.1,
+      "duration_s": 10.0,
+      "emphasis": "word",
+      "name": "numbered_tag",
+      "description": "#4 red tag on top-left corner with INSULATION label",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.25,
+        "region": "top"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 3.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Straight cut to car cutout overlay",
+      "component": "cut"
+    },
+    {
+      "at_s": 6.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Straight cut to Porsche comparison",
+      "component": "cut"
+    },
+    {
+      "at_s": 8.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut back to presenter explaining reason",
+      "component": "cut"
+    },
+    {
+      "at_s": 14.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to blog screenshot card",
+      "component": "cut"
+    },
+    {
+      "at_s": 17.5,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter announcing point 2",
+      "component": "cut"
+    },
+    {
+      "at_s": 19.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to factory b-roll footage",
+      "component": "cut"
+    },
+    {
+      "at_s": 27.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to craftsmanship b-roll",
+      "component": "cut"
+    },
+    {
+      "at_s": 32.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter for soundproofing point",
+      "component": "cut"
+    },
+    {
+      "at_s": 42.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter over interior footage",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "Center horizontal bar with dark translucent background",
+    "caption_size": "Medium bold text, roughly 5-6% screen height",
+    "caption_colours": "White text on black background bar",
+    "active_word": "No colour highlight on active word, line-by-line subtitle display",
+    "title_entry": "Red numbered badges pop in with bounce",
+    "number_entry": "Pop in with overshoot and drop shadow"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "investigative_pulse",
+    "effects": [
+      {
+        "at_s": 4.1,
+        "kind": "whoosh",
+        "synced_to": "5 Crore graphic entry",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.2
+      },
+      {
+        "at_s": 6.3,
+        "kind": "hit",
+        "synced_to": "83 Lakh graphic pop",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.25
+      },
+      {
+        "at_s": 11.2,
+        "kind": "click",
+        "synced_to": "#1 badge pop",
+        "event": "sticker",
+        "loudness": "soft",
+        "length_s": 0.15
+      },
+      {
+        "at_s": 17.6,
+        "kind": "click",
+        "synced_to": "#2 badge pop",
+        "event": "sticker",
+        "loudness": "soft",
+        "length_s": 0.15
+      },
+      {
+        "at_s": 28.0,
+        "kind": "click",
+        "synced_to": "#3 badge pop",
+        "event": "sticker",
+        "loudness": "soft",
+        "length_s": 0.15
+      },
+      {
+        "at_s": 32.1,
+        "kind": "click",
+        "synced_to": "#4 badge pop",
+        "event": "sticker",
+        "loudness": "soft",
+        "length_s": 0.15
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter in front of abstract background introducing Rolls Royce luxury brand",
+    "heard": "Rolls Royce is said to be the most expensive car brand."
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "ATkSnL_CdLg",
+  "url": "https://www.youtube.com/watch?v=ATkSnL_CdLg",
+  "category": "explainer",
+  "tier": "A",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
+  "usage": {
+    "prompt_tokens": 29253,
+    "video_tokens": 21159,
+    "output_tokens": 7705,
+    "thoughts_tokens": 52,
+    "total_tokens": 37010
+  },
+  "counts": {
+    "shots_per_10s": 4.5,
+    "effects_per_10s": 1.2,
+    "sfx_per_10s": 1.0
+  },
+  "script": {
+    "about": "Explains why Rolls Royce cars are exceptionally expensive through four bespoke manufacturing factors.",
+    "topic": "business",
+    "tone": "informative curious",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 11.0,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 11.0,
+      "end_s": 32.0,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 32.0,
+      "end_s": 59.5,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.4,
+      "said": "Rolls Royce is renowned as the most expensive car brand.",
+      "shows": "Presenter gesturing holding Rolls Royce radiator grille figurine",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 3.4,
+      "end_s": 6.1,
+      "said": "Its cheapest car costs 5 crore rupees.",
+      "shows": "Rolls Royce car cutout with 5 Cr graphic",
+      "match": "number",
+      "part": "hook",
+      "layout": "split",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 6.1,
+      "end_s": 8.7,
+      "said": "For that money you could buy six Porsches.",
+      "shows": "Red Porsche car cutout with 83 Lakh graphic",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "split",
+      "effect": "unregistered",
+      "sound": "hit"
+    },
+    {
+      "start_s": 8.7,
+      "end_s": 14.1,
+      "said": "Why is it so expensive? Reason one is customisation.",
+      "shows": "Presenter introducing customization point with #1 badge",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "split",
+      "effect": "unregistered",
+      "sound": "click"
+    },
+    {
+      "start_s": 14.1,
+      "end_s": 17.5,
+      "said": "You can select from 44,000 distinct colour combinations.",
+      "shows": "Article screenshot showing thousands of sample colour panels",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": "highlight",
+      "sound": null
+    },
+    {
+      "start_s": 17.5,
+      "end_s": 19.1,
+      "said": "Second reason: they are not mass produced.",
+      "shows": "Presenter showing #2 badge",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "unregistered",
+      "sound": "click"
+    },
+    {
+      "start_s": 19.1,
+      "end_s": 20.6,
+      "said": "Manufacturing starts only after an order is placed.",
+      "shows": "Factory worker hauling unfinished car body",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 20.6,
+      "end_s": 22.7,
+      "said": "Buyers receive custom miniature prototypes upon ordering.",
+      "shows": "Client presented miniature scale car model in luxury office",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 22.7,
+      "end_s": 23.9,
+      "said": "Then assembly starts specifically for you.",
+      "shows": "Worker assembling components under hood",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 23.9,
+      "end_s": 25.1,
+      "said": "Other brands manufacture and store cars beforehand.",
+      "shows": "Presenter explaining mass manufacturing comparison",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 25.1,
+      "end_s": 27.9,
+      "said": "Thousands of ready-made vehicles parked in lots.",
+      "shows": "Massive car inventory parked in lot",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 27.9,
+      "end_s": 29.9,
+      "said": "Third, extensive detailing is done by hand.",
+      "shows": "Technicians hand-sculpting car prototype surface",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "unregistered",
+      "sound": "click"
+    },
+    {
+      "start_s": 29.9,
+      "end_s": 32.0,
+      "said": "Intricate painted line work done by individual artisans.",
+      "shows": "Craftsman painting fine line on luxury wood panel",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 32.0,
+      "end_s": 33.7,
+      "said": "Fourth reason is the heavy insulation.",
+      "shows": "Presenter announcing insulation with #4 badge",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "unregistered",
+      "sound": "click"
+    },
+    {
+      "start_s": 33.7,
+      "end_s": 35.9,
+      "said": "Equipped with 300 pounds of soundproofing materials.",
+      "shows": "Plush leather cabin seats",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 35.9,
+      "end_s": 37.5,
+      "said": "Eliminates all exterior noise inside the cabin.",
+      "shows": "Overhead view of quiet luxury cabin",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 37.5,
+      "end_s": 39.9,
+      "said": "Tyres contain special acoustic foam.",
+      "shows": "Close-up of alloy wheel and tire spinning",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 39.9,
+      "end_s": 42.1,
+      "said": "Road running sound is kept to minimum.",
+      "shows": "Rolls Royce gliding quietly along lakeside road",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 42.1,
+      "end_s": 43.3,
+      "said": "Interiors can be completely customised.",
+      "shows": "Presenter talking in front of luxury starry interior",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 43.3,
+      "end_s": 45.3,
+      "said": "Pick custom materials and bespoke dashboard artwork.",
+      "shows": "Fine handcrafted gallery dashboard trim",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 45.3,
+      "end_s": 46.5,
+      "said": "Choose artistic gemstone ornaments.",
+      "shows": "Purple luxury jewel dashboard artwork",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 46.5,
+      "end_s": 48.1,
+      "said": "Install built-in drinks cabinets.",
+      "shows": "Whiskey decanter compartment opening inside armrest",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 48.1,
+      "end_s": 49.9,
+      "said": "Add hidden jewellery safes with keypads.",
+      "shows": "Glove box hidden keypad safe accessed",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 49.9,
+      "end_s": 52.1,
+      "said": "Even refrigerated champagne coolers.",
+      "shows": "Integrated champagne cooler opening",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 52.1,
+      "end_s": 55.3,
+      "said": "Furthermore, the roof features a bespoke starlight headliner.",
+      "shows": "Illuminated constellation roof headliner in luxury car",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 55.3,
+      "end_s": 57.3,
+      "said": "Over 1600 individual fiber optic lights hand-fitted.",
+      "shows": "Craftswoman hand threading optical fiber lights",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 57.3,
+      "end_s": 59.5,
+      "said": "Giving passengers the sensation of gazing at stars.",
+      "shows": "Breathtaking view of ceiling mimicking starry sky",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    }
+  ],
+  "styles": [
+    "footage"
+  ]
+}

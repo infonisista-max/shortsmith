@@ -129,10 +129,11 @@ def test_no_short_card_learns_no_mood() -> None:
     assert fd.default_mood([], short_max_s=180.0, log=lambda _: None) is None
 
 
-def test_the_committed_cards_name_investigative_pulse() -> None:
+def test_the_frozen_v2_cards_name_investigative_pulse() -> None:
     lines: list[str] = []
     profile = fd.load_profile()
-    learned = fd.learned_mood(profile=profile, log=lines.append)
+    frozen = Path(__file__).parent / "fixtures" / "reference" / "inventory_v2"
+    learned = fd.learned_mood(frozen, profile=profile, log=lines.append)
     assert learned is not None and learned.mood == "investigative_pulse", lines
     assert learned.runner_up == "tense_dramatic"
     assert any("id00R-3OmJ0" in line and "long-form" in line for line in lines), lines
@@ -316,6 +317,36 @@ def test_a_mood_miss_takes_the_facts_default(first: bool) -> None:
     plain = BedSegment(part_from="hook", mood="investigative_pulse")
     _, lines, _ = _first(library, first=first, segment=plain)
     assert "fallback bed: facts_default dark_bass for investigative_pulse, no approved bed" in lines
+
+
+def _two_misses(library: sound.Library) -> tuple[sound.Score, list[str]]:
+    """King Saud with a change at the reveal: both segments middle_east, both missing."""
+    plan, story = _planned("vishva")
+    reveal = BedSegment(part_from="reveal", mood="tense_dramatic", flavour="middle_east")
+    story = story.model_copy(update={"bed": [KING_SAUD, reveal]})
+    assert story.change is not None
+    score, lines, _ = next(sound.score_candidates(library, story, plan, SPECS["vishva"].sound))
+    assert score is not None, lines
+    return score, list(lines)
+
+
+def test_two_misses_never_change_to_the_bed_already_playing() -> None:
+    library = _library(
+        _bed("dark_bass", "calm_ambient", facts=True), _bed("tense_plain", "tense_dramatic")
+    )
+    score, lines = _two_misses(library)
+    assert [b.id for b in score.beds] == ["dark_bass", "tense_plain"], lines
+    assert score.how is not None and score.change_s is not None
+
+
+def test_two_misses_with_only_the_facts_default_play_it_through() -> None:
+    score, lines = _two_misses(_library(_bed("dark_bass", "calm_ambient", facts=True)))
+    assert [b.id for b in score.beds] == ["dark_bass"]
+    assert score.how is None and score.change_s is None
+    assert "bed dark_bass plays through reveal: no other approved bed, the change is dropped" in (
+        lines
+    )
+    assert not any(line.startswith("bed change at") for line in lines), lines
 
 
 def test_no_facts_default_and_no_same_mood_bed_is_the_freesound_fallback_as_before() -> None:

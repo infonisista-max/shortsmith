@@ -538,6 +538,7 @@ def choose_bed(
 
 FALLBACK_LINE = "fallback bed: {mood}, no approved bed"
 FACTS_DEFAULT_LINE = "fallback bed: facts_default {entry} for {wanted}, no approved bed"
+SAME_BED_LINE = "bed {entry} plays through {part}: no other approved bed, the change is dropped"
 
 
 @dataclass(frozen=True)
@@ -650,17 +651,16 @@ def part_start_s(story: SoundStory, plan: PicturePlan, part: str) -> float:
     return next((b.start for b in plan.beats if b.id == first), 0.0)
 
 
-def _segment_bed(
+def _segment_beds_from(
     library: Library, segment: BedSegment, story: SoundStory, plan: PicturePlan, start_s: float,
     *, facts_first: bool,
-) -> tuple[AudioEntry, str | None] | None:  # fmt: skip
+) -> list[tuple[AudioEntry, str | None]]:  # fmt: skip
     stamps = [
         b.start - start_s for b in plan.beats if b.event.kind == "stamp" and b.start >= start_s
     ]
     stamp = min(stamps) if stamps else 0.0
-    found = segment_beds(library, segment, energy=story.bed_query.energy, first_stamp_s=stamp,
-                         facts_first=facts_first)  # fmt: skip
-    return found[0] if found else None
+    return segment_beds(library, segment, energy=story.bed_query.energy, first_stamp_s=stamp,
+                        facts_first=facts_first)  # fmt: skip
 
 
 def score_candidates(
@@ -681,7 +681,9 @@ def score_candidates(
     the change sits on the second segment's part start; after it, the first segment's
     approved beds alone (a change never survives a failed balance). A segment with no
     approved bed at all drops the change: one Freesound bed is searched for that mood with
-    069's music-anchored ladder, and its line says so."""
+    069's music-anchored ladder, and its line says so. The second segment never takes the
+    first's bed (two misses would both reach the one `facts_default`): it takes its next
+    approved bed, and with none the first bed plays through with the change dropped."""
     if not story.bed:
         for entry, said in bed_candidates(
             library, story.bed_query, first_stamp_s=first_stamp_s(plan),
@@ -696,12 +698,19 @@ def score_candidates(
     first_in = nums.facts_default_first
     for i, segment in enumerate(story.bed[:2]):
         start = 0.0 if i == 0 else part_start_s(story, plan, segment.part_from)
-        picked = _segment_bed(library, segment, story, plan, start, facts_first=first_in)
+        found = _segment_beds_from(library, segment, story, plan, start, facts_first=first_in)
         flavour = f" ({segment.flavour})" if segment.flavour else ""
-        if picked is None:
+        if not found:
             fallback = FALLBACK_LINE.format(mood=segment.mood)
             yield from _fallback(library, story, nums, segment, search, fallback)
             return
+        # A change to the bed already playing would restart its file mid-short: the
+        # second segment takes its next bed, else the first plays through.
+        taken = spans[0].entry.id if spans else None
+        picked = next((f for f in found if f[0].id != taken), None)
+        if picked is None:
+            lines.append(SAME_BED_LINE.format(entry=taken, part=segment.part_from))
+            break
         entry, stand_in = picked
         if stand_in is not None:
             lines.append(stand_in)
