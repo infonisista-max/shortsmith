@@ -1,0 +1,35 @@
+# Bed moods and regional flavours (ticket 073): the closed vocabulary the reference card
+# (v2 `parts[].music_mood` / `music_flavour`), the planner and the sound director share.
+# `active: true` marks the first batch the approved library carries (075); the rest wait
+# for 084. Loaded at startup by `shortsmith.vocab.load_moods`; a duplicate or empty entry
+# stops the app naming it.
+moods:
+  tense_dramatic:
+    meaning: low strings or drones with a slow pulse, rising stakes; a conflict or a threat
+    active: true
+  investigative_pulse:
+    meaning: a steady muted rhythm that keeps moving; laying out evidence, step by step
+    active: true
+  mysterious_curiosity:
+    meaning: sparse plucks or pads with an open question in them; an unexplained fact
+    active: true
+  calm_ambient:
+    meaning: soft pads, no drums, nothing competing with the voice; reflection or an ending
+    active: true
+  eerie_scifi:
+    meaning: synth textures and deep space tones, unsettling but quiet; space or the future
+  upbeat_electronic:
+    meaning: bright synths over a light beat, optimistic; technology, progress, a win
+  energetic_beat:
+    meaning: a driving full beat with a clear groove; sport, speed, a countdown
+flavours:
+  middle_east:
+    meaning: oud, ney or darbuka colour over the mood; the Gulf, Iran, the Levant
+    active: true
+  indian:
+    meaning: sitar, tabla, bansuri or tanpura colour over the mood; India and South Asia
+    active: true
+  east_asian:
+    meaning: guzheng, koto, erhu or pentatonic colour over the mood; China, Japan, Korea
+  european:
+    meaning: orchestral strings, accordion or harpsichord colour; Europe and its history

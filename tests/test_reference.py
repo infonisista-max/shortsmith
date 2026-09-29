@@ -44,6 +44,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "gemini"
 REPO = Path(__file__).resolve().parents[1]
 KEY = "gemini-test-key-not-a-real-one"
 REGISTRY = render.registry()
+V1 = "v1"  # these tests drive the v1 card (036); v2 (073) is tests/test_reference_v2.py
 
 OPERATOR_LINKS = {
     "https://youtube.com/shorts/VSJzviqMO7k": "VSJzviqMO7k",
@@ -137,7 +138,7 @@ def test_the_prompt_lists_every_registry_name_with_its_meaning_and_the_schema() 
 
 
 def test_the_recorded_answer_parses_into_an_inventory_answer() -> None:
-    answer = parse_answer(_answer_text(), registry=REGISTRY)
+    answer = parse_answer(_answer_text(), registry=REGISTRY, version=V1)
     assert isinstance(answer, InventoryAnswer)
     assert answer.duration_s == 30.0
     assert [s.layout for s in answer.shots] == ["presenter_full", "full_footage", "card",
@@ -148,7 +149,7 @@ def test_the_recorded_answer_parses_into_an_inventory_answer() -> None:
 
 
 def test_an_unknown_component_label_becomes_unregistered_and_a_known_one_stays() -> None:
-    answer = parse_answer(_answer_text(), registry=REGISTRY)
+    answer = parse_answer(_answer_text(), registry=REGISTRY, version=V1)
     assert [e.component for e in answer.effects] == ["stamp", UNREGISTERED, UNREGISTERED]
     assert answer.effects[1].name == "glitch_text"  # the model's own name is kept
     assert [t.component for t in answer.transitions] == ["cut", "whip", UNREGISTERED]
@@ -162,7 +163,7 @@ def test_a_reply_that_is_not_json_or_not_the_schema_is_invalid_with_the_reasons(
         parse_answer('{"duration_s": "long"}', registry=REGISTRY)
     assert "duration_s" in str(bad.value)
     fenced = f"```json\n{_answer_text()}\n```"
-    assert parse_answer(fenced, registry=REGISTRY).duration_s == 30.0
+    assert parse_answer(fenced, registry=REGISTRY, version=V1).duration_s == 30.0
 
 
 # --- inventory: the command --------------------------------------------------------------
@@ -171,14 +172,15 @@ def test_a_reply_that_is_not_json_or_not_the_schema_is_invalid_with_the_reasons(
 def test_a_good_answer_writes_the_inventory_json_tagged_estimated(tmp_path: Path) -> None:
     fake = _fake(_answer_text())
     lines: list[str] = []
-    made = inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lines.append)
+    made = inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lines.append,
+                     version=V1)  # fmt: skip
     path = tmp_path / "zXK42RMPKUY.json"
     assert path.is_file()
     loaded = ReferenceInventory.model_validate_json(path.read_text(encoding="utf-8"))
     assert loaded == made
     assert loaded.tag == "ESTIMATED"
     assert (loaded.video_id, loaded.category, loaded.tier) == ("zXK42RMPKUY", "facts", "A")
-    assert (loaded.model, loaded.fps, loaded.prompt_version) == ("fake-video", 5.0, PROMPT_VERSION)
+    assert (loaded.model, loaded.fps, loaded.prompt_version) == ("fake-video", 5.0, V1)
     assert loaded.url == "https://www.youtube.com/watch?v=zXK42RMPKUY"
     # counts are code's arithmetic over the lists and the duration, per 10 s
     assert (loaded.counts.shots_per_10s, loaded.counts.effects_per_10s) == (1.3, 1.0)
@@ -190,7 +192,8 @@ def test_a_good_answer_writes_the_inventory_json_tagged_estimated(tmp_path: Path
 def test_every_request_logs_the_tokens_it_used(tmp_path: Path) -> None:
     fake = _fake("not json", _answer_text())
     lines: list[str] = []
-    made = inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lines.append)
+    made = inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lines.append,
+                     version=V1)  # fmt: skip
     token_lines = [line for line in lines if "tokens" in line]
     assert len(token_lines) == 2  # the call and its retry each log their usage
     assert "zXK42RMPKUY" in token_lines[0] and "fake-video" in token_lines[0]
@@ -203,7 +206,8 @@ def test_a_malformed_answer_is_retried_once_with_the_reasons_then_the_tool_stops
     fake = _fake("not json", '{"duration_s": 3}')
     lines: list[str] = []
     with pytest.raises(ReferenceError) as raised:
-        inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lines.append)
+        inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lines.append,
+                     version=V1)  # fmt: skip
     assert "zXK42RMPKUY" in str(raised.value)
     assert list(tmp_path.iterdir()) == []  # no partial JSON
     assert len(fake.calls) == 2
@@ -221,6 +225,7 @@ def test_a_private_or_failing_video_logs_its_status_and_all_moves_on(tmp_path: P
         out_dir=tmp_path,
         registry=REGISTRY,
         log=lines.append,
+        version=V1,
     )
     assert failed == 1
     assert not (tmp_path / "VSJzviqMO7k.json").exists()
@@ -319,7 +324,7 @@ def test_gemini_without_a_key_names_the_setting() -> None:
 def _inventory(
     vid: str, *, tier: str = "A", category: str = "facts", **changes: Any
 ) -> ReferenceInventory:
-    answer = parse_answer(_answer_text(), registry=REGISTRY)
+    answer = parse_answer(_answer_text(), registry=REGISTRY, version=V1)
     data = answer.model_dump()
     data.update(changes)
     return ReferenceInventory.from_answer(
@@ -336,7 +341,7 @@ def _three() -> list[ReferenceInventory]:
     first = _inventory("zXK42RMPKUY")
     second = _inventory("S5j-2CWYYwM")
     # the third is Tier B explainer, uses glitch_text too but not screen_shake
-    third_answer = parse_answer(_answer_text(), registry=REGISTRY).model_dump()
+    third_answer = parse_answer(_answer_text(), registry=REGISTRY, version=V1).model_dump()
     third_answer["effects"] = [e for e in third_answer["effects"] if e["name"] != "screen_shake"]
     third_answer["transitions"] = [
         t for t in third_answer["transitions"] if t["name"] != "flash_white"
@@ -441,7 +446,8 @@ def test_the_cli_inventory_writes_the_json_through_the_analyser(
 ) -> None:
     fake = _fake(_answer_text())
     code = cli.main(
-        ["inventory", "https://youtube.com/shorts/zXK42RMPKUY", "--out", str(tmp_path)],
+        ["inventory", "https://youtube.com/shorts/zXK42RMPKUY", "--out", str(tmp_path),
+         "--prompt", V1],
         analyser=fake,
         settings=_settings(),
     )
@@ -462,7 +468,8 @@ def test_the_cli_all_reads_the_references_file(tmp_path: Path) -> None:
     fake = _fake(AnalyserError("private", status=403), _answer_text())
     out = tmp_path / "inventory"
     code = cli.main(
-        ["inventory", "--all", "--references", str(references), "--out", str(out)],
+        ["inventory", "--all", "--references", str(references), "--out", str(out),
+         "--prompt", V1],
         analyser=fake,
         settings=_settings(),
     )

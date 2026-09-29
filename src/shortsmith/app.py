@@ -113,6 +113,7 @@ from shortsmith import (
     stickers,
     styles,
     sweeper,
+    vocab,
 )
 from shortsmith import planner as planner_module
 from shortsmith import transcriber as transcriber_module
@@ -243,6 +244,8 @@ def create_app(
     specs: Mapping[str, StyleSpec] | None = None,
     sticker_catalogue: Path | None = None,
     audio_kinds: Path | None = None,
+    audio_moods: Path | None = None,
+    topics: Path | None = None,
 ) -> FastAPI:
     # 065: settings the app loaded itself are re-read where a value may change between
     # jobs (`PLANNER_CLI_MODEL`); settings a caller passed stay as passed.
@@ -258,6 +261,10 @@ def create_app(
     # 068: the audio kinds every fetched sound is checked against; a broken row is a
     # `KindError` naming it, and the app does not build.
     kinds.load_kinds(audio_kinds or kinds.KINDS_PATH)
+    # 073: the closed mood, flavour and topic lists the planner and the sound director
+    # share; a duplicate or empty entry is a `VocabError` naming it.
+    vocab.load_moods(audio_moods or vocab.MOODS_PATH)
+    vocab.load_topics(topics or vocab.TOPICS_PATH)
     chips = styles.shipped(specs)
     # The ledger loads the prices file at startup (5.6), in the lifespan like the
     # passcode check, so `import shortsmith.app` never needs the file: a provider the

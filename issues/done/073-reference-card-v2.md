@@ -110,6 +110,72 @@ Everything in v1 stays. Added:
       what to eyeball in two cards (parts, music changes, five beat rows).
 - [ ] Ruff, pyright and every test file are green in foreground chunks.
 
+## Done (29 Sep 2026, afk session)
+
+All boxes above are met in code and tests; the live re-analysis is the operator step
+below.
+
+- **The card.** `InventoryAnswerV2` (v1's fields plus `script`, `parts`,
+  `music_changes`, `beats`; `motion` on each effect; `event`, `loudness`, `length_s` on
+  each sound effect) and `ReferenceInventoryV2` (plus `styles`) in
+  `src/shortsmith/reference/__init__.py`. `load_card` reads each JSON as its own version
+  (by `prompt_version`); `gaps.load_all` uses it, and the committed `GAPS.md` is
+  byte-for-byte what the loader reproduces (pinned by a test). `v2_cards(cards, log=...)`
+  is the one door for 074-077: a v1 card is skipped with
+  `<id>: a v1 card has no v2 fields; skipped`.
+- **Closed lists.** In code (schema literals, so pydantic refuses them): part, match,
+  event, loudness, `how`, entrance, region. In data (`src/shortsmith/vocab.py`):
+  `assets/audio/moods.yaml` (7 moods, 4 flavours; `active` on the first four moods,
+  `middle_east`, `indian`) and `assets/reference/topics.yaml` (8 topics, `en` and `hi`
+  keywords, Devanagari and romanised; `other` is the keyword-less fallback). Both load in
+  `app.create_app` and before any reference request; a duplicate key (a custom YAML
+  loader, since PyYAML silently keeps the last), an empty entry, a blank meaning or a
+  topic missing a language is a `VocabError` naming it.
+- **Checks.** An unknown mood, flavour or topic is an `AnswerInvalid` line naming the
+  field (`parts.0.music_mood: 'jazzy_lounge' is not a mood in moods.yaml (...)`), so the
+  existing one retry applies, then `ReferenceError` naming the field, nothing written.
+  `said` over 12 words is a field validator (twelve passes). A beat's `effect` is
+  labelled against the registry like a component.
+- **Decisions of mine, for the operator to overrule:** `music_mood` may be null (no
+  music in that part); `motion.size` is 0-1 of the frame width; `region` is
+  `top | middle | bottom | left | right | full`; `--topic` replaces the model's topic;
+  `--style` is repeatable and must name a file in `styles/`; without it the styles come
+  from the trace table rows in `styles/README.md` that name the video.
+- **Prompt.** `prompts/inventory_v2.md`; moods, flavours and topics are substituted from
+  the data files (a test proves an edited `moods.yaml` reaches the prompt and the
+  parser, and that no name is written into the template). Snapshot:
+  `tests/fixtures/reference/inventory_v2.snapshot.md`, built with a fixed six-name
+  registry and `tests/fixtures/reference/components.md` so a new component does not move
+  it; re-record with `SHORTSMITH_UPDATE_SNAPSHOTS=1`.
+- **CLI.** `inventory <url> [--style s] [--topic t] [--prompt v1|v2]`; v2 is the default.
+  The v1 tests in `tests/test_reference.py` now pass `version="v1"` / `--prompt v1`.
+- **Fixture.** `tests/fixtures/gemini/inventory_v2.json`: S5j's v1 card with
+  hand-written parts (hook / build_up / reveal / ending, moods
+  mysterious_curiosity -> eerie_scifi -> tense_dramatic -> calm_ambient), three music
+  changes, 24 beat gists and motion/sfx detail. Plausible, not observed.
+
+### Operator step (needs `.env` back and network)
+
+    uv run python -m shortsmith.reference inventory --all
+    uv run python -m shortsmith.reference gaps
+
+This overwrites the 12 v1 cards under `docs/reference/inventory/` with v2 cards (git
+keeps the v1 ones). Expected cost: about 12 x 30-35k tokens (the v1 run was about 30k
+each; v2's longer prompt and answer add a few thousand), YouTube URL input free in the
+preview. Every request logs its tokens.
+
+Eyeball two cards, `S5j-2CWYYwM` (Hindi, Dhruv) and `FbaBcWgMIEY` (vishva, yours):
+
+- `parts`: four or fewer, in order, covering the runtime; does each `music_mood` match
+  what you hear?
+- `music_changes`: at the moments the bed really changes, with the right `how` (or
+  empty when one bed plays throughout).
+- five `beats` rows: is `said` a gist in English (never a transcript, at most 12 words),
+  is `shows` what is literally on screen, and is `match` fair?
+
+If a card fails its closed-list check twice, the log names the field; re-run that one
+link.
+
 ## Blocked by
 
 - Nothing.

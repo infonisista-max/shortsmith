@@ -27,25 +27,40 @@ partial JSON. Under `--all` a failing video (private, removed, refused) logs its
 status and the tool moves on to the next link in `docs/references.md`, whose section
 headings give each link its tier and category (`links_in`). Every request logs the
 tokens it used, so a price change after the preview is visible in the log.
+
+Card v2 (ticket 073) is the default prompt; `--prompt v1` stays possible. It keeps every
+v1 field and adds what the rest of the learning work reads: the `script` (about, topic,
+tone, language), its story `parts` with the music mood (and flavour) under each, the
+`music_changes` between them, one `beats` row per shot (a `said` gist of at most
+`SAID_WORDS_MAX` words, never a transcript; what it `shows`; how the two `match`), a
+`motion` per effect and an `event`, `loudness` and length per sound effect, and the
+shipped `styles` it informs (the trace table in `styles/README.md`, or `--style`).
+Moods, flavours and topics are data (`shortsmith.vocab`), listed into the prompt and
+checked after the schema; an unknown one takes the same one retry, then the reference
+stops naming the field. `load_card` reads each card as its own version, and a reader of
+v2 fields skips a v1 card with a log line (`v2_cards`).
 """
 
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Collection, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from string import Template
-from typing import Literal, get_args
+from typing import Any, Literal, cast, get_args
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from shortsmith import vocab
 from shortsmith.reference.gemini import AnalyserError, Answer, ReferenceAnalyser, Usage
 
-PROMPT_VERSION = "v1"
+PromptVersion = Literal["v1", "v2"]
+PROMPT_VERSION: PromptVersion = "v2"
+PROMPT_VERSIONS: tuple[PromptVersion, ...] = get_args(PromptVersion)
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPONENTS_MD = REPO_ROOT / "docs" / "components.md"
@@ -55,6 +70,7 @@ REFERENCES_MD = REPO_ROOT / "docs" / "references.md"
 FACTS_MD = REPO_ROOT / "docs" / "reference" / "references-facts.md"
 REFERENCES_FILES: tuple[Path, ...] = (REFERENCES_MD, FACTS_MD)
 INVENTORY_DIR = REPO_ROOT / "docs" / "reference" / "inventory"
+STYLES_README = REPO_ROOT / "styles" / "README.md"
 UNREGISTERED = "unregistered"
 WATCH_URL = "https://www.youtube.com/watch?v={id}"
 ATTEMPTS = 2  # the call, then one retry with the reasons, then stop
@@ -82,6 +98,16 @@ FootageKind = Literal["stock", "archival_or_news", "ai_generated", "screen_recor
 Treatment = Literal["slow_motion", "speed_ramp", "zoom", "colour_grade", "overlay"]
 Emphasis = Literal["word", "number", "image", "speaker"]
 SfxKind = Literal["whoosh", "hit", "riser", "click", "ding", "other"]
+# v2 (073): the closed lists that live in code; moods, flavours and topics are data
+# (`shortsmith.vocab`), checked after the schema.
+StoryPart = Literal["hook", "build_up", "reveal", "ending"]
+Match = Literal["literal", "named_entity", "number", "illustrative", "metaphor"]
+SfxEvent = Literal["text_pop", "sticker", "bubble", "flash", "cut", "stamp", "reveal", "other"]
+Loudness = Literal["soft", "medium", "loud"]
+MusicHow = Literal["crossfade", "hard_cut", "drop_to_silence"]
+Entrance = Literal["pop_overshoot", "slide", "fade", "wipe", "draw", "scale", "other"]
+Region = Literal["top", "middle", "bottom", "left", "right", "full"]
+SAID_WORDS_MAX = 12
 
 _VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 _YOUTUBE_HOSTS = frozenset({"youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"})
@@ -91,6 +117,8 @@ _HEADING_TIER = re.compile(r"\bTier ([AB])\b")
 _HEADING_CATEGORY = re.compile(r"category `([a-z_]+)`")
 _LINK_LINE = re.compile(r"^- (https?://\S+)\s*(.*)$")
 _CREATOR_TITLE = re.compile(r'^[—–-]?\s*(.+?),\s*"(.+)"\s*$')
+_TRACE_ROW = re.compile(r"^\|\s*`([a-z_]+)`\s*\|([^|]*)\|")
+_TICKED = re.compile(r"`([A-Za-z0-9_-]{11})`")
 
 
 class ReferenceError(Exception):
@@ -226,6 +254,102 @@ class InventoryAnswer(BaseModel):
     hook: Hook
 
 
+# --- v2: the script, its parts, the music in each part, the beat table (073) ----------------
+
+
+class Motion(BaseModel):
+    """How an effect moves in: the data later effects are built from (083)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entrance: Entrance
+    entrance_s: float = Field(ge=0)
+    size: float = Field(ge=0, le=1, description="share of the frame width")
+    region: Region
+
+
+class EffectV2(Effect):
+    motion: Motion
+
+
+class SoundEffectV2(SoundEffect):
+    event: SfxEvent
+    loudness: Loudness
+    length_s: float = Field(ge=0)
+
+
+class SoundV2(Sound):
+    effects: list[SoundEffectV2] = Field(default_factory=lambda: [])  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class Script(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    about: str
+    topic: str = Field(description="one name from the topic list")
+    tone: str = Field(description="one to three words")
+    language: str
+
+
+class Part(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    part: StoryPart
+    start_s: float
+    end_s: float
+    music_mood: str | None = Field(
+        description="one name from the mood list; null when no music plays in the part"
+    )
+    music_flavour: str | None = Field(default=None, description="one name from the flavours")
+
+
+class MusicChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    at_s: float
+    from_part: StoryPart
+    to_part: StoryPart
+    how: MusicHow
+
+
+class Beat(BaseModel):
+    """One shot: what was said over it (a gist, never a transcript) and what it shows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start_s: float
+    end_s: float
+    said: str = Field(description=f"a gist in English, at most {SAID_WORDS_MAX} words")
+    shows: str
+    match: Match
+    part: StoryPart
+    layout: Layout
+    effect: str | None = Field(description="a component name, `unregistered`, or null")
+    sound: SfxKind | None
+
+    @field_validator("said")
+    @classmethod
+    def _a_gist(cls, said: str) -> str:
+        words = len(said.split())
+        if words > SAID_WORDS_MAX:
+            raise ValueError(
+                f"said is {words} words; at most {SAID_WORDS_MAX} words, a gist, never a "
+                "transcript"
+            )
+        return said
+
+
+class InventoryAnswerV2(InventoryAnswer):
+    """The v2 answer: v1's lists with motion and sound-event detail, plus the script."""
+
+    effects: list[EffectV2]  # pyright: ignore[reportIncompatibleVariableOverride]
+    sound: SoundV2  # pyright: ignore[reportIncompatibleVariableOverride]
+    script: Script
+    parts: list[Part]
+    music_changes: list[MusicChange]
+    beats: list[Beat]
+
+
 class Counts(BaseModel):
     """Code's arithmetic over the lists and the duration, per 10 s of runtime."""
 
@@ -279,22 +403,65 @@ class ReferenceInventory(InventoryAnswer):
         fps: float,
         usage: Usage,
         analysed_on: str,
+        styles: Sequence[str] = (),
     ) -> ReferenceInventory:
-        return cls(
-            **answer.model_dump(),
-            video_id=link.video_id,
-            url=link.url,
-            category=link.category,
-            tier=link.tier,
-            creator=link.creator,
-            title=link.title,
-            model=model,
-            fps=fps,
-            prompt_version=PROMPT_VERSION,
-            analysed_on=analysed_on,
-            usage=usage,
-            counts=counts(answer),
-        )
+        """The card for the answer: a v2 card (with the `styles` it informs) for a v2
+        answer, a v1 card otherwise."""
+        card: dict[str, Any] = answer.model_dump() | dict(
+            video_id=link.video_id, url=link.url, category=link.category, tier=link.tier,
+            creator=link.creator, title=link.title, model=model, fps=fps,
+            analysed_on=analysed_on, usage=usage, counts=counts(answer),
+        )  # fmt: skip
+        if isinstance(answer, InventoryAnswerV2):
+            return ReferenceInventoryV2.model_validate(
+                card | {"prompt_version": "v2", "styles": list(styles)}
+            )
+        return ReferenceInventory.model_validate(card | {"prompt_version": "v1"})
+
+
+# v2's `effects` and `sound` narrow v1's; the card is read by its own version (`load_card`)
+class ReferenceInventoryV2(InventoryAnswerV2, ReferenceInventory):  # pyright: ignore[reportIncompatibleVariableOverride]
+    """A v2 card: every v1 field, the v2 answer, and the shipped styles it informs."""
+
+    styles: list[str] = Field(default_factory=lambda: [])
+
+
+def load_card(text: str) -> ReferenceInventory:
+    """A card's JSON as its own version: a v1 card simply has no v2 fields."""
+    data: object = json.loads(text)
+    fields = cast(dict[str, object], data) if isinstance(data, dict) else {}
+    if fields.get("prompt_version") == "v2":
+        return ReferenceInventoryV2.model_validate_json(text)
+    return ReferenceInventory.model_validate_json(text)
+
+
+def v2_cards(
+    cards: Iterable[ReferenceInventory], *, log: Log = print
+) -> list[ReferenceInventoryV2]:
+    """The cards a reader of v2 fields can use; each v1 card is skipped with a log line."""
+    found: list[ReferenceInventoryV2] = []
+    for card in cards:
+        if isinstance(card, ReferenceInventoryV2):
+            found.append(card)
+        else:
+            log(f"{card.video_id}: a v1 card has no v2 fields; skipped")
+    return found
+
+
+def styles_for(video: str, readme: Path = STYLES_README) -> list[str]:
+    """The shipped styles whose row in the trace table of `styles/README.md` names the
+    reference among its sources."""
+    if not readme.is_file():
+        return []
+    named: list[str] = []
+    for line in readme.read_text(encoding="utf-8").splitlines():
+        row = _TRACE_ROW.match(line.strip())
+        if row is not None and video in _TICKED.findall(row.group(2)):
+            named.append(row.group(1))
+    return named
+
+
+Log = Callable[[str], None]
 
 
 def counts(answer: InventoryAnswer) -> Counts:
@@ -326,9 +493,17 @@ def component_meanings(components_md: Path = COMPONENTS_MD) -> dict[str, str]:
     return meanings
 
 
-def build_prompt(registry: Collection[str], *, components_md: Path = COMPONENTS_MD) -> str:
+def build_prompt(
+    registry: Collection[str],
+    *,
+    components_md: Path = COMPONENTS_MD,
+    version: PromptVersion = PROMPT_VERSION,
+    vocabulary: vocab.Vocabulary | None = None,
+) -> str:
     """The versioned instruction file with the registry names, their meanings from
-    `docs/components.md`, the vocabulary and the schema generated from `InventoryAnswer`."""
+    `docs/components.md`, the vocabulary and the schema generated from the answer model.
+    v2 adds the closed lists: moods, flavours and topics read from the data files
+    (`vocabulary`, loaded when not given), the rest from the schema's literals."""
     meanings = component_meanings(components_md)
     transitions = {"cut", "fade", "whip", "zoom", "spring", "wipe", "flash"}  # 060 adds flash
     names = sorted(registry)
@@ -338,9 +513,9 @@ def build_prompt(registry: Collection[str], *, components_md: Path = COMPONENTS_
         if name not in transitions
     )
     transition_names = ", ".join(f"`{n}`" for n in names if n in transitions)
-    template = Template((PROMPTS_DIR / f"inventory_{PROMPT_VERSION}.md").read_text("utf-8"))
-    return template.substitute(
-        prompt_version=PROMPT_VERSION,
+    template = Template((PROMPTS_DIR / f"inventory_{version}.md").read_text("utf-8"))
+    common = dict(
+        prompt_version=version,
         components=components + f"\n- `{UNREGISTERED}`: none of the above draws it",
         transitions=transition_names + f", or `{UNREGISTERED}`",
         layouts=_words(Layout),
@@ -349,12 +524,35 @@ def build_prompt(registry: Collection[str], *, components_md: Path = COMPONENTS_
         treatments=_words(Treatment),
         emphases=_words(Emphasis),
         sfx_kinds=_words(SfxKind),
-        schema=json.dumps(InventoryAnswer.model_json_schema(), indent=2),
+    )
+    if version == "v1":
+        return template.substitute(
+            common, schema=json.dumps(InventoryAnswer.model_json_schema(), indent=2)
+        )
+    lists = vocabulary if vocabulary is not None else vocab.load()
+    return template.substitute(
+        common,
+        moods=_meanings(lists.moods.moods),
+        flavours=_meanings(lists.moods.flavours),
+        topics=_meanings(lists.topics.topics),
+        parts=_words(StoryPart),
+        matches=_words(Match),
+        events=_words(SfxEvent),
+        loudnesses=_words(Loudness),
+        hows=_words(MusicHow),
+        entrances=_words(Entrance),
+        regions=_words(Region),
+        said_words_max=SAID_WORDS_MAX,
+        schema=json.dumps(InventoryAnswerV2.model_json_schema(), indent=2),
     )
 
 
 def _words(literal: object) -> str:
     return ", ".join(f"`{value}`" for value in get_args(literal))
+
+
+def _meanings(entries: Mapping[str, vocab.Entry | vocab.Topic]) -> str:
+    return "\n".join(f"- `{name}`: {entry.meaning}" for name, entry in entries.items())
 
 
 def retry_prompt(prompt: str, invalid: AnswerInvalid) -> str:
@@ -369,9 +567,18 @@ def retry_prompt(prompt: str, invalid: AnswerInvalid) -> str:
 # --- the answer -----------------------------------------------------------------------------
 
 
-def parse_answer(reply: str, *, registry: Collection[str]) -> InventoryAnswer:
-    """The reply's JSON (bare or fenced) validated as `InventoryAnswer`, every component
-    label checked against the registry: an unknown one becomes `unregistered`."""
+def parse_answer(
+    reply: str,
+    *,
+    registry: Collection[str],
+    version: PromptVersion = PROMPT_VERSION,
+    vocabulary: vocab.Vocabulary | None = None,
+) -> InventoryAnswer:
+    """The reply's JSON (bare or fenced) validated as the version's answer model, every
+    component label checked against the registry: an unknown one becomes `unregistered`.
+    A v2 answer's moods, flavours and topic must be in the data files (`vocabulary`,
+    loaded when not given); an unknown one is invalid, naming the field."""
+    model = InventoryAnswerV2 if version == "v2" else InventoryAnswer
     text = _json_text(reply)
     if text is None:
         raise AnswerInvalid(reply, ["the reply holds no JSON object"])
@@ -382,7 +589,7 @@ def parse_answer(reply: str, *, registry: Collection[str]) -> InventoryAnswer:
     if not isinstance(data, dict):
         raise AnswerInvalid(reply, [f"the reply is JSON but not an object ({type(data).__name__})"])
     try:
-        answer = InventoryAnswer.model_validate(data)
+        answer = model.model_validate(data)
     except ValidationError as exc:
         lines = [
             (".".join(str(p) for p in error["loc"]) or "(root)") + f": {error['msg']}"
@@ -390,12 +597,44 @@ def parse_answer(reply: str, *, registry: Collection[str]) -> InventoryAnswer:
         ]
         raise AnswerInvalid(reply, lines) from exc
     known = set(registry)
-    return answer.model_copy(
-        update={
-            "effects": [_labelled(e, known) for e in answer.effects],
-            "transitions": [_labelled(t, known) for t in answer.transitions],
-        }
-    )
+    update: dict[str, object] = {
+        "effects": [_labelled(e, known) for e in answer.effects],
+        "transitions": [_labelled(t, known) for t in answer.transitions],
+    }
+    if isinstance(answer, InventoryAnswerV2):
+        unknown = _unknown_labels(answer, vocabulary if vocabulary is not None else vocab.load())
+        if unknown:
+            raise AnswerInvalid(reply, unknown)
+        update["beats"] = [
+            b if b.effect is None or b.effect in known else b.model_copy(
+                update={"effect": UNREGISTERED}
+            )
+            for b in answer.beats
+        ]  # fmt: skip
+    return answer.model_copy(update=update)
+
+
+def _unknown_labels(answer: InventoryAnswerV2, lists: vocab.Vocabulary) -> list[str]:
+    """One line per mood, flavour or topic the data files do not list, naming the field."""
+    moods, flavours = lists.moods.moods, lists.moods.flavours
+    lines: list[str] = []
+    if answer.script.topic not in lists.topics.topics:
+        lines.append(
+            f"script.topic: {answer.script.topic!r} is not a topic in topics.yaml "
+            f"({', '.join(lists.topics.topics)})"
+        )
+    for i, part in enumerate(answer.parts):
+        if part.music_mood is not None and part.music_mood not in moods:
+            lines.append(
+                f"parts.{i}.music_mood: {part.music_mood!r} is not a mood in moods.yaml "
+                f"({', '.join(moods)})"
+            )
+        if part.music_flavour is not None and part.music_flavour not in flavours:
+            lines.append(
+                f"parts.{i}.music_flavour: {part.music_flavour!r} is not a flavour in "
+                f"moods.yaml ({', '.join(flavours)})"
+            )
+    return lines
 
 
 def _labelled[T: Effect | Transition](item: T, known: set[str]) -> T:
@@ -492,7 +731,6 @@ def link_for(
 
 # --- the commands ---------------------------------------------------------------------------
 
-Log = Callable[[str], None]
 Today = Callable[[], str]
 
 
@@ -509,10 +747,23 @@ def inventory(
     components_md: Path = COMPONENTS_MD,
     log: Log = print,
     today: Today = _today,
+    version: PromptVersion = PROMPT_VERSION,
+    vocabulary: vocab.Vocabulary | None = None,
+    styles: Sequence[str] | None = None,
+    topic: str | None = None,
+    styles_readme: Path = STYLES_README,
 ) -> ReferenceInventory:
     """One reference: the call, its one retry on a malformed answer, the JSON written
-    only when the answer parsed. Raises `ReferenceError` naming the video otherwise."""
-    prompt = build_prompt(registry, components_md=components_md)
+    only when the answer parsed. Raises `ReferenceError` naming the video otherwise.
+    A v2 card's `styles` are the operator's (`styles`) or the trace table's, and an
+    operator `topic` replaces the model's."""
+    lists = vocabulary if vocabulary is not None or version == "v1" else vocab.load()
+    if topic is not None and lists is not None and topic not in lists.topics.topics:
+        raise ReferenceError(f"{topic!r} is not a topic in topics.yaml")
+    informs = list(styles) if styles is not None else styles_for(link.video_id, styles_readme)
+    prompt = build_prompt(
+        registry, components_md=components_md, version=version, vocabulary=lists
+    )
     sent = prompt
     last: AnswerInvalid | None = None
     for _ in range(ATTEMPTS):
@@ -525,15 +776,21 @@ def inventory(
             ) from exc
         log(_usage_line(link, answer, analyser.fps))
         try:
-            parsed = parse_answer(answer.text, registry=registry)
+            parsed = parse_answer(
+                answer.text, registry=registry, version=version, vocabulary=lists
+            )
         except AnswerInvalid as invalid:
             last = invalid
             log(f"{link.video_id}: the answer did not parse: {invalid}")
             sent = retry_prompt(prompt, invalid)
             continue
+        if topic is not None and isinstance(parsed, InventoryAnswerV2):
+            parsed = parsed.model_copy(
+                update={"script": parsed.script.model_copy(update={"topic": topic})}
+            )
         made = ReferenceInventory.from_answer(
             parsed, link=link, model=answer.model, fps=analyser.fps, usage=answer.usage,
-            analysed_on=today(),
+            analysed_on=today(), styles=informs,
         )  # fmt: skip
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f"{link.video_id}.json"
@@ -560,15 +817,19 @@ def inventory_all(
     components_md: Path = COMPONENTS_MD,
     log: Log = print,
     today: Today = _today,
+    version: PromptVersion = PROMPT_VERSION,
+    vocabulary: vocab.Vocabulary | None = None,
 ) -> int:
     """Every link, one request each; a failing one is logged and the next is tried.
     Returns how many failed."""
+    if vocabulary is None and version == "v2":
+        vocabulary = vocab.load()
     failed = 0
     for link in links:
         try:
             inventory(
                 link, analyser, out_dir=out_dir, registry=registry, components_md=components_md,
-                log=log, today=today,
+                log=log, today=today, version=version, vocabulary=vocabulary,
             )  # fmt: skip
         except ReferenceError as exc:
             failed += 1

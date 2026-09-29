@@ -1,0 +1,37 @@
+# Topics (ticket 073): the closed list the reference card's `script.topic` takes, with
+# English and Hindi keywords that 077 counts in a brief or transcript to pick worked
+# examples. Hindi keywords are given in Devanagari and in the romanised form Whisper and
+# Hinglish briefs use. Single lower-case words. `other` is the fallback and carries none.
+# Loaded at startup by `shortsmith.vocab.load_topics`; a duplicate or empty entry stops the
+# app naming it.
+topics:
+  history:
+    meaning: the past - empires, wars, rulers, ancient places and how things came to be
+    en: [history, historical, ancient, empire, king, queen, dynasty, war, century, medieval, colonial, battle]
+    hi: [इतिहास, साम्राज्य, राजा, रानी, युद्ध, सदी, प्राचीन, itihas, samrajya, raja, rani, yudh, pracheen]
+  geopolitics:
+    meaning: countries and power now - borders, alliances, sanctions, oil, conflicts between states
+    en: [geopolitics, country, border, sanctions, alliance, nato, oil, election, president, china, russia, iran, israel, pakistan]
+    hi: [देश, सीमा, सरकार, चुनाव, प्रधानमंत्री, राष्ट्रपति, तेल, desh, seema, sarkar, chunav, pradhanmantri, rashtrapati]
+  science:
+    meaning: how nature works - space, physics, the body, animals, the planet
+    en: [science, space, sun, planet, physics, biology, brain, body, atom, scientists, earth, universe]
+    hi: [विज्ञान, अंतरिक्ष, सूरज, ग्रह, दिमाग, शरीर, पृथ्वी, vigyan, antariksh, suraj, grah, dimag, shareer, prithvi]
+  business:
+    meaning: money and companies - markets, brands, founders, prices, the economy
+    en: [business, company, money, market, economy, brand, billion, profit, stock, startup, price, tax]
+    hi: [व्यापार, कंपनी, पैसा, बाजार, अर्थव्यवस्था, मुनाफा, vyapar, company, paisa, bazaar, arthvyavastha, munafa]
+  tech:
+    meaning: technology - AI, phones, the internet, software, gadgets and the firms that make them
+    en: [technology, tech, ai, internet, phone, software, computer, robot, app, chip, google, apple]
+    hi: [तकनीक, इंटरनेट, फोन, कंप्यूटर, रोबोट, takneek, internet, phone, computer, robot]
+  society:
+    meaning: how people live - culture, religion, law, education, crime, social change
+    en: [society, people, culture, religion, law, education, crime, family, women, caste, social]
+    hi: [समाज, लोग, संस्कृति, धर्म, कानून, शिक्षा, परिवार, samaj, log, sanskriti, dharm, kanoon, shiksha, parivar]
+  sport:
+    meaning: games and athletes - cricket, football, the Olympics, records
+    en: [sport, sports, cricket, football, olympics, match, player, team, record, tournament]
+    hi: [खेल, क्रिकेट, खिलाड़ी, टीम, मैच, khel, cricket, khiladi, team, match]
+  other:
+    meaning: anything the topics above do not cover

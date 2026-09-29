@@ -20,7 +20,13 @@ from statistics import median
 
 from pydantic import ValidationError
 
-from shortsmith.reference import UNREGISTERED, Effect, ReferenceInventory, Transition
+from shortsmith.reference import (
+    UNREGISTERED,
+    Effect,
+    ReferenceInventory,
+    Transition,
+    load_card,
+)
 
 REPORT_NAME = "GAPS.md"
 EXAMPLES = 3
@@ -28,11 +34,12 @@ WATCH_AT = "https://www.youtube.com/watch?v={id}&t={s}s"
 
 
 def load_all(folder: Path) -> list[ReferenceInventory]:
-    """Every inventory JSON in the folder, by video id; a file that is not one is skipped."""
+    """Every inventory JSON in the folder, v1 or v2 (073), by video id; a file that is
+    not one is skipped."""
     found: list[ReferenceInventory] = []
     for path in sorted(folder.glob("*.json")):
         try:
-            found.append(ReferenceInventory.model_validate_json(path.read_text(encoding="utf-8")))
+            found.append(load_card(path.read_text(encoding="utf-8")))
         except (ValidationError, ValueError):
             continue
     return found
