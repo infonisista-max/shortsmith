@@ -1363,6 +1363,35 @@ def test_without_a_catalogue_the_mix_is_the_voice_alone(
     assert "no audio search configured" in app.render_job_page(reloaded)
 
 
+def test_an_approved_bed_over_the_ceiling_is_a_note_on_the_job_page(
+    tmp_path: Path, fixture_clip: Path, media: Media, library: sound.Library
+) -> None:
+    """088: a bed the operator approved by ear plays even over 069's ceiling; the job
+    page carries the ceiling once, as a note, and the short is not voice-only."""
+    job = _job_with(tmp_path, fixture_clip)
+    _synthetic_picture(job, media)
+    story = FakePlanner().plan_sound(_plan_request(), _plan())
+    (job.work_dir / "sound.json").write_text(story.model_dump_json(indent=2), encoding="utf-8")
+    render.voice_stem(job)
+    root = tmp_path / "audio"
+    (root / "beds").mkdir(parents=True)
+    fixture.make_wav(root / "beds" / "bed_bass.wav", expr="0.5*sin(2*PI*55*t)",
+                     duration_s=fixture.CATALOGUE_BED_S)  # fmt: skip
+    [curious] = [e for e in library.beds() if e.id == "bed_tech_curious"]
+    bass = curious.model_copy(update={"id": "bed_bass", "file": "beds/bed_bass.wav"})
+    approved = sound.Library(root=root, entries=(bass,))
+    result = render.sound_mix(job, library=approved)
+    assert result is not None and result.bed is not None and result.bed.id == "bed_bass"
+    [note] = result.balance.notes
+    render.sound_mix(job, library=approved)
+    reloaded = jobs.load(job.path)
+    assert reloaded.record.warnings.count(f"sound: {note}") == 1, "once, not once per run"
+    assert not [w for w in reloaded.record.warnings if "voice only" in w]
+    from shortsmith import app
+
+    assert "may be hard to hear on a phone speaker" in app.render_job_page(reloaded)
+
+
 def test_an_empty_catalogue_with_a_search_still_mixes_a_bed_but_never_searches_an_effect(
     tmp_path: Path, fixture_clip: Path, media: Media, library: sound.Library
 ) -> None:

@@ -38,7 +38,7 @@ def test_the_three_recipes_load_shipped_at_version_3_with_every_component_regist
 ) -> None:
     for name in RECIPES:
         spec = specs[name]
-        assert spec.status == "shipped" and spec.version == "9", name  # 064 v1 ... 078 v8, 087 v9
+        assert spec.status == "shipped" and spec.version == "10", name  # 064 v1 ... 087 v9, 088 v10
         missing = [c for c in spec.requires_components if c not in REGISTRY]
         assert not missing, (name, missing)
         for component in ("clip", "flash", "text_pop"):
@@ -175,7 +175,7 @@ def test_the_recipe_aliases_resolve(specs: dict[str, StyleSpec], line: str, name
 def test_explainer_gives_up_fact_facts_and_dhruv(specs: dict[str, StyleSpec]) -> None:
     aliases = set(specs["explainer"].aliases)
     assert not aliases & {"fact", "facts", "dhruv"}
-    assert specs["explainer"].version == "19"  # v11 aliases ... v17 076, v18 078, v19 087
+    assert specs["explainer"].version == "20"  # v11 aliases ... v18 078, v19 087, v20 088
 
 
 def test_a_multi_word_alias_counts_as_a_phrase(specs: dict[str, StyleSpec]) -> None:

@@ -30,9 +30,9 @@ from shortsmith.sound import (
 
 ALL = ("explainer", "educational", "animated", "hitech", "footage", "vishva", "fastfacts")
 VERSIONS = {
-    "explainer": "19", "educational": "17", "animated": "17", "hitech": "18",
-    "footage": "9", "vishva": "9", "fastfacts": "9",
-}  # fmt: skip  (069 bumped each once more, 072 every map style, 070 each, 076 each, 087 each)
+    "explainer": "20", "educational": "18", "animated": "18", "hitech": "19",
+    "footage": "10", "vishva": "10", "fastfacts": "10",
+}  # fmt: skip  (069 bumped each once more, 072 every map style, 070/076/087/088 each)
 # Run04's sound call (job 20260928-140620-f774e1, vishva): the bed query as written.
 RUN04 = BedQuery(theme="history documentary", mood="regal intriguing eastern oud", energy=3)
 
@@ -55,6 +55,16 @@ def test_every_style_carries_the_music_anchor_and_the_margin_ceiling(
         assert nums.speech_band_margin_max_db == 20, name
         assert nums.speech_band_margin_max_db > nums.speech_band_margin_db, name
         assert specs[name].version == VERSIONS[name], name
+
+
+def test_the_ceiling_comment_says_it_screens_unheard_beds_and_names_the_confound() -> None:
+    """088: the value stays (089 re-derives it); its comment tells the truth - it screens
+    beds nobody has heard, and it was set from run04's bed, a car exhaust."""
+    for name in ALL:
+        text = (styles.STYLES_DIR / f"{name}.md").read_text(encoding="utf-8")
+        [line] = [ln for ln in text.splitlines() if "speech_band_margin_max_db:" in ln]
+        assert "unheard beds only" in line and "freesound_557546" in line, name
+        assert "car exhaust" in line, name
 
 
 def _variant(tmp_path: Path, mutate: Any) -> Path:

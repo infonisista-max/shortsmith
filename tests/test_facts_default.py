@@ -361,9 +361,11 @@ def test_no_facts_default_and_no_same_mood_bed_is_the_freesound_fallback_as_befo
     assert search.calls and score is not None and score.beds[0].id == "found"
 
 
-def test_the_facts_default_still_goes_through_069(
+def test_the_facts_default_is_an_approved_bed_so_069s_ceiling_is_a_note(
     tmp_path: Path, voice: Path
 ) -> None:
+    """087 put the facts default through 069 like any bed; 088: it is a bed the operator
+    approved by ear, so over the ceiling it plays, the ceiling a note in the balance."""
     root = tmp_path / "audio"
     (root / "files").mkdir(parents=True)
     make_wav(root / "files" / "sub_only.wav", expr=BASS_ONLY, duration_s=8.0)
@@ -380,8 +382,10 @@ def test_the_facts_default_still_goes_through_069(
     )  # fmt: skip
     text = "\n".join(result.notes)
     assert "fallback bed: facts_default sub_only" in text
-    assert "a phone speaker does not play this bed" in text
-    assert result.beds == () and result.balance.bed_dropped is not None
+    assert [b.id for b in result.beds] == ["sub_only"] and result.balance.bed_dropped is None
+    assert result.balance.problems == []
+    [note] = result.balance.notes
+    assert "may be hard to hear on a phone speaker" in note and "approved by ear" in note
 
 
 # --- 069's lines carry the bed level ------------------------------------------------------------
@@ -460,15 +464,18 @@ def test_the_facts_default_slot_asks_profile_words_first_and_ranks_by_distance(
     assert "investigative pulse music" in asked[len(profile.queries):]
     kept = shortlist.slots[fd.FACTS_DEFAULT]
     assert [c.key for c in kept] == [
-        "freesound:9002", "openverse:0b5c1d2e-0001-4a6b-9c3d-000000000001",
+        "freesound:9002", "openverse:0b5c1d2e-0003-4a6b-9c3d-000000000003",
+        "openverse:0b5c1d2e-0001-4a6b-9c3d-000000000001",
     ], "nearest first, not the sources' order"
     distances = [c.distance for c in kept]
     assert all(d is not None for d in distances) and distances == sorted(distances)  # pyright: ignore[reportArgumentType]
     assert set(kept[0].profile) == {"harmonic_change", "percussive_share", "sub_bass_share",
                                     "above_1khz_share"}  # fmt: skip
     assert kept[0].tags == AudioTags(mood=["investigative_pulse"], role=["facts_default"])
-    # 069's refusal of the bass-only bed names the level it was measured at
-    assert any("Low Drone Soundtrack" in line and "bed level -14.0 dB" in line for line in lines)
+    # 088: the bass-only bed over 069's ceiling is ranked like any other, the ear decides;
+    # its note names the level it was measured at
+    drone = kept[1]
+    assert drone.note is not None and "bed level -14.0 dB" in drone.note
 
 
 def test_a_yes_on_a_facts_default_candidate_writes_the_tag_and_the_page_shows_the_distance(

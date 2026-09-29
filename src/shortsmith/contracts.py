@@ -761,6 +761,9 @@ class BalanceReport(StrictModel):
     bed_dropped: str | None = None
     # 076: with a bed change, each segment and the crossfade measured on its own.
     windows: list[BalanceWindow] = []
+    # 088: what was measured and not held against the bed - 069's ceiling on a bed the
+    # operator approved by ear. Shown on the job page as a note, never a problem.
+    notes: list[str] = []
 
 
 class CueRecord(StrictModel):

@@ -11,6 +11,7 @@ import json
 import math
 import shutil
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -1000,8 +1001,10 @@ def test_a_bass_only_bed_fails_the_ceiling_and_a_mid_band_bed_is_mixed(
     """069: at run04's level (`bed_db_under_voice` under the voice, inside
     `bed_accept_db`) the bass-only bed clears the speech band by more than
     `speech_band_margin_max_db`; the message names the margin, the director logs the
-    walk, and the mid-band bed passes both bounds."""
+    walk, and the mid-band bed passes both bounds. 088: the ceiling screens beds nobody
+    has heard, so both beds here are runtime-fetched ones, as run04's was."""
     both = _with_beds(library, tmp_path / "audio", *AUDIBLE_PAIR)
+    both = replace(both, fetched=frozenset(entry_id for entry_id, _ in AUDIBLE_PAIR))
     stems = tmp_path / "stems"
     stems.mkdir()
     lines: list[str] = []
@@ -1019,6 +1022,34 @@ def test_a_bass_only_bed_fails_the_ceiling_and_a_mid_band_bed_is_mixed(
     assert margin is not None
     assert nums.speech_band_margin_db <= margin <= nums.speech_band_margin_max_db
     assert result.balance.speech_band_margin_max_db == nums.speech_band_margin_max_db
+    assert result.balance.notes == []
+
+
+def test_an_approved_bed_over_the_ceiling_plays_with_a_note(
+    tmp_path: Path, voice: Path, plan: PicturePlan, story: SoundStory,
+    library: sound.Library, nums: styles.Sound,
+) -> None:  # fmt: skip
+    """088: a bed the operator approved by ear (the tracked catalogue, not `fetched/`) is
+    never refused by 069's ceiling. Its margin is still measured, and `balance.json`
+    carries the ceiling as a note, not a problem; no repair is tried for it."""
+    both = _with_beds(library, tmp_path / "audio", *AUDIBLE_PAIR)
+    stems = tmp_path / "stems"
+    stems.mkdir()
+    lines: list[str] = []
+    result = sound.build_mix(
+        stems=stems, voice=voice, plan=plan, story=story, nums=nums,
+        library=both, runtime_s=fixture.DURATION_S, log=lines.append,
+    )  # fmt: skip
+    assert result.bed is not None and result.bed.id == "bed_a_bass", lines
+    assert result.balance.problems == []
+    assert result.balance.repairs == []
+    margin = result.balance.speech_band_margin_db
+    assert margin is not None and margin > nums.speech_band_margin_max_db
+    [note] = result.balance.notes
+    assert f"{margin:.1f} dB" in note and "sound.speech_band_margin_max_db 20 dB" in note
+    assert "may be hard to hear on a phone speaker" in note and "approved" in note
+    written = sound.balance_report(stems)
+    assert written is not None and written.notes == [note]
 
 
 def test_the_audibility_check_runs_on_two_files(

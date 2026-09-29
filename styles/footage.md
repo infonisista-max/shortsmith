@@ -1,5 +1,5 @@
 ---
-version: "9"
+version: "10"
 status: shipped
 aliases: [footage, documentary, dhruv, cinematic]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -146,7 +146,7 @@ sound:
   bed_accept_db: [-15, -12]
   speech_band_hz: [250, 4000]
   speech_band_margin_db: 12
-  speech_band_margin_max_db: 20  # 069: further under than this, a phone speaker does not play the bed (run03 9.4 heard, run04 28.7 not)
+  speech_band_margin_max_db: 20  # 069, 088: screens unheard beds only (runtime fallbacks); an ear-approved bed over it plays with a note. Set from run04's bed, freesound_557546, a car exhaust, not music; 089 re-derives it
   duck_max_db: 4
   swell_max_db: 4
   drop_min_db: -8

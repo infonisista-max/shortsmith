@@ -31,7 +31,11 @@ download. Then the 023 measure (an effect's measured length against `max_len_s` 
 the sweep detector on every effect but a whoosh (a whoosh is a noise sweep by nature;
 060 exempts it within its length), and 069's audibility on every bed: the bed levelled
 `bed_db_under_voice` under a reference voice (the fixture clip through the 7.3 voice
-chain, or `--voice`) must clear the speech band inside the default style's window.
+chain, or `--voice`) must clear the speech band by the default style's floor. 088: over
+its ceiling a bed is no longer skipped - the ear decides; it reaches the page with a note,
+its margin and the level it was measured at. Every bed also gets a preview beside it
+(`<file>.under_voice.wav`): the levelled bed ducked under the voice, the way a viewer will
+hear it, which a yes never copies into the library.
 
 **Best `keep`.** The first candidates that pass, in the sources' own relevance order,
 rung by rung (specific to broad); drop-folder files are added beside them. 087: the
@@ -88,9 +92,13 @@ from shortsmith.contracts import (
 from shortsmith.sound import (
     CATALOGUE_NAME,
     CATALOGUE_PATH,
+    MONO,
     REPO_ROOT,
     SoundError,
     audibility,
+    ceiling_note,
+    duck_filter,
+    inaudible,
     load_catalogue,
     parse_catalogue,
     seed,
@@ -122,6 +130,8 @@ DROP_SOURCES: tuple[str, ...] = ("pixabay", "youtube_audio_library", "mixkit", "
 ATTRIBUTION_REQUIRED = frozenset({"incompetech"})
 AUDIO_SUFFIXES = frozenset({".mp3", ".wav", ".ogg", ".m4a", ".flac"})
 SIDECAR_SUFFIX = ".source.yaml"
+# 088: the bed under the reference voice, beside the candidate in the shortlist folder.
+PREVIEW_SUFFIX = ".under_voice.wav"
 SIDECAR_TEMPLATE = '{source: "", page_url: "", attribution: "", slot: ""}\n'
 WAITING = "inbox"
 PROBE_WORDS = "music"
@@ -542,9 +552,20 @@ def probe(sources: Sequence[Source]) -> list[str]:
 
 
 @dataclass(frozen=True)
+class Audible:
+    """088: a bed's speech-band margin at `level_db` under the reference voice, the note
+    when it is over 069's ceiling (the ear decides), and the bed mixed under the voice."""
+
+    margin_db: float
+    level_db: float
+    note: str | None
+    preview: Path
+
+
+@dataclass(frozen=True)
 class Checked:
     measured: seed.Measured
-    margin_db: float | None = None
+    audible: Audible | None = None
     numbers: fd.Numbers | None = None
 
 
@@ -592,33 +613,53 @@ class Checker:
                 if hits:
                     raise Refused(f"{hits[0].rule} at {hits[0].at_s:.2f} s: {hits[0].detail}")
             return Checked(measured)
-        margin = self._audible(path)
+        audible = self._audible(path)
         if slot.group != "facts_default":
-            return Checked(measured, margin)
-        return Checked(measured, margin, fd.measure_file(path, self.facts_profile()))
+            return Checked(measured, audible)
+        return Checked(measured, audible, fd.measure_file(path, self.facts_profile()))
 
-    def _audible(self, path: Path) -> float:
+    def _audible(self, path: Path) -> Audible:
+        """069's margin at the mix level. Under the floor the bed crowds the voice and is
+        refused; 088: over the ceiling it is kept with a note, and the ear decides on the
+        preview - the levelled bed under the voice through the 7.3 sidechain."""
         bed_db = ffmpeg.mean_volume_db(path)
         if bed_db is None:
             raise Refused("silent")
         levelled = path.with_name(path.stem + ".levelled.wav")
-        gain = self.voice_db() + self.nums.bed_db_under_voice - bed_db
+        level = self.nums.bed_db_under_voice
+        gain = self.voice_db() + level - bed_db
         try:
             ffmpeg.run(
                 [ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(path), "-af",
                  f"volume={gain:.2f}dB", "-c:a", "pcm_f32le", str(levelled)],
                 timeout_s=ffmpeg.MEASURE_TIMEOUT_S,
             )  # fmt: skip
-            margin, problem = audibility(
-                self.voice, levelled, self.nums, level_db=self.nums.bed_db_under_voice
-            )
+            margin, problem = audibility(self.voice, levelled, self.nums, level_db=level)
+            if margin is None:
+                raise Refused("nothing in the speech band")
+            if inaudible(margin, self.nums):
+                return Audible(margin, level, ceiling_note(margin, self.nums, level_db=level),
+                               self._under_voice(levelled, path))  # fmt: skip
+            if problem is not None:
+                raise Refused(problem)
+            return Audible(margin, level, None, self._under_voice(levelled, path))
         finally:
             levelled.unlink(missing_ok=True)
-        if margin is None:
-            raise Refused("nothing in the speech band")
-        if problem is not None:
-            raise Refused(problem)
-        return margin
+
+    def _under_voice(self, levelled: Path, path: Path) -> Path:
+        """088: the levelled bed ducked under the reference voice and summed with it, as
+        long as the voice - what a yes judges. It stays beside the candidate in the
+        shortlist folder and never reaches the library."""
+        out = path.with_name(path.stem + PREVIEW_SUFFIX)
+        ffmpeg.run(
+            [ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(self.voice), "-i", str(levelled),
+             "-filter_complex",
+             f"[0:a]{MONO},asplit=2[v][chain];[1:a]{MONO}[bed];[bed][chain]{duck_filter()}[d];"
+             "[v][d]amix=inputs=2:normalize=0:duration=first[m]",
+             "-map", "[m]", "-c:a", "pcm_s16le", str(out)],
+            timeout_s=ffmpeg.MEASURE_TIMEOUT_S,
+        )  # fmt: skip
+        return out
 
 
 def reference_voice(dest: Path) -> Path:
@@ -668,6 +709,11 @@ class Candidate(StrictModel):
     bpm: float | None = None
     key_sig: str | None = None
     margin_db: float | None = None
+    # 088: the bed level the margin was measured at (dB under the voice), the note when
+    # the margin is over 069's ceiling, and the bed under the voice (relative, as `file`).
+    level_db: float | None = None
+    note: str | None = None
+    preview: str | None = None
     tags: AudioTags = AudioTags()
     needs_source: bool = False
     # 087: a `facts_default` candidate's measured profile features and its distance to
@@ -742,13 +788,17 @@ def _candidate(
 ) -> Candidate:  # fmt: skip
     m = checked.measured
     numbers = checked.numbers
+    heard = checked.audible
     return Candidate(
         key=f"{source}:{source_id}", slot=slot.name, kind=slot.kind, source=source,
         source_id=source_id, name=name, page_url=page_url,
         file=file.relative_to(out_dir).as_posix(), licence=licence, author=author,
         source_tags=list(tags), credit=credit, duration_s=m.duration_s, energy=m.energy,
         bpm=m.bpm, key_sig=numbers.key if numbers is not None else m.key,
-        margin_db=round(checked.margin_db, 2) if checked.margin_db is not None else None,
+        margin_db=round(heard.margin_db, 2) if heard is not None else None,
+        level_db=heard.level_db if heard is not None else None,
+        note=heard.note if heard is not None else None,
+        preview=heard.preview.relative_to(out_dir).as_posix() if heard is not None else None,
         tags=suggested_tags(slot), profile=numbers.features() if numbers is not None else {},
     )  # fmt: skip
 
@@ -905,7 +955,9 @@ def _nearest(
         log(where)
         kept.append(candidate)
     for i in dropped:
-        (out_dir / found[i].file).unlink(missing_ok=True)
+        for name in (found[i].file, found[i].preview):
+            if name is not None:
+                (out_dir / name).unlink(missing_ok=True)
     return kept
 
 

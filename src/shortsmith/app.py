@@ -943,6 +943,10 @@ def _shortlist_card(
         measured += f", {esc(candidate.key_sig)}"
     if candidate.margin_db is not None:
         measured += f", speech band clears it by {candidate.margin_db:.1f} dB"
+        if candidate.level_db is not None:  # 088: the level the margin was measured at
+            measured += f" with the bed {candidate.level_db:g} dB under the voice"
+    if candidate.note is not None:  # 088: over 069's ceiling; the ear decides
+        measured += f'<br><span class="note">{esc(candidate.note)}</span>'
     if candidate.distance is not None:  # 087: the facts-default profile, measured
         p = candidate.profile
         measured += (
@@ -974,10 +978,19 @@ def _shortlist_card(
             f'<form class="no" method="post" action="/audio/shortlist/no">{key}'
             '<button type="submit">No</button></form>'
         )
+    under = ""
+    if candidate.preview is not None:  # 088: the bed the way the viewer will hear it
+        preview = "/audio/shortlist/files/" + "/".join(
+            urllib.parse.quote(part) for part in candidate.preview.split("/")
+        )
+        under = (
+            '<p class="measured">under the voice, at the level the mix uses:</p>'
+            f'<audio controls preload="none" src="{esc(preview)}"></audio>'
+        )
     return (
         '<div class="candidate">'
         f"<strong>{esc(candidate.name)}</strong> ({esc(candidate.source)}){page}"
-        f'<audio controls preload="none" src="{esc(src)}"></audio>'
+        f'<audio controls preload="none" src="{esc(src)}"></audio>{under}'
         f'<p class="licence">{licence}</p><p class="measured">{measured}</p>{actions}</div>'
     )
 

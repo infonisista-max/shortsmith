@@ -2836,6 +2836,9 @@ def sound_mix(
         # 076: the bed came from the search, not the approved library; the log has the
         # line already, the page gets it once.
         _page_notice(job, result.fallback)
+    for line in result.balance.notes:
+        # 088: 069's ceiling on a bed approved by ear - measured, shown, not held against it.
+        _page_notice(job, f"sound: {line}")
     if result.balance.bed_dropped is not None:
         # 056 (1): every repair failed on every candidate; the short goes out with the
         # voice and the hits, and the page says so in one line.

@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from shortsmith import app as app_module
-from shortsmith import render, styles, vocab
+from shortsmith import ffmpeg, render, styles, vocab
 from shortsmith.contracts import AudioTags
 from shortsmith.fixture import make_wav
 from shortsmith.planner import FakePlanner
@@ -218,16 +218,18 @@ def test_a_bed_slot_asks_both_sources_with_the_music_anchor_and_the_licence_filt
         assert freesound.LICENCE_FILTER in request.url.params["filter"]
 
 
-def test_a_bed_slot_refuses_nc_vocals_and_a_bed_a_phone_cannot_play(
+def test_a_bed_slot_refuses_nc_and_vocals_and_lets_the_ear_judge_a_quiet_bed(
     tmp_path: Path, audio: dict[str, Path], slots: sl.Slots, library: Path, voice: Path,
     nums: styles.Sound,
 ) -> None:  # fmt: skip
     tape = Tape(audio)
     lines: list[str] = []
-    shortlist = _build(tape, slots, library, tmp_path, voice, nums, ["tense_dramatic"], lines)
+    roomy = slots.model_copy(update={"keep": 4})  # every recorded hit is asked
+    shortlist = _build(tape, roomy, library, tmp_path, voice, nums, ["tense_dramatic"], lines)
     kept = shortlist.slots["tense_dramatic"]
     assert [c.key for c in kept] == [
-        "openverse:0b5c1d2e-0001-4a6b-9c3d-000000000001", "freesound:9002",
+        "openverse:0b5c1d2e-0001-4a6b-9c3d-000000000001",
+        "openverse:0b5c1d2e-0003-4a6b-9c3d-000000000003", "freesound:9002",
     ]
     text = "\n".join(lines)
     # a CC BY-NC answer is refused, from either source, before any download
@@ -237,8 +239,15 @@ def test_a_bed_slot_refuses_nc_vocals_and_a_bed_a_phone_cannot_play(
     # a vocal "bed" is refused by 068's check, never downloaded
     assert "Choir vocal ambient" in text and "forbidden for bed" in text
     assert not any("9001_" in u for u in tape.fetched())
-    # a bass-only bed is refused by 069's audibility
-    assert "Low Drone Soundtrack" in text and "speech_band_margin_max_db" in text
+    # 088: a bass-only bed over 069's ceiling is no longer skipped; it reaches the page
+    # with the note, its margin and the level it was measured at, and the ear decides
+    drone = kept[1]
+    assert drone.name == "Low Drone Soundtrack"
+    assert drone.margin_db is not None and drone.margin_db > nums.speech_band_margin_max_db
+    assert drone.level_db == nums.bed_db_under_voice
+    assert drone.note is not None and "may be hard to hear on a phone speaker" in drone.note
+    assert "speech_band_margin_max_db" in drone.note
+    assert kept[0].note is None
     first = kept[0]
     assert first.licence == "CC BY 4.0" and first.author == "Anna Keller"
     assert first.page_url == "https://www.jamendo.com/track/1500001"
@@ -330,6 +339,71 @@ def test_a_filled_drop_file_gets_its_source_licence_template(
     )  # fmt: skip
     assert entry.source == "incompetech" and entry.licence == "CC BY 4.0"
     assert (library / entry.file).is_file() and entry.file.startswith("beds/")
+
+
+# 088: a bed entirely inside the speech band. Levelled on its full-band mean it clears the
+# band by 14.1 dB against the reference voice, so the test raises the floor over that.
+IN_BAND = "sin(2*PI*1000*t)*(0.1+0.6*lt(mod(t,3),1))"
+IN_BAND_MARGIN_DB = 14.1
+
+
+def test_a_drop_bed_over_the_ceiling_reaches_the_page_and_one_under_the_floor_does_not(
+    tmp_path: Path, audio: dict[str, Path], slots: sl.Slots, library: Path, voice: Path,
+    nums: styles.Sound,
+) -> None:  # fmt: skip
+    """088 (Trap Hamza): over 069's ceiling a drop-folder bed is no longer skipped; it
+    reaches the page with the note, its margin and the level it was measured at. The
+    floor is unchanged: a bed that crowds the voice is skipped as before."""
+    inbox = library / "inbox"
+    inbox.mkdir()
+    (inbox / "Trap Hamza.mp3").write_bytes(audio["bass"].read_bytes())
+    make_wav(inbox / "Crowded.wav", expr=IN_BAND, duration_s=8.0)
+    for name in ("Trap Hamza.mp3", "Crowded.wav"):
+        (inbox / f"{name}.source.yaml").write_text(
+            f'{{source: mixkit, page_url: "https://mixkit.co/{name}", attribution: "", '
+            "slot: investigative_pulse}\n",
+            encoding="utf-8",
+        )
+    floor = nums.model_copy(update={"speech_band_margin_db": IN_BAND_MARGIN_DB + 2})
+    lines: list[str] = []
+    shortlist = _build(Tape(audio), slots, library, tmp_path, voice, floor,
+                       ["investigative_pulse"], lines)  # fmt: skip
+    drops = [c for c in shortlist.slots["investigative_pulse"] if c.source == "mixkit"]
+    assert [c.name for c in drops] == ["Trap Hamza.mp3"], lines
+    [hamza] = drops
+    assert hamza.margin_db is not None and hamza.margin_db > nums.speech_band_margin_max_db
+    assert hamza.level_db == nums.bed_db_under_voice
+    assert hamza.note is not None and "may be hard to hear on a phone speaker" in hamza.note
+    assert f"{hamza.margin_db:.1f} dB" in hamza.note
+    crowded = [line for line in lines if "Crowded.wav" in line]
+    assert crowded and "under sound.speech_band_margin_db" in crowded[-1], lines
+
+
+def test_every_bed_candidate_has_a_preview_under_the_voice_at_the_mix_level(
+    tmp_path: Path, audio: dict[str, Path], slots: sl.Slots, library: Path, voice: Path,
+    nums: styles.Sound,
+) -> None:  # fmt: skip
+    """088: the page plays the bed the way the viewer hears it - under the reference
+    voice, `bed_db_under_voice` under it as the mix levels it - beside the bed alone. An
+    effect has none, and a yes never writes the preview into the library."""
+    shortlist = _build(Tape(audio), slots, library, tmp_path, voice, nums,
+                       ["tense_dramatic", "tick"])  # fmt: skip
+    out = tmp_path / "shortlist"
+    for candidate in shortlist.slots["tense_dramatic"]:
+        assert candidate.preview is not None, candidate.name
+        preview = out / candidate.preview
+        assert preview.is_file() and preview != out / candidate.file
+        # voice plus a bed: louder than the voice alone, and as long as the voice
+        mixed, alone = ffmpeg.mean_volume_db(preview), ffmpeg.mean_volume_db(voice)
+        assert mixed is not None and alone is not None and mixed > alone
+        assert ffmpeg.duration_s(preview) == pytest.approx(ffmpeg.duration_s(voice), abs=0.1)
+    assert all(c.preview is None for c in shortlist.slots["tick"])
+    bed = shortlist.slots["tense_dramatic"][0]
+    entry = sl.approve(bed.key, tags=AudioTags(mood=["tense_dramatic"]), out_dir=out,
+                       library_root=library)  # fmt: skip
+    text = (library / "catalog.yaml").read_text(encoding="utf-8")
+    assert "preview" not in text and "under_voice" not in text
+    assert [p.name for p in (library / "beds").iterdir()] == [Path(entry.file).name]
 
 
 # --- yes and no ---------------------------------------------------------------------------
@@ -519,7 +593,7 @@ def test_the_listening_page_shows_each_slot_its_players_and_licence_lines(
     assert page.status_code == 200
     text = page.text
     assert "tense_dramatic" in text and "tick" in text
-    assert text.count("<audio") == 4
+    assert text.count("<audio") == 3 * 2 + 2, "088: each bed also plays under the voice"
     assert "CC BY 4.0" in text and "Anna Keller" in text
     assert 'name="mood"' in text and 'name="intent"' in text
     assert 'action="/audio/shortlist/yes"' in text and 'action="/audio/shortlist/no"' in text
@@ -527,6 +601,25 @@ def test_the_listening_page_shows_each_slot_its_players_and_licence_lines(
     served = page_client.get(src)
     assert served.status_code == 200 and served.content[:4] == b"RIFF"
     assert page_client.get("/audio/shortlist/files/..%2F..%2Fcatalog.yaml").status_code == 404
+
+
+def test_the_page_plays_each_bed_under_the_voice_and_notes_a_quiet_one(
+    page_client: TestClient, tmp_path: Path, nums: styles.Sound
+) -> None:
+    """088: a bed card has a second player, the served preview under the voice; the bed
+    over 069's ceiling carries its note, margin and level."""
+    assert login(page_client, PASSCODE).status_code == 303
+    text = page_client.get("/audio/shortlist").text
+    shortlist = sl.load_shortlist(tmp_path / "shortlist")
+    for candidate in shortlist.slots["tense_dramatic"]:
+        assert candidate.preview is not None
+        src = "/audio/shortlist/files/" + candidate.preview
+        assert f'src="{src}"' in text, candidate.name
+        served = page_client.get(src)
+        assert served.status_code == 200 and served.content[:4] == b"RIFF"
+    assert "under the voice" in text
+    assert "may be hard to hear on a phone speaker" in text
+    assert f"{nums.bed_db_under_voice:g} dB under the voice" in text
 
 
 def test_a_yes_on_the_page_approves_and_a_no_refuses(

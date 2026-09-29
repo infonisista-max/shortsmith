@@ -94,7 +94,9 @@ is delayed to its time and peak-matched to its class level. The acceptance is in
 the bed's median must sit inside `bed_accept_db` under the voice, the speech band must
 clear the bed by `speech_band_margin_db` and by no more than `speech_band_margin_max_db`
 (069: past it a phone speaker plays nothing of the bed; `audibility` is that check on
-two files), and the ducking must stay under `duck_max_db`
+two files; 088: it screens only beds nobody has heard - on a bed of the tracked
+catalogue, which the operator approved by ear, the ceiling is a note in the report,
+`heard_note`, never a problem), and the ducking must stay under `duck_max_db`
 - outside any of them the step fails with the measured numbers, after writing the report.
 
 **No sweeps (7.3; 023).** `sound.sweep` is the R1-R4 detector gate T6 runs on the SFX
@@ -1594,6 +1596,8 @@ def build_mix(
     dropped: str | None = None
     fallback: str | None = None
     tried: set[tuple[object, ...]] = set()
+    # 088: the beds the operator heard - the approved library before any search adds one.
+    heard = {e.id for e in approved_beds(library)}
     for candidate, lines, fallen in score_candidates(library, story, plan, nums, search=search):
         note(lines)
         if candidate is None or candidate.key in tried:
@@ -1604,6 +1608,7 @@ def build_mix(
         attempt = _repaired_bed(
             stems, score=candidate, library=library, story=story, nums=nums, voice=voice,
             voice_db=voice_db, runtime_s=runtime_s, cues=len(placed.cues), note=note,
+            heard=all(e.id in heard for e in candidate.beds),
         )  # fmt: skip
         repairs += attempt.repairs
         if not attempt.balance.problems:
@@ -1659,6 +1664,7 @@ def _mix_bed(
     cues: int,
     dip_db: float,
     under_db: float | None,
+    heard: bool = False,
 ) -> _BedMix:
     """One score rendered, ducked and measured, with the given dip and target."""
     music, spans = _music_stem(
@@ -1670,6 +1676,7 @@ def _mix_bed(
         stems, voice=voice, music=music, ducked=ducked, nums=nums, voice_db=voice_db, cues=cues,
         windows=[(w, spans[w.span] if w.span is not None else music)
                  for w in balance_windows(score, nums, runtime_s=runtime_s)],
+        heard=heard,
     )  # fmt: skip
     return _BedMix(music=music, ducked=ducked, balance=balance, dip_db=dip_db)
 
@@ -1695,20 +1702,23 @@ def _repaired_bed(
     runtime_s: float,
     cues: int,
     note: Callable[[Iterable[str]], None],
+    heard: bool = False,
 ) -> _BedMix:
     """The bed mixed as planned and, when it misses the 7.3 band, repaired rung by rung
     (056 (1)): the speech-band dip at escalating depths while the margin is the problem,
     then the bed lowered to the floor of `bed_accept_db`. Every repair is one line in
     `repairs` and in the log, the dip with its depth in dB and the margin it reached.
-    The result carries the last balance measured; the caller reads `problems`."""
+    The result carries the last balance measured; the caller reads `problems`. 088: a
+    `heard` score (every bed approved by ear) is never held to 069's ceiling."""
     plain = _mix_bed(
         stems, score=score, library=library, story=story, nums=nums, voice=voice,
         voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=0.0, under_db=None,
+        heard=heard,
     )  # fmt: skip
     if not plain.balance.problems:
         return plain
     note((f"bed {score.label} misses the 7.3 band: {'; '.join(plain.balance.problems)}",))
-    if inaudible(_margins(plain.balance)[1], nums):
+    if not heard and inaudible(_margins(plain.balance)[1], nums):
         # 069: a dip or a lower bed only pushes the band further down; the caller walks
         # on to the next candidate.
         note((
@@ -1725,6 +1735,7 @@ def _repaired_bed(
             current = _mix_bed(
                 stems, score=score, library=library, story=story, nums=nums, voice=voice,
                 voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=depth, under_db=None,
+                heard=heard,
             )  # fmt: skip
             reached = _margins(current.balance)[0]
             line = (
@@ -1746,6 +1757,7 @@ def _repaired_bed(
     current = _mix_bed(
         stems, score=score, library=library, story=story, nums=nums, voice=voice,
         voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=current.dip_db, under_db=low,
+        heard=heard,
     )  # fmt: skip
     reached = _margins(current.balance)[0]
     line = (
@@ -1755,12 +1767,13 @@ def _repaired_bed(
     )
     repairs.append(line)
     note((line,))
-    if current.dip_db > 0 and inaudible(_margins(current.balance)[1], nums):
+    if current.dip_db > 0 and not heard and inaudible(_margins(current.balance)[1], nums):
         # 069: the dip fixed the margin at the loud level; lowered as well, the band is
         # past the ceiling, so the lowered bed goes out without it.
         current = _mix_bed(
             stems, score=score, library=library, story=story, nums=nums, voice=voice,
             voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=0.0, under_db=low,
+            heard=heard,
         )  # fmt: skip
         reached = _margins(current.balance)[0]
         line = (
@@ -1990,6 +2003,36 @@ def inaudible(margin_db: float | None, nums: styles.Sound) -> bool:
     return margin_db is not None and margin_db > nums.speech_band_margin_max_db + 1e-9
 
 
+QUIET_LINE = "may be hard to hear on a phone speaker"
+
+
+def ceiling_note(margin_db: float, nums: styles.Sound, *, level_db: float | None = None) -> str:
+    """088: 069's ceiling as a note for the ear to judge, not a refusal - the shortlist
+    shows it beside a candidate over the ceiling."""
+    lo_hz, hi_hz = nums.speech_band_hz
+    return (
+        f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by {margin_db:.1f} dB"
+        f"{level_note(level_db)}, over sound.speech_band_margin_max_db "
+        f"{nums.speech_band_margin_max_db:g} dB: {QUIET_LINE}"
+    )
+
+
+def heard_note(margin_db: float, nums: styles.Sound, *, level_db: float | None = None) -> str:
+    """088: the ceiling on a bed the operator approved by ear, which plays anyway."""
+    return f"{ceiling_note(margin_db, nums, level_db=level_db)}; approved by ear, so it plays"
+
+
+def _held(
+    margin: float | None, problem: str | None, nums: styles.Sound, *, heard: bool,
+    level_db: float | None,
+) -> tuple[str | None, str | None]:  # fmt: skip
+    """088: a margin's problem and note - a heard bed's ceiling moves from one to the
+    other; the floor stays a problem for every bed."""
+    if heard and margin is not None and inaudible(margin, nums):
+        return None, heard_note(margin, nums, level_db=level_db)
+    return problem, None
+
+
 def audibility(
     voice: Path, music: Path, nums: styles.Sound, *, window: str = "",
     level_db: float | None = None,
@@ -2018,11 +2061,13 @@ def _balance(
     voice_db: float,
     cues: int,
     windows: Sequence[tuple[Window, Path]] = (),
+    heard: bool = False,
 ) -> BalanceReport:
     """The 7.3 acceptance, measured: the bed's median level under the voice, the speech
     band's margin over the bed, and how far the sidechain pulled the bed down. 076:
     across a bed change, each bed where it plays alone passes the same median and
-    margin lines on its own stem, and the crossfade's margin is measured on the sum."""
+    margin lines on its own stem, and the crossfade's margin is measured on the sum.
+    088: on a `heard` score 069's ceiling is a note, not a problem."""
     low, high = nums.bed_accept_db
     report: dict[str, object] = {
         "voice_db": round(voice_db, 2),
@@ -2033,6 +2078,7 @@ def _balance(
         "cues": cues,
     }
     problems: list[str] = []
+    notes: list[str] = []
     if music is not None:
         bed_median = _median_db(music)
         if bed_median is None:
@@ -2049,8 +2095,9 @@ def _balance(
             margin, problem = audibility(voice, music, nums, level_db=under)
             if margin is not None:
                 report["speech_band_margin_db"] = round(margin, 2)
-            if problem is not None:
-                problems.append(problem)
+            problem, note = _held(margin, problem, nums, heard=heard, level_db=under)
+            problems += [problem] if problem is not None else []
+            notes += [note] if note is not None else []
         if ducked is not None:
             ducked_db = ffmpeg.mean_volume_db(ducked)
             music_db = ffmpeg.mean_volume_db(music)
@@ -2078,8 +2125,9 @@ def _balance(
                     f"sound.bed_accept_db {low:g} to {high:g} dB"
                 )
         margin, problem = audibility(voice, stem, nums, window=cut, level_db=under)
-        if problem is not None:
-            problems.append(f"{window.name}: {problem}")
+        problem, note = _held(margin, problem, nums, heard=heard, level_db=under)
+        problems += [f"{window.name}: {problem}"] if problem is not None else []
+        notes += [f"{window.name}: {note}"] if note is not None else []
         measured.append(
             BalanceWindow(
                 name=window.name, start_s=round(window.start_s, 3), end_s=round(window.end_s, 3),
@@ -2089,6 +2137,7 @@ def _balance(
         )
     report["windows"] = measured
     report["problems"] = problems
+    report["notes"] = notes
     return BalanceReport.model_validate(report)
 
 
