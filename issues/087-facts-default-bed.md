@@ -45,16 +45,38 @@ Freesound hit. The evidence:
   come from the two documents above. Where a document gives a range, the file says so.
   Measured with the features `sound/seed.py` already computes (chroma/key) plus band
   shares in numpy. No new dependency.
-- **The director's chain.** For each segment: the planned mood + flavour → same mood,
-  any flavour (076) → **an approved bed tagged `facts_default`** → the Freesound search
-  only when the library has no `facts_default` bed at all. Each rung has its own log
-  line: `fallback bed: facts_default <id> for <mood>/<flavour>, no approved bed`. The
-  facts default is still levelled and checked by 069 like any bed.
-- **The shortlist.** A slot `facts_default` in `assets/audio/shortlist.yaml`. It searches
-  with the learned mood's queries, and its candidates are ranked by distance to the
-  profile (nearest first), not by the source's relevance order. The page shows each
-  candidate's distance and its measured profile numbers. A yes tags the catalogue entry
-  `facts_default` (closed-list tag, validated at startup).
+- **The director's chain.** For each segment: the planned mood + flavour (mood only
+  when the plan names no flavour) → **an approved bed tagged `facts_default`** → same
+  mood, any flavour (076) → the Freesound search, only when the library has no
+  `facts_default` bed at all. The facts default comes **before** "same mood, any
+  flavour". Operator, 29 Sep 2026: "middle_east not found, it's a facts short, so give
+  it the bed fact channels use". A same-mood bed without the flavour must not stop the
+  chain first; ranking the facts default first inside that rung was rejected, because
+  it only works when the facts-default bed happens to carry the planned mood. So the
+  facts-default rung covers a flavour miss and a mood miss alike.
+  - **Which shorts count as facts shorts** is a style front-matter switch,
+    `sound.facts_default_first` (validated by `styles.load_all`; no style name in code).
+    Set it `true` on every shipped style, since all are fact or explainer channels, and
+    list them in the done note for the operator to overrule. With `false`, a style keeps
+    076's order: same mood, any flavour → facts default → Freesound.
+  - Each rung has its own log line, e.g.
+    `fallback bed: facts_default <id> for <mood>/<flavour>, no approved bed`.
+  - The facts default is still levelled and checked by 069 like any bed.
+- **The shortlist.** A slot `facts_default` in `assets/audio/shortlist.yaml`.
+  - **Queries from the profile first**, then the learned mood's queries. The profile
+    file gets its own `queries:` list, e.g. "dark minimal bass", "sub bass drone",
+    "documentary trap beat", "dark ambient pulse". A comment ties each one to the
+    profile feature it describes.
+  - Why, from 079 step 3 (operator, 29 Sep 2026): "investigative pulse music" and "news
+    pulse music" got 0 results on both Openverse and Freesound, and "documentary tension
+    music" got 3 on Freesound. Mood words alone find almost nothing.
+  - Every candidate, whatever query found it, is ranked by distance to the profile
+    (nearest first), not by the source's relevance order. A loose query cannot push a
+    bad bed up.
+  - The page shows each candidate's distance and measured profile numbers. A yes tags
+    the catalogue entry `facts_default` (closed-list tag, validated at startup).
+  - The drop folder (Mixkit, Pixabay) is probably this slot's main source: the Dyson
+    bed came from Mixkit. The operator step says so.
 - **Every 069 line carries its level.** A speech-band refusal or repair line names the
   bed level it was measured at (dB under the voice). A margin without its level is not
   comparable across yardsticks (see below).
@@ -106,11 +128,22 @@ its facts. The Trap Hamza file comes back through the drop folder like any other
 - [ ] The profile file loads, and a value off its stated range stops startup naming the
       key. The distance is tested on synthetic numpy signals: a sub-bass drone is nearer
       than a bright arpeggio, and a vocal file never ranks.
-- [ ] Director tests with a fake library: flavour miss → same mood; mood miss →
-      `facts_default` bed with its log line; no `facts_default` in the library → the
-      Freesound fallback exactly as today. The facts default still goes through 069.
-- [ ] The shortlist `facts_default` slot ranks by distance (recorded fixtures, no
-      network). A yes writes the `facts_default` tag. The page shows distance and
+- [ ] Director tests with a fake library:
+  - **The King Saud case:** `vishva` with `facts_default_first: true`, planned
+    investigative_pulse + middle_east. middle_east has no approved bed,
+    investigative_pulse beds exist, and a `facts_default` bed exists → the facts default
+    wins, with its log line.
+  - The same case with no `facts_default` bed → the investigative_pulse bed (076, as
+    today).
+  - The same case with `facts_default_first: false` → the investigative_pulse bed.
+  - A mood miss → the facts default.
+  - No `facts_default` in the library and no same-mood bed → the Freesound fallback
+    exactly as today.
+  - The facts default still goes through 069.
+- [ ] `facts_default_first` is required in every style's front matter. A style without
+      it stops startup naming the style.
+- [ ] The shortlist `facts_default` slot searches the profile's `queries:` before the
+      mood's (recorded fixtures, no network) and ranks every candidate by distance. A yes writes the `facts_default` tag. The page shows distance and
       profile numbers (app test).
 - [ ] 069's refusal and repair lines name the bed level.
 - [ ] Tests never reach the network. Ruff, pyright and every test file are green in
@@ -119,7 +152,10 @@ its facts. The Trap Hamza file comes back through the drop folder like any other
 ### Operator step, in the done note
 
 The facts-default listening pass: the `facts_default` shortlist command with `--voice`,
-Trap Hamza (in the drop folder) plus the ranked candidates, then yes/no on the page. It
+Trap Hamza (in the drop folder) plus the ranked candidates, then yes/no on the page.
+The API sources may find little for this slot. The drop folder (Mixkit, Pixabay:
+dark, minimal, bass-led, documentary-style tracks) is probably the main source; the
+note says so and gives the sidecar steps. It
 comes after the cap decision above and before 079 step 4.
 
 ## Blocked by
