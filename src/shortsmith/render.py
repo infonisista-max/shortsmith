@@ -132,6 +132,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from typing import Literal, cast
@@ -2907,8 +2908,22 @@ def mux(
     mix = stems / "mix.wav"
     master(result.premix if result is not None else voice, mix)
     _audio_rights(job, result)
+    if result is not None and result.music is not None:
+        # 090: the slider's starting point - the style's level, offset 0.
+        jobs.amend(job, music_level=jobs.MusicLevel(
+            offset_db=0.0, measure=LEVEL_MEASURE, set_by="default", set_at=datetime.now(UTC),
+        ))  # fmt: skip
     job.out_dir.mkdir(parents=True, exist_ok=True)
-    out = job.out_dir / "short.mp4"
+    return remux(picture, mix, job.out_dir / "short.mp4")
+
+
+# 090: the level measure `bed_db_under_voice` is held on - the median of the full-band
+# RMS windows under the voice. A slider offset carries its name (089 may add another).
+LEVEL_MEASURE = "full_band"
+
+
+def remux(picture: Path, mix: Path, out: Path) -> Path:
+    """`out`: the picture stream copied (never re-encoded) and `mix` as AAC."""
     ffmpeg.run(
         [
             ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(picture), "-i", str(mix),

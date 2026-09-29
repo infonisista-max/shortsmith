@@ -113,6 +113,7 @@ import hashlib
 import json
 import math
 import re
+import shutil
 import statistics
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -1644,6 +1645,67 @@ def build_mix(
         how=score.how if beds and score is not None else None,
         change_s=score.change_s if beds and score is not None else None, fallback=fallback,
     )  # fmt: skip
+
+
+# 090: the delivered bed stems, kept on the first slider remix so every offset is taken
+# from the starting level, never from the last remix.
+START_DIR = "start"
+
+
+def relevel(
+    stems: Path, out: Path, *, nums: styles.Sound, offset_db: float
+) -> tuple[Path, BalanceReport]:
+    """090: the delivered bed at the style's starting level plus `offset_db`, from the
+    stems alone: every bed stem (076's segments too) takes one gain, so the segments,
+    the envelope and any dip keep their relative levels. The ducked bed, the premix and
+    `balance.json` are written into `out`; nothing in `stems` changes but the first
+    remix's copy of the delivered bed under `START_DIR`. Never repaired: the balance is
+    measured and returned, problems and all (the ear wins)."""
+    voice = stems / "voice.wav"
+    voice_db = ffmpeg.mean_volume_db(voice)
+    if voice_db is None:
+        raise SoundError(f"{voice.name} is silent: the mix has nothing to sit under")
+    start = stems / START_DIR
+    if not (start / "music.wav").is_file():
+        start.mkdir(parents=True, exist_ok=True)
+        for path in (stems / "music.wav", *sorted(stems.glob("music.[0-9].wav"))):
+            shutil.copyfile(path, start / path.name)
+    start_median = _median_db(start / "music.wav")
+    if start_median is None:
+        raise SoundError("the delivered music stem is silent")
+    gain_db = voice_db + nums.bed_db_under_voice + offset_db - start_median
+    out.mkdir(parents=True, exist_ok=True)
+    for path in (start / "music.wav", *sorted(start.glob("music.[0-9].wav"))):
+        _render(
+            [
+                ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(path),
+                "-af", f"volume={gain_db:.3f}dB", "-c:a", "pcm_f32le", str(out / path.name),
+            ]  # fmt: skip
+        )
+    music = out / "music.wav"
+    ducked = _ducked(out, voice=voice, music=music)
+    old = balance_report(stems)
+    windows: list[tuple[Window, Path]] = []
+    span = 0
+    for w in old.windows if old is not None else ():
+        crossfade = w.name.startswith("crossfade ")
+        windows.append((Window(w.name, w.start_s, w.end_s, None if crossfade else span),
+                        music if crossfade else out / f"music.{span + 1}.wav"))  # fmt: skip
+        span += 0 if crossfade else 1
+    balance = _balance(
+        out, voice=voice, music=music, ducked=ducked, nums=nums, voice_db=voice_db,
+        cues=old.cues if old is not None else 0, windows=windows,
+    ).model_copy(update={"repairs": old.repairs if old is not None else [],
+                         "dip_db": old.dip_db if old is not None else None})  # fmt: skip
+    sfx = stems / "sfx.wav"
+    premix = _premix(out, voice=voice, ducked=ducked, sfx=sfx if sfx.is_file() else None)
+    (out / BALANCE_NAME).write_text(balance.model_dump_json(indent=2), encoding="utf-8")
+    return premix, balance
+
+
+def speech_margins(balance: BalanceReport) -> tuple[float | None, float | None]:
+    """The lowest and the highest speech-band margin the balance measured (090's notes)."""
+    return _margins(balance)
 
 
 def _clear_span_stems(stems: Path) -> None:

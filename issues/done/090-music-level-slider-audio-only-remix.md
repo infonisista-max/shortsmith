@@ -55,18 +55,18 @@ anyway, with a note.
 
 ## Acceptance criteria
 
-- [ ] App test (fixture job with stems): a remix at a louder setting gives a higher
+- [x] App test (fixture job with stems): a remix at a louder setting gives a higher
       measured bed level and a smaller margin in `balance.json`. The picture stream is
       byte-identical to the one before (ffprobe stream hash). No Remotion driver call is
       made (the fake asserts it was not invoked).
-- [ ] The new master passes T4. A forced failure leaves the old file in place and shows
+- [x] The new master passes T4. A forced failure leaves the old file in place and shows
       the error.
-- [ ] An over-the-floor setting is delivered with the note, and no repair line is logged.
-- [ ] A swept job shows the slider disabled with its reason.
-- [ ] `level.yaml` loads, and a value off its range stops startup naming the key.
-- [ ] A remix of the 6 s fixture takes under 15 s on this machine. The done note gives the
+- [x] An over-the-floor setting is delivered with the note, and no repair line is logged.
+- [x] A swept job shows the slider disabled with its reason.
+- [x] `level.yaml` loads, and a value off its range stops startup naming the key.
+- [x] A remix of the 6 s fixture takes under 15 s on this machine. The done note gives the
       measured time for a 60 s job if one with stems is on disk.
-- [ ] Ruff, pyright and every test file are green in foreground chunks. The smoke passes
+- [x] Ruff, pyright and every test file are green in foreground chunks. The smoke passes
       T1–T13.
 
 ### Operator step, in the done note
@@ -74,6 +74,54 @@ anyway, with a note.
 On run05's King Saud re-render (079 step 4), within 24 h of its upload (the sweeper
 then takes its stems; run04's are already due), move the slider, remix, and play the
 file on the phone speaker.
+
+## Done (afk, 30 Sep 2026)
+
+- **Scale:** `assets/audio/level.yaml` has `min_db -12`, `max_db +8`, `step_db 2`, and the
+  labels "barely there" / "up front". The quiet end is 12 dB past run04's not-heard level
+  (offset 0 = −14). The loud end is 4.9 dB past run03's "a bit loud" (+3.1), which puts the
+  bed at −6 under the voice. One notch is 2 dB, 089's "about one slider notch". The stated
+  ranges are: min in [−24, 0), max in (0, 24], step in (0, 6], and 0 must sit on a notch.
+  `sound.level.load_scale` runs in `create_app`. A value off its range stops startup, and
+  the error names the key.
+- **Remix** (`sound.level.remix`, `sound.relevel`): the first remix copies the delivered
+  bed stems (`music.wav` and 076's `music.N.wav`) into `work/stems/start/`. Every remix
+  starts from those copies. One gain puts the bed at `bed_db_under_voice + offset`
+  (full-band median), so offsets never add up and the segments, envelope and dip keep
+  their relative levels. Then come the duck, the premix with the existing `sfx.wav`,
+  `render.master`, and `render.remux` (the `-c:v copy` mux, now shared with `mux`). All of
+  it is built in `work/stems/remix/` and `out/short.remix.mp4`. The stems and
+  `balance.json` move in, and the short is renamed over the old one, only after T4 passes
+  on the new file. Any failure leaves the old files in place.
+- **Ear wins:** `balance.json` is re-measured and written with its problems as measured
+  (the critic reads it). The repair ladder never runs, and the carried-over `repairs` and
+  `dip_db` describe the starting mix. The plain notes ("may cover your voice here" / "may
+  be hard to hear on a phone speaker") come from the lowest and highest speech-band
+  margins, whole stem and windows. They are stored in `job.json` `music_level.notes` and
+  shown under the slider.
+- **Recorded:** `mux` writes `music_level` (0, `full_band`, `default`) when a bed plays.
+  A remix writes (offset, `full_band`, `slider`, time, notes) and one
+  `music level: slider offset +N dB (full_band), bed …, speech-band margin …` line in
+  `job.log`.
+- **Page/route:** `POST /jobs/<id>/music-level` (field `offset`). A swept job or one with
+  no bed gets 409, and the slider is disabled with the same sentence. An offset off the
+  scale gets 422. A failed remix gets 500 with the error, and the old short stays. The
+  control shows no dB.
+- **Timing:** the 6 s fixture remixes in well under 15 s (the test asserts it). A copy of
+  run04 (59.5 s, the only job with stems on disk; copied to `work/090/job`, the
+  operator's job untouched) took **14.0 s** per remix (`work/090/time_remix.py`,
+  git-ignored). On that copy, +4 put the bed at −10.0 and −6 at −20.0. Both got the
+  "hard to hear on a phone speaker" note (run04's exhaust, margin 24.7 / 34.8), which
+  matches 069.
+- Not done here (by design): `qa.json` keeps the T4 of the original render. The remix
+  runs its own T4 gate on the new file before it replaces the short. No `src/remotion`
+  change.
+
+### Operator step
+
+On run05's King Saud re-render (079 step 4), within 24 h of upload (the sweeper then
+takes its stems), move the slider, press "Remix audio", and play the file on the phone
+speaker.
 
 ## Blocked by
 

@@ -134,6 +134,20 @@ class InputSummary(BaseModel):
     references: int = 0
 
 
+class MusicLevel(BaseModel):
+    """090: the bed level of the whole reel, as an offset in dB from the style's starting
+    level on the named level `measure` (so a later measure never misreads it), who set
+    it and when, and the ear notes the last slider remix measured."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    offset_db: float
+    measure: str
+    set_by: Literal["default", "slider"]
+    set_at: datetime
+    notes: list[str] = []
+
+
 class JobRecord(BaseModel):
     """Contents of job.json."""
 
@@ -175,6 +189,7 @@ class JobRecord(BaseModel):
     rating: Rating | None = None
     critic: CriticSummary | None = None
     performance: Performance | None = None
+    music_level: MusicLevel | None = None  # 090: set at mux (default), moved by the slider
 
     @model_validator(mode="before")
     @classmethod

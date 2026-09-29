@@ -68,6 +68,13 @@ shows our numbers beside the median and range of the style's v2 reference cards,
 outside the range in red ("not enough references" with fewer than two cards), or the
 reason the short was not analysed.
 
+Music level (090): a page with a short carries one slider for the whole reel's bed, its
+ends in words from `assets/audio/level.yaml` (checked at startup) and a mark at the
+starting level. `POST /jobs/<id>/music-level` remixes the audio only (`sound.level`):
+409 for a swept job or one without a bed (the slider is disabled with the same reason),
+422 off the scale, 500 with the error when the remix could not deliver, the old short
+kept. The last remix's ear notes sit under the slider.
+
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 """
@@ -138,7 +145,7 @@ from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
 from shortsmith.reference import own
 from shortsmith.render import Renderer
-from shortsmith.sound import facts_default, freesound, kinds, shortlist
+from shortsmith.sound import facts_default, freesound, kinds, level, shortlist
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import Transcriber
 
@@ -183,6 +190,7 @@ RATING_RANGE_SENTENCE = f"The rating must be a whole number from {RATING_MIN} to
 VIEWS_SENTENCE = "Views must be a whole number, zero or more, or left blank."
 RETENTION_SENTENCE = "Retention must be a percentage from 0 to 100, or left blank."
 NOT_RATED = "not rated yet"
+NO_SHORT_TO_LEVEL_SENTENCE = "This job has no short to set a music level for yet."
 BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _REFS = TypeAdapter(list[ReferenceRecord])
@@ -258,6 +266,7 @@ def create_app(
     audio_catalogue: Path | None = None,
     audio_library: Path | None = None,
     shortlist_dir: Path | None = None,
+    music_levels: Path | None = None,
 ) -> FastAPI:
     # 065: settings the app loaded itself are re-read where a value may change between
     # jobs (`PLANNER_CLI_MODEL`); settings a caller passed stay as passed.
@@ -286,6 +295,9 @@ def create_app(
     )  # fmt: skip
     # 087: the facts-default profile; a value off its stated range stops the app naming it.
     facts_default.load_profile()
+    # 090: the music-level slider's scale; a value off its stated range stops the app
+    # naming the key.
+    scale = level.load_scale(music_levels or level.LEVEL_PATH)
     shortlist_root = shortlist_dir or shortlist.SHORTLIST_DIR
     effect_kinds = audio_kind_list.sfx_kinds()
     chips = styles.shipped(specs)
@@ -651,6 +663,32 @@ def create_app(
         await run_in_threadpool(store)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
+    @app.post("/jobs/{job_id}/music-level")
+    async def music_level(job_id: str, request: Request) -> Response:
+        """090: the whole reel's bed at the slider's offset, remixed audio-only. The ear
+        wins: the setting is never repaired or refused for the balance; a failure keeps
+        the old short and shows why."""
+        job = jobs.find(data_dir, job_id)
+        if job is None:
+            return JSONResponse({"error": "no such job"}, status_code=404)
+        if job.status not in SHOWS_SHORT:
+            return HTMLResponse(render_refusal(job, NO_SHORT_TO_LEVEL_SENTENCE), status_code=409)
+        why = level.refusal(job)
+        if why:
+            return HTMLResponse(render_refusal(job, why), status_code=409)
+        form = await request.form()
+        offset = _number(_text(form.get("offset")))
+        if offset is None or not scale.contains(offset):
+            sentence = (
+                f"The music level must be a number from {scale.min_db:g} to {scale.max_db:g}."
+            )
+            return HTMLResponse(render_refusal(job, sentence), status_code=422)
+        try:
+            await run_in_threadpool(lambda: level.remix(job, offset_db=offset, now=clock))
+        except level.LevelError as exc:
+            return HTMLResponse(render_refusal(job, str(exc)), status_code=500)
+        return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
     @app.post("/jobs/{job_id}/retry")
     async def retry(job_id: str) -> Response:
         """Run a failed job again from the step it failed at (043). The queue rules of
@@ -857,6 +895,14 @@ def _whole_number(text: str) -> int | None:
     """A non-negative integer typed into a form field, else None."""
     text = text.strip()
     return int(text) if text.isdigit() else None
+
+
+def _number(text: str) -> float | None:
+    try:
+        value = float(text.strip())
+    except ValueError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def _percentage(text: str) -> float | None:
@@ -1163,7 +1209,7 @@ def render_job_page(
         brief=html.escape(brief),
         result=_examples_block(job) + _result_block(job, agreed) + _inventory_block(job),
         publishing=_publishing_block(job),
-        feedback=_feedback_block(job),
+        feedback=_music_level_block(job) + _feedback_block(job),
         ledger=_ledger_block(job, average),
         json_url=f"/jobs/{html.escape(job.id)}.json",
         created_at=record.created_at.isoformat(),
@@ -1303,6 +1349,38 @@ def _publishing_block(job: Job) -> str:
         description=html.escape(text.description),
         hashtags=html.escape(text.hashtag_line),
     )
+
+
+def _music_level_block(job: Job) -> str:
+    """090: the bed level of the whole reel, beside the player and the rating: the ends
+    in words, a mark at the job's starting level, no dB on the control. Disabled with
+    its reason when the stems are gone or there is no bed; the last remix's ear notes
+    below it."""
+    if job.status not in SHOWS_SHORT:
+        return ""
+    scale = level.load_scale()
+    recorded = job.record.music_level
+    current = recorded.offset_db if recorded is not None else 0.0
+    why = level.refusal(job)
+    off = " disabled" if why else ""
+    parts = [
+        "<h2>Music level</h2>\n",
+        f'<form class="music-level" method="post" '
+        f'action="/jobs/{html.escape(job.id)}/music-level">\n'
+        f"  <label>{html.escape(scale.quiet_label)} "
+        f'<input type="range" name="offset" min="{scale.min_db:g}" max="{scale.max_db:g}" '
+        f'step="{scale.step_db:g}" value="{current:g}" list="music-level-start"{off}> '
+        f"{html.escape(scale.loud_label)}</label>\n"
+        '  <datalist id="music-level-start"><option value="0" label="starting level">'
+        "</option></datalist>\n"
+        f'  <button type="submit"{off}>Remix audio</button>\n'
+        "</form>\n",
+    ]
+    if why:
+        parts.append(f'<p class="music-level-reason">{html.escape(why)}</p>\n')
+    for note in recorded.notes if recorded is not None else []:
+        parts.append(f'<p class="warning music-level-note">{html.escape(note)}</p>\n')
+    return "".join(parts)
 
 
 def _feedback_block(job: Job) -> str:

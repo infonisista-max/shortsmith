@@ -1,0 +1,25 @@
+# The music-level slider (ticket 090; operator, 30 Sep 2026): one slider on a delivered
+# job's page sets the bed level of the whole reel, and "Remix audio" rebuilds only the
+# audio. One file for all styles (091: "my ear is the same across styles").
+#
+# Every value is an offset in dB from the style's starting level, which today is
+# `sound.bed_db_under_voice` measured full-band (the `full_band` measure; -14 in all
+# seven styles). The page never shows a dB number: the ends carry the words below and a
+# mark at 0, the job's starting level. A value off its stated range stops the loader
+# naming the key.
+#
+# Evidence for the ends (089's table, full-band, under the voice):
+#   run04 (freesound_557546)  -14    offset  0    not heard
+#   run03 (freesound_738836)  -10.9  offset +3.1  "a bit loud"
+#   Dyson v2 (Trap Hamza)     -10.4  offset +3.6  "heard clearly", a normal level
+# The operator asked for a wide range, "barely there" to "up front with the voice".
+
+# Past run04's not-heard level (0) by 12 dB: the bed at -26 under the voice. Under -24.
+min_db: -12
+# Past run03's "a bit loud" (+3.1) by 4.9 dB: the bed 6 dB under the voice. 0 to 24 over 0.
+max_db: 8
+# One notch is 2 dB: 089's tolerance, "about one slider notch", heard as a small change.
+# 0 lies on a notch (min_db / step_db is whole). Over 0, at most 6.
+step_db: 2
+quiet_label: barely there
+loud_label: up front
