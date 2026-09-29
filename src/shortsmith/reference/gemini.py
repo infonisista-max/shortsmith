@@ -14,15 +14,26 @@ Spike of 27 Sep 2026 on the operator's key: `generateContent` on `gemini-3.8-fla
 5 fps read a 58 s short for about 20.7k video tokens (about 355 tokens per second of
 video), YouTube URL input being at no charge in the preview.
 
+`analyse_file(path, prompt)` (ticket 074) reads a local video instead - our own
+`out/short.mp4` - through the Files API: a resumable upload (`start`, then the bytes
+with `upload, finalize`), `files.get` polled every `poll_s` until the file is `ACTIVE`
+(`FAILED`, or not active within `active_timeout_s`, is an `AnalyserError`), then the same
+`generateContent` body with the uploaded URI, so the numbers are comparable with a
+reference's; the uploaded file is deleted afterwards whatever happened.
+
 `FakeAnalyser` answers from a list of canned texts or errors and records every call, so
 tests and the fixture path never reach the network.
 """
 
 from __future__ import annotations
 
+import math
+import time
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Generator, Mapping
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import httpx
 from pydantic import BaseModel, SecretStr
@@ -39,6 +50,12 @@ DEFAULT_ENDPOINT = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
 TIMEOUT_S = 600.0  # a 60 s short at 5 fps answered in about a minute in the spike
+# 074: the Files API, for a local video; `{name}` is the file's `files/<id>`.
+DEFAULT_UPLOAD_ENDPOINT = "https://generativelanguage.googleapis.com/upload/v1beta/files"
+DEFAULT_FILE_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/{name}"
+VIDEO_MIME = "video/mp4"
+POLL_S = 2.0
+ACTIVE_TIMEOUT_S = 300.0
 
 
 class AnalyserError(RuntimeError):
@@ -74,16 +91,22 @@ class ReferenceAnalyser(ABC):
     @abstractmethod
     def analyse(self, url: str, prompt: str) -> Answer: ...
 
+    @abstractmethod
+    def analyse_file(self, path: Path, prompt: str) -> Answer: ...
+
 
 @dataclass
 class FakeAnalyser(ReferenceAnalyser):
     """Answers each call from `answers` in order (a text, or an `AnalyserError` to
-    raise); `calls` records `(url, prompt)` for each."""
+    raise); `calls` records `(url, prompt)` for each, a file by its path."""
 
     answers: list[str | AnalyserError]
     model: str = "fake-video"
     fps: float = DEFAULT_FPS
     calls: list[tuple[str, str]] = field(default_factory=lambda: [])
+
+    def analyse_file(self, path: Path, prompt: str) -> Answer:
+        return self.analyse(str(path), prompt)
 
     def analyse(self, url: str, prompt: str) -> Answer:
         self.calls.append((url, prompt))
@@ -101,13 +124,19 @@ class FakeAnalyser(ReferenceAnalyser):
         return Answer(answer, usage, self.model)
 
 
-def request_body(url: str, prompt: str, fps: float) -> dict[str, object]:
-    """The one JSON body: the video by URL at `fps`, the prompt, a JSON answer."""
+def request_body(
+    url: str, prompt: str, fps: float, *, mime_type: str | None = None
+) -> dict[str, object]:
+    """The one JSON body: the video by URL at `fps`, the prompt, a JSON answer. An
+    uploaded file's URI carries its `mime_type`."""
+    data: dict[str, str] = {"fileUri": url}
+    if mime_type is not None:
+        data["mimeType"] = mime_type
     return {
         "contents": [
             {
                 "parts": [
-                    {"fileData": {"fileUri": url}, "videoMetadata": {"fps": fps}},
+                    {"fileData": data, "videoMetadata": {"fps": fps}},
                     {"text": prompt},
                 ]
             }
@@ -159,6 +188,11 @@ class GeminiAnalyser(ReferenceAnalyser):
         endpoint: str = DEFAULT_ENDPOINT,
         client: httpx.Client | None = None,
         timeout_s: float = TIMEOUT_S,
+        upload_endpoint: str = DEFAULT_UPLOAD_ENDPOINT,
+        file_endpoint: str = DEFAULT_FILE_ENDPOINT,
+        poll_s: float = POLL_S,
+        active_timeout_s: float = ACTIVE_TIMEOUT_S,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._api_key = api_key
         self.model = model
@@ -166,33 +200,125 @@ class GeminiAnalyser(ReferenceAnalyser):
         self.endpoint = endpoint
         self._client = client
         self._timeout_s = timeout_s
+        self.upload_endpoint = upload_endpoint
+        self.file_endpoint = file_endpoint
+        self._poll_s = poll_s
+        self._active_timeout_s = active_timeout_s
+        self._sleep = sleep
 
     def analyse(self, url: str, prompt: str) -> Answer:
+        self._need_key()
+        with self._session() as client:
+            return self._generate(client, request_body(url, prompt, self.fps))
+
+    def analyse_file(self, path: Path, prompt: str) -> Answer:
+        """Upload `path`, wait until it is `ACTIVE`, analyse it, delete it (074)."""
+        self._need_key()
+        with self._session() as client:
+            name, uri, state = self._upload(client, path)
+            try:
+                self._wait_active(client, name, state)
+                body = request_body(uri, prompt, self.fps, mime_type=VIDEO_MIME)
+                return self._generate(client, body)
+            finally:
+                self._delete(client, name)
+
+    def _need_key(self) -> None:
         if self._api_key is None:
             raise AnalyserError("the reference tool needs GEMINI_API_KEY in .env")
-        response = self._post(request_body(url, prompt, self.fps))
-        if response.status_code >= 400:
-            raise AnalyserError(
-                f"the analyser answered {response.status_code}: {_error_text(response)}",
-                status=response.status_code,
-            )
-        try:
-            body: object = response.json()
-        except ValueError:
-            raise AnalyserError("the analyser did not answer with JSON") from None
-        return parse_reply(body, self.model)
 
-    def _post(self, body: Mapping[str, object]) -> httpx.Response:
-        url = self.endpoint.format(model=self.model)
-        headers = {"x-goog-api-key": self._api_key.get_secret_value() if self._api_key else ""}
+    def _headers(self) -> dict[str, str]:
+        return {"x-goog-api-key": self._api_key.get_secret_value() if self._api_key else ""}
+
+    @contextmanager
+    def _session(self) -> Generator[httpx.Client]:
+        """The injected client, or one owned for the whole exchange; a transport error
+        anywhere inside is an `AnalyserError`, never the key."""
         try:
-            client = self._client
-            if client is not None:
-                return client.post(url, json=body, headers=headers)
-            with httpx.Client(timeout=self._timeout_s) as owned:
-                return owned.post(url, json=body, headers=headers)
+            if self._client is not None:
+                yield self._client
+            else:
+                with httpx.Client(timeout=self._timeout_s) as owned:
+                    yield owned
         except httpx.HTTPError as exc:
             raise AnalyserError(f"the analyser could not be reached: {exc}") from None
+
+    def _generate(self, client: httpx.Client, body: Mapping[str, object]) -> Answer:
+        url = self.endpoint.format(model=self.model)
+        response = client.post(url, json=body, headers=self._headers())
+        return parse_reply(_json_of(response, "the analyser"), self.model)
+
+    def _upload(self, client: httpx.Client, path: Path) -> tuple[str, str, str]:
+        """The resumable upload: the session, then the bytes; the file's name, URI and
+        state as the API answered."""
+        data = path.read_bytes()
+        start = client.post(
+            self.upload_endpoint,
+            json={"file": {"display_name": path.name}},
+            headers=self._headers() | {
+                "X-Goog-Upload-Protocol": "resumable",
+                "X-Goog-Upload-Command": "start",
+                "X-Goog-Upload-Header-Content-Length": str(len(data)),
+                "X-Goog-Upload-Header-Content-Type": VIDEO_MIME,
+            },
+        )  # fmt: skip
+        if start.status_code >= 400:
+            _json_of(start, "the upload")  # raises with the API's own words
+        session = start.headers.get("x-goog-upload-url")
+        if not session:
+            raise AnalyserError("the upload answered with no upload URL")
+        done = client.post(
+            session,
+            content=data,
+            headers=self._headers() | {
+                "X-Goog-Upload-Offset": "0",
+                "X-Goog-Upload-Command": "upload, finalize",
+            },
+        )  # fmt: skip
+        uploaded = json_field(_json_of(done, "the upload"), "file")
+        name, uri = json_text(json_field(uploaded, "name")), json_text(json_field(uploaded, "uri"))
+        if not name or not uri:
+            raise AnalyserError("the upload answered with no file name or URI")
+        return name, uri, json_text(json_field(uploaded, "state"))
+
+    def _wait_active(self, client: httpx.Client, name: str, state: str) -> None:
+        polls = max(1, math.ceil(self._active_timeout_s / self._poll_s))
+        url = self.file_endpoint.format(name=name)
+        for _ in range(polls):
+            if state == "ACTIVE":
+                return
+            if state == "FAILED":
+                break
+            self._sleep(self._poll_s)
+            found = _json_of(client.get(url, headers=self._headers()), "the file poll")
+            state = json_text(json_field(found, "state"))
+            if state == "FAILED":
+                message = json_text(json_field(json_field(found, "error"), "message"))
+                raise AnalyserError(f"the uploaded video is FAILED: {message or 'no reason'}")
+        if state == "ACTIVE":
+            return
+        raise AnalyserError(
+            f"the uploaded video was not ACTIVE after {self._active_timeout_s:g} s ({state})"
+        )
+
+    def _delete(self, client: httpx.Client, name: str) -> None:
+        """Best effort: a delete that fails leaves the file to the API's own expiry."""
+        with suppress(httpx.HTTPError):
+            client.delete(self.file_endpoint.format(name=name), headers=self._headers())
+
+
+def _json_of(response: httpx.Response, who: str) -> object:
+    """The response's JSON; an HTTP error or a body that is not JSON is an
+    `AnalyserError` with the status and the API's own words."""
+    if response.status_code >= 400:
+        raise AnalyserError(
+            f"{who} answered {response.status_code}: {_error_text(response)}",
+            status=response.status_code,
+        )
+    try:
+        return response.json()
+    except ValueError:
+        raise AnalyserError(f"{who} did not answer with JSON") from None
 
 
 def _error_text(response: httpx.Response) -> str:

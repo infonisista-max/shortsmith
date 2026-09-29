@@ -69,6 +69,9 @@ REQUIRED_UNITS: Mapping[str, tuple[str, ...]] = {
         "cache_read_input_tokens",
         "output_tokens",
     ),
+    # 074: the self-inventory's Gemini video read on every delivered job; the prompt
+    # and the video are input, the answer and the thinking output.
+    "reference": ("input_tokens", "output_tokens"),
     API_EQUIVALENT: ("input_tokens", "output_tokens"),
 }
 
@@ -154,6 +157,10 @@ def providers_in_use(settings: Settings) -> frozenset[str]:
         used.add("gemini")
     if settings.transcriber == "groq":
         used.add("groq")
+    # 074: the self-inventory runs on every delivered job once GEMINI_API_KEY is set;
+    # with no key it sends nothing and writes `not_analysed`, so it needs no price.
+    if settings.gemini_api_key is not None:
+        used.add("reference")
     return frozenset(used)
 
 

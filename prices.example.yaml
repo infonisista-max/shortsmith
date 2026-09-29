@@ -28,6 +28,10 @@ critic:                     # CRITIC=api (one vision Messages call per job, tick
   cache_read_input_tokens: 0.025
   output_tokens: 1.25
 
+reference:                  # the self-inventory: Gemini reads every delivered short (074)
+  input_tokens: 0.025       # INR per 1k tokens: the prompt and the video frames
+  output_tokens: 0.2        # INR per 1k tokens: the answer and the thinking
+
 search:                     # paid web image search, per query (free if scraped)
   queries: 0.2
 

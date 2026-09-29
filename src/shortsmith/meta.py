@@ -8,6 +8,10 @@ rescued beats) - and the reference pack's version from `docs/reference/README.md
 returns a `contracts.Meta`. Nothing here fails a job: a file that is missing reads as
 absent, so a job that never got past upload still describes itself.
 
+074: `inventory` is the self-inventory's comparison (`reference.own.summary`): our
+card's numbers beside the median and range of the style's v2 reference cards, or the
+reason the short was not analysed; absent before the step ran.
+
 `write(job)` is called by the pipeline once the job is settled and by the app after
 every rating or performance save, so the file always reflects the latest verdict; the
 day-14 gate (047) reads it and nothing else. `delivered` is the 10.4 rule: every
@@ -20,10 +24,11 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from shortsmith import assets, jobs, ledger
+from shortsmith import assets, jobs, ledger, reference
 from shortsmith.contracts import Meta, PicturePlan, TechnicalResult, ValidatedPlan
 from shortsmith.jobs import Clock, Job
 from shortsmith.qa import critic, technical
+from shortsmith.reference import own
 
 NAME = "meta.json"
 DELIVERABLES = ("short.mp4", "contact.jpg", "rights.json", "credits.md")  # 10.4
@@ -47,9 +52,16 @@ def path(job: Job) -> Path:
     return job.out_dir / NAME
 
 
-def build(job: Job, *, now: Clock = _utc_now, readme: Path = critic.REFERENCE_README) -> Meta:
+def build(
+    job: Job,
+    *,
+    now: Clock = _utc_now,
+    readme: Path = critic.REFERENCE_README,
+    inventory_dir: Path = reference.INVENTORY_DIR,
+) -> Meta:
     """The record from the job's files as they are now (job.json is re-read: the ledger
-    and the rating write it behind the caller's `Job` value)."""
+    and the rating write it behind the caller's `Job` value). 074: `inventory` compares
+    `out/inventory.json` with the style's v2 reference cards in `inventory_dir`."""
     record = jobs.load(job.path).record
     report = technical.load_report(job)
     plan_path = job.work_dir / "plan.json"
@@ -94,15 +106,23 @@ def build(job: Job, *, now: Clock = _utc_now, readme: Path = critic.REFERENCE_RE
         over_soft_cap=record.over_soft_cap,
         clamps=clamps,
         rescued=rescued,
+        inventory=own.summary(job, inventory_dir),
         written_at=now(),
     )
 
 
-def write(job: Job, *, now: Clock = _utc_now, readme: Path = critic.REFERENCE_README) -> Path:
+def write(
+    job: Job,
+    *,
+    now: Clock = _utc_now,
+    readme: Path = critic.REFERENCE_README,
+    inventory_dir: Path = reference.INVENTORY_DIR,
+) -> Path:
     """Build and write `out/meta.json`, replacing the previous one."""
     out = path(job)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build(job, now=now, readme=readme).model_dump_json(indent=2), encoding="utf-8")
+    built = build(job, now=now, readme=readme, inventory_dir=inventory_dir)
+    out.write_text(built.model_dump_json(indent=2), encoding="utf-8")
     return out
 
 

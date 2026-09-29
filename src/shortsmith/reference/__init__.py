@@ -77,7 +77,8 @@ ATTEMPTS = 2  # the call, then one retry with the reasons, then stop
 UNKNOWN_CATEGORY = "unknown"
 DEFAULT_TIER: Tier = "A"
 
-Tier = Literal["A", "B"]
+# 074: `own` is our own delivered short run through the same tool; never a reference.
+Tier = Literal["A", "B", "own"]
 Layout = Literal[
     "full_still",
     "full_footage",
@@ -752,11 +753,15 @@ def inventory(
     styles: Sequence[str] | None = None,
     topic: str | None = None,
     styles_readme: Path = STYLES_README,
+    video: Path | None = None,
+    name: str | None = None,
 ) -> ReferenceInventory:
     """One reference: the call, its one retry on a malformed answer, the JSON written
     only when the answer parsed. Raises `ReferenceError` naming the video otherwise.
     A v2 card's `styles` are the operator's (`styles`) or the trace table's, and an
-    operator `topic` replaces the model's."""
+    operator `topic` replaces the model's. 074: `video` is a local file analysed in
+    place of the link's URL (our own short), and `name` the JSON's file name in
+    `out_dir` (`<video_id>.json` when not given)."""
     lists = vocabulary if vocabulary is not None or version == "v1" else vocab.load()
     if topic is not None and lists is not None and topic not in lists.topics.topics:
         raise ReferenceError(f"{topic!r} is not a topic in topics.yaml")
@@ -768,7 +773,11 @@ def inventory(
     last: AnswerInvalid | None = None
     for _ in range(ATTEMPTS):
         try:
-            answer = analyser.analyse(link.url, sent)
+            answer = (
+                analyser.analyse(link.url, sent)
+                if video is None
+                else analyser.analyse_file(video, sent)
+            )
         except AnalyserError as exc:
             status = f"answered {exc.status}" if exc.status is not None else "could not answer"
             raise ReferenceError(
@@ -793,7 +802,7 @@ def inventory(
             analysed_on=today(), styles=informs,
         )  # fmt: skip
         out_dir.mkdir(parents=True, exist_ok=True)
-        path = out_dir / f"{link.video_id}.json"
+        path = out_dir / (name or f"{link.video_id}.json")
         path.write_text(made.model_dump_json(indent=2) + "\n", encoding="utf-8")
         log(
             f"{link.video_id}: {len(made.shots)} shots, {len(made.effects)} effects, "

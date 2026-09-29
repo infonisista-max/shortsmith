@@ -19,7 +19,9 @@ fake critic's advisory report beside them, scored from the real sheet and strips
 `out/contact.jpg` under 2 MB at the sheet's width with the PIP strip row and the
 critic's scores drawn into its summary panel (035), `out/meta.json` validating against
 `contracts.Meta` with the versions and the empty ledger (035), the publishing text
-assembled from the plan and the credits (035), and the
+assembled from the plan and the credits (035), the self-inventory's card of the
+delivered short from the fake analyser in `out/inventory.json` and its comparison rows
+in `meta.json` (074), and the
 job's `uploaded -> ... -> qa -> delivered` trail, print one summary line and exit 0.
 Any failed assertion exits non-zero with the failing check on stderr. Over ninety
 seconds is a bug.
@@ -127,6 +129,8 @@ from shortsmith.planner import FakePlanner, Planner, kinds_named
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa import technical
 from shortsmith.qa.critic import FakeCritic
+from shortsmith.reference import ReferenceInventoryV2, own
+from shortsmith.reference.gemini import FakeAnalyser
 from shortsmith.render import Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
 
@@ -319,12 +323,14 @@ def run_smoke(
     # 009: the fake plan is judged by the fixture-shaped copy of the selected style. 033:
     # the fake critic records what it was shown, so the strips are proved real below.
     critic = FakeCritic()
+    # 074: the self-inventory reads the delivered short through the fake analyser.
+    analyser = FakeAnalyser([fixture.own_inventory_answer()])
     judged = judged_specs(specs, style, text_pops=text_pops, bubbles=bubbles,
                           stickers_on=stickers_on)  # fmt: skip
     worker = pipeline.Worker(
         transcriber=transcriber, planner=planner, renderer=renderer,
         sourcing=smoke_sourcing(root / "stickers"), specs=judged, library=library,
-        critic=critic,
+        critic=critic, inventory=own.SelfInventory(analyser),
     )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
@@ -424,6 +430,7 @@ def run_smoke(
     check_contact_sheet(sheet)
     verdict = check_critic(reloaded, critic, plan)
     check_meta(reloaded, plan, validated, verdict, specs[style])
+    compared = check_inventory(reloaded, analyser, style)
     check_publishing(reloaded, plan)
     log_lines = reloaded.log_path.read_text(encoding="utf-8").splitlines()
     noted = [line.split(" ", 1)[1] for line in log_lines]
@@ -456,6 +463,7 @@ def run_smoke(
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
         f"{' '.join(TECHNICAL_CHECKS)} pass, "
         f"critic {verdict.overall}/10 {'advisory' if verdict.advisory else 'blocking'}, "
+        f"inventory {compared} rows, "
         f"contact {sheet.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
@@ -1462,6 +1470,40 @@ def check_meta(
     check(recorded.clamps == len(validated.clamps), f"meta.json counts {recorded.clamps} clamps")
     check(recorded.rescued == 0, f"meta.json counts {recorded.rescued} rescued beats")
     check(recorded.rating is None and recorded.performance is None, "meta.json is rated already")
+
+
+def check_inventory(job: jobs.Job, analyser: FakeAnalyser, style: str) -> int:
+    """074: the advisory `inventory` step read `out/short.mp4` through the fake analyser
+    with the v2 prompt, wrote our card (`tier: own`, the job id, the style) to
+    `out/inventory.json`, and `meta.json` carries its comparison rows against the
+    style's reference cards. Returns the number of rows."""
+    short = job.out_dir / "short.mp4"
+    check(
+        [path for path, _ in analyser.calls] == [str(short)],
+        f"the inventory step read {[path for path, _ in analyser.calls]}, not out/short.mp4",
+    )
+    card = own.load(job)
+    if isinstance(card, own.NotAnalysed):
+        raise SmokeFailure(f"the fixture short was not analysed: {card.reason}")
+    check(isinstance(card, ReferenceInventoryV2), "the step wrote no out/inventory.json")
+    assert isinstance(card, ReferenceInventoryV2)
+    check(
+        (card.tier, card.video_id, card.styles, card.prompt_version)
+        == ("own", job.id, [style], "v2"),
+        f"out/inventory.json is {card.tier} {card.video_id} {card.styles} {card.prompt_version}",
+    )
+    recorded = meta.load(job)
+    assert recorded is not None
+    found = recorded.inventory
+    check(
+        found is not None and found.status == "analysed" and found.comparison is not None,
+        f"meta.json carries no comparison: {found}",
+    )
+    assert found is not None and found.comparison is not None
+    rows = {row.name: row for row in found.comparison.rows}
+    check("shots per 10 s" in rows, f"meta.json's comparison has no shots row: {sorted(rows)}")
+    check(rows["shots per 10 s"].ours == 5.0, f"shots per 10 s is {rows['shots per 10 s'].ours}")
+    return len(rows)
 
 
 def check_publishing(job: jobs.Job, plan: PicturePlan) -> None:

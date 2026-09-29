@@ -4,6 +4,7 @@
               [--out DIR] [--references FILE]
     inventory --all [--prompt v1|v2] [--out DIR] [--references FILE]
     gaps [--dir DIR]
+    own <job_dir> [--dir DIR]
 
 `inventory` builds the Gemini analyser from `.env` (`GEMINI_API_KEY`, `REFERENCE_MODEL`,
 `REFERENCE_FPS`, `REFERENCE_ENDPOINT`), reads the link's tier and category from
@@ -14,6 +15,11 @@ topic `--topic` may set; `--prompt v1` writes a v1 card. The mood and topic file
 first; an unknown style or topic stops the tool before any request. `--all` does every
 link in the file, one request each, moving past a failing video. `gaps` writes
 `GAPS.md` beside the JSON. Exit 0 when every link was inventoried, 1 otherwise.
+
+`own` (074) runs the pipeline's self-inventory step on one delivered job directory:
+`out/short.mp4` through the same analyser and prompt, `out/inventory.json`, the ledger
+rows, `out/meta.json` rewritten, and the comparison table printed against the style's
+v2 cards in `--dir`. Exit 1 when the short was not analysed, with the reason.
 """
 
 from __future__ import annotations
@@ -24,7 +30,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
-from shortsmith import config, render, vocab
+from shortsmith import config, jobs, ledger, meta, render, vocab
 from shortsmith.config import Settings
 from shortsmith.reference import (
     INVENTORY_DIR,
@@ -39,6 +45,7 @@ from shortsmith.reference import (
     inventory_all,
     link_for,
     links_in,
+    own,
 )
 from shortsmith.reference.gemini import GeminiAnalyser, ReferenceAnalyser
 from shortsmith.styles import STYLES_DIR
@@ -86,12 +93,17 @@ def main(
     )
     gap = commands.add_parser("gaps", help="write GAPS.md from every inventory JSON")
     gap.add_argument("--dir", type=Path, default=INVENTORY_DIR)
+    mine = commands.add_parser("own", help="run the self-inventory on a delivered job (074)")
+    mine.add_argument("job_dir", type=Path, help="data/jobs/<job_id>")
+    mine.add_argument("--dir", type=Path, default=INVENTORY_DIR, help="the reference cards")
     args = parser.parse_args(argv)
 
     if args.command == "gaps":
         path = gaps.write(cast(Path, args.dir))
         print(f"gap report written to {path}")
         return 0
+    if args.command == "own":
+        return _own(cast(Path, args.job_dir), cast(Path, args.dir), analyser, settings)
 
     if not args.all and not args.url:
         inv.error("give a url, or --all")
@@ -136,6 +148,41 @@ def main(
     except ReferenceError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    return 0
+
+
+def _own(
+    job_dir: Path,
+    inventory_dir: Path,
+    analyser: ReferenceAnalyser | None,
+    settings: Settings | None,
+) -> int:
+    """074: the `inventory` step on one job directory, `meta.json` rewritten, the table
+    printed. With the real analyser each request is a ledger row priced from the prices
+    file, exactly as in the pipeline."""
+    vocab.load()
+    job = jobs.load(job_dir)
+    if analyser is None:
+        loaded = settings if settings is not None else config.load()
+        book = ledger.from_settings(loaded)
+        step = own.SelfInventory(analyser_from(loaded), ledger=lambda: book)
+    else:
+        step = own.SelfInventory(analyser)
+    result = step.run(job)
+    meta.write(job, inventory_dir=inventory_dir)
+    if isinstance(result, own.NotAnalysed):
+        print(f"{job.id}: not analysed: {result.reason}", file=sys.stderr)
+        return 1
+    found = own.summary(job, inventory_dir)
+    table = found.comparison if found is not None else None
+    assert table is not None
+    print(f"{job.id} ({table.style}): {table.references} v2 reference cards {table.note}")
+    for row in table.rows:
+        spread = "" if row.low is None else f"  median {row.median:g}  {row.low:g}-{row.high:g}"
+        extra = f"  refs {row.refs}" if row.refs else ""
+        plan = f"  plan {row.plan}" if row.plan is not None else ""
+        flag = "  OUTSIDE" if row.outside else ""
+        print(f"  {row.name}: {row.ours}{plan}{spread}{extra}{flag}")
     return 0
 
 

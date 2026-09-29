@@ -1828,6 +1828,43 @@ class TechnicalResult(StrictModel):
     detail: str
 
 
+class ComparisonRow(StrictModel):
+    """One row of the self-inventory table (074): our number beside the median and the
+    range (min-max) of the style's v2 reference cards, `outside` (red) when it falls out
+    of the range. A row that is not a number (the bed, a part's mood, the music change)
+    carries our value, the references' tally in `refs`, and `plan` for a mood row (076
+    fills the plan's side; until then "—"); it is never red."""
+
+    name: str
+    ours: float | str | None = None
+    median: float | None = None
+    low: float | None = None
+    high: float | None = None
+    refs: str = ""
+    plan: str | None = None
+    outside: bool = False
+
+
+class InventoryComparison(StrictModel):
+    """Our card against the v2 cards whose `styles` include the job's style; fewer than
+    two cards is "not enough references" and no range is drawn."""
+
+    style: str
+    references: int
+    enough: bool
+    note: str = ""
+    rows: list[ComparisonRow] = []
+
+
+class OwnInventory(StrictModel):
+    """`meta.json`'s record of the advisory `inventory` step (074): the comparison once
+    the short was analysed, or the reason it was not."""
+
+    status: Literal["analysed", "not_analysed"]
+    reason: str = ""
+    comparison: InventoryComparison | None = None
+
+
 class Meta(StrictModel):
     """`out/meta.json`: the proof of the bar for one short (10.4), the file the day-14
     gate reads (14.1). `delivered` is the 10.4 rule (every technical check passed and
@@ -1856,4 +1893,5 @@ class Meta(StrictModel):
     over_soft_cap: bool = False
     clamps: int = 0
     rescued: int = 0
+    inventory: OwnInventory | None = None  # 074: absent until the step has run
     written_at: datetime

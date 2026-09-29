@@ -81,6 +81,13 @@ fix notes (035; the critic saw the panel without them). After `delivered` the ve
 `rejected` at once; otherwise it waits for the phone rating on the job page. Then
 `meta.write` records `out/meta.json` (035): the proof of the bar the gate reads.
 
+Between `delivered` and the verdict the advisory self-inventory runs (074,
+`reference.own`): `out/short.mp4` through the same reference tool as the references,
+the card in `out/inventory.json` and its comparison with the style's reference cards in
+`meta.json`. It never changes the short and never fails the job: any failure writes
+`not_analysed` with the reason. It is injected like the critic; the default is Gemini
+with no key, which sends nothing.
+
 `Worker` wraps `run_job` in a FIFO queue on one daemon thread for the web app;
 `run_next` drains one job synchronously so tests and smoke use the same code path
 without threads.
@@ -125,6 +132,7 @@ from shortsmith.qa import calibration
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import Gate, TechnicalGate
+from shortsmith.reference import own
 from shortsmith.render import RemotionRenderer, Renderer
 from shortsmith.styles import StyleError, StyleSpec
 from shortsmith.transcriber import Transcriber
@@ -181,6 +189,7 @@ def run_job(
     library: sound.Library | None = None,
     detector: presenter.FaceDetector | None = None,
     critic: Critic | None = None,
+    inventory: own.SelfInventory | None = None,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
@@ -235,6 +244,9 @@ def run_job(
         if watchdog is not None:
             watchdog.stop()
     delivered = jobs.transition(job, "delivered")
+    # 074: the self-inventory, advisory: our short through the reference tool; any
+    # failure is `not_analysed` in out/inventory.json and the job stays delivered.
+    (inventory or own.keyless()).run(delivered)
     # 10.4 / 034: a blocking critic settles the short at once (`passed` at 7, else
     # `rejected`); while advisory, or with no critic verdict, it stays `delivered`
     # until the phone rating comes in. Either way every deliverable stays served.
@@ -497,6 +509,7 @@ class Worker:
         library: sound.Library | None = None,
         detector: presenter.FaceDetector | None = None,
         critic: Critic | None = None,
+        inventory: own.SelfInventory | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
         max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
         clock: Clock = _utc_now,
@@ -511,6 +524,8 @@ class Worker:
         self._library = library if library is not None else sound.load_catalogue()
         self._detector = detector or presenter.HaarDetector()
         self._critic = critic or FakeCritic()  # 033: the app passes the configured one
+        # 074: the app passes the configured step; the default sends nothing.
+        self._inventory = inventory or own.keyless()
         self._max_queue = max_queue
         self._max_job_minutes = max_job_minutes
         self._clock = clock
@@ -606,6 +621,7 @@ class Worker:
                 library=self._library,
                 detector=self._detector,
                 critic=self._critic,
+                inventory=self._inventory,
                 max_job_minutes=self._max_job_minutes,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,

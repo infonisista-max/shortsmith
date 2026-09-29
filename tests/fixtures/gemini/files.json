@@ -1,0 +1,56 @@
+{
+  "_note": "The Gemini Files API as documented (resumable upload, get, delete), hand-written from memory with no network (074); the operator confirms the live shape with the run04 step in the done note. `start` is the upload session's answer (headers only, no body); `finalize` the answer to the bytes; `processing` and `active` two polls of files.get; `delete` the delete answer.",
+  "start": {
+    "headers": {
+      "x-goog-upload-url": "https://generativelanguage.googleapis.com/upload/v1beta/files?upload_id=test-upload-id&upload_protocol=resumable",
+      "x-goog-upload-status": "active"
+    }
+  },
+  "finalize": {
+    "file": {
+      "name": "files/own-short-test",
+      "displayName": "short.mp4",
+      "mimeType": "video/mp4",
+      "sizeBytes": "2048",
+      "createTime": "2026-09-29T06:00:00.000000Z",
+      "updateTime": "2026-09-29T06:00:00.000000Z",
+      "expirationTime": "2026-10-01T06:00:00.000000Z",
+      "sha256Hash": "dGVzdA==",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/own-short-test",
+      "state": "PROCESSING",
+      "source": "UPLOADED"
+    }
+  },
+  "processing": {
+    "name": "files/own-short-test",
+    "displayName": "short.mp4",
+    "mimeType": "video/mp4",
+    "sizeBytes": "2048",
+    "uri": "https://generativelanguage.googleapis.com/v1beta/files/own-short-test",
+    "state": "PROCESSING",
+    "source": "UPLOADED"
+  },
+  "active": {
+    "name": "files/own-short-test",
+    "displayName": "short.mp4",
+    "mimeType": "video/mp4",
+    "sizeBytes": "2048",
+    "uri": "https://generativelanguage.googleapis.com/v1beta/files/own-short-test",
+    "state": "ACTIVE",
+    "source": "UPLOADED",
+    "videoMetadata": {
+      "videoDuration": "6s"
+    }
+  },
+  "failed": {
+    "name": "files/own-short-test",
+    "mimeType": "video/mp4",
+    "uri": "https://generativelanguage.googleapis.com/v1beta/files/own-short-test",
+    "state": "FAILED",
+    "error": {
+      "code": 400,
+      "message": "the video could not be processed"
+    }
+  },
+  "delete": {}
+}

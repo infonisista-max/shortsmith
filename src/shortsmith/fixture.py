@@ -30,6 +30,7 @@ the T3 finale check stays unscaled.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -190,6 +191,68 @@ CATALOGUE_SFX_S = 0.4
 CATALOGUE_NAME = "catalog.yaml"
 CATALOGUE_LICENCE = "CC0-1.0"
 CATALOGUE_SOURCE = "synthetic"
+
+
+def own_inventory_answer() -> str:
+    """074: what the smoke's fake analyser answers for the rendered fixture short - a v2
+    inventory answer of the 6 s clip (three shots, the stamp, two sound effects, the four
+    story parts, three beat rows), valid against the schema and the vocabulary files, so
+    the `inventory` step writes a card and `meta.json` its comparison rows."""
+    third = DURATION_S / 3
+    spans = [(round(i * third, 2), round((i + 1) * third, 2)) for i in range(3)]
+    layouts = ["presenter_circle", "full_still", "card"]
+    shots = [
+        {"start_s": a, "end_s": b, "layout": layout, "background": "still_photo",
+         "footage_kind": None, "clip_s": None, "treatment": ["zoom"], "note": "fixture"}
+        for (a, b), layout in zip(spans, layouts, strict=True)
+    ]  # fmt: skip
+    beats = [
+        {"start_s": a, "end_s": b, "said": "six tone bursts on a synthetic clip",
+         "shows": "a gradient behind the drawn face", "match": match, "part": part,
+         "layout": layout, "effect": effect, "sound": sfx}
+        for (a, b), layout, match, part, effect, sfx in zip(
+            spans, layouts, ("literal", "number", "illustrative"),
+            ("hook", "build_up", "ending"), (None, "stamp", None), (None, "hit", "whoosh"),
+            strict=True,
+        )
+    ]  # fmt: skip
+    answer = {
+        "duration_s": DURATION_S,
+        "shots": shots,
+        "effects": [
+            {"at_s": spans[1][0], "duration_s": 1.0, "emphasis": "number", "name": "stamp",
+             "description": "a number stamps in above the circle", "component": "stamp",
+             "motion": {"entrance": "pop_overshoot", "entrance_s": 0.2, "size": 0.6,
+                        "region": "top"}},
+        ],  # fmt: skip
+        "transitions": [],
+        "text": {
+            "caption_position": "lower third", "caption_size": "large bold",
+            "caption_colours": "white with a yellow active word",
+            "active_word": "yellow", "title_entry": "none", "number_entry": "stamp",
+        },  # fmt: skip
+        "sound": {
+            "bed": True, "bed_mood": "calm synthetic pad",
+            "effects": [
+                {"at_s": spans[1][0], "kind": "hit", "synced_to": "the stamp",
+                 "event": "stamp", "loudness": "medium", "length_s": 0.4},
+                {"at_s": spans[2][0], "kind": "whoosh", "synced_to": "the cut",
+                 "event": "cut", "loudness": "soft", "length_s": 0.4},
+            ],
+        },  # fmt: skip
+        "hook": {"on_screen": "the drawn face in the circle", "heard": "a tone burst"},
+        "script": {"about": "a synthetic fixture clip", "topic": "science",
+                   "tone": "neutral", "language": "en"},  # fmt: skip
+        "parts": [
+            {"part": part, "start_s": a, "end_s": b, "music_mood": "calm_ambient"}
+            for part, (a, b) in zip(
+                ("hook", "build_up", "ending"), spans, strict=True
+            )
+        ],
+        "music_changes": [],
+        "beats": beats,
+    }
+    return json.dumps(answer)
 
 
 def make_wav(path: Path, *, expr: str, duration_s: float) -> Path:

@@ -63,6 +63,11 @@ title, the description with the credits and the disclosure line appended, and up
 five hashtags, each in a block with a copy-to-clipboard button (`publishing`).
 `meta.json` is linked beside `qa.json`.
 
+Self-inventory (074): once `meta.json` records the advisory `inventory` step, the page
+shows our numbers beside the median and range of the style's v2 reference cards, a row
+outside the range in red ("not enough references" with fewer than two cards), or the
+reason the short was not analysed.
+
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 """
@@ -129,6 +134,7 @@ from shortsmith.qa import calibration, technical
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
+from shortsmith.reference import own
 from shortsmith.render import Renderer
 from shortsmith.sound import freesound, kinds
 from shortsmith.styles import StyleSpec
@@ -231,6 +237,7 @@ def create_app(
     sourcing: assets.Sourcing | None = None,
     detector: presenter.FaceDetector | None = None,
     critic: Critic | None = None,
+    inventory: own.SelfInventory | None = None,
     youtube: YouTube | None = None,
     limits: Limits | None = None,
     start_worker: bool = True,
@@ -299,6 +306,9 @@ def create_app(
         detector=detector,  # 013: None is the Haar detector; tests pass the fake
         # 033: the editorial critic `CRITIC` names (10.2); tests pass the fake.
         critic=critic or critic_module.from_settings(settings, ledger=_book),
+        # 074: the self-inventory on every delivered job (Gemini on the reference
+        # settings); with no GEMINI_API_KEY it sends nothing and says so.
+        inventory=inventory or own.from_settings(settings, ledger=_book),
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
         clock=clock,
@@ -960,7 +970,7 @@ def render_job_page(
         style_note=html.escape(record.style_note) or "–",
         references=references,
         brief=html.escape(brief),
-        result=_result_block(job, agreed),
+        result=_result_block(job, agreed) + _inventory_block(job),
         publishing=_publishing_block(job),
         feedback=_feedback_block(job),
         ledger=_ledger_block(job, average),
@@ -1033,6 +1043,49 @@ def _critic_block(report: CriticReport | None, agreed: str = "") -> str:
         noted = "\n".join(f"  <li>{html.escape(note)}</li>" for note in report.notes)
         parts.append(f'<ul class="critic-notes">\n{noted}\n</ul>\n')
     return "".join(parts)
+
+
+def _cell(value: float | str | None) -> str:
+    if value is None:
+        return "–"
+    return html.escape(value if isinstance(value, str) else f"{value:g}")
+
+
+def _inventory_block(job: Job) -> str:
+    """The self-inventory (074), advisory: our numbers beside the median and range of
+    the style's v2 reference cards, a row out of the range red; or one sentence with
+    the reason the short was not analysed. Nothing until the step has run."""
+    recorded = meta.load(job)
+    found = recorded.inventory if recorded is not None else None
+    if found is None:
+        return ""
+    head = "<h2>Against the references (advisory)</h2>\n"
+    if found.status == "not_analysed" or found.comparison is None:
+        return f'{head}<p class="inventory-not-analysed">Not analysed: {html.escape(found.reason)}</p>\n'  # noqa: E501
+    table = found.comparison
+    note = (
+        f'<p class="inventory-note">{html.escape(table.note)} for {html.escape(table.style)} '
+        f"({table.references} v2 card{'s' if table.references != 1 else ''})</p>\n"
+        if table.note
+        else f'<p class="inventory-note">{table.references} v2 cards for '
+        f"{html.escape(table.style)}</p>\n"
+    )
+    lines: list[str] = []
+    for row in table.rows:
+        red = ' class="outside"' if row.outside else ""
+        plan = _cell(row.plan) if row.plan is not None else ""
+        spread = "" if row.low is None else f"{_cell(row.low)}–{_cell(row.high)}"
+        lines.append(
+            f"  <tr{red}><td>{html.escape(row.name)}</td><td>{_cell(row.ours)}</td>"
+            f"<td>{plan}</td><td>{_cell(row.median)}</td><td>{spread}</td>"
+            f"<td>{html.escape(row.refs)}</td></tr>"
+        )
+    rows = "\n".join(lines)
+    return (
+        f'{head}{note}<table class="inventory">\n'
+        "  <tr><th>row</th><th>ours</th><th>plan</th><th>median</th><th>range</th>"
+        f"<th>references</th></tr>\n{rows}\n</table>\n"
+    )
 
 
 def _publishing_block(job: Job) -> str:
