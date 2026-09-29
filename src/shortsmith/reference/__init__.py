@@ -56,6 +56,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from shortsmith import vocab
+from shortsmith.contracts import BedHow, StoryPart
 from shortsmith.reference.gemini import AnalyserError, Answer, ReferenceAnalyser, Usage
 
 PromptVersion = Literal["v1", "v2"]
@@ -101,11 +102,10 @@ Emphasis = Literal["word", "number", "image", "speaker"]
 SfxKind = Literal["whoosh", "hit", "riser", "click", "ding", "other"]
 # v2 (073): the closed lists that live in code; moods, flavours and topics are data
 # (`shortsmith.vocab`), checked after the schema.
-StoryPart = Literal["hook", "build_up", "reveal", "ending"]
 Match = Literal["literal", "named_entity", "number", "illustrative", "metaphor"]
 SfxEvent = Literal["text_pop", "sticker", "bubble", "flash", "cut", "stamp", "reveal", "other"]
 Loudness = Literal["soft", "medium", "loud"]
-MusicHow = Literal["crossfade", "hard_cut", "drop_to_silence"]
+MusicHow = BedHow  # 076: the plan's bed change speaks the cards' words
 Entrance = Literal["pop_overshoot", "slide", "fade", "wipe", "draw", "scale", "other"]
 Region = Literal["top", "middle", "bottom", "left", "right", "full"]
 SAID_WORDS_MAX = 12

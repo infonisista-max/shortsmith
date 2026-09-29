@@ -23,6 +23,7 @@ from shortsmith.contracts import (
     CATEGORIES,
     Beat,
     BedQuery,
+    BedSegment,
     Bubble,
     Constraints,
     CounterPlan,
@@ -34,6 +35,7 @@ from shortsmith.contracts import (
     MapPlan,
     Mode,
     MoodPoint,
+    PartSpan,
     PicturePlan,
     PlanLabel,
     PlanReference,
@@ -202,7 +204,16 @@ def story_for(
         mood_curve=list(curve) or [MoodPoint(t=0.0, level=0.0), MoodPoint(t=end, level=0.0)],
         bed_query=BedQuery(theme="science", mood="curious", energy=3),
         cues=list(cues),
+        **one_bed(plan),
     )
+
+
+def one_bed(plan: PicturePlan) -> dict[str, Any]:
+    """076: the whole plan one story part under one calm bed - what every story needs."""
+    return {
+        "parts": [PartSpan(part="hook", first_beat=plan.beats[0].id, last_beat=plan.beats[-1].id)],
+        "bed": [BedSegment(part_from="hook", mood="calm_ambient")],
+    }
 
 
 def rules(result: object) -> set[tuple[str | None, str]]:

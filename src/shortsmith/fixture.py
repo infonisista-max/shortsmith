@@ -170,11 +170,15 @@ def smoke_specs(specs: Mapping[str, StyleSpec], name: str = styles.DEFAULT) -> d
 # band would fail the 7.3 speech-band margin, which is the point of that check. 069: the
 # fifth partial (325-550 Hz) sits inside the band, as a bed's melody does, so the bed is
 # not a bass-only one a phone speaker cannot play (`speech_band_margin_max_db`).
+# 076: each bed also carries one mood of `moods.yaml`, as an approved bed does (075), so
+# the fake story's segments resolve - the curious bed from the hook, the tense one at
+# vishva's reveal.
 BedRow = tuple[str, tuple[str, ...], tuple[str, ...], int, tuple[float, ...], int]
 CATALOGUE_BEDS: tuple[BedRow, ...] = (
-    ("bed_tech_curious", ("tech", "science"), ("curious", "bright"), 3, (1.0, 3.5), 110),
-    ("bed_tech_tense", ("tech",), ("tense", "dark"), 4, (2.0,), 82),
-    ("bed_history_calm", ("history",), ("calm",), 1, (), 65),
+    ("bed_tech_curious", ("tech", "science"), ("curious", "bright", "mysterious_curiosity"), 3,
+     (1.0, 3.5), 110),
+    ("bed_tech_tense", ("tech",), ("tense", "dark", "tense_dramatic"), 4, (2.0,), 82),
+    ("bed_history_calm", ("history",), ("calm", "calm_ambient"), 1, (), 65),
 )  # fmt: skip
 # id, intent tag, click Hz, length. 070: one file per kind of the closed palette, tagged
 # with exactly its kind as an approved entry is (075), each under its kind's `max_len_s`

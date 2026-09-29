@@ -41,7 +41,9 @@ the first call code picks the job's topic and two worked examples (077,
 `reference.examples`: the style's v2 cards, then the topic, then Tier B first); the
 request carries them, `job.json` and `plan.validated.json` record the topic and the
 examples' ids, and `job.log` names them. The
-sound call receives the snapped picture plan and the catalogue tags. The step builds
+sound call receives the snapped picture plan, the catalogue tags and (076) one music
+pairing line per reference v2 card (`reference.music`; `job.log` says how many, or none
+until the cards are v2). The step builds
 the captions (`captions.build`, 6.1-6.3: cut,
 hidden from the finale, paged, laid out) from the snapped plan and its clamped
 keywords and writes `work/plan.raw.json` and `work/sound.raw.json` (the planner's last
@@ -137,7 +139,7 @@ from shortsmith.qa import calibration
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import Gate, TechnicalGate
-from shortsmith.reference import INVENTORY_DIR, examples, own
+from shortsmith.reference import INVENTORY_DIR, examples, music, own
 from shortsmith.render import RemotionRenderer, Renderer
 from shortsmith.styles import StyleError, StyleSpec
 from shortsmith.transcriber import Transcriber
@@ -330,8 +332,10 @@ def build_plan_request(
     refs = _REFS.validate_json(refs_path.read_text(encoding="utf-8")) if refs_path.is_file() else []
     spec = style_of(job, specs)
     topic, worked = examples.for_job(brief, transcript, spec.name, inventory_dir)
+    pairings = music.for_job(inventory_dir)
     if note is not None:
         note(examples_line(topic, worked))
+        note(music_line(pairings))
     return PlanRequest(
         brief=brief,
         style=PlanStyle(
@@ -356,6 +360,7 @@ def build_plan_request(
         asset_policy="any",
         topic=topic.name,
         examples=worked,
+        music=pairings,
     )
 
 
@@ -363,6 +368,14 @@ def examples_line(topic: examples.TopicPick, worked: Sequence[WorkedExample]) ->
     """077: the job.log line naming the topic (and how it was picked) and the examples."""
     named = f"topic {topic.name} ({topic.source})" if topic.name else "topic none (style only)"
     return f"worked examples: {named}; {', '.join(e.video_id for e in worked) or 'none'}"
+
+
+def music_line(pairings: Sequence[str]) -> str:
+    """076: the job.log line saying how many reference cards the sound call learns music
+    from; none until the cards are v2 (073), and then the planner picks from the moods."""
+    if not pairings:
+        return f"music pairings: none ({music.NO_PAIRINGS[1:-1]})"
+    return f"music pairings: {len(pairings)} reference cards"
 
 
 class PlanRejected(Exception):

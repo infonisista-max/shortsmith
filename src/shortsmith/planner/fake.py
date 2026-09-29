@@ -52,6 +52,11 @@ whoosh is its one cue (the pop's tick gives way), and where the style carries
 `broll.title_strip` (fastfacts) the plan writes `FAKE_TITLE_STRIP`. Under the explainer the
 plan is byte-identical to before.
 
+Ticket 076: the sound story names the four story parts (`fake_parts`: b01-b02 the hook,
+b03-b06 the build-up, b07-b10 the reveal, b11 the ending) and one bed from the hook,
+`mysterious_curiosity`; under vishva a second, `tense_dramatic`, from the reveal,
+crossfaded at b07 (3.0 s).
+
 Ticket 058: b04 is the plan's one `clip` beat - a concept ("drifting clouds timelapse",
 `CLIP_QUERY`) asking for moving stock footage under the stamp (and the bubbles), with its
 own asset `a3`; with no clip source configured it takes the still ladder like any clip
@@ -70,7 +75,9 @@ from shortsmith.contracts import (
     Beat as B,
 )
 from shortsmith.contracts import (
+    BedChange,
     BedQuery,
+    BedSegment,
     Bubble,
     Cue,
     CutPlan,
@@ -79,6 +86,7 @@ from shortsmith.contracts import (
     MapMarker,
     MapPlan,
     MoodPoint,
+    PartSpan,
     PicturePlan,
     PlanFeedback,
     PlanRequest,
@@ -210,6 +218,13 @@ def title_strip_allowed(style: PlanStyle) -> bool:
 
 # 059: the fake's title strip, the topic in four words, where the style draws one.
 FAKE_TITLE_STRIP = "Twelve words of nothing"
+# 076: one bed from the hook on - the fixture catalogue's curious tone bed - and under
+# vishva a change to its tense bed at the reveal (b07, 3.0 s), crossfaded.
+FAKE_BED: tuple[BedSegment, ...] = (BedSegment(part_from="hook", mood="mysterious_curiosity"),)
+FAKE_BEDS: Mapping[str, tuple[BedSegment, ...]] = {
+    "vishva": (*FAKE_BED, BedSegment(part_from="reveal", mood="tense_dramatic")),
+}
+FAKE_CHANGE = BedChange(at_beat="b07", how="crossfade")
 
 
 def _cap_over_zero(style: PlanStyle, key: str) -> bool:
@@ -413,4 +428,20 @@ class FakePlanner(Planner):
             ],
             bed_query=BedQuery(theme="tech", mood="curious", energy=3),
             cues=cues,
+            parts=fake_parts(ids),
+            bed=list(FAKE_BEDS.get(request.style.name, FAKE_BED)),
+            change=FAKE_CHANGE if request.style.name in FAKE_BEDS else None,
         )
+
+
+def fake_parts(ids: Sequence[str]) -> list[PartSpan]:
+    """076: the four story parts over the plan's beats - the opening pair the hook, the
+    last beat the ending, the reveal from the seventh beat (b07 on the fixture, 3.0 s)."""
+    n = len(ids)
+    cuts = [0, min(2, n - 1), min(6, n - 1), n - 1, n]
+    names = ("hook", "build_up", "reveal", "ending")
+    return [
+        PartSpan(part=name, first_beat=ids[a], last_beat=ids[b - 1])
+        for name, a, b in zip(names, cuts, cuts[1:], strict=False)
+        if b > a
+    ]

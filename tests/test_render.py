@@ -1388,7 +1388,14 @@ def test_an_empty_catalogue_with_a_search_still_mixes_a_bed_but_never_searches_a
     assert "from the audio search" in log and sound.NO_APPROVED_LINE in log
     rows = rights.audio_rows(job.path)
     assert {r.kind for r in rows} == {"music"}, "the fetched bed has its rights row"
-    assert not [w for w in jobs.load(job.path).record.warnings if "voice only" in w]
+    warnings = jobs.load(job.path).record.warnings
+    assert not [w for w in warnings if "voice only" in w]
+    # 076: no approved bed for the story's mood - the search's bed is a marked fallback,
+    # on the page once and in the log.
+    fallback = "fallback bed: mysterious_curiosity, no approved bed"
+    assert warnings.count(fallback) == 1 and f"sound: {fallback}" in log
+    render.mux(job, library=empty, search=search)
+    assert jobs.load(job.path).record.warnings.count(fallback) == 1, "once, not once per run"
 
 
 def test_the_mix_carries_the_bed_and_the_cues_and_their_rights_rows(

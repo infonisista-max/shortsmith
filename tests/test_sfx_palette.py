@@ -23,8 +23,10 @@ from shortsmith.contracts import (
     CUE_KINDS,
     AudioEntry,
     BedQuery,
+    BedSegment,
     Cue,
     MoodPoint,
+    PartSpan,
     PicturePlan,
     PlanRequest,
     PlanStyle,
@@ -56,9 +58,14 @@ def run04_story() -> SoundStory:
 
 
 def _story(*cues: Cue) -> SoundStory:
+    """A story over run04's beats (b01-b12) with one calm bed (076)."""
+    ids = [b.id for b in PicturePlan.model_validate_json(
+        (RUN04 / "picture_validated.json").read_text(encoding="utf-8")).beats]  # fmt: skip
     return SoundStory(
         prompt_version="t", theme="t", mood_curve=[MoodPoint(t=0.0, level=0.0)],
         bed_query=BedQuery(theme="tech", mood="curious", energy=3), cues=list(cues),
+        parts=[PartSpan(part="hook", first_beat=ids[0], last_beat=ids[-1])],
+        bed=[BedSegment(part_from="hook", mood="calm_ambient")],
     )  # fmt: skip
 
 

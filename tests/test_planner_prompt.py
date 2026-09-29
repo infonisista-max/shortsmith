@@ -162,7 +162,22 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v17"
+    assert prompt.PROMPT_VERSION == "v18"
+
+
+def test_the_v18_sound_prompt_asks_a_mood_per_part_and_one_change_on_a_part_boundary() -> None:
+    """076: parts as beat ranges, a bed of one or two closed-list segments, the change on
+    the second part's first beat with its `how`, and section 9 after the tags."""
+    sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
+    for needle in (
+        "`parts` splits this script into its story parts",
+        "`mood` is one\n  name of the Moods list in section 9",
+        "`sound.bed_changes_max`",
+        "`crossfade`,\n  `hard_cut` or `drop_to_silence`",
+        prompt.MUSIC_HEADING,
+    ):
+        assert needle in sound, needle
+    assert sound.index("## 8. Audio catalogue tags") < sound.index(prompt.MUSIC_HEADING)
 
 
 def test_the_v15_picture_prompt_says_each_change_counts_at_its_own_time() -> None:

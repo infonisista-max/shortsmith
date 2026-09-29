@@ -162,6 +162,9 @@ class PlanRequest(StrictModel):
     asset_policy: AssetPolicy
     topic: str | None = None
     examples: list[WorkedExample] = []
+    # 076: one line per reference v2 card - topic, tone, mood per part, changes and how -
+    # for the sound call's "Music in top shorts" (`reference.music`).
+    music: list[str] = []
 
 
 # --- picture plan (decisions 3.1, 3.2, 3.4, 4.1, 4.2, 8.1, 9.2, 9.4) ----------------
@@ -569,12 +572,52 @@ class Cue(StrictModel):
     at: Literal["start", "event", "end"]
 
 
+# 076: the story parts the reference cards (073) score music by, and how the one bed change
+# a short may carry sounds (the cards' `music_changes[].how`).
+StoryPart = Literal["hook", "build_up", "reveal", "ending"]
+STORY_PARTS: tuple[StoryPart, ...] = get_args(StoryPart)
+BedHow = Literal["crossfade", "hard_cut", "drop_to_silence"]
+
+
+class PartSpan(StrictModel):
+    """One story part of this script as a beat range, first and last beat included."""
+
+    part: StoryPart
+    first_beat: str
+    last_beat: str
+
+
+class BedSegment(StrictModel):
+    """076: the music from `part_from` on - one mood (and an optional flavour) of the
+    closed list, never free words; code picks the bed from the approved library."""
+
+    part_from: StoryPart
+    mood: str = Field(description="one active mood of the list in the Music section")
+    flavour: str | None = Field(
+        default=None, description="one active flavour of that list, or null"
+    )
+
+
+class BedChange(StrictModel):
+    """076: where the second segment's bed takes over (the first beat of its part) and
+    how it sounds there."""
+
+    at_beat: str
+    how: BedHow
+
+
 class SoundStory(StrictModel):
     prompt_version: str
     theme: str
     mood_curve: list[MoodPoint]
+    # 7.2 as amended by 076: the words a Freesound fallback bed is searched with, and the
+    # energy an approved bed is ranked by.
     bed_query: BedQuery
     cues: list[Cue]
+    # 076: the script's story parts, the bed per part (1 segment, or 2 with a change).
+    parts: list[PartSpan] = []
+    bed: list[BedSegment] = []
+    change: BedChange | None = None
 
 
 # --- the audio catalogue (decision 7.2; ticket 022) ----------------------------------
@@ -647,6 +690,17 @@ class AudioCandidate(StrictModel):
     duration_s: float = 0.0
 
 
+class BalanceWindow(StrictModel):
+    """076: one stretch of a two-bed short measured on its own - a bed's segment (its
+    median under the voice, its speech-band margin) or the crossfade between them."""
+
+    name: str
+    start_s: float
+    end_s: float
+    bed_under_voice_db: float | None = None
+    speech_band_margin_db: float | None = None
+
+
 class BalanceReport(StrictModel):
     """`work/stems/balance.json` (7.3): what the mix measured, and what the style asked
     for. `problems` is empty when the mix is inside the acceptance band."""
@@ -670,6 +724,8 @@ class BalanceReport(StrictModel):
     repairs: list[str] = []
     dip_db: float | None = None
     bed_dropped: str | None = None
+    # 076: with a bed change, each segment and the crossfade measured on its own.
+    windows: list[BalanceWindow] = []
 
 
 class CueRecord(StrictModel):

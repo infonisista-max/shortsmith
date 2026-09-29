@@ -229,3 +229,28 @@ def library(tmp_path_factory: pytest.TempPathFactory) -> sound.Library:
     """The 022 audio catalogue: tone beds and click SFX synthesised once per session
     into a temp dir, never committed. The real seed is ticket 025."""
     return sound.load_catalogue(make_catalogue(tmp_path_factory.mktemp("audio")))
+
+
+@pytest.fixture(scope="session")
+def voice(tmp_path_factory: pytest.TempPathFactory, fixture_clip: Path) -> Path:
+    """A voice stem shaped like the renderer's: the fixture's tone bursts through the
+    7.3 voice chain to -19 LUFS."""
+    from shortsmith import ffmpeg, render  # the renderer is heavy; only mix tests need it
+
+    out = tmp_path_factory.mktemp("voice") / "voice.wav"
+    measured = ffmpeg.measure_loudness(
+        fixture_clip, prefilter=render.voice_chain(), target_lufs=render.VOICE_LUFS,
+        target_tp=render.VOICE_TP,
+    )  # fmt: skip
+    second = render.loudnorm_second_pass(
+        measured, target_lufs=render.VOICE_LUFS, target_tp=render.VOICE_TP
+    )
+    ffmpeg.run(
+        [
+            ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(fixture_clip),
+            "-map", "0:a:0", "-af", f"{render.voice_chain()},{second},aresample=48000",
+            "-c:a", "pcm_s16le", str(out),
+        ],  # fmt: skip
+        timeout_s=ffmpeg.MEASURE_TIMEOUT_S,
+    )
+    return out

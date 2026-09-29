@@ -31,7 +31,7 @@ from pydantic import BaseModel, ValidationError
 
 from shortsmith import jobs, render
 from shortsmith.config import Settings
-from shortsmith.contracts import OwnInventory, PicturePlan
+from shortsmith.contracts import STORY_PARTS, OwnInventory, PicturePlan, SoundStory
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
 from shortsmith.reference import (
@@ -189,10 +189,31 @@ def summary(job: Job, inventory_dir: Path = INVENTORY_DIR) -> OwnInventory | Non
         if plan_path.is_file()
         else None
     )
+    sound_path = job.work_dir / "sound.json"  # 076: the plan's mood per part, beside ours
+    plan_moods = (
+        part_moods(SoundStory.model_validate_json(sound_path.read_text("utf-8")))
+        if sound_path.is_file()
+        else None
+    )
     return OwnInventory(
         status="analysed",
-        comparison=compare_module.compare(found, cards, style=style, plan_match=plan_match),
+        comparison=compare_module.compare(
+            found, cards, style=style, plan_match=plan_match, plan_moods=plan_moods
+        ),
     )
+
+
+def part_moods(story: SoundStory) -> dict[str, str]:
+    """076: per story part of the plan, the mood of the bed segment playing in it (its
+    flavour in brackets, as the cards write it); empty for a story from before 076."""
+    out: dict[str, str] = {}
+    for part in story.parts:
+        rank = STORY_PARTS.index(part.part)
+        playing = [s for s in story.bed if STORY_PARTS.index(s.part_from) <= rank]
+        if playing:
+            s = playing[-1]
+            out[part.part] = f"{s.mood} ({s.flavour})" if s.flavour else s.mood
+    return out
 
 
 def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> SelfInventory:

@@ -70,7 +70,7 @@ def test_catalogue_loads_every_field(library: sound.Library) -> None:
     assert bed is not None
     assert bed.kind == "bed"
     assert bed.tags.theme == ["tech", "science"]
-    assert bed.tags.mood == ["curious", "bright"]
+    assert bed.tags.mood == ["curious", "bright", "mysterious_curiosity"]  # 076: a closed mood
     assert bed.energy == 3
     assert bed.drop_points_s == [1.0, 3.5]
     assert bed.loop_ok is True
@@ -812,27 +812,7 @@ def test_the_sfx_graph_delays_every_cue(library: sound.Library) -> None:
 # --- the mix, measured (7.3) ------------------------------------------------------------
 
 
-@pytest.fixture(scope="session")
-def voice(tmp_path_factory: pytest.TempPathFactory, fixture_clip: Path) -> Path:
-    """A voice stem shaped like the renderer's: the fixture's tone bursts through the
-    7.3 voice chain to -19 LUFS."""
-    out = tmp_path_factory.mktemp("voice") / "voice.wav"
-    measured = ffmpeg.measure_loudness(
-        fixture_clip, prefilter=render.voice_chain(), target_lufs=render.VOICE_LUFS,
-        target_tp=render.VOICE_TP,
-    )  # fmt: skip
-    second = render.loudnorm_second_pass(
-        measured, target_lufs=render.VOICE_LUFS, target_tp=render.VOICE_TP
-    )
-    ffmpeg.run(
-        [
-            ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(fixture_clip),
-            "-map", "0:a:0", "-af", f"{render.voice_chain()},{second},aresample=48000",
-            "-c:a", "pcm_s16le", str(out),
-        ],  # fmt: skip
-        timeout_s=ffmpeg.MEASURE_TIMEOUT_S,
-    )
-    return out
+# `voice` (the fixture's tone bursts as the renderer's voice stem) lives in conftest (076).
 
 
 def test_build_mix_writes_the_three_stems_and_the_balance(
@@ -918,9 +898,9 @@ def _bed(entry_id: str, file: str, *, drops: Sequence[float] = (1.5,)) -> AudioE
         id=entry_id, kind="bed", file=file, source="synthetic",
         source_url=f"https://example.invalid/{entry_id}", licence="CC0-1.0",
         author="test", duration_s=fixture.CATALOGUE_BED_S,
-        tags=AudioTags(theme=["tech"], mood=["curious"], intent=[]),
+        tags=AudioTags(theme=["tech"], mood=["curious", "mysterious_curiosity"], intent=[]),
         drop_points_s=list(drops), loop_ok=True, energy=3,
-    )  # fmt: skip
+    )  # fmt: skip  (076: an approved bed of the fake story's mood)
 
 
 def _with_beds(

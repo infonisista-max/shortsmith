@@ -126,7 +126,8 @@ def test_run_smoke_walks_the_path(tmp_path: Path) -> None:
     # inside `rendering`, and the placed cues are one line each.
     (decision,) = [line for line in noted if line.startswith("sound: bed ") and "library" in line]
     (sound_note,) = [line for line in noted if line.startswith("sound: bed ") and " cues (" in line]
-    assert "from the library (score" in decision
+    # 076: the bed per story part, by its closed mood
+    assert "for hook: mysterious_curiosity from the approved library" in decision
     assert noted.index("sourcing -> rendering") < noted.index(decision) < noted.index(sound_note)
     assert noted.index(sound_note) < noted.index("rendering -> qa")
     assert any(line.startswith("sound: ") and "placed at" in line for line in noted)

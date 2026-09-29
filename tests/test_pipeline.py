@@ -155,6 +155,11 @@ def test_run_job_transcribes_plans_renders_gates_and_delivers(
     assert log.index("transcribing -> planning") < log.index(examples)
     assert log.index(examples) < log.index("planning -> sourcing")
     log.remove(examples)
+    # 076: the next line says how many reference cards the sound call learns music from
+    # (none until the committed cards are v2).
+    pairings = log[log.index("transcribing -> planning") + 1]
+    assert pairings.startswith("music pairings: "), pairings
+    log.remove(pairings)
     assert len(log) == len(TRAIL) + 2 and log[-3].startswith("critic: overall ")
     # 074: the self-inventory runs after `delivered`; the default step has no key.
     assert log[-1].startswith("inventory: not analysed: ") and "GEMINI_API_KEY" in log[-1]
@@ -775,13 +780,35 @@ def test_a_plan_rejected_twice_fails_the_job_at_planning_with_the_list(
 
 CLI_REPLIES = Path(__file__).parent / "fixtures" / "claude_cli"
 EQUIVALENT = Prices({"api_equivalent": {"input_tokens": 0.25, "output_tokens": 1.25}})
+# 076: the sound reply file predates prompt v18 and stays as committed; the stub adds the
+# fields a v18 reply carries (the fixture plan's four story parts, one bed from the hook)
+# here, in code, so the sound grammar passes it.
+V18_SOUND: dict[str, object] = {
+    "parts": [
+        {"part": "hook", "first_beat": "b01", "last_beat": "b02"},
+        {"part": "build_up", "first_beat": "b03", "last_beat": "b06"},
+        {"part": "reveal", "first_beat": "b07", "last_beat": "b10"},
+        {"part": "ending", "first_beat": "b11", "last_beat": "b11"},
+    ],
+    "bed": [{"part_from": "hook", "mood": "mysterious_curiosity", "flavour": None}],
+    "change": None,
+}
+
+
+def _cli_reply(name: str) -> bytes:
+    raw = (CLI_REPLIES / f"{name}.json").read_bytes()
+    if name != "sound":
+        return raw
+    envelope = json.loads(raw)
+    envelope["result"] = json.dumps({**json.loads(envelope["result"]), **V18_SOUND})
+    return json.dumps(envelope).encode()
 
 
 class _Cli:
     """Stubbed `claude` CLI: answers each call with the next queued envelope."""
 
     def __init__(self, *names: str, first_reply: str | None = None) -> None:
-        self.replies = [(CLI_REPLIES / f"{n}.json").read_bytes() for n in names]
+        self.replies = [_cli_reply(n) for n in names]
         if first_reply is not None:
             envelope = json.loads(self.replies[0])
             envelope["result"] = first_reply

@@ -23,6 +23,21 @@ and appends the result to the catalogue with its licence and author, so the righ
 is an ordinary library row; `FakeAudioSearch` answers from a shelf of catalogue entries
 and records every query, so no test reaches the network.
 
+**The bed per story part (076).** A sound story names its story `parts` and a `bed` of
+one or two segments `{part_from, mood, flavour?}` from the closed list of `moods.yaml`.
+`score_candidates` gives each segment the best approved bed of its mood (`mood_beds`: a
+flavour match first, then the energy distance to `bed_query.energy`, then the drop fit;
+`fetched/` never), and the one change sits on the second segment's part start with the
+planned `how`. `span_gates` renders it with sample-exact fades - an equal-power
+`bed_crossfade_s` crossfade, a hard cut faded over `bed_cut_fade_s`, or `bed_silence_s`
+of nothing between the beds - each bed in its own stem (`music.1.wav`, `music.2.wav`,
+summed into `music.wav`), levelled where it plays alone, the envelope inside each. The
+balance measures each bed's window and the crossfade too (`balance_windows`). A failed
+two-bed mix drops the change for the first segment's beds alone. A segment with no
+approved bed drops the change and asks the search for one bed of that mood
+(`FALLBACK_LINE`, on the job page and in `job.log`); so does a mood whose approved beds all
+fail the balance. A story from before 076 (no `bed`) is scored by its `bed_query` below.
+
 **Search ladders (054).** F1 went out silent: the planner's whole theme and mood
 sentences were one query, and the empty shipped catalogue returned before the search
 was even asked. Now the search is asked with plain keywords, specific to broad
@@ -108,8 +123,11 @@ from shortsmith.contracts import (
     AudioEntry,
     AudioKind,
     BalanceReport,
+    BalanceWindow,
     Beat,
+    BedHow,
     BedQuery,
+    BedSegment,
     Catalogue,
     Cue,
     CueRecord,
@@ -508,6 +526,228 @@ def choose_bed(
         if entry is not None:
             return entry, tuple(lines)
     return None, tuple(lines)
+
+
+# --- the bed per story part (076) --------------------------------------------------------
+
+FALLBACK_LINE = "fallback bed: {mood}, no approved bed"
+
+
+@dataclass(frozen=True)
+class BedSpan:
+    """One bed of the score: the entry, the story part and mood it plays from, and when
+    its part starts on the timeline."""
+
+    entry: AudioEntry
+    part: str
+    mood: str
+    start_s: float = 0.0
+
+
+@dataclass(frozen=True)
+class Score:
+    """The beds the music stem plays: one, or two with the `how` of the one change at
+    the second bed's `start_s` (076)."""
+
+    spans: tuple[BedSpan, ...]
+    how: BedHow | None = None
+
+    @classmethod
+    def single(cls, entry: AudioEntry, *, part: str = "hook", mood: str = "") -> Score:
+        return cls(spans=(BedSpan(entry=entry, part=part, mood=mood),))
+
+    @property
+    def beds(self) -> tuple[AudioEntry, ...]:
+        return tuple(s.entry for s in self.spans)
+
+    @property
+    def change_s(self) -> float | None:
+        return self.spans[1].start_s if len(self.spans) > 1 else None
+
+    @property
+    def key(self) -> tuple[object, ...]:
+        return (*(s.entry.id for s in self.spans), self.how)
+
+    @property
+    def label(self) -> str:
+        return " + ".join(s.entry.id for s in self.spans)
+
+
+def approved_beds(library: Library) -> tuple[AudioEntry, ...]:
+    """076: the beds a segment may play - the operator's approved library (075), never
+    one a runtime search fetched."""
+    return tuple(e for e in library.beds() if e.id not in library.fetched)
+
+
+def mood_beds(
+    library: Library, segment: BedSegment, *, energy: int, first_stamp_s: float
+) -> list[AudioEntry]:
+    """The approved beds tagged with the segment's mood, best first: a flavour match,
+    then the energy distance, then the drop-point fit, then the id."""
+    matching = [e for e in approved_beds(library) if segment.mood in e.tags.mood]
+    flavour = segment.flavour
+
+    def rank(e: AudioEntry) -> tuple[int, int, float, str]:
+        flavoured = 0 if flavour is not None and flavour in e.tags.flavour else 1
+        return (flavoured, abs(e.energy - energy), drop_fit(e, first_stamp_s), e.id)
+
+    return sorted(matching, key=rank)
+
+
+def select_mood_bed(
+    library: Library, segment: BedSegment, *, energy: int, first_stamp_s: float
+) -> AudioEntry | None:
+    found = mood_beds(library, segment, energy=energy, first_stamp_s=first_stamp_s)
+    return found[0] if found else None
+
+
+def part_start_s(story: SoundStory, plan: PicturePlan, part: str) -> float:
+    """When a story part's first beat starts on the plan's timeline (0 when unnamed)."""
+    first = next((p.first_beat for p in story.parts if p.part == part), None)
+    return next((b.start for b in plan.beats if b.id == first), 0.0)
+
+
+def _segment_bed(
+    library: Library, segment: BedSegment, story: SoundStory, plan: PicturePlan, start_s: float
+) -> AudioEntry | None:
+    stamps = [
+        b.start - start_s for b in plan.beats if b.event.kind == "stamp" and b.start >= start_s
+    ]
+    stamp = min(stamps) if stamps else 0.0
+    return select_mood_bed(library, segment, energy=story.bed_query.energy, first_stamp_s=stamp)
+
+
+def score_candidates(
+    library: Library,
+    story: SoundStory,
+    plan: PicturePlan,
+    nums: styles.Sound,
+    *,
+    search: AudioSearch | None = None,
+) -> Iterator[tuple[Score | None, tuple[str, ...], str | None]]:
+    """The scores to try, best first, each with its log lines and the fallback line
+    when it is a Freesound fallback (076).
+
+    A story with no `bed` segments is scored the pre-076 way (`bed_candidates` over its
+    `bed_query`). Otherwise every segment takes the best approved bed of its mood
+    (`mood_beds`) and the change sits on the second segment's part start; after it, the
+    first segment's approved beds alone (a change never survives a failed balance). A
+    segment with no approved bed for its mood drops the change: one Freesound bed is
+    searched for that mood with 069's music-anchored ladder, and its line says so."""
+    if not story.bed:
+        for entry, said in bed_candidates(
+            library, story.bed_query, first_stamp_s=first_stamp_s(plan),
+            threshold=nums.bed_score_threshold, search=search,
+            default_query=nums.default_bed_query, anchor=nums.bed_query_anchor,
+        ):  # fmt: skip
+            yield (Score.single(entry) if entry is not None else None), said, None
+        return
+    spans: list[BedSpan] = []
+    lines: list[str] = []
+    for i, segment in enumerate(story.bed[:2]):
+        start = 0.0 if i == 0 else part_start_s(story, plan, segment.part_from)
+        entry = _segment_bed(library, segment, story, plan, start)
+        flavour = f" ({segment.flavour})" if segment.flavour else ""
+        if entry is None:
+            fallback = FALLBACK_LINE.format(mood=segment.mood)
+            yield from _fallback(library, story, nums, segment, search, fallback)
+            return
+        lines.append(
+            f"bed {entry.id} for {segment.part_from}: {segment.mood}{flavour} from the approved "
+            "library"
+        )
+        spans.append(BedSpan(entry=entry, part=segment.part_from, mood=segment.mood, start_s=start))
+    change = story.change if len(spans) > 1 else None
+    how = change.how if change is not None else None
+    if change is not None:
+        lines.append(f"bed change at {spans[1].start_s:.2f} s ({change.at_beat}): {change.how}")
+    yield Score(spans=tuple(spans), how=how), tuple(lines), None
+    first = story.bed[0]
+    for entry in mood_beds(library, first, energy=story.bed_query.energy,
+                           first_stamp_s=first_stamp_s(plan)):  # fmt: skip
+        yield (
+            Score.single(entry, part=first.part_from, mood=first.mood),
+            (f"bed {entry.id} alone for {first.mood}: the change is dropped",) if how else (),
+            None,
+        )
+    if search is not None:
+        # 056 (1): past the library's candidates the search supplies the next bed.
+        spent = FALLBACK_LINE.format(mood=first.mood) + " passed the 7.3 balance"
+        yield from _fallback(library, story, nums, first, search, spent)
+
+
+def _fallback(
+    library: Library,
+    story: SoundStory,
+    nums: styles.Sound,
+    segment: BedSegment,
+    search: AudioSearch | None,
+    line: str,
+) -> Iterator[tuple[Score | None, tuple[str, ...], str | None]]:
+    """076: one bed from the search (or a bed it fetched before), never an approved bed
+    of another mood; the mood's words ask for it."""
+    kept = tuple(e for e in library.entries if e.kind != "bed" or e.id in library.fetched)
+    unapproved = replace(library, entries=kept)
+    query = story.bed_query.model_copy(update={"mood": segment.mood.replace("_", " ")})
+    first = True
+    for entry, lines in bed_candidates(
+        unapproved, query, first_stamp_s=0.0, threshold=nums.bed_score_threshold,
+        search=search, default_query=nums.default_bed_query, anchor=nums.bed_query_anchor,
+    ):  # fmt: skip
+        head = (line,) if first else ()
+        first = False
+        score = Score.single(entry, part=segment.part_from, mood=segment.mood) if entry else None
+        yield score, (*head, *lines), line
+
+
+def span_gates(score: Score, nums: styles.Sound) -> tuple[tuple[float, str], ...]:
+    """Per bed of the score, where its file starts on the timeline and the sample-exact
+    fades that let it in and out at the change (076): a crossfade is an equal-power
+    `bed_crossfade_s` from the change; a hard cut fades the old bed out over
+    `bed_cut_fade_s` up to the change and the new one in over it from there; a drop to
+    silence does the same with `bed_silence_s` of nothing between them."""
+    t = score.change_s
+    if t is None or score.how is None:
+        return tuple((0.0, "") for _ in score.spans)
+    fade = nums.bed_cut_fade_s
+    if score.how == "crossfade":
+        length = nums.bed_crossfade_s
+        return (
+            (0.0, f"afade=t=out:st={t:g}:d={length:g}:curve=qsin"),
+            (t, f"afade=t=in:st={t:g}:d={length:g}:curve=qsin"),
+        )
+    out = (0.0, f"afade=t=out:st={max(0.0, t - fade):g}:d={min(fade, t) or fade:g}")
+    enter = t if score.how == "hard_cut" else t + nums.bed_silence_s
+    return (out, (enter, f"afade=t=in:st={enter:g}:d={fade:g}"))
+
+
+@dataclass(frozen=True)
+class Window:
+    name: str
+    start_s: float
+    end_s: float
+    span: int | None  # the bed measured alone; None for the crossfade (the summed stem)
+
+
+def balance_windows(score: Score, nums: styles.Sound, *, runtime_s: float) -> tuple[Window, ...]:
+    """076: the stretches a two-bed short is measured on - each bed where it plays alone,
+    and the crossfade where both do. One bed has none: the whole stem is its window."""
+    t = score.change_s
+    if t is None or score.how is None:
+        return ()
+    a, b = score.spans
+    enter = {"crossfade": t + nums.bed_crossfade_s, "hard_cut": t,
+             "drop_to_silence": t + nums.bed_silence_s}[score.how]  # fmt: skip
+    windows = [Window(f"{a.part}: {a.mood} ({a.entry.id})", 0.0, t, 0)]
+    if score.how == "crossfade":
+        windows.append(Window(f"crossfade {t:.2f}-{enter:.2f} s", t, enter, None))
+    name = f"{b.part}: {b.mood} ({b.entry.id})"
+    windows.append(Window(name, min(enter, runtime_s), runtime_s, 1))
+    return tuple(windows)
+
+
+def trim(start_s: float, end_s: float) -> str:
+    return f"atrim=start={start_s:g}:end={end_s:g}"
 
 
 # --- the floor hits (7.1) ---------------------------------------------------------------
@@ -1099,19 +1339,25 @@ def music_filter(
     runtime_s: float,
     nums: styles.Sound,
     dip_db: float = 0.0,
+    delay_s: float = 0.0,
+    gate: str = "",
 ) -> str:
     """The music stem: level-matched to the bed target, the envelope on top, the style's
     fades at both ends, exactly `runtime_s` long; with `dip_db` the speech-band dip of
-    056 (1) before the level match, so the median still lands on the target."""
+    056 (1) before the level match, so the median still lands on the target. 076: a bed
+    of a two-bed score starts `delay_s` into the short (its file from its start) and
+    `gate` is its `span_gates` fades, so the envelope still shapes it inside its span."""
     fade_out_at = max(0.0, runtime_s - nums.fade_out_s)
     dip = f"{dip_filter(nums, dip_db)}," if dip_db > 0 else ""
+    delay = f"adelay=delays={round(delay_s * 1000)}:all=1," if delay_s > 0 else ""
     return (
-        f"{MONO},apad,atrim=0:{runtime_s:g},asetpts=N/SR/TB,"
+        f"{MONO},{delay}apad,atrim=0:{runtime_s:g},asetpts=N/SR/TB,"
         f"{dip}"
         f"volume={gain_db:.2f}dB,"
         f"volume='{volume_expr(points)}':eval=frame,"
         f"afade=t=in:st=0:d={nums.fade_in_s:g},"
         f"afade=t=out:st={fade_out_at:g}:d={nums.fade_out_s:g}"
+        + (f",{gate}" if gate else "")
     )
 
 
@@ -1157,11 +1403,19 @@ class MixResult:
     notes: tuple[str, ...]
     # 054: the library as the searches left it - what the rights rows are read from.
     library: Library
+    # 076: every bed the music stem plays (two across a change, `bed` the first), the
+    # change's `how` and time, and the fallback line when the bed came from the search.
+    beds: tuple[AudioEntry, ...] = ()
+    how: BedHow | None = None
+    change_s: float | None = None
+    fallback: str | None = None
 
     def summary(self) -> str:
         """The closing line of the job log's sound trail: what the director chose. Every
         search and every per-cue decision precedes it in `notes` (054 (1))."""
         bed = f"bed {self.bed.id}" if self.bed is not None else "no bed"
+        if len(self.beds) > 1 and self.change_s is not None:
+            bed += f", then {self.beds[1].id} by {self.how} at {self.change_s:.2f} s"
         planned = sum(1 for c in self.cues if c.source == "planner")
         dropped = sum(1 for n in self.notes if "dropped" in n)
         return (
@@ -1175,8 +1429,8 @@ def _speech_band(nums: styles.Sound) -> str:
     return f"highpass=f={low:g},lowpass=f={high:g}"
 
 
-def _median_db(path: Path) -> float | None:
-    windows = ffmpeg.rms_windows_db(path)
+def _median_db(path: Path, *, prefilter: str = "") -> float | None:
+    windows = ffmpeg.rms_windows_db(path, prefilter=prefilter)
     return statistics.median(windows) if windows else None
 
 
@@ -1267,34 +1521,35 @@ def build_mix(
     sheet = cue_records(placed.cues, library, runtime_s=runtime_s)
     (stems / CUES_NAME).write_text(sheet.model_dump_json(indent=2), encoding="utf-8")
 
-    bed: AudioEntry | None = None
+    score: Score | None = None
     mixed: _BedMix | None = None
     repairs: list[str] = []
     dropped: str | None = None
-    tried: set[str] = set()
-    for candidate, lines in bed_candidates(
-        library, story.bed_query, first_stamp_s=first_stamp_s(plan),
-        threshold=nums.bed_score_threshold, search=search,
-        default_query=nums.default_bed_query, anchor=nums.bed_query_anchor,
-    ):  # fmt: skip
+    fallback: str | None = None
+    tried: set[tuple[object, ...]] = set()
+    for candidate, lines, fallen in score_candidates(library, story, plan, nums, search=search):
         note(lines)
-        if candidate is None or candidate.id in tried:
+        fallback = fallen or fallback
+        if candidate is None or candidate.key in tried:
             continue
-        tried.add(candidate.id)
-        library = library.adding(candidate)
+        tried.add(candidate.key)
+        for entry in candidate.beds:
+            library = library.adding(entry)
         attempt = _repaired_bed(
-            stems, bed=candidate, library=library, story=story, nums=nums, voice=voice,
+            stems, score=candidate, library=library, story=story, nums=nums, voice=voice,
             voice_db=voice_db, runtime_s=runtime_s, cues=len(placed.cues), note=note,
         )  # fmt: skip
         repairs += attempt.repairs
         if not attempt.balance.problems:
-            bed, mixed = candidate, attempt
+            score, mixed = candidate, attempt
             break
-        dropped = f"{candidate.id}: {'; '.join(attempt.balance.problems)}"
+        dropped = f"{candidate.label}: {'; '.join(attempt.balance.problems)}"
         if len(tried) >= BED_CANDIDATES_MAX:
             note((f"{BED_CANDIDATES_MAX} beds mixed and dropped; no further candidate is tried",))
             break
-        note((f"bed {candidate.id} dropped after every repair; trying the next bed",))
+        note((f"bed {candidate.label} dropped after every repair; trying the next bed",))
+    if mixed is None or score is None or len(score.spans) < 2:
+        _clear_span_stems(stems)
     if mixed is None:
         for name in ("music.wav", "music.ducked.wav"):
             (stems / name).unlink(missing_ok=True)
@@ -1310,16 +1565,24 @@ def build_mix(
     )
     premix = _premix(stems, voice=voice, ducked=mixed.ducked, sfx=sfx)
     (stems / BALANCE_NAME).write_text(balance.model_dump_json(indent=2), encoding="utf-8")
+    beds = score.beds if score is not None and mixed.music is not None else ()
     return MixResult(
-        premix=premix, music=mixed.music, sfx=sfx, bed=bed, cues=placed.cues,
-        balance=balance, notes=tuple(notes), library=library,
+        premix=premix, music=mixed.music, sfx=sfx, bed=beds[0] if beds else None,
+        cues=placed.cues, balance=balance, notes=tuple(notes), library=library, beds=beds,
+        how=score.how if beds and score is not None else None,
+        change_s=score.change_s if beds and score is not None else None, fallback=fallback,
     )  # fmt: skip
+
+
+def _clear_span_stems(stems: Path) -> None:
+    for path in stems.glob("music.[0-9].wav"):
+        path.unlink(missing_ok=True)
 
 
 def _mix_bed(
     stems: Path,
     *,
-    bed: AudioEntry,
+    score: Score,
     library: Library,
     story: SoundStory,
     nums: styles.Sound,
@@ -1330,22 +1593,33 @@ def _mix_bed(
     dip_db: float,
     under_db: float | None,
 ) -> _BedMix:
-    """One bed rendered, ducked and measured, with the given dip and target."""
-    music = _music_stem(
-        stems, bed=bed, library=library, story=story, nums=nums, voice_db=voice_db,
+    """One score rendered, ducked and measured, with the given dip and target."""
+    music, spans = _music_stem(
+        stems, score=score, library=library, story=story, nums=nums, voice_db=voice_db,
         runtime_s=runtime_s, dip_db=dip_db, under_db=under_db,
     )  # fmt: skip
     ducked = _ducked(stems, voice=voice, music=music)
     balance = _balance(
-        stems, voice=voice, music=music, ducked=ducked, nums=nums, voice_db=voice_db, cues=cues
-    )
+        stems, voice=voice, music=music, ducked=ducked, nums=nums, voice_db=voice_db, cues=cues,
+        windows=[(w, spans[w.span] if w.span is not None else music)
+                 for w in balance_windows(score, nums, runtime_s=runtime_s)],
+    )  # fmt: skip
     return _BedMix(music=music, ducked=ducked, balance=balance, dip_db=dip_db)
+
+
+def _margins(balance: BalanceReport) -> tuple[float | None, float | None]:
+    """The lowest and the highest speech-band margin the balance measured: the whole
+    stem's and, across a bed change, each window's (076). The dip answers the lowest;
+    069's ceiling reads the highest."""
+    found = [m for m in (balance.speech_band_margin_db,
+                         *(w.speech_band_margin_db for w in balance.windows)) if m is not None]
+    return (min(found), max(found)) if found else (None, None)
 
 
 def _repaired_bed(
     stems: Path,
     *,
-    bed: AudioEntry,
+    score: Score,
     library: Library,
     story: SoundStory,
     nums: styles.Sound,
@@ -1361,30 +1635,30 @@ def _repaired_bed(
     `repairs` and in the log, the dip with its depth in dB and the margin it reached.
     The result carries the last balance measured; the caller reads `problems`."""
     plain = _mix_bed(
-        stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+        stems, score=score, library=library, story=story, nums=nums, voice=voice,
         voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=0.0, under_db=None,
     )  # fmt: skip
     if not plain.balance.problems:
         return plain
-    note((f"bed {bed.id} misses the 7.3 band: {'; '.join(plain.balance.problems)}",))
-    if inaudible(plain.balance.speech_band_margin_db, nums):
+    note((f"bed {score.label} misses the 7.3 band: {'; '.join(plain.balance.problems)}",))
+    if inaudible(_margins(plain.balance)[1], nums):
         # 069: a dip or a lower bed only pushes the band further down; the caller walks
         # on to the next candidate.
-        note((f"bed {bed.id}: no repair makes a bed the phone speaker cannot play audible",))
+        note((f"bed {score.label}: no repair makes a bed the phone speaker cannot play audible",))
         return plain
     low_hz, high_hz = nums.speech_band_hz
     repairs: list[str] = []
     current = plain
-    margin = plain.balance.speech_band_margin_db
+    margin = _margins(plain.balance)[0]
     if margin is not None and margin < nums.speech_band_margin_db:
         for depth in dip_depths(nums.speech_band_margin_db - margin):
             current = _mix_bed(
-                stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+                stems, score=score, library=library, story=story, nums=nums, voice=voice,
                 voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=depth, under_db=None,
             )  # fmt: skip
-            reached = current.balance.speech_band_margin_db
+            reached = _margins(current.balance)[0]
             line = (
-                f"bed {bed.id}: speech band {low_hz}-{high_hz} Hz dipped by {depth:g} dB "
+                f"bed {score.label}: speech band {low_hz}-{high_hz} Hz dipped by {depth:g} dB "
                 f"(margin {margin:.1f} -> {reached if reached is None else round(reached, 1)} dB, "
                 f"line {nums.speech_band_margin_db:g})"
             )
@@ -1399,27 +1673,27 @@ def _repaired_bed(
     # tolerance the level match stops at.
     low = nums.bed_accept_db[0] + BED_TOLERANCE_DB
     current = _mix_bed(
-        stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+        stems, score=score, library=library, story=story, nums=nums, voice=voice,
         voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=current.dip_db, under_db=low,
     )  # fmt: skip
-    reached = current.balance.speech_band_margin_db
+    reached = _margins(current.balance)[0]
     line = (
-        f"bed {bed.id}: lowered to {low:g} dB under the voice, the floor of "
+        f"bed {score.label}: lowered to {low:g} dB under the voice, the floor of "
         f"sound.bed_accept_db {nums.bed_accept_db[0]:g} dB (margin now "
         f"{reached if reached is None else round(reached, 1)} dB)"
     )
     repairs.append(line)
     note((line,))
-    if current.dip_db > 0 and inaudible(reached, nums):
+    if current.dip_db > 0 and inaudible(_margins(current.balance)[1], nums):
         # 069: the dip fixed the margin at the loud level; lowered as well, the band is
         # past the ceiling, so the lowered bed goes out without it.
         current = _mix_bed(
-            stems, bed=bed, library=library, story=story, nums=nums, voice=voice,
+            stems, score=score, library=library, story=story, nums=nums, voice=voice,
             voice_db=voice_db, runtime_s=runtime_s, cues=cues, dip_db=0.0, under_db=low,
         )  # fmt: skip
-        reached = current.balance.speech_band_margin_db
+        reached = _margins(current.balance)[0]
         line = (
-            f"bed {bed.id}: lowered without the dip, which left the band over "
+            f"bed {score.label}: lowered without the dip, which left the band over "
             f"sound.speech_band_margin_max_db {nums.speech_band_margin_max_db:g} dB (margin now "
             f"{reached if reached is None else round(reached, 1)} dB)"
         )
@@ -1435,7 +1709,7 @@ BED_PASSES = 4
 def _music_stem(
     stems: Path,
     *,
-    bed: AudioEntry | None,
+    score: Score,
     library: Library,
     story: SoundStory,
     nums: styles.Sound,
@@ -1443,39 +1717,86 @@ def _music_stem(
     runtime_s: float,
     dip_db: float = 0.0,
     under_db: float | None = None,
-) -> Path | None:
-    """The music stem, converged on the target.
+) -> tuple[Path, tuple[Path, ...]]:
+    """The music stem and the stem of each bed in it (076: `music.1.wav`, `music.2.wav`
+    across a change, summed into `music.wav`; one bed is `music.wav` itself). Each bed
+    is converged on the target alone, measured where it plays alone (`balance_windows`),
+    its envelope and its `span_gates` fades applied."""
+    points = envelope(story, nums, runtime_s=runtime_s)
+    target = voice_db + (nums.bed_db_under_voice if under_db is None else under_db)
+    if len(score.spans) == 1:
+        out = _bed_stem(
+            stems / "music.wav", bed=score.spans[0].entry, library=library, nums=nums,
+            points=points, target=target, runtime_s=runtime_s, dip_db=dip_db,
+        )  # fmt: skip
+        return out, (out,)
+    windows = {w.span: w for w in balance_windows(score, nums, runtime_s=runtime_s)}
+    beds: list[Path] = []
+    for i, (span, (delay_s, gate)) in enumerate(zip(score.spans, span_gates(score, nums),
+                                                   strict=True)):  # fmt: skip
+        own = windows.get(i)
+        beds.append(
+            _bed_stem(
+                stems / f"music.{i + 1}.wav", bed=span.entry, library=library, nums=nums,
+                points=points, target=target, runtime_s=runtime_s, dip_db=dip_db,
+                delay_s=delay_s, gate=gate,
+                measured=trim(own.start_s, own.end_s) if own is not None else "",
+            )  # fmt: skip
+        )
+    out = stems / "music.wav"
+    inputs = [arg for path in beds for arg in ("-i", str(path))]
+    labels = "".join(f"[{i}:a]" for i in range(len(beds)))
+    _render(
+        [
+            ffmpeg.FFMPEG, "-v", "error", "-y", *inputs, "-filter_complex",
+            f"{labels}amix=inputs={len(beds)}:normalize=0:duration=first[m]",
+            "-map", "[m]", "-c:a", "pcm_f32le", str(out),
+        ]  # fmt: skip
+    )
+    return out, tuple(beds)
+
+
+def _bed_stem(
+    out: Path,
+    *,
+    bed: AudioEntry,
+    library: Library,
+    nums: styles.Sound,
+    points: Sequence[EnvelopePoint],
+    target: float,
+    runtime_s: float,
+    dip_db: float = 0.0,
+    delay_s: float = 0.0,
+    gate: str = "",
+    measured: str = "",
+) -> Path:
+    """One bed's stem, converged on the target.
 
     7.3 puts the bed `bed_db_under_voice` under the voice *on the median*, and the
     envelope and the fades both move the median away from the flat gain that would hit
     it. So the stem is rendered, its median measured and the gain corrected, at most
     `BED_PASSES` times - the loop `render.master` uses for the master's loudness, for the
     same reason: the target is a property of the rendered file, not of the filter.
-    056 (1): `dip_db` is the speech-band dip, `under_db` a target other than the
-    style's (the repaired, lower bed)."""
-    if bed is None:
-        return None
+    056 (1): `dip_db` is the speech-band dip, `target` the style's or the repaired,
+    lower one. 076: `measured` trims the median to where the bed plays alone."""
     source = library.file(bed)
     if not source.is_file():
         raise SoundError(f"the bed {bed.id} names {bed.file}, which is not in the library folder")
     bed_db = ffmpeg.mean_volume_db(source)
     if bed_db is None:
         raise SoundError(f"the bed {bed.id} ({bed.file}) is silent")
-    target = voice_db + (nums.bed_db_under_voice if under_db is None else under_db)
     gain_db = target - bed_db
-    points = envelope(story, nums, runtime_s=runtime_s)
-    out = stems / "music.wav"
     for _ in range(BED_PASSES):
         _render(
             [
                 *_bed_source_args(bed, runtime_s, source),
                 "-af",
                 music_filter(gain_db=gain_db, points=points, runtime_s=runtime_s, nums=nums,
-                             dip_db=dip_db),
+                             dip_db=dip_db, delay_s=delay_s, gate=gate),
                 "-c:a", "pcm_f32le", str(out),
             ]  # fmt: skip
         )
-        median = _median_db(out)
+        median = _median_db(out, prefilter=measured)
         if median is None:
             break
         error = target - median
@@ -1587,12 +1908,14 @@ def inaudible(margin_db: float | None, nums: styles.Sound) -> bool:
     return margin_db is not None and margin_db > nums.speech_band_margin_max_db + 1e-9
 
 
-def audibility(voice: Path, music: Path, nums: styles.Sound) -> tuple[float | None, str | None]:
+def audibility(
+    voice: Path, music: Path, nums: styles.Sound, *, window: str = ""
+) -> tuple[float | None, str | None]:
     """069: the speech-band margin of `voice` over `music` (a bed already levelled
     against it) and its `margin_problem`; `(None, None)` when either is silent in the
     band. The mix's balance runs it, and 075's shortlist runs it on every bed candidate
-    before the operator hears one."""
-    band = _speech_band(nums)
+    before the operator hears one. 076: `window` (an `atrim`) measures one stretch."""
+    band = f"{window},{_speech_band(nums)}" if window else _speech_band(nums)
     voice_band = ffmpeg.mean_volume_db(voice, prefilter=band)
     bed_band = ffmpeg.mean_volume_db(music, prefilter=band)
     if voice_band is None or bed_band is None:
@@ -1610,9 +1933,12 @@ def _balance(
     nums: styles.Sound,
     voice_db: float,
     cues: int,
+    windows: Sequence[tuple[Window, Path]] = (),
 ) -> BalanceReport:
     """The 7.3 acceptance, measured: the bed's median level under the voice, the speech
-    band's margin over the bed, and how far the sidechain pulled the bed down."""
+    band's margin over the bed, and how far the sidechain pulled the bed down. 076:
+    across a bed change, each bed where it plays alone passes the same median and
+    margin lines on its own stem, and the crossfade's margin is measured on the sum."""
     low, high = nums.bed_accept_db
     report: dict[str, object] = {
         "voice_db": round(voice_db, 2),
@@ -1652,6 +1978,32 @@ def _balance(
                         f"the sidechain pulls the bed down {duck:.1f} dB, over "
                         f"sound.duck_max_db {nums.duck_max_db:g} dB"
                     )
+    measured: list[BalanceWindow] = []
+    for window, stem in windows:
+        if window.end_s - window.start_s <= 0:
+            continue
+        cut = trim(window.start_s, window.end_s)
+        median = _median_db(stem, prefilter=cut)
+        under = None if median is None else median - voice_db
+        if window.span is not None:
+            if under is None:
+                problems.append(f"{window.name}: the bed is silent")
+            elif not low - 1e-9 <= under <= high + 1e-9:
+                problems.append(
+                    f"{window.name}: the bed sits {under:.1f} dB under the voice, outside "
+                    f"sound.bed_accept_db {low:g} to {high:g} dB"
+                )
+        margin, problem = audibility(voice, stem, nums, window=cut)
+        if problem is not None:
+            problems.append(f"{window.name}: {problem}")
+        measured.append(
+            BalanceWindow(
+                name=window.name, start_s=round(window.start_s, 3), end_s=round(window.end_s, 3),
+                bed_under_voice_db=None if under is None else round(under, 2),
+                speech_band_margin_db=None if margin is None else round(margin, 2),
+            )  # fmt: skip
+        )
+    report["windows"] = measured
     report["problems"] = problems
     return BalanceReport.model_validate(report)
 
@@ -1693,8 +2045,8 @@ def rights_rows(result: MixResult) -> list[RightsRow]:
     searches left it (054)."""
     library = result.library
     rows: list[RightsRow] = []
-    if result.bed is not None:
-        rows.append(_audio_row(result.bed, library, kind="music", beat_ids=[]))
+    for bed in result.beds or ((result.bed,) if result.bed is not None else ()):
+        rows.append(_audio_row(bed, library, kind="music", beat_ids=[]))  # 076: every bed
     fired: dict[str, list[str]] = {}
     for cue in result.cues:
         fired.setdefault(cue.entry_id, []).append(cue.beat_id)

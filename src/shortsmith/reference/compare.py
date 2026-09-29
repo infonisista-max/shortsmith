@@ -10,7 +10,8 @@ references": our numbers are shown with no range and nothing is red.
 The rows: shots, effects and SFX (by kind) per 10 s, the median clip length, the share
 of SFX on a visible event, the layout share of the references' top three layouts (ours
 when there is no reference), the bed, the mood per story part against the plan's moods
-(076 fills the plan's side; until then "—"), the music change and its `how`, and the
+(076: `own.part_moods` of the job's sound story; "—" for a story without parts), the
+music change and its `how`, and the
 match share (literal + named entity + number, as a share of beats), whose plan column is
 our plan's share by the same rule (077, `examples.match_share`). Every
 figure is computed from the cards' lists, never from the rounded `counts`.
@@ -44,7 +45,7 @@ log = logging.getLogger(__name__)
 
 MIN_REFERENCES = 2
 NOT_ENOUGH = "not enough references"
-NO_PLAN = "—"  # 076 fills the plan's moods
+NO_PLAN = "—"  # a part the plan's sound story does not score (076)
 TOP_LAYOUTS = 3
 MATCHED = frozenset({"literal", "named_entity", "number"})
 INVISIBLE_EVENT = "other"  # every other `SfxEvent` is something seen on screen
@@ -54,20 +55,21 @@ MATCH_ROW = "match share (literal + named entity + number)"
 Measure = Callable[[ReferenceInventoryV2], float | None]
 
 
-def references_for(style: str, inventory_dir: Path = INVENTORY_DIR) -> list[ReferenceInventoryV2]:
-    """The reference v2 cards in `inventory_dir` whose `styles` include `style`; a v1
-    card is skipped with a log line, a file that is not a card with a warning."""
+def all_references(inventory_dir: Path = INVENTORY_DIR) -> list[ReferenceInventoryV2]:
+    """Every reference v2 card in `inventory_dir`, never our own (tier `own`); a v1 card
+    is skipped with a log line, a file that is not a card with a warning."""
     cards: list[ReferenceInventory] = []
     for path in sorted(inventory_dir.glob("*.json")) if inventory_dir.is_dir() else []:
         try:
             cards.append(load_card(path.read_text(encoding="utf-8")))
         except (ValueError, ValidationError, json.JSONDecodeError) as exc:
             log.warning("%s is not a reference card: %s", path.name, exc)
-    return [
-        card
-        for card in v2_cards(cards, log=log.debug)
-        if card.tier != "own" and style in card.styles
-    ]
+    return [card for card in v2_cards(cards, log=log.debug) if card.tier != "own"]
+
+
+def references_for(style: str, inventory_dir: Path = INVENTORY_DIR) -> list[ReferenceInventoryV2]:
+    """The reference v2 cards whose `styles` include `style` (`all_references`)."""
+    return [card for card in all_references(inventory_dir) if style in card.styles]
 
 
 def compare(

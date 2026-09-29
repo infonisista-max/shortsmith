@@ -2735,6 +2735,10 @@ def sound_mix(
         log=lambda line: jobs.note(job, f"sound: {line}"),
     )
     jobs.note(job, result.summary())
+    if result.fallback is not None and result.bed is not None:
+        # 076: the bed came from the search, not the approved library; the log has the
+        # line already, the page gets it once.
+        _page_notice(job, result.fallback)
     if result.balance.bed_dropped is not None:
         # 056 (1): every repair failed on every candidate; the short goes out with the
         # voice and the hits, and the page says so in one line.
@@ -2756,6 +2760,11 @@ def _page_warning(job: Job, line: str) -> None:
     """One `sound:` line in job.log and the same line among the job page's warnings,
     written once, so a retry does not repeat it."""
     jobs.note(job, f"sound: {line}")
+    _page_notice(job, line)
+
+
+def _page_notice(job: Job, line: str) -> None:
+    """`line` among the job page's warnings, once."""
     current = jobs.load(job.path).record.warnings
     if line not in current:
         jobs.amend(job, warnings=[*current, line])

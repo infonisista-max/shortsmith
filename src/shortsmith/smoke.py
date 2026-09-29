@@ -440,7 +440,11 @@ def run_smoke(
     noted = [line.split(" ", 1)[1] for line in log_lines]
     # The steps' own notes (the sound director's summary, 022) sit between the status
     # lines; TRAIL is the status trail, so it is compared against those alone.
-    trail = [line for line in noted if line == "created uploaded" or " -> " in line]
+    trail = [
+        line
+        for line in noted
+        if line == "created uploaded" or (" -> " in line and not line.startswith("sound: "))
+    ]  # 056 / 076: a repair's "margin a -> b dB" line is a sound note, not a status
     check(trail == TRAIL, f"unexpected job.log trail {trail}")
     check(
         any(line.startswith("sound: bed ") for line in noted),
@@ -998,13 +1002,19 @@ def check_sound(
     for stem in ("voice.wav", "music.wav", "sfx.wav", "mix.wav"):
         check((stems / stem).is_file(), f"rendering did not write stems/{stem}")
     nums = spec.sound
-    bed, _ = sound.choose_bed(
-        library, story.bed_query, first_stamp_s=sound.first_stamp_s(plan),
-        threshold=nums.bed_score_threshold, default_query=nums.default_bed_query,
-        anchor=nums.bed_query_anchor,
-    )  # fmt: skip
-    check(bed is not None, f"no bed was chosen for {story.bed_query}")
-    assert bed is not None
+    # 076: the bed per story part - every segment's approved bed of its mood, and the one
+    # change (the fake's crossfade at vishva's reveal) with both stems and its windows.
+    score = next(
+        (s for s, _, _ in sound.score_candidates(library, story, plan, nums) if s), None
+    )
+    check(score is not None, f"no approved bed for the story's moods {story.bed}")
+    assert score is not None
+    named = len(story.bed)
+    check(len(score.spans) == named, f"the story names {named} beds, the score {score.label}")
+    changed = story.change is not None
+    for i in range(1, len(score.spans) + 1):
+        check((stems / f"music.{i}.wav").is_file() == changed,
+              f"stems/music.{i}.wav is {'missing' if changed else 'left over'}")  # fmt: skip
     land_s = render.counter_land_s(spec)
     floor = sound.floor_hits(plan, nums, counter_land_s=land_s)
     check(bool(floor), "the plan's events earned no floor hit (7.1: a short is never flat)")
@@ -1042,6 +1052,9 @@ def check_sound(
     check(balance is not None, "the mix did not write stems/balance.json")
     assert balance is not None
     check(not balance.problems, f"the mix missed the 7.3 band: {balance.problems}")
+    expected = len(sound.balance_windows(score, nums, runtime_s=runtime))
+    measured = len(balance.windows)
+    check(measured == expected, f"balance.json measured {measured} windows, not {expected}")
     low, high = nums.bed_accept_db
     under = balance.bed_under_voice_db
     check(
@@ -1050,7 +1063,8 @@ def check_sound(
     )
     rows = rights.load(job.path) or []
     audio = {r.id: r for r in rows if r.kind in rights.AUDIO_KINDS}
-    check(bed.id in audio and audio[bed.id].kind == "music", f"no music row for {bed.id}")
+    for bed in score.beds:
+        check(bed.id in audio and audio[bed.id].kind == "music", f"no music row for {bed.id}")
     for cue in cues:
         check(cue.entry_id in audio, f"no rights row for the cue file {cue.entry_id}")
     check(

@@ -30,9 +30,9 @@ from shortsmith.sound import (
 
 ALL = ("explainer", "educational", "animated", "hitech", "footage", "vishva", "fastfacts")
 VERSIONS = {
-    "explainer": "16", "educational": "14", "animated": "14", "hitech": "15",
-    "footage": "6", "vishva": "6", "fastfacts": "6",
-}  # fmt: skip  (069 bumped each once more, 072 every style with a map, 070 every style)
+    "explainer": "17", "educational": "15", "animated": "15", "hitech": "16",
+    "footage": "7", "vishva": "7", "fastfacts": "7",
+}  # fmt: skip  (069 bumped each once more, 072 every style with a map, 070 every style, 076 each)
 # Run04's sound call (job 20260928-140620-f774e1, vishva): the bed query as written.
 RUN04 = BedQuery(theme="history documentary", mood="regal intriguing eastern oud", energy=3)
 
@@ -180,7 +180,7 @@ def test_an_inaudible_bed_takes_no_repair_it_goes_to_the_next_candidate(
     monkeypatch.setattr(sound, "_mix_bed", fake_mix)
     lines: list[str] = []
     result = _repaired_bed(
-        Path("stems"), bed=SimpleNamespace(id="freesound_557546"), library=None,  # type: ignore[arg-type]
+        Path("stems"), score=SimpleNamespace(label="freesound_557546"), library=None,  # type: ignore[arg-type]
         story=None, nums=nums,  # type: ignore[arg-type]
         voice=Path("voice.wav"), voice_db=-20.0, runtime_s=6.0, cues=0,
         note=lambda ls: lines.extend(ls),
@@ -214,7 +214,7 @@ def test_a_dip_that_the_lowering_pushes_over_the_ceiling_is_taken_off(
     monkeypatch.setattr(sound, "_mix_bed", fake_mix)
     lines: list[str] = []
     result = _repaired_bed(
-        Path("stems"), bed=SimpleNamespace(id="bed_x"), library=None,  # type: ignore[arg-type]
+        Path("stems"), score=SimpleNamespace(label="bed_x"), library=None,  # type: ignore[arg-type]
         story=None, nums=nums,  # type: ignore[arg-type]
         voice=Path("voice.wav"), voice_db=-20.0, runtime_s=6.0, cues=0,
         note=lambda ls: lines.extend(ls),

@@ -1,5 +1,5 @@
 ---
-version: "6"
+version: "7"
 status: shipped
 aliases: [footage, documentary, dhruv, cinematic]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -164,6 +164,13 @@ sound:
   tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop]}
   ding: {max_per_60s: 2, max_len_s: 0.8, "on": [idea_sticker]}  # the FactTechz lightbulb (zXK42RMPKUY 34 s)
   floor_max_len_s: {bass: 1.5, drum: 1.2, thump: 0.8}  # 075's shortlist lengths
+  # 076: at most one bed change, on a story-part boundary, both beds approved (075). The
+  # lengths are starting values: no committed card is v2 yet, so none carries a measured
+  # `music_changes` to derive them from; re-derive after `reference inventory --all`.
+  bed_changes_max: 1
+  bed_crossfade_s: 1.0  # both beds heard together this long
+  bed_silence_s: 0.5  # a drop to silence holds this long before the new bed
+  bed_cut_fade_s: 0.02  # a hard cut's fade, under one frame at 30 fps
 finale:
   kind: finale_card
   mode: "off"

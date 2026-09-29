@@ -258,6 +258,13 @@ class Sound(StrictModel):
     tick: Mark
     ding: Mark
     floor_max_len_s: dict[str, float]
+    # 076: at most this many bed changes per short, each on a story-part boundary, and how
+    # long each `how` takes - the crossfade, the silence of a drop, the fade either side
+    # of a hard cut (and around the silence).
+    bed_changes_max: int = Field(ge=0)
+    bed_crossfade_s: float = Field(gt=0.0)
+    bed_silence_s: float = Field(gt=0.0)
+    bed_cut_fade_s: float = Field(gt=0.0)
 
 
 def allows_whoosh(nums: Sound) -> bool:

@@ -6,7 +6,8 @@
 the intent and precedes the transcript, the material), then for the picture call the
 worked examples (077, section 7: two top shorts' beat tables, `reference.examples`),
 for the sound call the
-validated, snapped picture plan and the audio catalogue tags (8.1), then the JSON
+validated, snapped picture plan and the audio catalogue tags (8.1) and the music
+pairings of the reference cards (076, section 9, `reference.music`), then the JSON
 schema generated from the model the parser validates (one source of truth), then on
 the one retry the previous output and the violation list (8.2), and last the
 "reply with JSON only" line. Every adapter sends this identical text, so switching
@@ -41,11 +42,16 @@ from shortsmith.contracts import (
     PlanRequest,
     SoundStory,
 )
-from shortsmith.reference import examples
+from shortsmith.reference import examples, music
 
 Call = Literal["picture", "sound"]
 
-# v17 (ticket 077): the picture call gets section 7, "How top shorts edit a line like
+# v18 (ticket 076): the sound call gets section 9, "Music in top shorts": the active moods
+# and flavours of `moods.yaml` and one line per reference v2 card (topic, tone, mood per
+# part, changes and how), built by `reference.music`; the sound file asks for the story
+# `parts`, a `bed` of one or two segments by closed mood, and the one `change` on a part
+# boundary with its `how`. The picture file is v17's unchanged.
+# (v17, ticket 077): the picture call gets section 7, "How top shorts edit a line like
 # yours": the two worked examples code picked (style, topic, Tier B first) as beat tables,
 # with the rule to copy the moves and never the content; the picture file says how to
 # read it. The sound file is v16's unchanged.
@@ -98,8 +104,9 @@ Call = Literal["picture", "sound"]
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
 # diagram data; v2, ticket 027: the set-piece content rules.)))
-PROMPT_VERSION = "v17"
+PROMPT_VERSION = "v18"
 EXAMPLES_HEADING = "## 7. How top shorts edit a line like yours"
+MUSIC_HEADING = "## 9. Music in top shorts"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "
@@ -141,6 +148,7 @@ def build_prompt(
             "(no catalogue yet: describe the theme and mood in plain words)"
         )
         parts.append(f"## 8. Audio catalogue tags\n\n{tags}")
+        parts.append(f"{MUSIC_HEADING}\n\n{music.section(request.music)}")
     schema = json.dumps(MODELS[call].model_json_schema(), indent=2)
     parts.append(f"## JSON schema ({MODELS[call].__name__})\n\n```json\n{schema}\n```")
     if feedback is not None:

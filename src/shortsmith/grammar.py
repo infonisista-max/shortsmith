@@ -48,18 +48,20 @@ inside.
 
 from __future__ import annotations
 
+import functools
 import math
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import Literal
 
-from shortsmith import assets, presenter, stickers, styles
+from shortsmith import assets, presenter, stickers, styles, vocab
 from shortsmith.assets.generate import depicts_of
 from shortsmith.contracts import (
     CATEGORIES,
     CUE_KINDS,
+    STORY_PARTS,
     TIER2_KINDS,
     Beat,
     Bubble,
@@ -1502,14 +1504,117 @@ def _mark_problem(cue: Cue, beat: Beat, nums: styles.Sound, *, on_pop: bool) -> 
     return None
 
 
+@functools.cache
+def _shipped_moods() -> vocab.Moods:
+    return vocab.load_moods()
+
+
+def _closed(name: str, group: str, entries: Mapping[str, vocab.Entry]) -> str | None:
+    """076: why `name` is not a usable mood (or flavour), else None."""
+    if name not in entries:
+        return f"{group} {name!r} is not a {group} of moods.yaml ({', '.join(entries)})"
+    if not entries[name].active:
+        return (
+            f"{group} {name!r} is not active in moods.yaml: the approved library has no bed "
+            "for it"
+        )
+    return None
+
+
+def _part_problems(story: SoundStory, picture: PicturePlan) -> list[str]:
+    """076: the story parts tile the plan's beats in order, hook to ending, once each."""
+    order = [b.id for b in picture.beats]
+    index = {beat_id: i for i, beat_id in enumerate(order)}
+    if not story.parts:
+        return ["the sound story names no story `parts` (hook / build_up / reveal / ending)"]
+    problems: list[str] = []
+    ranks = [STORY_PARTS.index(p.part) for p in story.parts]
+    if ranks != sorted(set(ranks)):
+        problems.append("the story parts are not in story order, each once (hook, build_up, "
+                        "reveal, ending)")  # fmt: skip
+    expected = 0
+    for p in story.parts:
+        unknown = [b for b in (p.first_beat, p.last_beat) if b not in index]
+        if unknown:
+            problems.append(f"part {p.part} names {', '.join(unknown)}, not a beat of the plan")
+            continue
+        first, last = index[p.first_beat], index[p.last_beat]
+        if first != expected or last < first:
+            problems.append(
+                f"part {p.part} ({p.first_beat}-{p.last_beat}) does not start where the part "
+                f"before it ends ({order[expected] if expected < len(order) else 'the end'}): "
+                "the parts must tile the beats in order"
+            )
+            return problems
+        expected = last + 1
+    if expected != len(order):
+        problems.append(f"the story parts end before the plan does ({order[expected]} onward "
+                        "belongs to no part)")  # fmt: skip
+    return problems
+
+
+def _bed_problems(
+    story: SoundStory, picture: PicturePlan, nums: styles.Sound, moods: vocab.Moods
+) -> list[Violation]:
+    """076 (7.2 / 7.3 as amended): the bed per story part. One or two segments, their
+    moods and flavours from the closed list and active, at most `sound.bed_changes_max`
+    changes, and the change on the first beat of the second segment's part."""
+    found = [_v("7.2", None, line) for line in _part_problems(story, picture)]
+    if not story.bed:
+        found.append(_v("7.2", None, "the sound story names no bed segment {part_from, mood}"))
+        return found
+    for segment in story.bed:
+        why = [_closed(segment.mood, "mood", moods.moods)]
+        if segment.flavour is not None:
+            why.append(_closed(segment.flavour, "flavour", moods.flavours))
+        found += [_v("7.2", None, f"bed from {segment.part_from}: {w}") for w in why if w]
+    changes = len(story.bed) - 1
+    if changes > nums.bed_changes_max:
+        found.append(
+            _v("7.3", None, f"{len(story.bed)} bed segments make {changes} changes: "
+                            f"sound.bed_changes_max {nums.bed_changes_max} allows "
+                            f"{nums.bed_changes_max}")  # fmt: skip
+        )
+        return found
+    starts = {p.part: p.first_beat for p in story.parts}
+    if story.bed[0].part_from != (story.parts[0].part if story.parts else "hook"):
+        found.append(_v("7.2", None, f"the first bed segment starts at {story.bed[0].part_from}, "
+                                     "not at the first story part"))  # fmt: skip
+    if changes == 0:
+        if story.change is not None:
+            found.append(_v("7.3", story.change.at_beat,
+                            "a bed change with one bed segment: drop the change or add the "
+                            "second segment"))  # fmt: skip
+        return found
+    second = story.bed[1]
+    if story.change is None:
+        found.append(_v("7.3", None, f"two bed segments and no change: say at which beat and "
+                                     f"how the bed changes for {second.part_from}"))  # fmt: skip
+        return found
+    at = story.change.at_beat
+    boundary = starts.get(second.part_from)
+    if boundary is None or STORY_PARTS.index(second.part_from) <= STORY_PARTS.index(
+        story.bed[0].part_from
+    ):
+        found.append(_v("7.3", at, f"the second bed segment's part {second.part_from} is not a "
+                                   "later story part of this script"))  # fmt: skip
+    elif at != boundary:
+        found.append(_v("7.3", at, f"the bed change at {at} is not on a story-part boundary: "
+                                   f"{second.part_from} starts at {boundary}"))  # fmt: skip
+    return found
+
+
 def validate_sound(
-    story: SoundStory, picture: PicturePlan, spec: StyleSpec
+    story: SoundStory, picture: PicturePlan, spec: StyleSpec, *, moods: vocab.Moods | None = None
 ) -> SoundCheck | Violations:
-    """7.3 / 8.2 / 9.4 on the SoundStory against the (snapped) picture plan."""
+    """7.3 / 8.2 / 9.4 on the SoundStory against the (snapped) picture plan; 076 the bed
+    per story part against the closed mood list (`moods`, the shipped file unless given)."""
     nums = spec.sound
     beats = {b.id: b for b in picture.beats}
     runtime = picture.beats[-1].end if picture.beats else 0.0
-    found: list[Violation] = []
+    found: list[Violation] = _bed_problems(
+        story, picture, nums, moods if moods is not None else _shipped_moods()
+    )
     clamps: list[Clamp] = []
 
     cues: list[Cue] = []

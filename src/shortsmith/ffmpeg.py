@@ -177,18 +177,20 @@ def max_volume_db(path: Path, *, prefilter: str = "") -> float | None:
 _RMS_LEVEL = re.compile(r"lavfi\.astats\.Overall\.RMS_level=(-?[\d.]+|-?inf|nan)")
 
 
-def rms_windows_db(path: Path, *, window_s: float = 1.0) -> list[float]:
-    """The RMS level of each `window_s` window of the first audio stream, in dB.
+def rms_windows_db(path: Path, *, window_s: float = 1.0, prefilter: str = "") -> list[float]:
+    """The RMS level of each `window_s` window of the first audio stream (after
+    `prefilter`, e.g. an `atrim` to one stretch of it, 076), in dB.
 
     `asetnsamples` makes one filter frame per window so `astats` resets on exactly that
     span; silent windows come back as -inf and are left out, so the median of the result
     is the median level of the audible signal (7.3)."""
     samples = max(1, round(window_s * SAMPLE_RATE))
+    chain = f"{prefilter}," if prefilter else ""
     proc = run(
         [
             FFMPEG, "-v", "info", "-nostats", "-i", str(path), "-map", "0:a:0",
             "-af",
-            f"asetnsamples=n={samples}:p=0,astats=metadata=1:reset=1,"
+            f"{chain}asetnsamples=n={samples}:p=0,astats=metadata=1:reset=1,"
             "ametadata=print:key=lavfi.astats.Overall.RMS_level",
             "-vn", "-f", "null", "-",
         ],  # fmt: skip

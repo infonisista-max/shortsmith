@@ -18,9 +18,9 @@ from shortsmith.sound import (
 
 ALL = ("explainer", "educational", "animated", "hitech", "footage", "vishva", "fastfacts")
 VERSIONS = {
-    "explainer": "16", "educational": "14", "animated": "14", "hitech": "15",
-    "footage": "6", "vishva": "6", "fastfacts": "6",
-}  # fmt: skip  (067 bumped each once more, 069 once more, 072 every map style, 070 each)
+    "explainer": "17", "educational": "15", "animated": "15", "hitech": "16",
+    "footage": "7", "vishva": "7", "fastfacts": "7",
+}  # fmt: skip  (067 bumped each once more, 069 once more, 072 every map style, 070 each, 076 each)
 
 
 @pytest.fixture(scope="module")
@@ -76,7 +76,7 @@ def _ladder(
     monkeypatch.setattr(sound, "_mix_bed", fake_mix)
     lines: list[str] = []
     result = _repaired_bed(
-        Path("stems"), bed=SimpleNamespace(id="bed_x"), library=None,  # type: ignore[arg-type]
+        Path("stems"), score=SimpleNamespace(label="bed_x"), library=None,  # type: ignore[arg-type]
         story=None, nums=nums,  # type: ignore[arg-type]
         voice=Path("voice.wav"), voice_db=-20.0, runtime_s=6.0, cues=0,
         note=lambda ls: lines.extend(ls),
