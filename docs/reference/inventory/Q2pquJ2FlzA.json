@@ -8,10 +8,8 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 0.6,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "3D animated rotating Earth globe against space background"
+      "treatment": [],
+      "note": "Realistic 3D Earth spinning in starry space"
     },
     {
       "start_s": 0.6,
@@ -20,22 +18,18 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 0.7,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Surreal animation of Earth inside a deep circular crater pit"
+      "treatment": [],
+      "note": "Surreal miniature Earth inside a lunar crater"
     },
     {
       "start_s": 1.3,
       "end_s": 2.0,
-      "layout": "card",
+      "layout": "text_only",
       "background": "solid_or_gradient",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Bright yellow card background with bold black number 2"
+      "treatment": [],
+      "note": "Large bold number 2 on bright yellow backdrop"
     },
     {
       "start_s": 2.0,
@@ -47,7 +41,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Glitchy stylized world map animation with continental drift"
+      "note": "Glitched historical world map of continental shift"
     },
     {
       "start_s": 3.4,
@@ -57,10 +51,9 @@
       "footage_kind": "animation",
       "clip_s": 0.6,
       "treatment": [
-        "zoom",
-        "overlay"
+        "zoom"
       ],
-      "note": "Orbital satellite flyover animation over North American coastline"
+      "note": "Satellite perspective zooming across coastline and ocean"
     },
     {
       "start_s": 4.0,
@@ -69,10 +62,8 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.1,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Supercontinent Pangaea model assembling on rotating globe"
+      "treatment": [],
+      "note": "Animated globe showing ancient supercontinent Pangaea"
     },
     {
       "start_s": 5.1,
@@ -81,10 +72,8 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.5,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Rotating 3D globe showing the Pacific Ocean and Australia"
+      "treatment": [],
+      "note": "Rotating globe showing modern continents"
     },
     {
       "start_s": 6.6,
@@ -93,10 +82,8 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.5,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "2D political world map showing continental fragmentation"
+      "treatment": [],
+      "note": "World political map with countries fused together into Pangaea"
     },
     {
       "start_s": 8.1,
@@ -105,22 +92,18 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.0,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Scientific diagram of Pangaea with ocean currents and oxygen zones"
+      "treatment": [],
+      "note": "Scientific diagram of the Pangaea continent surrounded by ocean"
     },
     {
       "start_s": 9.1,
       "end_s": 9.8,
-      "layout": "card",
+      "layout": "text_only",
       "background": "solid_or_gradient",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Bright yellow background with large black numeral 1"
+      "treatment": [],
+      "note": "Large bold number 1 on yellow background"
     },
     {
       "start_s": 9.8,
@@ -129,34 +112,28 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.0,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Hypothetical cubic Earth floating in starfield"
+      "treatment": [],
+      "note": "Hypothetical cube-shaped Earth floating in space"
     },
     {
       "start_s": 10.8,
-      "end_s": 11.5,
+      "end_s": 11.6,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
-      "clip_s": 0.7,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Torus or donut-shaped Earth rotating in outer space"
+      "clip_s": 0.8,
+      "treatment": [],
+      "note": "Torus or donut-shaped Earth model in space"
     },
     {
-      "start_s": 11.5,
+      "start_s": 11.6,
       "end_s": 12.6,
       "layout": "full_footage",
       "background": "moving_footage",
-      "footage_kind": "animation",
-      "clip_s": 1.1,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Cosmic plasma nebula visualization representing gravity field"
+      "footage_kind": "stock",
+      "clip_s": 1.0,
+      "treatment": [],
+      "note": "Abstract purple energy and gravitational field burst"
     },
     {
       "start_s": 12.6,
@@ -165,10 +142,8 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.2,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Flat disc Earth model with red rocket launched from center"
+      "treatment": [],
+      "note": "Flat disc Earth model with a red rocket on it"
     },
     {
       "start_s": 13.8,
@@ -177,34 +152,38 @@
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.5,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Blue Marble photorealistic Earth model rotating in space"
+      "treatment": [],
+      "note": "Realistic Earth globe highlighting equatorial bulges"
     },
     {
       "start_s": 15.3,
-      "end_s": 16.4,
+      "end_s": 16.3,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
-      "clip_s": 1.1,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "GRACE geoid potato Earth visualization highlighting gravitational anomalies"
+      "clip_s": 1.0,
+      "treatment": [],
+      "note": "Lumpy colored geoid gravity anomaly model of Earth"
     },
     {
-      "start_s": 16.4,
+      "start_s": 16.3,
+      "end_s": 18.1,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "animation",
+      "clip_s": 1.8,
+      "treatment": [],
+      "note": "Rotating 3D globe showing the flattened poles"
+    },
+    {
+      "start_s": 18.1,
       "end_s": 18.3,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
-      "clip_s": 1.9,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Oblate spheroid Earth globe model showing equatorial bulge"
+      "clip_s": 0.2,
+      "treatment": [],
+      "note": "Brief flash of donut Earth"
     }
   ],
   "effects": [
@@ -212,168 +191,227 @@
       "at_s": 0.0,
       "duration_s": 18.3,
       "emphasis": "image",
-      "name": "header_banner",
-      "description": "Fixed yellow header banner at the top displaying bilingual title text",
-      "component": "unregistered"
+      "name": "persistent_header_banner",
+      "description": "Yellow top header with Hindi and English titles",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.1,
+        "size": 1.0,
+        "region": "top"
+      }
     },
     {
       "at_s": 1.3,
       "duration_s": 0.7,
       "emphasis": "number",
-      "name": "countdown_title_card",
-      "description": "Full screen countdown card showing number 2",
-      "component": "card"
+      "name": "countdown_number_two",
+      "description": "Bold black number 2 filling the frame",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 4.0,
+      "duration_s": 1.1,
+      "emphasis": "word",
+      "name": "tag_supercontinent",
+      "description": "Black badge showing text Supercontinent",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.1,
+        "size": 0.4,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 8.1,
+      "duration_s": 1.0,
+      "emphasis": "word",
+      "name": "tag_pangea",
+      "description": "Yellow badge reading Pangea",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.3,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 9.1,
       "duration_s": 0.7,
       "emphasis": "number",
-      "name": "countdown_title_card",
-      "description": "Full screen countdown card showing number 1",
-      "component": "card"
+      "name": "countdown_number_one",
+      "description": "Bold black number 1 on yellow background",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "middle"
+      }
     }
   ],
   "transitions": [
     {
       "at_s": 0.6,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut from globe to crater pit Earth",
+      "name": "plain_cut",
+      "description": "Cut to crater earth",
       "component": "cut"
     },
     {
       "at_s": 1.3,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to yellow title card number 2",
+      "name": "plain_cut",
+      "description": "Cut to number 2 card",
       "component": "cut"
     },
     {
       "at_s": 2.0,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to glitch world map animation",
+      "name": "plain_cut",
+      "description": "Cut to glitched continental map",
       "component": "cut"
     },
     {
       "at_s": 3.4,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to coastal flyover shot",
+      "name": "plain_cut",
+      "description": "Cut to coastline zoom",
       "component": "cut"
     },
     {
       "at_s": 4.0,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to supercontinent globe",
+      "name": "plain_cut",
+      "description": "Cut to supercontinent globe",
       "component": "cut"
     },
     {
       "at_s": 5.1,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to rotating Earth showing Australia",
+      "name": "plain_cut",
+      "description": "Cut to globe spin",
       "component": "cut"
     },
     {
       "at_s": 6.6,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to 2D flat country map",
+      "name": "plain_cut",
+      "description": "Cut to combined country borders map",
       "component": "cut"
     },
     {
       "at_s": 8.1,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to Pangaea ocean chart",
+      "name": "plain_cut",
+      "description": "Cut to Pangaea diagram",
       "component": "cut"
     },
     {
       "at_s": 9.1,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to number 1 card",
+      "name": "plain_cut",
+      "description": "Cut to number 1 card",
       "component": "cut"
     },
     {
       "at_s": 9.8,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to cubic Earth animation",
+      "name": "plain_cut",
+      "description": "Cut to cubic Earth",
       "component": "cut"
     },
     {
       "at_s": 10.8,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to torus Earth animation",
+      "name": "plain_cut",
+      "description": "Cut to donut Earth",
       "component": "cut"
     },
     {
-      "at_s": 11.5,
+      "at_s": 11.6,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to purple nebula energy field",
+      "name": "plain_cut",
+      "description": "Cut to gravity nebula burst",
       "component": "cut"
     },
     {
       "at_s": 12.6,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to flat disc Earth model",
+      "name": "plain_cut",
+      "description": "Cut to flat Earth disc",
       "component": "cut"
     },
     {
       "at_s": 13.8,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to photorealistic spherical Earth",
+      "name": "plain_cut",
+      "description": "Cut to blue globe equator shot",
       "component": "cut"
     },
     {
       "at_s": 15.3,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to lumpy geoid gravity model",
+      "name": "plain_cut",
+      "description": "Cut to lumpy geoid model",
       "component": "cut"
     },
     {
-      "at_s": 16.4,
+      "at_s": 16.3,
       "duration_s": 0.0,
-      "name": "cut",
-      "description": "Hard cut to oblate spheroid Earth globe",
+      "name": "plain_cut",
+      "description": "Cut to spinning globe",
+      "component": "cut"
+    },
+    {
+      "at_s": 18.1,
+      "duration_s": 0.0,
+      "name": "plain_cut",
+      "description": "Cut to donut Earth finale",
       "component": "cut"
     }
   ],
   "text": {
-    "caption_position": "Bottom center inside rounded dark translucent badge overlay",
-    "caption_size": "Small single-line text (~20-25px) English subtitle",
-    "caption_colours": "White text inside dark pill container",
-    "active_word": "None; static phrase subtitle updates per sentence",
-    "title_entry": "Static yellow top banner across entire clip with black bold text",
-    "number_entry": "Hard cut to full-frame yellow interstitial card with huge black number"
+    "caption_position": "Bottom center in a small black pill badge",
+    "caption_size": "Small sans-serif font occupying around 35% frame width",
+    "caption_colours": "White text on semi-transparent dark rounded badge",
+    "active_word": "None, static caption text per phrase",
+    "title_entry": "Static persistent yellow banner at frame top",
+    "number_entry": "Hard cut full-frame pop on solid yellow card"
   },
   "sound": {
     "bed": true,
-    "bed_mood": "Mysterious, electronic fact-explaining documentary synth background",
+    "bed_mood": "investigative_pulse",
     "effects": [
       {
         "at_s": 1.3,
         "kind": "whoosh",
-        "synced_to": "Cut to countdown number 2 card"
+        "synced_to": "Number 2 card pop",
+        "event": "cut",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
         "at_s": 9.1,
         "kind": "whoosh",
-        "synced_to": "Cut to countdown number 1 card"
+        "synced_to": "Number 1 card pop",
+        "event": "cut",
+        "loudness": "medium",
+        "length_s": 0.3
       }
     ]
   },
   "hook": {
-    "on_screen": "Rotating Earth globe cutting abruptly into an Earth buried in a lunar crater pit",
-    "heard": "Hindi voiceover stating: Prithvi ke kuch ajeeb facts... Number 2"
+    "on_screen": "Spinning Earth in space transitioning into a surreal Earth sitting inside a lunar crater",
+    "heard": "Speaker begins introducing strange facts about the Earth"
   },
   "tag": "ESTIMATED",
   "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
@@ -385,18 +423,251 @@
   "title": "Amazing Facts About EARTH in Hindi",
   "model": "gemini-3.8-flash",
   "fps": 5.0,
-  "prompt_version": "v1",
-  "analysed_on": "2026-09-27",
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
   "usage": {
-    "prompt_tokens": 9860,
+    "prompt_tokens": 14447,
     "video_tokens": 6353,
-    "output_tokens": 3304,
-    "thoughts_tokens": 603,
-    "total_tokens": 13767
+    "output_tokens": 5754,
+    "thoughts_tokens": 1481,
+    "total_tokens": 21682
   },
   "counts": {
-    "shots_per_10s": 9.3,
-    "effects_per_10s": 1.6,
+    "shots_per_10s": 9.8,
+    "effects_per_10s": 2.7,
     "sfx_per_10s": 1.1
-  }
+  },
+  "script": {
+    "about": "Explores strange facts about Earth including ancient supercontinent Pangaea and why the Earth is an irregular geoid rather than a perfect sphere.",
+    "topic": "science",
+    "tone": "informative curious",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 1.3,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 1.3,
+      "end_s": 9.1,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 9.1,
+      "end_s": 18.3,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 0.6,
+      "said": "Some weird facts about planet Earth.",
+      "shows": "3D Earth globe rotating in space",
+      "match": "literal",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 0.6,
+      "end_s": 1.3,
+      "said": "Number two fact.",
+      "shows": "Earth placed inside a deep crater on surface",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 1.3,
+      "end_s": 2.0,
+      "said": "Number two.",
+      "shows": "Number 2 on yellow card",
+      "match": "number",
+      "part": "build_up",
+      "layout": "text_only",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 2.0,
+      "end_s": 3.4,
+      "said": "Three hundred million years ago on Earth,",
+      "shows": "Glitched map marking continental drift",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 3.4,
+      "end_s": 4.0,
+      "said": "there existed a supercontinent,",
+      "shows": "Satellite flyover above coastline",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 4.0,
+      "end_s": 5.1,
+      "said": "where all landmasses were united,",
+      "shows": "Pangaea supercontinent rotating on globe",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 5.1,
+      "end_s": 6.6,
+      "said": "meaning all modern continents and nations",
+      "shows": "Modern globe spinning around Pacific",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 6.6,
+      "end_s": 8.1,
+      "said": "were clustered together in one place,",
+      "shows": "Combined country jigsaw map forming Pangaea",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 8.1,
+      "end_s": 9.1,
+      "said": "which was known as Pangaea.",
+      "shows": "Scientific diagram labeled Pangaea",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "unregistered",
+      "sound": null
+    },
+    {
+      "start_s": 9.1,
+      "end_s": 9.8,
+      "said": "Number one.",
+      "shows": "Large number 1 on yellow background",
+      "match": "number",
+      "part": "reveal",
+      "layout": "text_only",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 9.8,
+      "end_s": 10.8,
+      "said": "Our Earth is not perfectly round,",
+      "shows": "Cubic shaped Earth in starry space",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 10.8,
+      "end_s": 11.6,
+      "said": "because its physical shape",
+      "shows": "Donut shaped Earth floating in space",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 11.6,
+      "end_s": 12.6,
+      "said": "is influenced by gravitational force",
+      "shows": "Cosmic energy burst with gravitational field text",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 12.6,
+      "end_s": 13.8,
+      "said": "and planetary rotation.",
+      "shows": "Flat disk Earth rotating under rocket",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 13.8,
+      "end_s": 15.3,
+      "said": "There is noticeable unevenness along the equator,",
+      "shows": "Realistic Earth globe rotating",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 15.3,
+      "end_s": 16.3,
+      "said": "forming an irregular lumpy geoid,",
+      "shows": "Distorted geoid gravitational model of Earth",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 16.3,
+      "end_s": 18.1,
+      "said": "flattened slightly at North and South poles.",
+      "shows": "Globe rotating showing flattened polar regions",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 18.1,
+      "end_s": 18.3,
+      "said": "Shape of Earth.",
+      "shows": "Brief flash of donut Earth model",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    }
+  ],
+  "styles": [
+    "fastfacts"
+  ]
 }

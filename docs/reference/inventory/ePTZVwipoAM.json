@@ -11,7 +11,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter speaking against a collage of Genghis Khan sculpture and medieval warriors"
+      "note": "Presenter speaking against backdrop of Genghis Khan statue and army"
     },
     {
       "start_s": 2.0,
@@ -23,7 +23,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter gesturing in front of Mongol horseman artwork"
+      "note": "Presenter gesturing in front of Genghis Khan on horse"
     },
     {
       "start_s": 4.0,
@@ -33,7 +33,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Painting of Genghis Khan on horseback with hunting falcon"
+      "note": "Portrait painting of Genghis Khan with falcon on horseback"
     },
     {
       "start_s": 4.8,
@@ -45,7 +45,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter in front of a chaotic battlefield painting"
+      "note": "Presenter explaining Genghis Khan's undefeated streak"
     },
     {
       "start_s": 7.8,
@@ -55,7 +55,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Illustration of adviser Cucai / Yelu Chucai in Chinese armor"
+      "note": "Illustration of adviser Cucai standing with sword and dragon"
     },
     {
       "start_s": 13.0,
@@ -67,7 +67,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter in front of charging cavalry painting"
+      "note": "Presenter explaining how Genghis Khan consulted Cucai before battles"
     },
     {
       "start_s": 15.8,
@@ -79,7 +79,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Three-tiered graphic collage showing archers, advisers, and map comparison"
+      "note": "Warriors at top, portraits of Genghis Khan and Cucai at bottom with dialogue bubbles"
     },
     {
       "start_s": 21.8,
@@ -91,7 +91,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter speaking in front of armed Mongol commander on horseback"
+      "note": "Presenter explaining battle victories based on predictions"
     },
     {
       "start_s": 23.8,
@@ -101,19 +101,19 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Historical battle illustration of medieval armies clashing"
+      "note": "Battle painting depicting Mongol cavalry conquering enemies"
     },
     {
       "start_s": 25.0,
       "end_s": 28.8,
-      "layout": "split",
+      "layout": "presenter_full",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [
         "overlay"
       ],
-      "note": "Indus Valley map on top with presenter speaking over battlefield artwork on bottom"
+      "note": "Presenter with historical map of Indus Valley at top"
     },
     {
       "start_s": 28.8,
@@ -123,7 +123,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Stylized map of Genghis Khan's empire with speech bubble"
+      "note": "Illustrated map of Genghis Khan's empire with thought bubble about India"
     },
     {
       "start_s": 32.4,
@@ -135,7 +135,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter in front of miniature Persian court painting"
+      "note": "Presenter setting up the mystical event in Cucai's camp"
     },
     {
       "start_s": 33.8,
@@ -147,11 +147,11 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Monochrome engraving of tent scene with animated cutout horse"
+      "note": "Historical camp drawing with animated magical unicorn entering"
     },
     {
       "start_s": 35.8,
-      "end_s": 36.8,
+      "end_s": 37.0,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
@@ -162,19 +162,19 @@
       "note": "Close-up portrait of Genghis Khan with unicorn overlay"
     },
     {
-      "start_s": 36.8,
-      "end_s": 47.0,
-      "layout": "full_still",
+      "start_s": 37.0,
+      "end_s": 46.8,
+      "layout": "split",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [
         "overlay"
       ],
-      "note": "Adviser illustration with thought bubble and inset portraits of Genghis Khan"
+      "note": "Cucai with unicorn speaking prophecy in thought bubble, flanked by portraits"
     },
     {
-      "start_s": 47.0,
+      "start_s": 46.8,
       "end_s": 49.8,
       "layout": "split",
       "background": "still_photo",
@@ -183,7 +183,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Map of Mongol Empire with India circled on top, charging cavalry on bottom"
+      "note": "Map of Mongol Empire with red circle over India, warriors below"
     },
     {
       "start_s": 49.8,
@@ -195,7 +195,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter talking in front of historical museum display of warriors"
+      "note": "Presenter in front of museum statues of Mongol soldiers with dialogue bubble"
     },
     {
       "start_s": 53.6,
@@ -207,7 +207,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Map on top showing horse moving northwards, battle scene and statue on bottom"
+      "note": "Map showing horse walking away, statue of Genghis Khan below"
     },
     {
       "start_s": 55.6,
@@ -219,121 +219,191 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter concluding in front of Genghis Khan portrait with text banner"
+      "note": "Presenter explaining conclusion of why Genghis Khan spared India"
     }
   ],
   "effects": [
     {
-      "at_s": 2.2,
-      "duration_s": 1.8,
-      "emphasis": "image",
-      "name": "text_card_pop",
-      "description": "Bold red text 'LARGEST LAND CONQUEROR' pops on screen",
-      "component": "unregistered"
+      "at_s": 2.1,
+      "duration_s": 1.9,
+      "emphasis": "word",
+      "name": "largest_land_conqueror_title",
+      "description": "Bold red text LARGEST LAND CONQUEROR pop-in overlay",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "top"
+      }
     },
     {
       "at_s": 4.1,
       "duration_s": 0.7,
       "emphasis": "image",
-      "name": "title_banner_pop",
-      "description": "Yellow and red title 'CHINGGIS KHAN / GENGHIS KHAN' pops in",
-      "component": "unregistered"
+      "name": "genghis_khan_name_badge",
+      "description": "Yellow and red angled text CHINGGIS KHAN / GENGHIS KHAN",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.85,
+        "region": "bottom"
+      }
     },
     {
-      "at_s": 8.6,
-      "duration_s": 4.0,
+      "at_s": 8.5,
+      "duration_s": 4.4,
       "emphasis": "image",
-      "name": "name_tag_pop",
-      "description": "Yellow label 'CUCAI' pops onto the illustration",
-      "component": "unregistered"
+      "name": "cucai_caption",
+      "description": "Bright yellow bold text CUCAI appearing on advisor portrait",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 9.8,
-      "duration_s": 3.0,
-      "emphasis": "image",
-      "name": "trait_tags_pop",
-      "description": "Text tags 'CHINESE TANTRIC' and 'COULD SEE FUTURE' pop onto the adviser portrait",
-      "component": "unregistered"
+      "duration_s": 3.1,
+      "emphasis": "word",
+      "name": "chinese_tantric_label",
+      "description": "Green text CHINESE TANTRIC followed by COULD SEE FUTURE",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.3,
+        "size": 0.75,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 16.4,
-      "duration_s": 4.8,
-      "emphasis": "image",
-      "name": "speech_bubbles_dialogue",
-      "description": "Speech bubble pops up asking 'WILL WE WIN OR NOT CUCAI?' followed by 'YES MY LORD!'",
-      "component": "unregistered"
+      "at_s": 16.5,
+      "duration_s": 5.0,
+      "emphasis": "word",
+      "name": "dialogue_bubble_khan",
+      "description": "Speech bubble WILL WE WIN OR NOT CUCAI? followed by YES MY LORD!",
+      "component": "bubble",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 24.2,
+      "at_s": 24.1,
       "duration_s": 0.8,
-      "emphasis": "image",
-      "name": "text_banner_pop",
-      "description": "Yellow banner 'ALWAYS WIN ON CUCAI'S PREDICTIONS' pops at the top",
-      "component": "unregistered"
+      "emphasis": "word",
+      "name": "always_win_banner",
+      "description": "Yellow label ALWAYS WIN ON CUCAI'S PREDICTIONS",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.2,
+        "size": 0.9,
+        "region": "top"
+      }
     },
     {
-      "at_s": 26.2,
-      "duration_s": 2.6,
-      "emphasis": "image",
-      "name": "map_highlight_and_text",
-      "description": "Red circular border circles the Indus region with angled text 'INDUS VALLEY WAR 12th CENTURY'",
-      "component": "unregistered"
+      "at_s": 26.0,
+      "duration_s": 2.7,
+      "emphasis": "word",
+      "name": "indus_valley_banner",
+      "description": "Angled text INDUS VALLEY WAR 12TH CENTURY with circled region",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "top"
+      }
     },
     {
-      "at_s": 30.6,
+      "at_s": 30.5,
       "duration_s": 1.8,
-      "emphasis": "image",
-      "name": "thought_bubble_pop",
-      "description": "Thought bubble pops over Genghis Khan reading 'AB INDIA KI BAARI HAI'",
-      "component": "unregistered"
+      "emphasis": "word",
+      "name": "khan_thought_bubble",
+      "description": "Thought bubble AB INDIA KI BAARI HAI above Genghis Khan map figure",
+      "component": "bubble",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "middle"
+      }
     },
     {
       "at_s": 34.0,
-      "duration_s": 1.8,
+      "duration_s": 1.7,
       "emphasis": "image",
-      "name": "animated_horse_movement",
-      "description": "Animated cutout horse figure gallops across the historical engraving",
-      "component": "unregistered"
+      "name": "magical_horse_entry",
+      "description": "Animated magical horse moving across historical camp tent",
+      "component": "sticker",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.5,
+        "size": 0.45,
+        "region": "middle"
+      }
     },
     {
       "at_s": 36.2,
-      "duration_s": 0.6,
-      "emphasis": "image",
-      "name": "text_tag_pop",
-      "description": "Angled yellow text 'UNICORN' appears above the creature",
-      "component": "unregistered"
+      "duration_s": 0.7,
+      "emphasis": "word",
+      "name": "unicorn_text_pop",
+      "description": "Yellow text pop UNICORN over Genghis Khan face",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "top"
+      }
     },
     {
       "at_s": 37.8,
-      "duration_s": 9.0,
-      "emphasis": "image",
-      "name": "dialogue_bubble_sequence",
-      "description": "Thought bubbles display advice 'IF YOU WANT GENGHIS WIN ALWAYS' then 'ASK HIM TO RETURN CUCAI'",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 48.2,
-      "duration_s": 1.6,
-      "emphasis": "image",
-      "name": "map_target_circle",
-      "description": "Thick red circle highlights the Indian subcontinent on the historical map",
-      "component": "unregistered"
+      "duration_s": 8.8,
+      "emphasis": "word",
+      "name": "unicorn_prophecy_bubble",
+      "description": "Thought bubble IF YOU WANT GENGHIS WIN ALWAYS then ASK HIM TO RETURN CUCAI!",
+      "component": "bubble",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.3,
+        "size": 0.6,
+        "region": "middle"
+      }
     },
     {
       "at_s": 50.2,
-      "duration_s": 3.4,
-      "emphasis": "image",
-      "name": "speech_bubble_quote",
-      "description": "Speech bubble with 'WE MUST RETURN MY KING' pops beside presenter",
-      "component": "unregistered"
+      "duration_s": 3.2,
+      "emphasis": "word",
+      "name": "cucai_advice_bubble",
+      "description": "Dialogue bubble WE MUST RETURN MY KING next to statue",
+      "component": "bubble",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "middle"
+      }
     },
     {
       "at_s": 57.2,
-      "duration_s": 2.8,
-      "emphasis": "speaker",
-      "name": "lower_third_text",
-      "description": "Yellow label 'MONGOL EMPEROR GENGHIS KHAN' appears on screen",
-      "component": "unregistered"
+      "duration_s": 2.6,
+      "emphasis": "word",
+      "name": "mongol_emperor_title",
+      "description": "Yellow text MONGOL EMPEROR GENGHIS KHAN",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.75,
+        "region": "bottom"
+      }
     }
   ],
   "transitions": [
@@ -341,171 +411,186 @@
       "at_s": 2.0,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut between backgrounds",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 4.0,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to full still painting",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 4.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to presenter in front of battle",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 7.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to adviser painting",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 13.0,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to presenter with cavalry background",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 15.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to split graphic collage",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 21.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to presenter with warrior backdrop",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 23.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to battlefield painting",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 25.0,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to split map and presenter view",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 28.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to empire map still",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 32.4,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to presenter against Persian painting",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 33.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to historical camp engraving",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 35.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to Genghis Khan close-up portrait",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
-      "at_s": 36.8,
+      "at_s": 37.0,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to adviser illustration",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
-      "at_s": 47.0,
+      "at_s": 46.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to split map and army view",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 49.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to presenter in museum setting",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 53.6,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to map and army split screen",
+      "description": "Plain cut",
       "component": "cut"
     },
     {
       "at_s": 55.6,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to presenter with horseman artwork",
+      "description": "Plain cut",
       "component": "cut"
     }
   ],
   "text": {
-    "caption_position": "none",
-    "caption_size": "large bold headline stickers",
-    "caption_colours": "yellow, white, and red with bold dark borders",
-    "active_word": "none",
-    "title_entry": "instant pop in with scale bounce",
-    "number_entry": "none"
+    "caption_position": "middle to upper third overlaid on graphics",
+    "caption_size": "medium uppercase bold subtitles and thought bubbles",
+    "caption_colours": "yellow, white, red with black stroke and outlines",
+    "active_word": "no word-by-word highlight; full phrase pops and comic dialogue bubbles",
+    "title_entry": "pop with overshoot and scale bounce",
+    "number_entry": "static within title graphics"
   },
   "sound": {
     "bed": true,
-    "bed_mood": "tense dramatic historical music bed",
+    "bed_mood": "tense dramatic background music with fast dialogue",
     "effects": [
       {
-        "at_s": 2.2,
+        "at_s": 2.1,
         "kind": "whoosh",
-        "synced_to": "text_card_pop"
+        "synced_to": "text pop LARGEST LAND CONQUEROR",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.2
       },
       {
-        "at_s": 8.6,
-        "kind": "click",
-        "synced_to": "name_tag_pop"
-      },
-      {
-        "at_s": 16.6,
-        "kind": "whoosh",
-        "synced_to": "speech_bubbles_dialogue"
-      },
-      {
-        "at_s": 30.6,
-        "kind": "whoosh",
-        "synced_to": "thought_bubble_pop"
-      },
-      {
-        "at_s": 48.2,
+        "at_s": 4.1,
         "kind": "hit",
-        "synced_to": "map_target_circle"
+        "synced_to": "name card Chinggis Khan entry",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.2
+      },
+      {
+        "at_s": 16.5,
+        "kind": "whoosh",
+        "synced_to": "speech bubble dialogue pop",
+        "event": "bubble",
+        "loudness": "soft",
+        "length_s": 0.15
+      },
+      {
+        "at_s": 34.0,
+        "kind": "whoosh",
+        "synced_to": "magical horse appearance",
+        "event": "sticker",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 37.8,
+        "kind": "whoosh",
+        "synced_to": "prophecy bubble appearance",
+        "event": "bubble",
+        "loudness": "soft",
+        "length_s": 0.2
       }
     ]
   },
   "hook": {
-    "on_screen": "Presenter superimposed over split background of Genghis Khan monument and medieval army",
-    "heard": "Dosto is duniya ki dharti par sabse zyada land conquer karne..."
+    "on_screen": "Presenter in front of a giant Genghis Khan statue and historical battle art.",
+    "heard": "Speaker introduces the biggest conqueror of land in human history, Genghis Khan."
   },
   "tag": "ESTIMATED",
   "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
@@ -517,18 +602,269 @@
   "title": "",
   "model": "gemini-3.8-flash",
   "fps": 5.0,
-  "prompt_version": "v1",
-  "analysed_on": "2026-09-27",
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
   "usage": {
-    "prompt_tokens": 24807,
+    "prompt_tokens": 30829,
     "video_tokens": 21300,
-    "output_tokens": 4576,
-    "thoughts_tokens": 2290,
-    "total_tokens": 31673
+    "output_tokens": 7294,
+    "thoughts_tokens": 774,
+    "total_tokens": 38897
   },
   "counts": {
     "shots_per_10s": 3.2,
-    "effects_per_10s": 2.3,
+    "effects_per_10s": 2.2,
     "sfx_per_10s": 0.8
-  }
+  },
+  "script": {
+    "about": "Why the undefeated conqueror Genghis Khan decided against invading India after mystical advice from his astrologer Cucai.",
+    "topic": "history",
+    "tone": "mysterious dramatic",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 4.8,
+      "music_mood": "tense_dramatic",
+      "music_flavour": "east_asian"
+    },
+    {
+      "part": "build_up",
+      "start_s": 4.8,
+      "end_s": 33.8,
+      "music_mood": "investigative_pulse",
+      "music_flavour": "east_asian"
+    },
+    {
+      "part": "reveal",
+      "start_s": 33.8,
+      "end_s": 53.6,
+      "music_mood": "mysterious_curiosity",
+      "music_flavour": "east_asian"
+    },
+    {
+      "part": "ending",
+      "start_s": 53.6,
+      "end_s": 60.0,
+      "music_mood": "tense_dramatic",
+      "music_flavour": "east_asian"
+    }
+  ],
+  "music_changes": [],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.0,
+      "said": "The greatest conqueror of land on this Earth...",
+      "shows": "Presenter with Genghis Khan statue behind him",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 2.0,
+      "end_s": 4.0,
+      "said": "was the emperor named Genghis Khan.",
+      "shows": "Presenter gesturing with title text pop LARGEST LAND CONQUEROR",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 4.0,
+      "end_s": 4.8,
+      "said": "Genghis Khan.",
+      "shows": "Genghis Khan on horseback with falcon",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 4.8,
+      "end_s": 7.8,
+      "said": "In his warfare, there was only one person he never executed.",
+      "shows": "Presenter explaining in front of chaotic battle painting",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 7.8,
+      "end_s": 13.0,
+      "said": "His name was Cucai, a Chinese astrologer who foresaw the future.",
+      "shows": "Illustration of Yelü Chucai with titles CUCAI and COULD SEE FUTURE",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 13.0,
+      "end_s": 15.8,
+      "said": "Genghis Khan always sought Cucai's counsel before launching any campaign.",
+      "shows": "Presenter talking in front of Mongol warriors on horses",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 15.8,
+      "end_s": 21.8,
+      "said": "Asking if they would win, and going only if Cucai agreed.",
+      "shows": "Split screen with dialogue bubbles between Khan and Cucai portraits",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "bubble",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 21.8,
+      "end_s": 23.8,
+      "said": "Whenever he marched on Cucai's advice, he won.",
+      "shows": "Presenter explaining Genghis Khan's undefeated battle record",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 23.8,
+      "end_s": 25.0,
+      "said": "He never lost a war.",
+      "shows": "Mongol army charging across the battlefield",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 25.0,
+      "end_s": 28.8,
+      "said": "During the 12th century, Genghis won the Indus Valley war.",
+      "shows": "Presenter with historical map of Indus Valley at top",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 28.8,
+      "end_s": 32.4,
+      "said": "Fifteen days later, Genghis Khan planned to conquer India next.",
+      "shows": "Map illustration showing Mongol emperor contemplating India with thought bubble",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "bubble",
+      "sound": null
+    },
+    {
+      "start_s": 32.4,
+      "end_s": 33.8,
+      "said": "Meanwhile in Cucai's camp...",
+      "shows": "Presenter describing mystical encounter",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 33.8,
+      "end_s": 35.8,
+      "said": "a magical one-horned beast appeared before Cucai.",
+      "shows": "Historical camp drawing with animated magical unicorn entering",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": "sticker",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 35.8,
+      "end_s": 37.0,
+      "said": "Known as a unicorn.",
+      "shows": "Portrait of Genghis Khan with unicorn overlay and text",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 37.0,
+      "end_s": 46.8,
+      "said": "The beast warned that if Khan wished to remain undefeated, withdraw.",
+      "shows": "Cucai illustration with unicorn delivering warning via thought bubble",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "split",
+      "effect": "bubble",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 46.8,
+      "end_s": 49.8,
+      "said": "Because invading India was not destined in Khan's stars.",
+      "shows": "Map of Mongol Empire with red circle around India and soldiers below",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 49.8,
+      "end_s": 53.6,
+      "said": "At dawn Cucai told the story, advising Khan to return home.",
+      "shows": "Presenter in front of museum Mongol figures with dialogue bubble",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "bubble",
+      "sound": null
+    },
+    {
+      "start_s": 53.6,
+      "end_s": 55.6,
+      "said": "Heeding the warning, Genghis Khan ordered his armies to turn back.",
+      "shows": "Map showing horse walking away from India border",
+      "match": "metaphor",
+      "part": "ending",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 55.6,
+      "end_s": 60.0,
+      "said": "Because of this prophecy, the great Mongol emperor spared India.",
+      "shows": "Presenter concluding with Khan equestrian painting and title text",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    }
+  ],
+  "styles": [
+    "vishva"
+  ]
 }

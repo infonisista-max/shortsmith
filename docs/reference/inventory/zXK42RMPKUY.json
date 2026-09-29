@@ -3,7 +3,7 @@
   "shots": [
     {
       "start_s": 0.0,
-      "end_s": 2.8,
+      "end_s": 2.7,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
@@ -11,19 +11,17 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter gesturing against dark grid, brain animation overlaying"
+      "note": "Presenter introduces brain hemisphere question"
     },
     {
-      "start_s": 2.8,
+      "start_s": 2.7,
       "end_s": 3.7,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "zoom"
-      ],
-      "note": "MRI scan of brain cross-section with hemisphere removed"
+      "treatment": [],
+      "note": "MRI scan showing missing hemisphere"
     },
     {
       "start_s": 3.7,
@@ -35,7 +33,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter talking in front of stylized glowing brain"
+      "note": "Presenter gestures asking if one can survive with half a brain"
     },
     {
       "start_s": 5.5,
@@ -47,7 +45,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter questioning with glowing brain inside head visual"
+      "note": "Presenter with transparent glowing brain graphic and question marks"
     },
     {
       "start_s": 7.7,
@@ -57,7 +55,7 @@
       "footage_kind": "animation",
       "clip_s": 1.4,
       "treatment": [],
-      "note": "3D human anatomy scan showing internal organs"
+      "note": "3D transparent medical visualization of internal organs"
     },
     {
       "start_s": 9.1,
@@ -67,7 +65,7 @@
       "footage_kind": "animation",
       "clip_s": 0.9,
       "treatment": [],
-      "note": "Neon glowing digit 3 countdown animation"
+      "note": "Glowing neon number 3 countdown animation"
     },
     {
       "start_s": 10.0,
@@ -77,31 +75,31 @@
       "footage_kind": "animation",
       "clip_s": 0.7,
       "treatment": [],
-      "note": "Holographic human body scan interface"
+      "note": "Holographic body scanner HUD graphic"
     },
     {
       "start_s": 10.7,
-      "end_s": 11.1,
+      "end_s": 11.2,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 0.4,
+      "clip_s": 0.5,
       "treatment": [],
-      "note": "Reaction shot of man looking astonished"
+      "note": "Man looking shocked with wide eyes"
     },
     {
-      "start_s": 11.1,
+      "start_s": 11.2,
       "end_s": 11.6,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
-      "clip_s": 0.5,
+      "clip_s": 0.4,
       "treatment": [],
-      "note": "HUD sci-fi body scan animation"
+      "note": "Holographic body scanner rotating"
     },
     {
       "start_s": 11.6,
-      "end_s": 14.3,
+      "end_s": 15.3,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
@@ -109,19 +107,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter explaining with 3D kidney animation behind him"
-    },
-    {
-      "start_s": 14.3,
-      "end_s": 15.3,
-      "layout": "full_still",
-      "background": "still_photo",
-      "footage_kind": null,
-      "clip_s": null,
-      "treatment": [
-        "zoom"
-      ],
-      "note": "Close-up 3D medical render of a human kidney"
+      "note": "Presenter pointing to animated kidney illustration"
     },
     {
       "start_s": 15.3,
@@ -133,17 +119,17 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter pointing to head with brain graphic background"
+      "note": "Presenter taps his head asking about brain"
     },
     {
       "start_s": 16.6,
       "end_s": 17.9,
       "layout": "full_footage",
       "background": "moving_footage",
-      "footage_kind": "archival_or_news",
+      "footage_kind": "animation",
       "clip_s": 1.3,
       "treatment": [],
-      "note": "Sequential coronal brain MRI scan animation"
+      "note": "MRI slices scrolling through a head"
     },
     {
       "start_s": 17.9,
@@ -155,45 +141,32 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter with green YES text graphic overlay"
+      "note": "Presenter confirming with YES text overlay"
     },
     {
       "start_s": 18.4,
-      "end_s": 19.4,
-      "layout": "full_footage",
-      "background": "moving_footage",
-      "footage_kind": "archival_or_news",
-      "clip_s": 1.0,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Head MRI slice with Hemispherectomy text label"
-    },
-    {
-      "start_s": 19.4,
-      "end_s": 20.1,
+      "end_s": 20.3,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
-      "clip_s": 0.7,
-      "treatment": [],
-      "note": "Cerebral cortex scans illuminated in blue"
+      "clip_s": 1.9,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Brain MRI slice with Hemispherectomy caption"
     },
     {
-      "start_s": 20.1,
-      "end_s": 21.1,
+      "start_s": 20.3,
+      "end_s": 21.3,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "zoom",
-        "overlay"
-      ],
-      "note": "Coronal MRI slice showing brain hemispherectomy"
+      "treatment": [],
+      "note": "MRI scan showing right hemisphere removed"
     },
     {
-      "start_s": 21.1,
+      "start_s": 21.3,
       "end_s": 21.7,
       "layout": "presenter_full",
       "background": "still_photo",
@@ -202,20 +175,20 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter speaking with MRI slice in background"
+      "note": "Presenter speaking in front of brain MRI"
     },
     {
       "start_s": 21.7,
-      "end_s": 23.0,
+      "end_s": 22.9,
       "layout": "full_footage",
       "background": "moving_footage",
-      "footage_kind": "archival_or_news",
-      "clip_s": 1.3,
+      "footage_kind": "stock",
+      "clip_s": 1.2,
       "treatment": [],
-      "note": "Burnt car crash accident scene on highway with smoke"
+      "note": "Car crash on highway burning in smoke"
     },
     {
-      "start_s": 23.0,
+      "start_s": 22.9,
       "end_s": 26.7,
       "layout": "presenter_full",
       "background": "still_photo",
@@ -224,7 +197,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter talking in front of sagittal spine MRI scan"
+      "note": "Presenter talking in front of spine and neck MRI scan"
     },
     {
       "start_s": 26.7,
@@ -233,10 +206,8 @@
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Top: two hemispherectomy MRI scans; Bottom: presenter talking"
+      "treatment": [],
+      "note": "Split view of two hemispherectomy MRI brain scans"
     },
     {
       "start_s": 27.7,
@@ -248,69 +219,45 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Brain scan showing hemisphere missing with red title label"
+      "note": "MRI scan with text HEMISPHERE (SIDE)"
     },
     {
       "start_s": 29.0,
       "end_s": 30.9,
       "layout": "split",
       "background": "moving_footage",
-      "footage_kind": "archival_or_news",
+      "footage_kind": "stock",
       "clip_s": 1.9,
       "treatment": [],
-      "note": "Top: neurosurgery excision; Bottom: presenter explaining"
+      "note": "Top surgical brain tissue removal, bottom presenter talking"
     },
     {
       "start_s": 30.9,
       "end_s": 33.9,
       "layout": "split",
-      "background": "still_photo",
-      "footage_kind": null,
-      "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Top: spine MRI scan; Bottom: presenter with 88% graphic and red cross"
-    },
-    {
-      "start_s": 33.9,
-      "end_s": 35.7,
-      "layout": "presenter_full",
-      "background": "generated_or_animated",
-      "footage_kind": null,
-      "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter with glowing yellow lightbulb popping over head"
-    },
-    {
-      "start_s": 35.7,
-      "end_s": 38.3,
-      "layout": "presenter_full",
-      "background": "generated_or_animated",
-      "footage_kind": null,
-      "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter with bold text '1 LITER MUCUS' graphic"
-    },
-    {
-      "start_s": 38.3,
-      "end_s": 41.3,
-      "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 3.0,
       "treatment": [
         "overlay"
       ],
-      "note": "3D wireframe body visualization showing swallowed mucus and lungs"
+      "note": "Neck MRI with 88% stat text and presenter below"
     },
     {
-      "start_s": 41.3,
-      "end_s": 42.8,
+      "start_s": 33.9,
+      "end_s": 35.8,
+      "layout": "presenter_full",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter with glowing lightbulb sticker animation overhead"
+    },
+    {
+      "start_s": 35.8,
+      "end_s": 41.3,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
@@ -318,11 +265,23 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter pointing to a 1L Bisleri bottle graphic behind him"
+      "note": "Presenter explaining mucus fact with 1 LITER MUCUS text"
     },
     {
-      "start_s": 42.8,
-      "end_s": 45.0,
+      "start_s": 41.3,
+      "end_s": 42.7,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter pointing to Bisleri water bottle behind him"
+    },
+    {
+      "start_s": 42.7,
+      "end_s": 45.1,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
@@ -330,10 +289,10 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Water bottle filled with gooey green mucus and vomiting emoji"
+      "note": "Bottle filled with greenish mucus slime and vomit emoji"
     },
     {
-      "start_s": 45.0,
+      "start_s": 45.1,
       "end_s": 45.8,
       "layout": "presenter_full",
       "background": "generated_or_animated",
@@ -342,7 +301,7 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter with ticking clock graphic in background"
+      "note": "Presenter in front of spinning clock background"
     },
     {
       "start_s": 45.8,
@@ -352,7 +311,7 @@
       "footage_kind": "animation",
       "clip_s": 0.7,
       "treatment": [],
-      "note": "Cartoon #1 foam finger bouncing with confetti"
+      "note": "Foam hand finger #1 animation"
     },
     {
       "start_s": 46.5,
@@ -362,7 +321,7 @@
       "footage_kind": "animation",
       "clip_s": 1.2,
       "treatment": [],
-      "note": "3D model of breathing respiratory tract and lungs"
+      "note": "3D visualization of lungs inhaling air"
     },
     {
       "start_s": 47.7,
@@ -376,27 +335,27 @@
     },
     {
       "start_s": 48.2,
-      "end_s": 49.4,
+      "end_s": 49.3,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Clean plastic bottle filled with water on white backdrop"
+      "note": "Bottle of clean drinking water"
     },
     {
-      "start_s": 49.4,
+      "start_s": 49.3,
       "end_s": 50.8,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 1.4,
+      "clip_s": 1.5,
       "treatment": [],
-      "note": "Man meditating in white shirt with eyes closed"
+      "note": "Man meditating peacefully and exhaling"
     },
     {
       "start_s": 50.8,
-      "end_s": 52.9,
+      "end_s": 53.0,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
@@ -404,39 +363,19 @@
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter explaining over lungs and respiratory animation"
+      "note": "Presenter gesturing about exhaling moisture"
     },
     {
-      "start_s": 52.9,
-      "end_s": 54.1,
-      "layout": "full_footage",
-      "background": "moving_footage",
-      "footage_kind": "animation",
-      "clip_s": 1.2,
-      "treatment": [],
-      "note": "24 hrs cycle clock icon animation"
-    },
-    {
-      "start_s": 54.1,
-      "end_s": 54.9,
-      "layout": "text_only",
-      "background": "solid_or_gradient",
-      "footage_kind": null,
-      "clip_s": null,
-      "treatment": [],
-      "note": "Bold red text '14,400 LITER' flashing on black"
-    },
-    {
-      "start_s": 54.9,
+      "start_s": 53.0,
       "end_s": 56.1,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
-      "clip_s": 1.2,
+      "clip_s": 3.1,
       "treatment": [
         "overlay"
       ],
-      "note": "Endless corridor of water bottles with exploding head emoji"
+      "note": "24 hrs clock cycling to warehouse of 14,400 water bottles"
     },
     {
       "start_s": 56.1,
@@ -446,7 +385,7 @@
       "footage_kind": "stock",
       "clip_s": 1.4,
       "treatment": [],
-      "note": "Hiker breathing deeply in forest"
+      "note": "Man breathing fresh forest air"
     },
     {
       "start_s": 57.5,
@@ -456,94 +395,178 @@
       "footage_kind": "animation",
       "clip_s": 0.7,
       "treatment": [],
-      "note": "Thumbs up like button and red Subscribe button click animation"
+      "note": "Like and subscribe animation button click"
     }
   ],
   "effects": [
     {
-      "at_s": 1.0,
-      "duration_s": 1.7,
-      "emphasis": "image",
-      "name": "brain_particles_overlay",
-      "description": "Particle visualization of brain halves appears over presenter",
-      "component": "unregistered"
-    },
-    {
       "at_s": 17.9,
       "duration_s": 0.5,
       "emphasis": "word",
-      "name": "stamp_yes",
-      "description": "Neon green YES text appears over presenter",
-      "component": "stamp"
+      "name": "yes_stamp",
+      "description": "Green glowing YES text stamp pops onto screen",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.1,
+        "size": 0.6,
+        "region": "top"
+      }
     },
     {
       "at_s": 18.6,
-      "duration_s": 0.8,
+      "duration_s": 1.6,
       "emphasis": "word",
-      "name": "medical_term_label",
-      "description": "Hemispherectomy text label displays at the bottom of MRI scan",
-      "component": "unregistered"
+      "name": "hemispherectomy_tag",
+      "description": "Bright lime green Hemispherectomy label overlay at bottom of scan",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 27.7,
+      "duration_s": 1.3,
+      "emphasis": "word",
+      "name": "hemisphere_side_title",
+      "description": "Bold red HEMISPHERE (SIDE) text banner at top of scan",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.1,
+        "size": 0.9,
+        "region": "top"
+      }
     },
     {
       "at_s": 31.4,
       "duration_s": 2.5,
       "emphasis": "number",
-      "name": "percentage_counter_stamp",
-      "description": "Bold 88% text overlays with animated red cross indicator",
-      "component": "stamp"
+      "name": "eighty_eight_percent",
+      "description": "Large white 88% text graphic appears in middle band",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "middle"
+      }
     },
     {
       "at_s": 34.2,
-      "duration_s": 1.4,
+      "duration_s": 1.6,
       "emphasis": "image",
-      "name": "lightbulb_idea_pop",
-      "description": "Yellow glowing lightbulb graphic pops on over head",
-      "component": "unregistered"
+      "name": "idea_bulb",
+      "description": "Yellow lightbulb glowing over presenter's head",
+      "component": "sticker",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.4,
+        "region": "top"
+      }
     },
     {
       "at_s": 35.8,
-      "duration_s": 2.3,
+      "duration_s": 5.4,
       "emphasis": "word",
-      "name": "bold_title_card",
-      "description": "1 LITER and MUCUS bold title text displays in centre",
-      "component": "unregistered"
+      "name": "one_liter_mucus_title",
+      "description": "Bold 1 LITER MUCUS title displayed over video",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 54.6,
-      "duration_s": 1.5,
+      "at_s": 43.3,
+      "duration_s": 1.8,
+      "emphasis": "image",
+      "name": "vomiting_emoji",
+      "description": "Vomiting green emoji pops next to mucus bottle",
+      "component": "sticker",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.35,
+        "region": "top"
+      }
+    },
+    {
+      "at_s": 54.5,
+      "duration_s": 1.6,
       "emphasis": "number",
-      "name": "stat_flash",
-      "description": "Large bold text showing 14,400 LITER and 14,400 BOTTLE with emoji",
-      "component": "stamp"
+      "name": "fourteen_thousand_bottles",
+      "description": "14,400 BOTTLE text with mind blown emoji",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "top"
+      }
     }
   ],
   "transitions": [
     {
-      "at_s": 2.8,
+      "at_s": 2.7,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Straight cut to brain scan",
+      "description": "Plain cut to MRI brain slice",
       "component": "cut"
     },
     {
       "at_s": 3.7,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Straight cut back to presenter",
+      "description": "Cut back to presenter",
+      "component": "cut"
+    },
+    {
+      "at_s": 5.5,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with glowing brain overlay",
       "component": "cut"
     },
     {
       "at_s": 7.7,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to anatomy scan",
+      "description": "Cut to medical torso animation",
       "component": "cut"
     },
     {
       "at_s": 9.1,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to number 3 animation",
+      "description": "Cut to number 3 countdown animation",
+      "component": "cut"
+    },
+    {
+      "at_s": 10.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to holographic body HUD animation",
+      "component": "cut"
+    },
+    {
+      "at_s": 10.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to reaction face shot",
+      "component": "cut"
+    },
+    {
+      "at_s": 11.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut back to HUD body animation",
       "component": "cut"
     },
     {
@@ -554,24 +577,87 @@
       "component": "cut"
     },
     {
+      "at_s": 15.3,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with brain background",
+      "component": "cut"
+    },
+    {
       "at_s": 16.6,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to MRI sequence",
+      "description": "Cut to rapid MRI slice animation",
+      "component": "cut"
+    },
+    {
+      "at_s": 17.9,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with YES graphic",
+      "component": "cut"
+    },
+    {
+      "at_s": 18.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to MRI scan with label",
+      "component": "cut"
+    },
+    {
+      "at_s": 20.3,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to half-brain MRI view",
+      "component": "cut"
+    },
+    {
+      "at_s": 21.3,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter talking",
       "component": "cut"
     },
     {
       "at_s": 21.7,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to car crash footage",
+      "description": "Cut to smoking car crash accident",
       "component": "cut"
     },
     {
-      "at_s": 23.0,
+      "at_s": 22.9,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut back to presenter with spine MRI",
+      "description": "Cut to presenter with spine MRI",
+      "component": "cut"
+    },
+    {
+      "at_s": 26.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to split comparison brain scans",
+      "component": "cut"
+    },
+    {
+      "at_s": 27.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to hemisphere title with brain scan",
+      "component": "cut"
+    },
+    {
+      "at_s": 29.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to split layout surgery footage",
+      "component": "cut"
+    },
+    {
+      "at_s": 30.9,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to split layout stat",
       "component": "cut"
     },
     {
@@ -582,17 +668,94 @@
       "component": "cut"
     },
     {
-      "at_s": 42.8,
+      "at_s": 35.8,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to mucus bottle image",
+      "description": "Cut to 1 LITER MUCUS title presenter scene",
+      "component": "cut"
+    },
+    {
+      "at_s": 41.3,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to bottle behind presenter",
+      "component": "cut"
+    },
+    {
+      "at_s": 42.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to full shot mucus filled bottle",
+      "component": "cut"
+    },
+    {
+      "at_s": 45.1,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with clock",
+      "component": "cut"
+    },
+    {
+      "at_s": 45.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to foam finger animation",
       "component": "cut"
     },
     {
       "at_s": 46.5,
       "duration_s": 0.0,
       "name": "cut",
-      "description": "Cut to lung anatomy animation",
+      "description": "Cut to lung inhaling graphic",
+      "component": "cut"
+    },
+    {
+      "at_s": 47.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to man inhaling outdoors",
+      "component": "cut"
+    },
+    {
+      "at_s": 48.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to water bottle still",
+      "component": "cut"
+    },
+    {
+      "at_s": 49.3,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to man meditating exhaling",
+      "component": "cut"
+    },
+    {
+      "at_s": 50.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter explaining invisible water loss",
+      "component": "cut"
+    },
+    {
+      "at_s": 53.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to 24 hrs clock animation",
+      "component": "cut"
+    },
+    {
+      "at_s": 56.1,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to man breathing in nature",
+      "component": "cut"
+    },
+    {
+      "at_s": 57.5,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to subscribe button prompt",
       "component": "cut"
     }
   ],
@@ -601,53 +764,58 @@
     "caption_size": "none",
     "caption_colours": "none",
     "active_word": "none",
-    "title_entry": "pop in with scale effect",
-    "number_entry": "pop in with scale effect"
+    "title_entry": "pop with overshoot or simple cut",
+    "number_entry": "pop with overshoot in red or white bold font"
   },
   "sound": {
     "bed": true,
-    "bed_mood": "mysterious fast-paced curiosity synth beat",
+    "bed_mood": "energetic_beat",
     "effects": [
-      {
-        "at_s": 1.0,
-        "kind": "whoosh",
-        "synced_to": "brain animation appearance"
-      },
-      {
-        "at_s": 2.8,
-        "kind": "hit",
-        "synced_to": "cut to brain MRI"
-      },
       {
         "at_s": 9.1,
         "kind": "whoosh",
-        "synced_to": "number 3 neon impact"
+        "synced_to": "number 3 countdown appearance",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
         "at_s": 17.9,
         "kind": "hit",
-        "synced_to": "YES text impact"
+        "synced_to": "YES stamp appearance",
+        "event": "stamp",
+        "loudness": "loud",
+        "length_s": 0.2
       },
       {
         "at_s": 34.2,
         "kind": "ding",
-        "synced_to": "lightbulb popping up"
+        "synced_to": "lightbulb popping up",
+        "event": "sticker",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
-        "at_s": 42.8,
+        "at_s": 43.3,
         "kind": "hit",
-        "synced_to": "mucus bottle appearance"
+        "synced_to": "vomit emoji appearance",
+        "event": "sticker",
+        "loudness": "medium",
+        "length_s": 0.2
       },
       {
-        "at_s": 54.6,
-        "kind": "hit",
-        "synced_to": "14,400 stat reveal"
+        "at_s": 57.7,
+        "kind": "click",
+        "synced_to": "subscribe button click animation",
+        "event": "other",
+        "loudness": "medium",
+        "length_s": 0.1
       }
     ]
   },
   "hook": {
-    "on_screen": "Presenter gesturing at his temples with glowing particles assembling into a brain over a dark grid background.",
-    "heard": "Presenter speaking Hindi asking if removing one side of your brain allows you to stay alive."
+    "on_screen": "Presenter gestures asking if someone can survive if half their brain is removed",
+    "heard": "Speaker poses a shocking question about removing half of one's brain"
   },
   "tag": "ESTIMATED",
   "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
@@ -659,18 +827,475 @@
   "title": "CRAZY Facts About BRAIN and BODY!",
   "model": "gemini-3.8-flash",
   "fps": 5.0,
-  "prompt_version": "v1",
-  "analysed_on": "2026-09-27",
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
   "usage": {
-    "prompt_tokens": 24244,
+    "prompt_tokens": 28831,
     "video_tokens": 20737,
-    "output_tokens": 5644,
-    "thoughts_tokens": 1240,
-    "total_tokens": 31128
+    "output_tokens": 11147,
+    "thoughts_tokens": 861,
+    "total_tokens": 40839
   },
   "counts": {
-    "shots_per_10s": 7.0,
-    "effects_per_10s": 1.2,
-    "sfx_per_10s": 1.2
-  }
+    "shots_per_10s": 6.2,
+    "effects_per_10s": 1.4,
+    "sfx_per_10s": 0.9
+  },
+  "script": {
+    "about": "Three shocking facts about human anatomy: living with half a brain, swallowing a liter of mucus daily, and exhaling liters of water.",
+    "topic": "science",
+    "tone": "energetic informative",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 7.7,
+      "music_mood": "mysterious_curiosity",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 7.7,
+      "end_s": 17.9,
+      "music_mood": "investigative_pulse",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 17.9,
+      "end_s": 56.1,
+      "music_mood": "energetic_beat",
+      "music_flavour": null
+    },
+    {
+      "part": "ending",
+      "start_s": 56.1,
+      "end_s": 58.2,
+      "music_mood": "calm_ambient",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [
+    {
+      "at_s": 7.7,
+      "from_part": "hook",
+      "to_part": "build_up",
+      "how": "crossfade"
+    },
+    {
+      "at_s": 17.9,
+      "from_part": "build_up",
+      "to_part": "reveal",
+      "how": "crossfade"
+    },
+    {
+      "at_s": 56.1,
+      "from_part": "reveal",
+      "to_part": "ending",
+      "how": "drop_to_silence"
+    }
+  ],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.7,
+      "said": "What if one side of your brain was taken out",
+      "shows": "Presenter with brain illustration behind him",
+      "match": "literal",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 2.7,
+      "end_s": 3.7,
+      "said": "and removed completely",
+      "shows": "MRI scan with empty left hemisphere",
+      "match": "literal",
+      "part": "hook",
+      "layout": "full_still",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 3.7,
+      "end_s": 5.5,
+      "said": "and you were told to survive on one side",
+      "shows": "Presenter gesturing energetically",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 5.5,
+      "end_s": 7.7,
+      "said": "is it even possible to live like that",
+      "shows": "Presenter with transparent glowing brain and question marks",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 7.7,
+      "end_s": 9.1,
+      "said": "Three mind blowing facts about your body",
+      "shows": "Transparent torso anatomy visualization",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 9.1,
+      "end_s": 10.0,
+      "said": "that will completely shock you",
+      "shows": "Neon countdown number 3",
+      "match": "number",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 10.0,
+      "end_s": 10.7,
+      "said": "listening to these facts",
+      "shows": "Hologram full body scanner interface",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 10.7,
+      "end_s": 11.2,
+      "said": "you will be stunned",
+      "shows": "Shocked man looking astonished",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 11.2,
+      "end_s": 11.6,
+      "said": "look at organs",
+      "shows": "Rotating full body scan hologram",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 11.6,
+      "end_s": 15.3,
+      "said": "In the case of kidneys a person survives with just one",
+      "shows": "Presenter pointing to animated kidney organ",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 15.3,
+      "end_s": 16.6,
+      "said": "but is it possible with the brain",
+      "shows": "Presenter pointing to his head",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 16.6,
+      "end_s": 17.9,
+      "said": "could that actually happen",
+      "shows": "Rapid facial and brain MRI scans",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 17.9,
+      "end_s": 18.4,
+      "said": "Yes, it is possible",
+      "shows": "Presenter nodding with green YES graphic",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 18.4,
+      "end_s": 20.3,
+      "said": "There is a surgery called hemispherectomy",
+      "shows": "MRI scan with Hemispherectomy subtitle text",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 20.3,
+      "end_s": 21.3,
+      "said": "where half the brain is removed",
+      "shows": "Scan clearly missing an entire hemisphere",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 21.3,
+      "end_s": 21.7,
+      "said": "after major incidents",
+      "shows": "Presenter speaking",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 21.7,
+      "end_s": 22.9,
+      "said": "such as severe accidents",
+      "shows": "Severe burning car crash on highway",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 22.9,
+      "end_s": 26.7,
+      "said": "or extreme brain trauma or conditions when necessary",
+      "shows": "Presenter gesturing in front of spinal MRI scan",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 26.7,
+      "end_s": 27.7,
+      "said": "one hemisphere is cut out",
+      "shows": "Comparison scans of hemispherectomy patients",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 27.7,
+      "end_s": 29.0,
+      "said": "and removed completely from the skull",
+      "shows": "Single hemisphere MRI slice with red title",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 29.0,
+      "end_s": 30.9,
+      "said": "and discarded during the operation",
+      "shows": "Top neurosurgery tissue removal, bottom presenter talking",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 30.9,
+      "end_s": 33.9,
+      "said": "Nearly eighty-eight percent of people don't know this fact",
+      "shows": "Presenter with 88% graphic and neck MRI scan",
+      "match": "number",
+      "part": "reveal",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 33.9,
+      "end_s": 35.8,
+      "said": "Did you know another surprising fact",
+      "shows": "Presenter with glowing idea lightbulb sticker",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "sticker",
+      "sound": "ding"
+    },
+    {
+      "start_s": 35.8,
+      "end_s": 41.3,
+      "said": "You swallow one liter of mucus every single day",
+      "shows": "Presenter with 1 LITER MUCUS text overlay",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 41.3,
+      "end_s": 42.7,
+      "said": "Imagine a full one liter bottle of water",
+      "shows": "Presenter next to standard water bottle",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 42.7,
+      "end_s": 45.1,
+      "said": "That much mucus is swallowed in twenty-four hours",
+      "shows": "Water bottle filled with thick mucus slime and vomit emoji",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": "sticker",
+      "sound": "hit"
+    },
+    {
+      "start_s": 45.1,
+      "end_s": 45.8,
+      "said": "within a single day",
+      "shows": "Presenter with clock ticking in background",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 45.8,
+      "end_s": 46.5,
+      "said": "And fact number one",
+      "shows": "Foam finger number 1 graphic",
+      "match": "number",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 46.5,
+      "end_s": 47.7,
+      "said": "Through breathing air in and out",
+      "shows": "3D visualization of human lungs expanding",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 47.7,
+      "end_s": 48.2,
+      "said": "every single day",
+      "shows": "Man breathing in the forest",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 48.2,
+      "end_s": 49.3,
+      "said": "equivalent to one liter of water",
+      "shows": "Clean water bottle against white background",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 49.3,
+      "end_s": 50.8,
+      "said": "is expelled out from your body",
+      "shows": "Man meditating calmly and breathing out",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 50.8,
+      "end_s": 53.0,
+      "said": "in an invisible vapor form",
+      "shows": "Presenter pointing to respiratory diagram",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 53.0,
+      "end_s": 56.1,
+      "said": "breathing over fourteen thousand liters of air every day",
+      "shows": "Clock turning into warehouse of 14,400 water bottles",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 56.1,
+      "end_s": 57.5,
+      "said": "inhaled and exhaled continuously",
+      "shows": "Man breathing deeply outdoors",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 57.5,
+      "end_s": 58.2,
+      "said": "Remember to like and subscribe",
+      "shows": "Animated thumbs up and subscribe button being clicked",
+      "match": "literal",
+      "part": "ending",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "click"
+    }
+  ],
+  "styles": [
+    "fastfacts"
+  ]
 }

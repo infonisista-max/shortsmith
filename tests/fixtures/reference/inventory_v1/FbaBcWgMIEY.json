@@ -1,0 +1,534 @@
+{
+  "duration_s": 59.5,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.1,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter cutout over cheese platter collage with historical time banner"
+    },
+    {
+      "start_s": 2.1,
+      "end_s": 3.4,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over Arab men in traditional kandura with modern tower"
+    },
+    {
+      "start_s": 3.4,
+      "end_s": 5.4,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Archival photo of camel caravan rider above ink sketch of camel rider"
+    },
+    {
+      "start_s": 5.4,
+      "end_s": 7.6,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over traditional leather water/milk canteen bag and cheese"
+    },
+    {
+      "start_s": 7.6,
+      "end_s": 11.4,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over camels in savanna, anatomical diagram of animal digestive enzyme"
+    },
+    {
+      "start_s": 11.4,
+      "end_s": 14.8,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Three horizontal panels displaying milk bottle, curd bowl, and pouring water"
+    },
+    {
+      "start_s": 14.8,
+      "end_s": 19.1,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over camel traveler image with delay text callout"
+    },
+    {
+      "start_s": 19.1,
+      "end_s": 21.2,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over camels with speech bubble pointing to rennet"
+    },
+    {
+      "start_s": 21.2,
+      "end_s": 24.0,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Three horizontal panels displaying milk bottle, cheese wedges, and water ripple"
+    },
+    {
+      "start_s": 24.0,
+      "end_s": 27.8,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over cheese backdrop with thinking emoji and leather pouch"
+    },
+    {
+      "start_s": 27.8,
+      "end_s": 29.6,
+      "layout": "presenter_full",
+      "background": "moving_footage",
+      "footage_kind": "animation",
+      "clip_s": 1.8,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over fiery blazing background"
+    },
+    {
+      "start_s": 29.6,
+      "end_s": 32.0,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over cheese assortment backdrop"
+    },
+    {
+      "start_s": 32.0,
+      "end_s": 34.2,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over European flags map"
+    },
+    {
+      "start_s": 34.2,
+      "end_s": 37.0,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over Europe and Mediterranean geographical map"
+    },
+    {
+      "start_s": 37.0,
+      "end_s": 42.4,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over map with historical woodcut inset of cheesemaking"
+    },
+    {
+      "start_s": 42.4,
+      "end_s": 45.8,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over map with calf stomach rennet extraction pictures"
+    },
+    {
+      "start_s": 45.8,
+      "end_s": 47.8,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Political cartoon about vegetarian food sentiments"
+    },
+    {
+      "start_s": 47.8,
+      "end_s": 51.0,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter over vegetarian vs non-vegetarian cheese infographic"
+    },
+    {
+      "start_s": 51.0,
+      "end_s": 53.4,
+      "layout": "split",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.4,
+      "treatment": [],
+      "note": "Top vegetarian rennet illustration, bottom pouring rennet into cheesemaking vat"
+    },
+    {
+      "start_s": 53.4,
+      "end_s": 56.4,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter explaining vegetarian cheese certification marks"
+    },
+    {
+      "start_s": 56.4,
+      "end_s": 59.5,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Map of India with news excerpt regarding 1984 animal rennet ban"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 0.4,
+      "duration_s": 1.7,
+      "emphasis": "number",
+      "name": "banner_slide_down",
+      "description": "Parchment scroll banner drops down with text '7-8000 Years Before'",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 2.6,
+      "duration_s": 0.8,
+      "emphasis": "word",
+      "name": "pop_label",
+      "description": "Yellow text 'Arab' with black drop shadow pops onto screen",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 9.8,
+      "duration_s": 1.6,
+      "emphasis": "word",
+      "name": "glow_title",
+      "description": "Yellow highlighted text 'Rennet Enzyme' pops up near bottom",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 11.6,
+      "duration_s": 3.2,
+      "emphasis": "word",
+      "name": "stack_label_entry",
+      "description": "Red stylized labels 'Milk', 'Curd', 'Water' sequentially pop over the three image panels",
+      "component": "label_flyin"
+    },
+    {
+      "at_s": 17.2,
+      "duration_s": 1.9,
+      "emphasis": "number",
+      "name": "yellow_callout_pop",
+      "description": "Yellow text callout '1-2 Day Extra' pops in with drop shadow",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 19.8,
+      "duration_s": 1.4,
+      "emphasis": "word",
+      "name": "speech_bubble_pop",
+      "description": "Cartoon speech bubble with text 'Rennet' pops in",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 21.6,
+      "duration_s": 2.4,
+      "emphasis": "word",
+      "name": "stack_label_entry",
+      "description": "Labels 'Milk', 'Cheese', 'Water' sequentially pop over the three panels",
+      "component": "label_flyin"
+    },
+    {
+      "at_s": 24.4,
+      "duration_s": 1.5,
+      "emphasis": "image",
+      "name": "emoji_sticker_pop",
+      "description": "Thinking Arab emoji with question mark sticker pops above presenter",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 58.0,
+      "duration_s": 1.5,
+      "emphasis": "image",
+      "name": "news_card_slide",
+      "description": "White news clipping card slides in over the India map",
+      "component": "card"
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 2.1,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to Dubai backdrop",
+      "component": "cut"
+    },
+    {
+      "at_s": 3.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to camel riders split view",
+      "component": "cut"
+    },
+    {
+      "at_s": 5.4,
+      "duration_s": 0.3,
+      "name": "fade",
+      "description": "Cross dissolve back to presenter and ancient leather bag",
+      "component": "fade"
+    },
+    {
+      "at_s": 7.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to camel savanna backdrop",
+      "component": "cut"
+    },
+    {
+      "at_s": 11.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to three-panel milk curd water split",
+      "component": "cut"
+    },
+    {
+      "at_s": 14.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut back to presenter over desert rider",
+      "component": "cut"
+    },
+    {
+      "at_s": 19.1,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to camel herd background",
+      "component": "cut"
+    },
+    {
+      "at_s": 21.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to three-panel milk cheese water split",
+      "component": "cut"
+    },
+    {
+      "at_s": 24.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut back to presenter over cheese background",
+      "component": "cut"
+    },
+    {
+      "at_s": 27.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to fire animation backdrop",
+      "component": "cut"
+    },
+    {
+      "at_s": 29.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut back to cheese platter background",
+      "component": "cut"
+    },
+    {
+      "at_s": 32.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to Europe flag map background",
+      "component": "cut"
+    },
+    {
+      "at_s": 34.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to Mediterranean map backdrop",
+      "component": "cut"
+    },
+    {
+      "at_s": 45.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to cartoon graphic",
+      "component": "cut"
+    },
+    {
+      "at_s": 47.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to presenter over infographic",
+      "component": "cut"
+    },
+    {
+      "at_s": 51.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to split vegetarian rennet and liquid pouring",
+      "component": "cut"
+    },
+    {
+      "at_s": 53.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut back to presenter with packaging guide",
+      "component": "cut"
+    },
+    {
+      "at_s": 56.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Hard cut to India state map",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "none",
+    "caption_size": "none",
+    "caption_colours": "none",
+    "active_word": "none",
+    "title_entry": "pop in with yellow or red fill and black outline",
+    "number_entry": "drop down or pop in with bold yellow typography"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "informative and subtle ambient background track",
+    "effects": [
+      {
+        "at_s": 0.4,
+        "kind": "whoosh",
+        "synced_to": "7-8000 Years Before banner drops"
+      },
+      {
+        "at_s": 2.6,
+        "kind": "hit",
+        "synced_to": "Arab text label pops"
+      },
+      {
+        "at_s": 9.8,
+        "kind": "ding",
+        "synced_to": "Rennet Enzyme title pop"
+      },
+      {
+        "at_s": 11.6,
+        "kind": "click",
+        "synced_to": "Milk label pops"
+      },
+      {
+        "at_s": 12.6,
+        "kind": "click",
+        "synced_to": "Curd label pops"
+      },
+      {
+        "at_s": 13.6,
+        "kind": "click",
+        "synced_to": "Water label pops"
+      },
+      {
+        "at_s": 17.2,
+        "kind": "whoosh",
+        "synced_to": "1-2 Day Extra text entry"
+      },
+      {
+        "at_s": 19.8,
+        "kind": "ding",
+        "synced_to": "Rennet speech bubble appears"
+      },
+      {
+        "at_s": 27.8,
+        "kind": "whoosh",
+        "synced_to": "Fire explosion backdrop start"
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter cutout over cheese board imagery with a '7-8000 Years Before' banner dropping down",
+    "heard": "Presenter speaks in Hindi introducing how cheese was first discovered 7-8 thousand years ago in Arab regions"
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "FbaBcWgMIEY",
+  "url": "https://www.youtube.com/watch?v=FbaBcWgMIEY",
+  "category": "explainer",
+  "tier": "B",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v1",
+  "analysed_on": "2026-09-27",
+  "usage": {
+    "prompt_tokens": 24666,
+    "video_tokens": 21159,
+    "output_tokens": 4512,
+    "thoughts_tokens": 2340,
+    "total_tokens": 31518
+  },
+  "counts": {
+    "shots_per_10s": 3.5,
+    "effects_per_10s": 1.5,
+    "sfx_per_10s": 1.5
+  }
+}

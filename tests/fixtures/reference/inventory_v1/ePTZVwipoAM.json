@@ -1,0 +1,534 @@
+{
+  "duration_s": 60.0,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.0,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter speaking against a collage of Genghis Khan sculpture and medieval warriors"
+    },
+    {
+      "start_s": 2.0,
+      "end_s": 4.0,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter gesturing in front of Mongol horseman artwork"
+    },
+    {
+      "start_s": 4.0,
+      "end_s": 4.8,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Painting of Genghis Khan on horseback with hunting falcon"
+    },
+    {
+      "start_s": 4.8,
+      "end_s": 7.8,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter in front of a chaotic battlefield painting"
+    },
+    {
+      "start_s": 7.8,
+      "end_s": 13.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Illustration of adviser Cucai / Yelu Chucai in Chinese armor"
+    },
+    {
+      "start_s": 13.0,
+      "end_s": 15.8,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter in front of charging cavalry painting"
+    },
+    {
+      "start_s": 15.8,
+      "end_s": 21.8,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Three-tiered graphic collage showing archers, advisers, and map comparison"
+    },
+    {
+      "start_s": 21.8,
+      "end_s": 23.8,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter speaking in front of armed Mongol commander on horseback"
+    },
+    {
+      "start_s": 23.8,
+      "end_s": 25.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Historical battle illustration of medieval armies clashing"
+    },
+    {
+      "start_s": 25.0,
+      "end_s": 28.8,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Indus Valley map on top with presenter speaking over battlefield artwork on bottom"
+    },
+    {
+      "start_s": 28.8,
+      "end_s": 32.4,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Stylized map of Genghis Khan's empire with speech bubble"
+    },
+    {
+      "start_s": 32.4,
+      "end_s": 33.8,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter in front of miniature Persian court painting"
+    },
+    {
+      "start_s": 33.8,
+      "end_s": 35.8,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Monochrome engraving of tent scene with animated cutout horse"
+    },
+    {
+      "start_s": 35.8,
+      "end_s": 36.8,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Close-up portrait of Genghis Khan with unicorn overlay"
+    },
+    {
+      "start_s": 36.8,
+      "end_s": 47.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Adviser illustration with thought bubble and inset portraits of Genghis Khan"
+    },
+    {
+      "start_s": 47.0,
+      "end_s": 49.8,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Map of Mongol Empire with India circled on top, charging cavalry on bottom"
+    },
+    {
+      "start_s": 49.8,
+      "end_s": 53.6,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter talking in front of historical museum display of warriors"
+    },
+    {
+      "start_s": 53.6,
+      "end_s": 55.6,
+      "layout": "split",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Map on top showing horse moving northwards, battle scene and statue on bottom"
+    },
+    {
+      "start_s": 55.6,
+      "end_s": 60.0,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter concluding in front of Genghis Khan portrait with text banner"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 2.2,
+      "duration_s": 1.8,
+      "emphasis": "image",
+      "name": "text_card_pop",
+      "description": "Bold red text 'LARGEST LAND CONQUEROR' pops on screen",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 4.1,
+      "duration_s": 0.7,
+      "emphasis": "image",
+      "name": "title_banner_pop",
+      "description": "Yellow and red title 'CHINGGIS KHAN / GENGHIS KHAN' pops in",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 8.6,
+      "duration_s": 4.0,
+      "emphasis": "image",
+      "name": "name_tag_pop",
+      "description": "Yellow label 'CUCAI' pops onto the illustration",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 9.8,
+      "duration_s": 3.0,
+      "emphasis": "image",
+      "name": "trait_tags_pop",
+      "description": "Text tags 'CHINESE TANTRIC' and 'COULD SEE FUTURE' pop onto the adviser portrait",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 16.4,
+      "duration_s": 4.8,
+      "emphasis": "image",
+      "name": "speech_bubbles_dialogue",
+      "description": "Speech bubble pops up asking 'WILL WE WIN OR NOT CUCAI?' followed by 'YES MY LORD!'",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 24.2,
+      "duration_s": 0.8,
+      "emphasis": "image",
+      "name": "text_banner_pop",
+      "description": "Yellow banner 'ALWAYS WIN ON CUCAI'S PREDICTIONS' pops at the top",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 26.2,
+      "duration_s": 2.6,
+      "emphasis": "image",
+      "name": "map_highlight_and_text",
+      "description": "Red circular border circles the Indus region with angled text 'INDUS VALLEY WAR 12th CENTURY'",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 30.6,
+      "duration_s": 1.8,
+      "emphasis": "image",
+      "name": "thought_bubble_pop",
+      "description": "Thought bubble pops over Genghis Khan reading 'AB INDIA KI BAARI HAI'",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 34.0,
+      "duration_s": 1.8,
+      "emphasis": "image",
+      "name": "animated_horse_movement",
+      "description": "Animated cutout horse figure gallops across the historical engraving",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 36.2,
+      "duration_s": 0.6,
+      "emphasis": "image",
+      "name": "text_tag_pop",
+      "description": "Angled yellow text 'UNICORN' appears above the creature",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 37.8,
+      "duration_s": 9.0,
+      "emphasis": "image",
+      "name": "dialogue_bubble_sequence",
+      "description": "Thought bubbles display advice 'IF YOU WANT GENGHIS WIN ALWAYS' then 'ASK HIM TO RETURN CUCAI'",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 48.2,
+      "duration_s": 1.6,
+      "emphasis": "image",
+      "name": "map_target_circle",
+      "description": "Thick red circle highlights the Indian subcontinent on the historical map",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 50.2,
+      "duration_s": 3.4,
+      "emphasis": "image",
+      "name": "speech_bubble_quote",
+      "description": "Speech bubble with 'WE MUST RETURN MY KING' pops beside presenter",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 57.2,
+      "duration_s": 2.8,
+      "emphasis": "speaker",
+      "name": "lower_third_text",
+      "description": "Yellow label 'MONGOL EMPEROR GENGHIS KHAN' appears on screen",
+      "component": "unregistered"
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 2.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Plain cut between backgrounds",
+      "component": "cut"
+    },
+    {
+      "at_s": 4.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to full still painting",
+      "component": "cut"
+    },
+    {
+      "at_s": 4.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter in front of battle",
+      "component": "cut"
+    },
+    {
+      "at_s": 7.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to adviser painting",
+      "component": "cut"
+    },
+    {
+      "at_s": 13.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with cavalry background",
+      "component": "cut"
+    },
+    {
+      "at_s": 15.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to split graphic collage",
+      "component": "cut"
+    },
+    {
+      "at_s": 21.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with warrior backdrop",
+      "component": "cut"
+    },
+    {
+      "at_s": 23.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to battlefield painting",
+      "component": "cut"
+    },
+    {
+      "at_s": 25.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to split map and presenter view",
+      "component": "cut"
+    },
+    {
+      "at_s": 28.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to empire map still",
+      "component": "cut"
+    },
+    {
+      "at_s": 32.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter against Persian painting",
+      "component": "cut"
+    },
+    {
+      "at_s": 33.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to historical camp engraving",
+      "component": "cut"
+    },
+    {
+      "at_s": 35.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to Genghis Khan close-up portrait",
+      "component": "cut"
+    },
+    {
+      "at_s": 36.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to adviser illustration",
+      "component": "cut"
+    },
+    {
+      "at_s": 47.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to split map and army view",
+      "component": "cut"
+    },
+    {
+      "at_s": 49.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter in museum setting",
+      "component": "cut"
+    },
+    {
+      "at_s": 53.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to map and army split screen",
+      "component": "cut"
+    },
+    {
+      "at_s": 55.6,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to presenter with horseman artwork",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "none",
+    "caption_size": "large bold headline stickers",
+    "caption_colours": "yellow, white, and red with bold dark borders",
+    "active_word": "none",
+    "title_entry": "instant pop in with scale bounce",
+    "number_entry": "none"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "tense dramatic historical music bed",
+    "effects": [
+      {
+        "at_s": 2.2,
+        "kind": "whoosh",
+        "synced_to": "text_card_pop"
+      },
+      {
+        "at_s": 8.6,
+        "kind": "click",
+        "synced_to": "name_tag_pop"
+      },
+      {
+        "at_s": 16.6,
+        "kind": "whoosh",
+        "synced_to": "speech_bubbles_dialogue"
+      },
+      {
+        "at_s": 30.6,
+        "kind": "whoosh",
+        "synced_to": "thought_bubble_pop"
+      },
+      {
+        "at_s": 48.2,
+        "kind": "hit",
+        "synced_to": "map_target_circle"
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter superimposed over split background of Genghis Khan monument and medieval army",
+    "heard": "Dosto is duniya ki dharti par sabse zyada land conquer karne..."
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "ePTZVwipoAM",
+  "url": "https://www.youtube.com/watch?v=ePTZVwipoAM",
+  "category": "explainer",
+  "tier": "B",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v1",
+  "analysed_on": "2026-09-27",
+  "usage": {
+    "prompt_tokens": 24807,
+    "video_tokens": 21300,
+    "output_tokens": 4576,
+    "thoughts_tokens": 2290,
+    "total_tokens": 31673
+  },
+  "counts": {
+    "shots_per_10s": 3.2,
+    "effects_per_10s": 2.3,
+    "sfx_per_10s": 0.8
+  }
+}

@@ -3,87 +3,87 @@
   "shots": [
     {
       "start_s": 0.0,
-      "end_s": 2.5,
+      "end_s": 2.6,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter speaking against a wireframe grid with skull emoji appearing"
+      "treatment": [],
+      "note": "Presenter speaking against a stylized wireframe and orange backdrop with skull emoji"
     },
     {
-      "start_s": 2.5,
+      "start_s": 2.6,
       "end_s": 5.0,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter keyed over a burning Earth in space"
+      "treatment": [],
+      "note": "Presenter gesturing in front of a burning Earth graphic"
     },
     {
       "start_s": 5.0,
-      "end_s": 5.9,
-      "layout": "full_footage",
-      "background": "moving_footage",
-      "footage_kind": "archival_or_news",
-      "clip_s": 0.9,
+      "end_s": 6.0,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
       "treatment": [],
-      "note": "Close-up fireball explosion blooming into white"
+      "note": "Presenter standing before a massive explosion blast"
     },
     {
-      "start_s": 5.9,
+      "start_s": 6.0,
+      "end_s": 6.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter in front of a glowing Sun graphic on red wireframe"
+    },
+    {
+      "start_s": 6.6,
       "end_s": 12.8,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter in front of glowing Sun core with temperature counter"
+      "treatment": [],
+      "note": "Presenter points up to Sun core cutaway diagram with temperature counter"
     },
     {
       "start_s": 12.8,
       "end_s": 14.5,
-      "layout": "full_footage",
+      "layout": "presenter_full",
       "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 1.7,
       "treatment": [],
-      "note": "City skyline with nuclear mushroom cloud erupting"
+      "note": "Presenter overlaid on an animated nuclear blast over a city"
     },
     {
       "start_s": 14.5,
-      "end_s": 15.7,
+      "end_s": 15.8,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter pointing at neon 1945 text"
+      "treatment": [],
+      "note": "Presenter talking against wireframe background with pink 1945 text"
     },
     {
-      "start_s": 15.7,
-      "end_s": 20.3,
+      "start_s": 15.8,
+      "end_s": 20.4,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "archival_or_news",
       "clip_s": 4.6,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "B&W archival footage of Trinity nuclear test fireball expanding"
+      "treatment": [],
+      "note": "Archival footage of the Trinity nuclear test fireball expanding"
     },
     {
-      "start_s": 20.3,
-      "end_s": 22.1,
+      "start_s": 20.4,
+      "end_s": 22.2,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
@@ -91,420 +91,483 @@
       "treatment": [
         "zoom"
       ],
-      "note": "Parched, cracked desert earth"
+      "note": "Top-down view of cracked dry desert ground"
     },
     {
-      "start_s": 22.1,
-      "end_s": 25.9,
+      "start_s": 22.2,
+      "end_s": 26.0,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "archival_or_news",
       "clip_s": 3.8,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Rising mushroom cloud with temperature counter overlay"
+      "treatment": [],
+      "note": "Archival nuclear mushroom cloud with rolling temperature counter"
     },
     {
-      "start_s": 25.9,
+      "start_s": 26.0,
       "end_s": 29.0,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter over roaring fire background with BARABAR text banner"
+      "treatment": [],
+      "note": "Presenter in front of intense flames with red BARABAR banner"
     },
     {
       "start_s": 29.0,
-      "end_s": 29.7,
+      "end_s": 29.8,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter against waving Russian flag"
+      "note": "Presenter gesturing in front of a waving Russian flag"
     },
     {
-      "start_s": 29.7,
-      "end_s": 31.0,
+      "start_s": 29.8,
+      "end_s": 31.2,
       "layout": "text_only",
       "background": "solid_or_gradient",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Red text card on black background"
+      "note": "Humorous red dialogue text pop on pure black screen"
     },
     {
-      "start_s": 31.0,
-      "end_s": 32.7,
-      "layout": "text_only",
-      "background": "generated_or_animated",
-      "footage_kind": null,
-      "clip_s": null,
+      "start_s": 31.2,
+      "end_s": 32.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "animation",
+      "clip_s": 1.6,
       "treatment": [],
-      "note": "1961 neon green text over waving Russian flag"
+      "note": "Waving Russian flag with glowing green 1961 text"
     },
     {
-      "start_s": 32.7,
+      "start_s": 32.8,
       "end_s": 34.2,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "animation",
-      "clip_s": 1.5,
+      "clip_s": 1.4,
       "treatment": [],
-      "note": "Animated massive explosion over city"
+      "note": "Animated massive mushroom cloud detonating over modern city"
     },
     {
       "start_s": 34.2,
-      "end_s": 35.5,
+      "end_s": 35.6,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter gesturing in front of red grid"
+      "note": "Presenter explaining against wireframe grid"
     },
     {
-      "start_s": 35.5,
-      "end_s": 39.5,
+      "start_s": 35.6,
+      "end_s": 39.6,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter against nuclear blast with temperature counter and 7X text"
+      "treatment": [],
+      "note": "Presenter talking in front of explosion with 10 crore C and 7X graphic"
     },
     {
-      "start_s": 39.5,
+      "start_s": 39.6,
       "end_s": 43.1,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter in front of waving Swiss flag"
+      "note": "Presenter talking in front of waving Swiss flag"
     },
     {
       "start_s": 43.1,
-      "end_s": 45.4,
+      "end_s": 45.6,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 2.3,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "CERN particle accelerator interior with skull emoji overlay"
+      "clip_s": 2.5,
+      "treatment": [],
+      "note": "Inside CERN Large Hadron Collider with skull emoji and label"
     },
     {
-      "start_s": 45.4,
+      "start_s": 45.6,
       "end_s": 46.8,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter against dark grid with 2012 title"
+      "treatment": [],
+      "note": "Presenter against wireframe background with blue 2012 text"
     },
     {
       "start_s": 46.8,
-      "end_s": 48.8,
+      "end_s": 48.7,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter in front of orbiting atomic particles animation"
+      "treatment": [],
+      "note": "Presenter gesturing in front of orbiting atomic particle model"
     },
     {
-      "start_s": 48.8,
+      "start_s": 48.7,
+      "end_s": 51.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Presenter speaking as blinding collision energy bursts behind him"
+    },
+    {
+      "start_s": 51.8,
       "end_s": 55.0,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter against superheated plasma explosion with temperature text counter"
+      "treatment": [],
+      "note": "Presenter in front of solar vortex with 5 Lakh Crore C text"
     },
     {
       "start_s": 55.0,
-      "end_s": 58.0,
+      "end_s": 56.0,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Solar surface flare with text 3,60,000 Suns"
+    },
+    {
+      "start_s": 56.0,
+      "end_s": 57.3,
       "layout": "split",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Energy vortex and field of multiple suns with text counter"
+      "treatment": [],
+      "note": "Split view: plasma energy beam above and galaxy of suns below"
     },
     {
-      "start_s": 58.0,
+      "start_s": 57.3,
       "end_s": 58.5,
       "layout": "presenter_full",
       "background": "generated_or_animated",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter pointing at subscribe button graphic"
+      "treatment": [],
+      "note": "Presenter asking viewers to like and subscribe over YouTube UI buttons"
     }
   ],
   "effects": [
     {
       "at_s": 1.0,
-      "duration_s": 1.5,
+      "duration_s": 1.6,
       "emphasis": "image",
-      "name": "emoji_pop_in",
-      "description": "3D skull emoji pops in above presenter's head",
-      "component": "unregistered"
+      "name": "skull_sticker_drop",
+      "description": "3D skull emoji pops in above the presenter",
+      "component": "sticker",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "top"
+      }
     },
     {
       "at_s": 8.0,
-      "duration_s": 1.0,
+      "duration_s": 1.8,
       "emphasis": "number",
-      "name": "odometer_temperature_counter",
-      "description": "Fast-rolling odometer numbers counting up to 1,50,00,000 °C",
-      "component": "counter"
-    },
-    {
-      "at_s": 14.5,
-      "duration_s": 1.1,
-      "emphasis": "number",
-      "name": "neon_year_pop",
-      "description": "Bold neon magenta 1945 text scales in centrally",
-      "component": "unregistered"
+      "name": "sun_temperature_counter",
+      "description": "Rapidly counting number rolling up to 1.5 crore C",
+      "component": "counter",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.1,
+        "size": 0.8,
+        "region": "top"
+      }
     },
     {
       "at_s": 23.8,
-      "duration_s": 1.0,
+      "duration_s": 1.6,
       "emphasis": "number",
-      "name": "odometer_nuclear_temp",
-      "description": "Fast-spinning digit counter reaching 1,50,00,000 °C",
-      "component": "counter"
+      "name": "trinity_temperature_counter",
+      "description": "Fast rolling digital counter reaching 1.5 crore C over explosion",
+      "component": "counter",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.1,
+        "size": 0.8,
+        "region": "top"
+      }
     },
     {
       "at_s": 27.0,
       "duration_s": 2.0,
       "emphasis": "word",
-      "name": "impact_banner_stamp",
-      "description": "Bold red 'BARABAR!' banner appears at the top frame",
-      "component": "stamp"
-    },
-    {
-      "at_s": 31.4,
-      "duration_s": 1.2,
-      "emphasis": "number",
-      "name": "neon_year_1961",
-      "description": "Neon yellow 1961 text expands on center screen",
-      "component": "unregistered"
+      "name": "barabar_banner",
+      "description": "Red banner with black text BARABAR! stamped across the top",
+      "component": "stamp",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.1,
+        "size": 0.9,
+        "region": "top"
+      }
     },
     {
       "at_s": 35.6,
-      "duration_s": 1.0,
+      "duration_s": 1.4,
       "emphasis": "number",
-      "name": "odometer_tsar_temp",
-      "description": "Fast odometer spinning up to 10,00,00,000 °C",
-      "component": "counter"
+      "name": "tsar_temperature_counter",
+      "description": "Counter spinning rapidly up to 10 crore C",
+      "component": "counter",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.1,
+        "size": 0.8,
+        "region": "top"
+      }
     },
     {
       "at_s": 38.6,
       "duration_s": 1.0,
       "emphasis": "number",
-      "name": "scale_multiplier_stamp",
-      "description": "Bold black '7X' text scales onto the Sun graphic",
-      "component": "stamp"
+      "name": "seven_times_multiplier",
+      "description": "Large bold 7X text pops onto the screen",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.15,
+        "size": 0.4,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 44.3,
-      "duration_s": 1.1,
+      "at_s": 44.4,
+      "duration_s": 1.2,
       "emphasis": "image",
-      "name": "cern_skull_drop",
-      "description": "Skull emoji drops over the Large Hadron Collider with Cern Laboratory text",
-      "component": "unregistered"
+      "name": "cern_skull_sticker",
+      "description": "Skull emoji appears over Large Hadron Collider view with label",
+      "component": "sticker",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "middle"
+      }
     },
     {
       "at_s": 51.8,
-      "duration_s": 2.2,
+      "duration_s": 3.2,
       "emphasis": "number",
-      "name": "giant_temperature_callout",
-      "description": "Text '5 Lakh Crore °C' fades and scales prominently in black letters",
-      "component": "unregistered"
+      "name": "lhc_temperature_text",
+      "description": "Bold black stacked text showing 5 Lakh Crore C",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 55.2,
-      "duration_s": 2.8,
+      "at_s": 55.0,
+      "duration_s": 1.0,
       "emphasis": "number",
-      "name": "suns_comparison_counter",
-      "description": "Text '3,60,000 Suns' appears over the blazing cosmos",
-      "component": "unregistered"
+      "name": "sun_count_pop",
+      "description": "Bold text reading 3,60,000 Suns over solar backdrop",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.65,
+        "region": "top"
+      }
     }
   ],
   "transitions": [
     {
-      "at_s": 2.5,
+      "at_s": 2.6,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut from presenter to burning Earth backdrop",
+      "description": "Plain cut to burning earth background",
       "component": "cut"
     },
     {
       "at_s": 5.0,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to nuclear fireball blast",
+      "description": "Plain cut to explosion flash",
       "component": "cut"
     },
     {
-      "at_s": 5.9,
+      "at_s": 6.0,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to presenter with Sun graphic",
+      "description": "Plain cut to sun graphic",
+      "component": "cut"
+    },
+    {
+      "at_s": 6.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Plain cut to sun core diagram",
       "component": "cut"
     },
     {
       "at_s": 12.8,
-      "duration_s": 0.2,
-      "name": "flash_fade",
-      "description": "White explosion flash transition into city explosion footage",
-      "component": "fade"
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Plain cut to city explosion animation",
+      "component": "cut"
     },
     {
       "at_s": 14.5,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to presenter and 1945 title",
+      "description": "Plain cut to 1945 presenter scene",
       "component": "cut"
     },
     {
-      "at_s": 15.7,
+      "at_s": 15.8,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to historical B&W Trinity nuclear test",
+      "description": "Plain cut to Trinity archival footage",
       "component": "cut"
     },
     {
-      "at_s": 20.3,
+      "at_s": 20.4,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to dry cracked earth",
+      "description": "Plain cut to parched earth shot",
       "component": "cut"
     },
     {
-      "at_s": 22.1,
+      "at_s": 22.2,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to rising mushroom cloud",
+      "description": "Plain cut to mushroom cloud footage",
       "component": "cut"
     },
     {
-      "at_s": 25.9,
+      "at_s": 26.0,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to presenter against fire background",
+      "description": "Plain cut to fiery presenter background",
       "component": "cut"
     },
     {
       "at_s": 29.0,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to Russian flag background",
+      "description": "Plain cut to Russian flag",
       "component": "cut"
     },
     {
-      "at_s": 29.7,
+      "at_s": 29.8,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to black screen dialogue card",
+      "description": "Plain cut to black screen text card",
       "component": "cut"
     },
     {
-      "at_s": 31.0,
+      "at_s": 31.2,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to Russian flag with 1961 text",
+      "description": "Plain cut to waving Russian flag 1961",
       "component": "cut"
     },
     {
-      "at_s": 32.7,
+      "at_s": 32.8,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to animated city nuclear blast",
+      "description": "Plain cut to city blast anime footage",
       "component": "cut"
     },
     {
       "at_s": 34.2,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to presenter on grid background",
+      "description": "Plain cut to presenter against grid",
       "component": "cut"
     },
     {
-      "at_s": 35.5,
+      "at_s": 35.6,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to presenter against nuclear explosion",
+      "description": "Plain cut to presenter over blast counter",
       "component": "cut"
     },
     {
-      "at_s": 39.5,
+      "at_s": 39.6,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to Swiss flag background",
+      "description": "Plain cut to Swiss flag",
       "component": "cut"
     },
     {
       "at_s": 43.1,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to CERN facility footage",
+      "description": "Plain cut to CERN collider interior",
       "component": "cut"
     },
     {
-      "at_s": 45.4,
+      "at_s": 45.6,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to presenter and 2012 text",
+      "description": "Plain cut to presenter 2012 graphic",
       "component": "cut"
     },
     {
       "at_s": 46.8,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to atomic structure animation",
+      "description": "Plain cut to atom particle animation",
       "component": "cut"
     },
     {
-      "at_s": 48.8,
+      "at_s": 48.7,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to high energy burst",
+      "description": "Plain cut to collision explosion background",
+      "component": "cut"
+    },
+    {
+      "at_s": 51.8,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Plain cut to presenter with 5 Lakh Crore C",
       "component": "cut"
     },
     {
       "at_s": 55.0,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to cosmic sun comparison split screen",
+      "description": "Plain cut to solar flare graphic",
       "component": "cut"
     },
     {
-      "at_s": 58.0,
+      "at_s": 56.0,
       "duration_s": 0.1,
       "name": "cut",
-      "description": "Plain cut to call to action ending frame",
+      "description": "Plain cut to split energy / suns visual",
+      "component": "cut"
+    },
+    {
+      "at_s": 57.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Plain cut to presenter outro with subscribe prompt",
       "component": "cut"
     }
   ],
@@ -513,53 +576,66 @@
     "caption_size": "none",
     "caption_colours": "none",
     "active_word": "none",
-    "title_entry": "scale up with instant punchy pop",
-    "number_entry": "fast spinning vertical odometer digits rolling up"
+    "title_entry": "pop_overshoot",
+    "number_entry": "fast count roll"
   },
   "sound": {
     "bed": true,
-    "bed_mood": "tense dramatic suspenseful build-up",
+    "bed_mood": "tense_dramatic",
     "effects": [
       {
         "at_s": 1.0,
         "kind": "hit",
-        "synced_to": "skull emoji appearance"
+        "synced_to": "skull emoji pops up",
+        "event": "sticker",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
         "at_s": 5.0,
         "kind": "whoosh",
-        "synced_to": "fireball explosion burst"
-      },
-      {
-        "at_s": 8.0,
-        "kind": "ding",
-        "synced_to": "temperature counter completion"
-      },
-      {
-        "at_s": 12.8,
-        "kind": "hit",
-        "synced_to": "nuclear detonation in city"
+        "synced_to": "nuclear blast transition",
+        "event": "cut",
+        "loudness": "loud",
+        "length_s": 0.5
       },
       {
         "at_s": 27.0,
         "kind": "hit",
-        "synced_to": "BARABAR banner appearance"
+        "synced_to": "BARABAR stamp appears",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
         "at_s": 38.6,
         "kind": "hit",
-        "synced_to": "7X graphic stamp"
+        "synced_to": "7X graphic pops",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
         "at_s": 49.0,
-        "kind": "whoosh",
-        "synced_to": "particle collision burst"
+        "kind": "hit",
+        "synced_to": "subatomic particle collision explosion",
+        "event": "reveal",
+        "loudness": "loud",
+        "length_s": 0.6
+      },
+      {
+        "at_s": 52.0,
+        "kind": "hit",
+        "synced_to": "5 Lakh Crore text pop",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.4
       }
     ]
   },
   "hook": {
-    "on_screen": "Presenter gestures urgently before an ominous skull emoji pops over his head against a burning cosmic backdrop",
-    "heard": "Speaker warns in Hindi about the most dangerous experiments conducted on Earth that almost destroyed it"
+    "on_screen": "Presenter gestures intensely under a skull emoji warning of extreme experiments",
+    "heard": "Host introduces the most terrifying experiments that almost destroyed Earth"
   },
   "tag": "ESTIMATED",
   "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
@@ -571,18 +647,344 @@
   "title": "Highest INSANE Temperatures Ever Achieved By Humans!",
   "model": "gemini-3.8-flash",
   "fps": 5.0,
-  "prompt_version": "v1",
-  "analysed_on": "2026-09-27",
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
   "usage": {
-    "prompt_tokens": 24314,
+    "prompt_tokens": 28901,
     "video_tokens": 20807,
-    "output_tokens": 5070,
-    "thoughts_tokens": 685,
-    "total_tokens": 30069
+    "output_tokens": 8877,
+    "thoughts_tokens": 974,
+    "total_tokens": 38752
   },
   "counts": {
-    "shots_per_10s": 3.9,
-    "effects_per_10s": 1.9,
-    "sfx_per_10s": 1.2
-  }
+    "shots_per_10s": 4.4,
+    "effects_per_10s": 1.5,
+    "sfx_per_10s": 1.0
+  },
+  "script": {
+    "about": "How human experiments like nuclear tests and CERN particle collisions created temperatures hotter than the Sun.",
+    "topic": "science",
+    "tone": "dramatic informative",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 6.0,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 6.0,
+      "end_s": 39.6,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 39.6,
+      "end_s": 57.3,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    },
+    {
+      "part": "ending",
+      "start_s": 57.3,
+      "end_s": 58.5,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 2.6,
+      "said": "Earth's most dangerous experiments almost destroyed our world.",
+      "shows": "Presenter speaking with skull emoji overhead",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "sticker",
+      "sound": "hit"
+    },
+    {
+      "start_s": 2.6,
+      "end_s": 5.0,
+      "said": "These experiments could have wiped out humanity completely.",
+      "shows": "Presenter in front of burning globe",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 5.0,
+      "end_s": 6.0,
+      "said": "They unleashed cataclysmic explosive forces.",
+      "shows": "Presenter in front of bright explosion cloud",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 6.0,
+      "end_s": 6.6,
+      "said": "Consider the core temperature of our Sun.",
+      "shows": "Glowing Sun sphere graphic",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 6.6,
+      "end_s": 12.8,
+      "said": "Sun's core reaches 15 million degrees Celsius.",
+      "shows": "Presenter points to Sun core diagram with counter reaching 15M C",
+      "match": "number",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "counter",
+      "sound": null
+    },
+    {
+      "start_s": 12.8,
+      "end_s": 14.5,
+      "said": "During the first atomic bomb test conducted by USA.",
+      "shows": "City nuclear detonation animation",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 14.5,
+      "end_s": 15.8,
+      "said": "Back in the year 1945.",
+      "shows": "Presenter pointing to pink 1945 graphic",
+      "match": "number",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 15.8,
+      "end_s": 20.4,
+      "said": "The historic Trinity nuclear explosion test detonated.",
+      "shows": "Archival footage of the Trinity fireball expanding",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 20.4,
+      "end_s": 22.2,
+      "said": "The surrounding desert soil became intensely scorched.",
+      "shows": "Cracked parched desert earth",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 22.2,
+      "end_s": 26.0,
+      "said": "Temperatures soared to 15 million degrees Celsius.",
+      "shows": "Nuclear mushroom cloud with counter hitting 1.5 crore C",
+      "match": "number",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "counter",
+      "sound": null
+    },
+    {
+      "start_s": 26.0,
+      "end_s": 29.0,
+      "said": "Exactly matching the heat of the Sun's core.",
+      "shows": "Presenter in front of fire with BARABAR text banner",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "stamp",
+      "sound": "hit"
+    },
+    {
+      "start_s": 29.0,
+      "end_s": 29.8,
+      "said": "Then rival superpower Russia decided to respond.",
+      "shows": "Presenter against waving Russian flag",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 29.8,
+      "end_s": 31.2,
+      "said": "Determined to demonstrate far greater destructive power.",
+      "shows": "Humorous dialogue text card on black screen",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "text_only",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 31.2,
+      "end_s": 32.8,
+      "said": "In 1961 the Soviet Union tested Tsar Bomba.",
+      "shows": "Waving Russian flag with green 1961 text",
+      "match": "named_entity",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 32.8,
+      "end_s": 34.2,
+      "said": "The colossal nuclear detonation erupted.",
+      "shows": "Mushroom cloud engulfing city skyline",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 34.2,
+      "end_s": 35.6,
+      "said": "The temperature generated was unfathomable.",
+      "shows": "Presenter explaining with hand gestures",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 35.6,
+      "end_s": 39.6,
+      "said": "Reaching 100 million degrees, seven times hotter than Sun.",
+      "shows": "Counter rolling to 10 crore C followed by 7X text pop",
+      "match": "number",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 39.6,
+      "end_s": 43.1,
+      "said": "Switzerland scientists decided to push boundaries even further.",
+      "shows": "Presenter in front of waving Swiss flag",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 43.1,
+      "end_s": 45.6,
+      "said": "At the CERN particle physics laboratory.",
+      "shows": "Large Hadron Collider facility with skull icon and label",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": "sticker",
+      "sound": null
+    },
+    {
+      "start_s": 45.6,
+      "end_s": 46.8,
+      "said": "In the milestone year of 2012.",
+      "shows": "Presenter against wireframe with 2012 text pop",
+      "match": "number",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 46.8,
+      "end_s": 48.7,
+      "said": "Two subatomic particles accelerated near light speed.",
+      "shows": "Presenter before atom particle tracks graphic",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 48.7,
+      "end_s": 51.8,
+      "said": "They collided together in a blinding flash.",
+      "shows": "Blinding collision energy burst behind presenter",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": "hit"
+    },
+    {
+      "start_s": 51.8,
+      "end_s": 55.0,
+      "said": "Generating a staggering 5 trillion degrees Celsius.",
+      "shows": "Presenter with bold 5 Lakh Crore C text graphic",
+      "match": "number",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 55.0,
+      "end_s": 56.0,
+      "said": "Equivalent to 360,000 Suns combined.",
+      "shows": "Solar eruption graphic with 3,60,000 Suns title",
+      "match": "number",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 56.0,
+      "end_s": 57.3,
+      "said": "A temperature unimaginable in cosmic terms.",
+      "shows": "Split screen of plasma beam and field of suns",
+      "match": "metaphor",
+      "part": "reveal",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 57.3,
+      "end_s": 58.5,
+      "said": "Please like and subscribe for more amazing facts.",
+      "shows": "Presenter asking viewers to like and subscribe with graphic buttons",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    }
+  ],
+  "styles": []
 }

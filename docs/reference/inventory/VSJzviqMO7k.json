@@ -9,7 +9,7 @@
       "footage_kind": "stock",
       "clip_s": 0.8,
       "treatment": [],
-      "note": "Woman sitting in wheelchair typing on laptop in front of math projection"
+      "note": "Woman in front of chalkboard with math equations"
     },
     {
       "start_s": 0.8,
@@ -19,147 +19,149 @@
       "footage_kind": "stock",
       "clip_s": 0.4,
       "treatment": [],
-      "note": "Lamborghini showroom at night"
+      "note": "Exterior of Lamborghini car showroom"
     },
     {
       "start_s": 1.2,
-      "end_s": 1.5,
-      "layout": "full_footage",
-      "background": "moving_footage",
-      "footage_kind": "stock",
-      "clip_s": 0.3,
-      "treatment": [],
-      "note": "Audi dealership building exterior"
-    },
-    {
-      "start_s": 1.5,
-      "end_s": 1.7,
+      "end_s": 1.4,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
       "clip_s": 0.2,
       "treatment": [],
-      "note": "Bentley logo on yellow car hood"
+      "note": "Modern Audi car dealership exterior"
     },
     {
-      "start_s": 1.7,
-      "end_s": 2.0,
+      "start_s": 1.4,
+      "end_s": 1.6,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 0.3,
+      "clip_s": 0.2,
       "treatment": [],
-      "note": "HP building entrance sign"
+      "note": "Close up of Bentley winged emblem on yellow car"
     },
     {
-      "start_s": 2.0,
-      "end_s": 2.3,
+      "start_s": 1.6,
+      "end_s": 1.8,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 0.3,
+      "clip_s": 0.2,
       "treatment": [],
-      "note": "Google logo on office building"
+      "note": "HP headquarters entrance sign"
     },
     {
-      "start_s": 2.3,
+      "start_s": 1.8,
+      "end_s": 2.2,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 0.4,
+      "treatment": [],
+      "note": "Google corporate building exterior sign"
+    },
+    {
+      "start_s": 2.2,
       "end_s": 3.8,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 1.5,
+      "clip_s": 1.6,
       "treatment": [],
-      "note": "Man giving whiteboard presentation in office"
+      "note": "Young man presenting at whiteboard in office meeting"
     },
     {
       "start_s": 3.8,
-      "end_s": 5.2,
+      "end_s": 5.0,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 1.4,
+      "clip_s": 1.2,
       "treatment": [],
-      "note": "Massive LED billboards in city square displaying advertisements"
+      "note": "Curved giant billboard display in shopping area"
     },
     {
-      "start_s": 5.2,
+      "start_s": 5.0,
       "end_s": 6.0,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 0.8,
-      "treatment": [],
-      "note": "Woman gasping in shock"
+      "clip_s": 1.0,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Woman looking shocked with mouth open"
     },
     {
       "start_s": 6.0,
-      "end_s": 8.3,
+      "end_s": 8.4,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 2.3,
+      "clip_s": 2.4,
       "treatment": [],
-      "note": "Overhead view of person typing Google on tablet"
+      "note": "Hands typing search on tablet"
     },
     {
-      "start_s": 8.3,
-      "end_s": 9.7,
-      "layout": "full_footage",
-      "background": "generated_or_animated",
+      "start_s": 8.4,
+      "end_s": 9.6,
+      "layout": "card",
+      "background": "solid_or_gradient",
       "footage_kind": "animation",
-      "clip_s": 1.4,
+      "clip_s": 1.2,
       "treatment": [],
-      "note": "Vintage CRT computer screen showing Googol search page"
+      "note": "CRT monitor displaying Googol search page"
     },
     {
-      "start_s": 9.7,
+      "start_s": 9.6,
       "end_s": 11.6,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "archival_or_news",
-      "clip_s": 1.9,
+      "clip_s": 2.0,
       "treatment": [],
-      "note": "Indian movie clip reaction of man saying kehna kya chahte ho"
+      "note": "3 Idiots meme clip of principal shouting"
     },
     {
       "start_s": 11.6,
-      "end_s": 14.5,
-      "layout": "full_footage",
-      "background": "generated_or_animated",
+      "end_s": 14.6,
+      "layout": "card",
+      "background": "solid_or_gradient",
       "footage_kind": "animation",
-      "clip_s": 2.9,
+      "clip_s": 3.0,
       "treatment": [],
-      "note": "Typing Google on Google homepage and red spellcheck underline appears"
+      "note": "Google logo appearing with red wavy spellcheck line"
     },
     {
-      "start_s": 14.5,
+      "start_s": 14.6,
       "end_s": 17.2,
-      "layout": "full_footage",
-      "background": "generated_or_animated",
+      "layout": "card",
+      "background": "solid_or_gradient",
       "footage_kind": "animation",
-      "clip_s": 2.7,
+      "clip_s": 2.6,
       "treatment": [],
-      "note": "Smartphone mock-up typing googol in search box"
+      "note": "Smartphone screen typing googol in search box"
     },
     {
       "start_s": 17.2,
       "end_s": 20.8,
-      "layout": "full_footage",
-      "background": "generated_or_animated",
+      "layout": "card",
+      "background": "moving_footage",
       "footage_kind": "animation",
       "clip_s": 3.6,
       "treatment": [],
-      "note": "Retro PC typing google on domain registrar"
+      "note": "Retro computer typing google on domains.com"
     },
     {
       "start_s": 20.8,
       "end_s": 23.0,
-      "layout": "full_footage",
-      "background": "generated_or_animated",
+      "layout": "card",
+      "background": "solid_or_gradient",
       "footage_kind": "animation",
       "clip_s": 2.2,
       "treatment": [],
-      "note": "1998 classic Google homepage with exclamation mark"
+      "note": "Original vintage Google logo with exclamation mark"
     },
     {
       "start_s": 23.0,
@@ -169,57 +171,57 @@
       "footage_kind": "stock",
       "clip_s": 1.0,
       "treatment": [],
-      "note": "Audi modern dealership showroom"
+      "note": "Audi dealership building"
     },
     {
       "start_s": 24.0,
-      "end_s": 24.5,
-      "layout": "full_footage",
-      "background": "moving_footage",
-      "footage_kind": "stock",
-      "clip_s": 0.5,
-      "treatment": [],
-      "note": "Bentley badge on yellow car hood"
-    },
-    {
-      "start_s": 24.5,
-      "end_s": 25.1,
+      "end_s": 24.6,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
       "clip_s": 0.6,
       "treatment": [],
-      "note": "Lamborghini showroom exterior"
+      "note": "Bentley emblem close up"
     },
     {
-      "start_s": 25.1,
-      "end_s": 25.9,
+      "start_s": 24.6,
+      "end_s": 25.2,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 0.6,
+      "treatment": [],
+      "note": "Lamborghini showroom front"
+    },
+    {
+      "start_s": 25.2,
+      "end_s": 26.0,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
       "clip_s": 0.8,
       "treatment": [],
-      "note": "Porsche dealership exterior"
+      "note": "Porsche dealership glass facade"
     },
     {
-      "start_s": 25.9,
+      "start_s": 26.0,
       "end_s": 26.8,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 0.9,
+      "clip_s": 0.8,
       "treatment": [],
       "note": "Skoda dealership exterior"
     },
     {
       "start_s": 26.8,
       "end_s": 34.6,
-      "layout": "other",
+      "layout": "card",
       "background": "solid_or_gradient",
       "footage_kind": "animation",
       "clip_s": 7.8,
       "treatment": [],
-      "note": "Radial infographic diagram showing car brands owned by Volkswagen Group"
+      "note": "Diagram of luxury automotive brands linked to Volkswagen Group"
     },
     {
       "start_s": 34.6,
@@ -229,11 +231,11 @@
       "footage_kind": "stock",
       "clip_s": 2.0,
       "treatment": [],
-      "note": "Volkswagen showroom entrance"
+      "note": "Modern Volkswagen showroom exterior"
     },
     {
       "start_s": 36.6,
-      "end_s": 38.7,
+      "end_s": 38.6,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
@@ -241,312 +243,487 @@
       "treatment": [
         "zoom"
       ],
-      "note": "Historical composite photo of Adolf Hitler and swastika flags"
+      "note": "Historical portrait photo of Adolf Hitler"
     },
     {
-      "start_s": 38.7,
-      "end_s": 42.9,
-      "layout": "card",
+      "start_s": 38.6,
+      "end_s": 39.8,
+      "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 4.2,
+      "clip_s": 1.2,
       "treatment": [],
-      "note": "HP sign with founder photo cards of Bill Hewlett and David Packard popping in"
+      "note": "HP circular corporate logo on landscaping"
     },
     {
-      "start_s": 42.9,
-      "end_s": 50.9,
-      "layout": "card",
+      "start_s": 39.8,
+      "end_s": 42.0,
+      "layout": "split",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [],
-      "note": "Hewlett-Packard logo flanked by founders, coin flip animation deciding order"
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Portraits of founders Bill Hewlett and David Packard"
     },
     {
-      "start_s": 50.9,
+      "start_s": 42.0,
+      "end_s": 47.0,
+      "layout": "card",
+      "background": "solid_or_gradient",
+      "footage_kind": "animation",
+      "clip_s": 5.0,
+      "treatment": [],
+      "note": "Hewlett-Packard vs Packard-Hewlett logo comparison"
+    },
+    {
+      "start_s": 47.0,
+      "end_s": 49.6,
+      "layout": "card",
+      "background": "solid_or_gradient",
+      "footage_kind": "animation",
+      "clip_s": 2.6,
+      "treatment": [],
+      "note": "Hand tossing a spinning silver coin"
+    },
+    {
+      "start_s": 49.6,
+      "end_s": 51.0,
+      "layout": "card",
+      "background": "solid_or_gradient",
+      "footage_kind": "animation",
+      "clip_s": 1.4,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Portrait of Bill Hewlett enlarging upon winning coin toss"
+    },
+    {
+      "start_s": 51.0,
+      "end_s": 52.8,
+      "layout": "card",
+      "background": "solid_or_gradient",
+      "footage_kind": "animation",
+      "clip_s": 1.8,
+      "treatment": [],
+      "note": "Portrait of David Packard"
+    },
+    {
+      "start_s": 52.8,
+      "end_s": 54.0,
+      "layout": "card",
+      "background": "solid_or_gradient",
+      "footage_kind": "animation",
+      "clip_s": 1.2,
+      "treatment": [],
+      "note": "Hewlett-Packard official branding with founders"
+    },
+    {
+      "start_s": 54.0,
       "end_s": 55.8,
       "layout": "card",
-      "background": "still_photo",
-      "footage_kind": null,
-      "clip_s": null,
+      "background": "solid_or_gradient",
+      "footage_kind": "animation",
+      "clip_s": 1.8,
       "treatment": [],
-      "note": "Alternate reality Packard-Hewlett branding with inverted ph logo"
+      "note": "Hypothetical Packard-Hewlett logo animation"
     }
   ],
   "effects": [
     {
+      "at_s": 0.0,
+      "duration_s": 55.8,
+      "emphasis": "word",
+      "name": "header_topic_banner",
+      "description": "Static banner at top stating company facts 99% people do not know",
+      "component": "title_strip",
+      "motion": {
+        "entrance": "fade",
+        "entrance_s": 0.1,
+        "size": 1.0,
+        "region": "top"
+      }
+    },
+    {
       "at_s": 12.8,
-      "duration_s": 1.2,
+      "duration_s": 1.8,
       "emphasis": "image",
-      "name": "red_squiggle_underline",
-      "description": "Red wavy spellcheck line appears beneath Google",
-      "component": "unregistered"
+      "name": "spellcheck_squiggly_underline",
+      "description": "Red squiggly underline appearing under Google logo to denote spelling error",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "draw",
+        "entrance_s": 0.3,
+        "size": 0.7,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 31.8,
-      "duration_s": 2.2,
+      "at_s": 26.8,
+      "duration_s": 5.2,
       "emphasis": "image",
-      "name": "brand_hub_reveal",
-      "description": "Volkswagen Group circle logo expands into center of brand network diagram",
-      "component": "unregistered"
+      "name": "brand_network_radial_diagram",
+      "description": "Logos of automotive companies arrange radially pointing into central hub",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.5,
+        "size": 0.9,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 39.8,
-      "duration_s": 1.2,
+      "at_s": 32.0,
+      "duration_s": 2.6,
       "emphasis": "image",
-      "name": "founder_card_popup",
-      "description": "Framed portrait photo of Bill Hewlett slides in from left",
-      "component": "card"
-    },
-    {
-      "at_s": 41.0,
-      "duration_s": 1.2,
-      "emphasis": "image",
-      "name": "founder_card_popup",
-      "description": "Framed portrait photo of David Packard slides in from right",
-      "component": "card"
+      "name": "volkswagen_central_reveal",
+      "description": "Volkswagen Group logo reveals in center of circular brand arrows",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.4,
+        "size": 0.4,
+        "region": "middle"
+      }
     },
     {
       "at_s": 47.6,
-      "duration_s": 1.8,
+      "duration_s": 2.0,
       "emphasis": "image",
       "name": "coin_toss_animation",
-      "description": "Hand flips a spinning coin vertically to decide founder name order",
-      "component": "unregistered"
+      "description": "Animated thumb flips a silver coin into the air",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.3,
+        "size": 0.3,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 54.0,
+      "duration_s": 1.8,
+      "emphasis": "image",
+      "name": "alternate_logo_reveal",
+      "description": "Speculative Ph Packard-Hewlett logo badge pops in",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.3,
+        "size": 0.6,
+        "region": "middle"
+      }
     }
   ],
   "transitions": [
     {
       "at_s": 0.8,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Lamborghini dealership",
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
       "at_s": 1.2,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Audi building",
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 1.5,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Bentley emblem",
+      "at_s": 1.4,
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 1.7,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to HP sign",
+      "at_s": 1.6,
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 2.0,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Google sign",
+      "at_s": 1.8,
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 2.3,
-      "duration_s": 0.0,
+      "at_s": 2.2,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to whiteboard meeting",
+      "description": "",
       "component": "cut"
     },
     {
       "at_s": 3.8,
-      "duration_s": 0.0,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to billboards",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 5.2,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to shocked woman",
-      "component": "cut"
+      "at_s": 5.0,
+      "duration_s": 0.2,
+      "name": "flash_transition",
+      "description": "",
+      "component": "flash"
     },
     {
       "at_s": 6.0,
-      "duration_s": 0.0,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to typing on tablet",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 8.3,
-      "duration_s": 0.0,
+      "at_s": 8.4,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to vintage monitor",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 9.7,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to film reaction meme",
-      "component": "cut"
+      "at_s": 9.6,
+      "duration_s": 0.2,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
     },
     {
       "at_s": 11.6,
-      "duration_s": 0.0,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to Google logo search",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 14.5,
-      "duration_s": 0.0,
+      "at_s": 14.6,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to smartphone animation",
+      "description": "",
       "component": "cut"
     },
     {
       "at_s": 17.2,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to domains.com monitor",
-      "component": "cut"
+      "duration_s": 0.2,
+      "name": "zoom_transition",
+      "description": "",
+      "component": "zoom"
     },
     {
       "at_s": 20.8,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to retro Google UI",
-      "component": "cut"
+      "duration_s": 0.2,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
     },
     {
       "at_s": 23.0,
-      "duration_s": 0.0,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to Audi showroom",
+      "description": "",
       "component": "cut"
     },
     {
       "at_s": 24.0,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Bentley hood",
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 24.5,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Lamborghini showroom",
+      "at_s": 24.6,
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 25.1,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Porsche showroom",
+      "at_s": 25.2,
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 25.9,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Skoda showroom",
+      "at_s": 26.0,
+      "duration_s": 0.1,
+      "name": "fast_cut",
+      "description": "",
       "component": "cut"
     },
     {
       "at_s": 26.8,
-      "duration_s": 0.0,
-      "name": "cut",
-      "description": "Direct cut to Volkswagen network graphic",
-      "component": "cut"
+      "duration_s": 0.2,
+      "name": "zoom_in",
+      "description": "",
+      "component": "zoom"
     },
     {
       "at_s": 34.6,
       "duration_s": 0.2,
-      "name": "flash_fade",
-      "description": "Quick white flash transition to showroom",
-      "component": "fade"
+      "name": "flash_cut",
+      "description": "",
+      "component": "flash"
     },
     {
       "at_s": 36.6,
-      "duration_s": 0.0,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to Hitler photo",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 38.7,
-      "duration_s": 0.0,
+      "at_s": 38.6,
+      "duration_s": 0.2,
+      "name": "whip_pan",
+      "description": "",
+      "component": "whip"
+    },
+    {
+      "at_s": 39.8,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to HP headquarters sign",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 42.9,
-      "duration_s": 0.0,
+      "at_s": 42.0,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to paper texture background with founders",
+      "description": "",
       "component": "cut"
     },
     {
-      "at_s": 50.9,
-      "duration_s": 0.0,
+      "at_s": 47.0,
+      "duration_s": 0.1,
       "name": "cut",
-      "description": "Direct cut to Packard-Hewlett hypothetical slide",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 49.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 51.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 52.8,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
+      "component": "cut"
+    },
+    {
+      "at_s": 54.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "",
       "component": "cut"
     }
   ],
   "text": {
-    "caption_position": "top fixed header banner at y 30",
-    "caption_size": "medium uppercase and Hindi text across full width banner",
-    "caption_colours": "black and red text over solid yellow background banner",
-    "active_word": "none, static permanent header banner",
-    "title_entry": "static without animation",
-    "number_entry": "static within the header banner"
+    "caption_position": "bottom center watermark and fixed top banner strip",
+    "caption_size": "medium title banner, no bottom transcript captions",
+    "caption_colours": "yellow banner with black and red text, white watermark",
+    "active_word": "none",
+    "title_entry": "static banner throughout video",
+    "number_entry": "static text in banner"
   },
   "sound": {
     "bed": true,
-    "bed_mood": "curious upbeat and rhythmic background track",
+    "bed_mood": "energetic upbeat background rhythm",
     "effects": [
       {
-        "at_s": 0.8,
+        "at_s": 5.0,
         "kind": "whoosh",
-        "synced_to": "rapid montage cut transition"
+        "synced_to": "flash transition to surprised reaction",
+        "event": "flash",
+        "loudness": "medium",
+        "length_s": 0.4
       },
       {
-        "at_s": 1.2,
-        "kind": "whoosh",
-        "synced_to": "montage cut transition"
-      },
-      {
-        "at_s": 39.8,
-        "kind": "whoosh",
-        "synced_to": "founder photo card flying in"
-      },
-      {
-        "at_s": 41.0,
-        "kind": "whoosh",
-        "synced_to": "second founder photo card flying in"
-      },
-      {
-        "at_s": 47.8,
-        "kind": "click",
-        "synced_to": "coin being flicked upward"
-      },
-      {
-        "at_s": 49.6,
+        "at_s": 9.6,
         "kind": "hit",
-        "synced_to": "winning founder photo card enlarging"
+        "synced_to": "meme clip appearance",
+        "event": "reveal",
+        "loudness": "loud",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 12.8,
+        "kind": "ding",
+        "synced_to": "red spellcheck underline appearing",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 17.2,
+        "kind": "whoosh",
+        "synced_to": "transition to retro monitor",
+        "event": "other",
+        "loudness": "medium",
+        "length_s": 0.3
+      },
+      {
+        "at_s": 26.8,
+        "kind": "whoosh",
+        "synced_to": "zoom into brand diagram",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 32.0,
+        "kind": "hit",
+        "synced_to": "Volkswagen Group badge reveal",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 36.6,
+        "kind": "hit",
+        "synced_to": "Hitler portrait reveal",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.4
+      },
+      {
+        "at_s": 47.6,
+        "kind": "click",
+        "synced_to": "coin flip toss flick",
+        "event": "other",
+        "loudness": "soft",
+        "length_s": 0.2
+      },
+      {
+        "at_s": 50.0,
+        "kind": "ding",
+        "synced_to": "Bill Hewlett zoom win",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.3
       }
     ]
   },
   "hook": {
-    "on_screen": "Montage of girl doing math followed by rapid cuts of luxury car logos and corporate buildings under a yellow hook banner",
-    "heard": "Narrator starts with 'Aaiye jaante hain in badi badi companies ke kuch aise facts jo 99% log nahi jaante'"
+    "on_screen": "Montage of tech and luxury automotive brand corporate headquarters and emblems",
+    "heard": "Narrator introduces mind-blowing facts about major companies that most people don't know"
   },
   "tag": "ESTIMATED",
   "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
@@ -558,18 +735,431 @@
   "title": "Amazing Facts About Multinational Companies",
   "model": "gemini-3.8-flash",
   "fps": 5.0,
-  "prompt_version": "v1",
-  "analysed_on": "2026-09-27",
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
   "usage": {
-    "prompt_tokens": 23318,
+    "prompt_tokens": 27905,
     "video_tokens": 19811,
-    "output_tokens": 4985,
-    "thoughts_tokens": 636,
-    "total_tokens": 28939
+    "output_tokens": 9657,
+    "thoughts_tokens": 955,
+    "total_tokens": 38517
   },
   "counts": {
-    "shots_per_10s": 4.8,
-    "effects_per_10s": 0.9,
-    "sfx_per_10s": 1.1
-  }
+    "shots_per_10s": 5.7,
+    "effects_per_10s": 1.1,
+    "sfx_per_10s": 1.6
+  },
+  "script": {
+    "about": "Surprising facts about famous corporations including Google's misspelling, Volkswagen's brand ownership, and HP's coin toss naming.",
+    "topic": "business",
+    "tone": "curious entertaining",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 6.0,
+      "music_mood": "energetic_beat",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 6.0,
+      "end_s": 23.0,
+      "music_mood": "upbeat_electronic",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 23.0,
+      "end_s": 38.6,
+      "music_mood": "mysterious_curiosity",
+      "music_flavour": null
+    },
+    {
+      "part": "ending",
+      "start_s": 38.6,
+      "end_s": 55.8,
+      "music_mood": "upbeat_electronic",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [
+    {
+      "at_s": 6.0,
+      "from_part": "hook",
+      "to_part": "build_up",
+      "how": "crossfade"
+    },
+    {
+      "at_s": 23.0,
+      "from_part": "build_up",
+      "to_part": "reveal",
+      "how": "crossfade"
+    },
+    {
+      "at_s": 38.6,
+      "from_part": "reveal",
+      "to_part": "ending",
+      "how": "crossfade"
+    }
+  ],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 0.8,
+      "said": "Learn amazing facts about famous companies",
+      "shows": "Woman with equations on blackboard",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": "title_strip",
+      "sound": null
+    },
+    {
+      "start_s": 0.8,
+      "end_s": 1.2,
+      "said": "that 99% of people",
+      "shows": "Lamborghini dealership front",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 1.2,
+      "end_s": 1.4,
+      "said": "do not know",
+      "shows": "Audi showroom building",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 1.4,
+      "end_s": 1.6,
+      "said": "about top global brands",
+      "shows": "Bentley badge on bonnet",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 1.6,
+      "end_s": 1.8,
+      "said": "including tech",
+      "shows": "HP company sign",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 1.8,
+      "end_s": 2.2,
+      "said": "and search engines.",
+      "shows": "Google building facade",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 2.2,
+      "end_s": 3.8,
+      "said": "Company facts hidden from view",
+      "shows": "Meeting presentation at whiteboard",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 3.8,
+      "end_s": 5.0,
+      "said": "that almost nobody realizes",
+      "shows": "Outdoor commercial billboards",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 5.0,
+      "end_s": 6.0,
+      "said": "will surprise you.",
+      "shows": "Woman with shocked open mouth expression",
+      "match": "metaphor",
+      "part": "hook",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 6.0,
+      "end_s": 8.4,
+      "said": "First Google's real intended name",
+      "shows": "Typing query on tablet Google page",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 8.4,
+      "end_s": 9.6,
+      "said": "was actually meant to be Googol.",
+      "shows": "Old CRT display showing Googol name",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 9.6,
+      "end_s": 11.6,
+      "said": "What does that even mean?",
+      "shows": "Movie meme clip asking what you mean",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "hit"
+    },
+    {
+      "start_s": 11.6,
+      "end_s": 14.6,
+      "said": "Google's spelling is technically incorrect.",
+      "shows": "Google logo with red spellcheck wavy line",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": "unregistered",
+      "sound": "ding"
+    },
+    {
+      "start_s": 14.6,
+      "end_s": 17.2,
+      "said": "It should have been spelled G-O-O-G-O-L.",
+      "shows": "Mobile search typing googol",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 17.2,
+      "end_s": 20.8,
+      "said": "While registering the domain they mistyped the letters",
+      "shows": "Domains registration site typing google",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 20.8,
+      "end_s": 23.0,
+      "said": "resulting in the name Google.",
+      "shows": "Classic original Google homepage logo",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 23.0,
+      "end_s": 24.0,
+      "said": "Next Audi",
+      "shows": "Audi modern showroom",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 24.0,
+      "end_s": 24.6,
+      "said": "Bentley",
+      "shows": "Bentley emblem",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 24.6,
+      "end_s": 25.2,
+      "said": "Lamborghini",
+      "shows": "Lamborghini showroom front",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 25.2,
+      "end_s": 26.0,
+      "said": "Porsche",
+      "shows": "Porsche building facade",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 26.0,
+      "end_s": 26.8,
+      "said": "and Skoda",
+      "shows": "Skoda car dealership",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 26.8,
+      "end_s": 34.6,
+      "said": "all these luxury auto brands belong under Volkswagen Group.",
+      "shows": "Radial diagram linking brand logos to Volkswagen",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "card",
+      "effect": "unregistered",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 34.6,
+      "end_s": 36.6,
+      "said": "And Volkswagen was indirectly",
+      "shows": "Volkswagen dealership glass front",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 36.6,
+      "end_s": 38.6,
+      "said": "founded by Adolf Hitler.",
+      "shows": "Historical portrait of Adolf Hitler",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": null,
+      "sound": "hit"
+    },
+    {
+      "start_s": 38.6,
+      "end_s": 39.8,
+      "said": "Next the tech giant HP",
+      "shows": "Rotating HP outdoor corporate logo",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 39.8,
+      "end_s": 42.0,
+      "said": "was cofounded by Bill Hewlett and David Packard.",
+      "shows": "Portraits of Bill Hewlett and David Packard",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 42.0,
+      "end_s": 47.0,
+      "said": "Whether to name it Hewlett-Packard or Packard-Hewlett",
+      "shows": "Hewlett-Packard vs Packard-Hewlett graphic",
+      "match": "literal",
+      "part": "ending",
+      "layout": "card",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 47.0,
+      "end_s": 49.6,
+      "said": "was decided by flipping a coin.",
+      "shows": "Animated coin flip",
+      "match": "literal",
+      "part": "ending",
+      "layout": "card",
+      "effect": "unregistered",
+      "sound": "click"
+    },
+    {
+      "start_s": 49.6,
+      "end_s": 51.0,
+      "said": "Hewlett won the coin toss.",
+      "shows": "Bill Hewlett portrait expanding",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "card",
+      "effect": null,
+      "sound": "ding"
+    },
+    {
+      "start_s": 51.0,
+      "end_s": 52.8,
+      "said": "If Packard had won instead,",
+      "shows": "David Packard portrait",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "card",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 52.8,
+      "end_s": 54.0,
+      "said": "instead of HP we know today",
+      "shows": "Both founders with HP branding",
+      "match": "named_entity",
+      "part": "ending",
+      "layout": "card",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 54.0,
+      "end_s": 55.8,
+      "said": "the company would be known as PH.",
+      "shows": "Speculative Ph logo and branding",
+      "match": "illustrative",
+      "part": "ending",
+      "layout": "card",
+      "effect": "unregistered",
+      "sound": null
+    }
+  ],
+  "styles": [
+    "footage"
+  ]
 }

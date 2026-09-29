@@ -1,0 +1,523 @@
+{
+  "duration_s": 59.7,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.0,
+      "layout": "presenter_full",
+      "background": "solid_or_gradient",
+      "footage_kind": null,
+      "clip_s": 3.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter speaking to camera while a burning CGI sun appears between his hands"
+    },
+    {
+      "start_s": 3.0,
+      "end_s": 9.0,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 6.0,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Sun shining on Earth in space with dotted light trajectory line"
+    },
+    {
+      "start_s": 9.0,
+      "end_s": 12.4,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 3.4,
+      "treatment": [],
+      "note": "Moon surface overlooking Earth as total solar eclipse and darkness spreads"
+    },
+    {
+      "start_s": 12.4,
+      "end_s": 14.4,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.0,
+      "treatment": [],
+      "note": "Bright full moon shining behind passing night clouds"
+    },
+    {
+      "start_s": 14.4,
+      "end_s": 17.6,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 3.2,
+      "treatment": [],
+      "note": "Moon slowly dimming and darkening against deep black space"
+    },
+    {
+      "start_s": 17.6,
+      "end_s": 18.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.2,
+      "treatment": [
+        "slow_motion"
+      ],
+      "note": "Low angle looking up through dark forest canopy towards starry sky"
+    },
+    {
+      "start_s": 18.8,
+      "end_s": 21.2,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 2.4,
+      "treatment": [],
+      "note": "Earth hurtling forward through space past Mars"
+    },
+    {
+      "start_s": 21.2,
+      "end_s": 23.2,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 2.0,
+      "treatment": [],
+      "note": "Diagram of solar system orbits showing Earth breaking away"
+    },
+    {
+      "start_s": 23.2,
+      "end_s": 24.5,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 1.3,
+      "treatment": [],
+      "note": "Swirling black hole with glowing yellow and red accretion disk"
+    },
+    {
+      "start_s": 24.5,
+      "end_s": 26.0,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 1.5,
+      "treatment": [],
+      "note": "Dense asteroid field drifting through deep space"
+    },
+    {
+      "start_s": 26.0,
+      "end_s": 29.2,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 3.2,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Snow blizzard over pine trees with freezing thermometer graphic"
+    },
+    {
+      "start_s": 29.2,
+      "end_s": 32.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": 2.9,
+      "treatment": [],
+      "note": "Presenter gesturing in front of a glowing solar sun backdrop"
+    },
+    {
+      "start_s": 32.1,
+      "end_s": 35.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.9,
+      "treatment": [],
+      "note": "Hydrothermal vents and volcanic rock formations on dark ocean floor"
+    },
+    {
+      "start_s": 35.0,
+      "end_s": 37.7,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 2.7,
+      "treatment": [],
+      "note": "Frozen polar ice field with jagged white glaciers"
+    },
+    {
+      "start_s": 37.7,
+      "end_s": 40.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.3,
+      "treatment": [],
+      "note": "Cracked sea ice chunks floating over ocean surface"
+    },
+    {
+      "start_s": 40.0,
+      "end_s": 40.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 0.8,
+      "treatment": [],
+      "note": "Sharks swimming underwater under descending light rays"
+    },
+    {
+      "start_s": 40.8,
+      "end_s": 43.6,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.8,
+      "treatment": [],
+      "note": "Mass colony of hydrothermal vent shrimp swarming on abyssal rocks"
+    },
+    {
+      "start_s": 43.6,
+      "end_s": 45.3,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": 1.7,
+      "treatment": [],
+      "note": "Presenter speaking passionately against sun backdrop"
+    },
+    {
+      "start_s": 45.3,
+      "end_s": 48.3,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 3.0,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Camera moving through a barren forest of dead leafless trees on white ground"
+    },
+    {
+      "start_s": 48.3,
+      "end_s": 50.8,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.5,
+      "treatment": [],
+      "note": "Macro shot of a dried, dead sunflower head in an arid field"
+    },
+    {
+      "start_s": 50.8,
+      "end_s": 53.2,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.4,
+      "treatment": [
+        "speed_ramp"
+      ],
+      "note": "Time-lapse of clouds rapidly rolling over snowy mountain peak"
+    },
+    {
+      "start_s": 53.2,
+      "end_s": 55.3,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.1,
+      "treatment": [],
+      "note": "Intense winter snowstorm falling outside building window"
+    },
+    {
+      "start_s": 55.3,
+      "end_s": 58.5,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": 3.2,
+      "treatment": [],
+      "note": "Presenter explaining final conclusions in front of sun background"
+    },
+    {
+      "start_s": 58.5,
+      "end_s": 59.7,
+      "layout": "full_footage",
+      "background": "generated_or_animated",
+      "footage_kind": "animation",
+      "clip_s": 1.2,
+      "treatment": [],
+      "note": "Solar eclipse slowly moving into complete blackout"
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 0.6,
+      "duration_s": 2.4,
+      "emphasis": "image",
+      "name": "glowing_sun_prop",
+      "description": "CGI glowing miniature sun appears and hovers between presenter's open palms",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 4.0,
+      "duration_s": 2.2,
+      "emphasis": "number",
+      "name": "stat_stamp_callout",
+      "description": "Large bold text '8.5 MINUTES' stamps in centered with red backing ribbon",
+      "component": "stamp"
+    },
+    {
+      "at_s": 26.1,
+      "duration_s": 3.0,
+      "emphasis": "number",
+      "name": "temperature_thermometer",
+      "description": "Freezing red '-70°C' text overlay with mercury thermometer icon",
+      "component": "stamp"
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 3.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut from presenter to space scene",
+      "component": "cut"
+    },
+    {
+      "at_s": 9.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut from Earth orbit to Moon eclipse angle",
+      "component": "cut"
+    },
+    {
+      "at_s": 12.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to full moon in cloudy night sky",
+      "component": "cut"
+    },
+    {
+      "at_s": 14.4,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to animated isolated moon",
+      "component": "cut"
+    },
+    {
+      "at_s": 17.6,
+      "duration_s": 0.3,
+      "name": "color_flash",
+      "description": "Bright yellow energy flash transition into forest night sky shot",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 18.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to Earth leaving orbit",
+      "component": "cut"
+    },
+    {
+      "at_s": 21.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to solar system orbit diagram",
+      "component": "cut"
+    },
+    {
+      "at_s": 23.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to black hole accretion disk",
+      "component": "cut"
+    },
+    {
+      "at_s": 24.5,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to asteroid belt",
+      "component": "cut"
+    },
+    {
+      "at_s": 26.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to snowy forest",
+      "component": "cut"
+    },
+    {
+      "at_s": 29.2,
+      "duration_s": 0.3,
+      "name": "color_flash",
+      "description": "Bright yellow flash transition back to presenter",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 32.1,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to deep ocean floor footage",
+      "component": "cut"
+    },
+    {
+      "at_s": 35.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to arctic landscape",
+      "component": "cut"
+    },
+    {
+      "at_s": 37.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to cracked sea ice",
+      "component": "cut"
+    },
+    {
+      "at_s": 40.0,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to swimming sharks",
+      "component": "cut"
+    },
+    {
+      "at_s": 40.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to hydrothermal shrimp",
+      "component": "cut"
+    },
+    {
+      "at_s": 43.6,
+      "duration_s": 0.3,
+      "name": "color_flash",
+      "description": "Bright yellow flash cut returning to presenter",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 45.3,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to dead tree landscape",
+      "component": "cut"
+    },
+    {
+      "at_s": 48.3,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to dried sunflower",
+      "component": "cut"
+    },
+    {
+      "at_s": 50.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to mountain time-lapse",
+      "component": "cut"
+    },
+    {
+      "at_s": 53.2,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to blizzard outside window",
+      "component": "cut"
+    },
+    {
+      "at_s": 55.3,
+      "duration_s": 0.3,
+      "name": "color_flash",
+      "description": "Bright yellow flash cut back to presenter",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 58.5,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Straight cut to total eclipse",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "Center lower third, approximately y 60%",
+    "caption_size": "Medium bold uppercase line, approximately 35-40px height",
+    "caption_colours": "White text with black outline and subtle translucent backdrop strip",
+    "active_word": "No color change per active word; static phrase chunks",
+    "title_entry": "Direct cut synchronized with voiceover",
+    "number_entry": "Instant stamp pop with impact sound effect"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "Eerie and dramatic sci-fi ambient electronic pulse",
+    "effects": [
+      {
+        "at_s": 0.6,
+        "kind": "whoosh",
+        "synced_to": "Sun appearing in presenter's hands"
+      },
+      {
+        "at_s": 4.0,
+        "kind": "hit",
+        "synced_to": "8.5 MINUTES text stamp appearance"
+      },
+      {
+        "at_s": 17.6,
+        "kind": "whoosh",
+        "synced_to": "Yellow flash transition"
+      },
+      {
+        "at_s": 26.1,
+        "kind": "hit",
+        "synced_to": "-70°C thermometer text entry"
+      },
+      {
+        "at_s": 29.2,
+        "kind": "whoosh",
+        "synced_to": "Yellow flash transition to presenter"
+      },
+      {
+        "at_s": 43.6,
+        "kind": "whoosh",
+        "synced_to": "Yellow flash transition to presenter"
+      },
+      {
+        "at_s": 55.3,
+        "kind": "whoosh",
+        "synced_to": "Yellow flash transition to presenter"
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter asking a provocative question while a glowing mini CGI sun forms in his hands",
+    "heard": "Speaker opens in Hindi asking what would happen if the sun disappeared from the world"
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "S5j-2CWYYwM",
+  "url": "https://www.youtube.com/watch?v=S5j-2CWYYwM",
+  "category": "facts",
+  "tier": "A",
+  "creator": "Dhruv Rathee Shorts",
+  "title": "What Would Happen If the Sun Disappeared?",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v1",
+  "analysed_on": "2026-09-27",
+  "usage": {
+    "prompt_tokens": 24736,
+    "video_tokens": 21229,
+    "output_tokens": 4616,
+    "thoughts_tokens": 1079,
+    "total_tokens": 30431
+  },
+  "counts": {
+    "shots_per_10s": 4.0,
+    "effects_per_10s": 0.5,
+    "sfx_per_10s": 1.2
+  }
+}

@@ -46,6 +46,9 @@ from shortsmith.reference.gemini import FakeAnalyser
 FIXTURES = Path(__file__).parent / "fixtures"
 REPO = Path(__file__).resolve().parents[1]
 INVENTORY = REPO / "docs" / "reference" / "inventory"
+# The 12 v1 cards as committed before the v2 re-analysis (079 step 2), frozen so the v1
+# loader stays pinned after `docs/reference/inventory/` moved to v2.
+INVENTORY_V1 = FIXTURES / "reference" / "inventory_v1"
 REGISTRY = render.registry()
 SNAPSHOT_REGISTRY = ("cut", "flash", "stamp", "text_pop", "map", "whip")
 
@@ -196,7 +199,7 @@ def test_styles_for_reads_the_trace_table() -> None:
 
 
 def test_every_committed_v1_card_still_loads_unchanged_as_v1() -> None:
-    paths = sorted(INVENTORY.glob("*.json"))
+    paths = sorted(INVENTORY_V1.glob("*.json"))
     assert len(paths) == 12
     for path in paths:
         text = path.read_text(encoding="utf-8")
@@ -207,7 +210,7 @@ def test_every_committed_v1_card_still_loads_unchanged_as_v1() -> None:
 
 
 def test_a_reader_of_v2_fields_skips_a_v1_card_with_a_log_line(tmp_path: Path) -> None:
-    v1 = load_card((INVENTORY / "zXK42RMPKUY.json").read_text(encoding="utf-8"))
+    v1 = load_card((INVENTORY_V1 / "zXK42RMPKUY.json").read_text(encoding="utf-8"))
     v2 = inventory(_link(), _fake(_text()), out_dir=tmp_path, registry=REGISTRY, log=print)
     lines: list[str] = []
     assert v2_cards([v1, v2], log=lines.append) == [v2]
@@ -216,7 +219,7 @@ def test_a_reader_of_v2_fields_skips_a_v1_card_with_a_log_line(tmp_path: Path) -
 
 def test_gaps_keeps_working_on_both_versions(tmp_path: Path) -> None:
     for name in ("zXK42RMPKUY.json", "nBihHUlYOQk.json"):
-        (tmp_path / name).write_text((INVENTORY / name).read_text(encoding="utf-8"), "utf-8")
+        (tmp_path / name).write_text((INVENTORY_V1 / name).read_text(encoding="utf-8"), "utf-8")
     inventory(_link(), _fake(_text()), out_dir=tmp_path, registry=REGISTRY, log=lambda _: None)
     cards = gaps.load_all(tmp_path)
     assert sorted(c.video_id for c in cards) == ["S5j-2CWYYwM", "nBihHUlYOQk", "zXK42RMPKUY"]

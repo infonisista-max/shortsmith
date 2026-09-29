@@ -8,10 +8,8 @@
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter in yellow shirt introducing India's two great wrestlers with background still"
+      "treatment": [],
+      "note": "Host talking in front of vintage wrestler photo with video strip on top"
     },
     {
       "start_s": 1.6,
@@ -21,7 +19,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Photo collage of Dara Singh with trophies and wrestling poses"
+      "note": "Dara Singh collage photos"
     },
     {
       "start_s": 2.1,
@@ -31,63 +29,61 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Photo collage of Gama Pehalwan holding mace"
+      "note": "Gama Pehalwan archival photos"
     },
     {
       "start_s": 3.3,
-      "end_s": 4.5,
+      "end_s": 4.6,
       "layout": "presenter_full",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter speaking pointing upwards with vintage wrestler photo behind"
+      "treatment": [],
+      "note": "Host talking in front of King Kong wrestler photo"
     },
     {
-      "start_s": 4.5,
+      "start_s": 4.6,
       "end_s": 6.3,
-      "layout": "split",
+      "layout": "grid",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Dara Singh vs The Great Gama matchup comparison screen"
+      "note": "Dara Singh vs Great Gama comparison collage"
     },
     {
       "start_s": 6.3,
-      "end_s": 8.7,
+      "end_s": 8.8,
       "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Host introducing Gama Pehalwan diet"
+    },
+    {
+      "start_s": 8.8,
+      "end_s": 11.7,
+      "layout": "grid",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter introducing Gama Pehalwan's diet"
-    },
-    {
-      "start_s": 8.7,
-      "end_s": 11.7,
-      "layout": "split",
-      "background": "still_photo",
-      "footage_kind": null,
-      "clip_s": null,
-      "treatment": [],
-      "note": "Gama Pehalwan photo collage with milk bucket, chicken, and mutton pop-up graphics"
+      "note": "Gama Pehalwan daily food collage"
     },
     {
       "start_s": 11.7,
       "end_s": 13.9,
-      "layout": "full_still",
-      "background": "still_photo",
-      "footage_kind": null,
-      "clip_s": null,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.2,
       "treatment": [
         "overlay"
       ],
-      "note": "Gama walking on field with ghee bowl and fruit basket graphics overlay"
+      "note": "Archival clip of Gama wrestling outdoors with ghee and fruit overlays"
     },
     {
       "start_s": 13.9,
@@ -96,10 +92,8 @@
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter discussing Gama's basic diet with reaction cutout overlay"
+      "treatment": [],
+      "note": "Host discussing Gama's basic diet"
     },
     {
       "start_s": 15.9,
@@ -109,7 +103,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Gama Pehalwan group photo with rotis being prepared below"
+      "note": "Gama group photo and roti making"
     },
     {
       "start_s": 17.3,
@@ -118,30 +112,32 @@
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter talking about Dara Singh's diet"
+      "treatment": [],
+      "note": "Host talking about Dara Singh diet"
     },
     {
       "start_s": 18.9,
-      "end_s": 22.2,
-      "layout": "split",
+      "end_s": 22.1,
+      "layout": "grid",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [],
-      "note": "Dara Singh wrestling photos with almonds, ghee bowl, milk bucket, and rotis"
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Dara Singh diet graphic overlays"
     },
     {
-      "start_s": 22.2,
+      "start_s": 22.1,
       "end_s": 23.7,
       "layout": "split",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [],
-      "note": "Dara Singh wrestling photos with roasted chicken image below"
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Dara Singh wrestling and chicken overlay"
     },
     {
       "start_s": 23.7,
@@ -150,72 +146,70 @@
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter introducing Gama's workout regime"
+      "treatment": [],
+      "note": "Host introducing Gama's workout routine"
     },
     {
       "start_s": 25.6,
-      "end_s": 27.9,
+      "end_s": 28.0,
       "layout": "split",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Historic photos of Gama performing squats and wrestling exercises"
+      "note": "Historical footage stills of Gama's exercises"
     },
     {
-      "start_s": 27.9,
-      "end_s": 29.7,
+      "start_s": 28.0,
+      "end_s": 29.8,
       "layout": "full_still",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Historic black and white photo of Gama Pehalwan with fellow wrestlers"
+      "note": "Gama Pehalwan with akhada wrestlers"
     },
     {
-      "start_s": 29.7,
+      "start_s": 29.8,
       "end_s": 32.1,
       "layout": "split",
       "background": "moving_footage",
       "footage_kind": "archival_or_news",
-      "clip_s": 2.4,
+      "clip_s": 2.3,
       "treatment": [],
-      "note": "Archival footage of wrestling bouts with crowds in background"
+      "note": "Archival footage of wrestling bouts"
     },
     {
       "start_s": 32.1,
-      "end_s": 34.1,
+      "end_s": 34.0,
       "layout": "grid",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Four-panel collage of Gama Pehalwan training postures"
+      "note": "Gama Pehalwan training photos montage"
     },
     {
-      "start_s": 34.1,
-      "end_s": 35.9,
+      "start_s": 34.0,
+      "end_s": 36.0,
       "layout": "split",
-      "background": "still_photo",
-      "footage_kind": null,
-      "clip_s": null,
-      "treatment": [],
-      "note": "Wrestler wearing stone donut weight and strongman lifting weight overhead with chain graphic"
-    },
-    {
-      "start_s": 35.9,
-      "end_s": 37.7,
-      "layout": "presenter_full",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [
         "overlay"
       ],
-      "note": "Presenter discussing Dara Singh's workout routine"
+      "note": "Modern wrestler with stone ring and Gama lifting weight with 100 kg chain sticker"
+    },
+    {
+      "start_s": 36.0,
+      "end_s": 37.7,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [],
+      "note": "Host talking about Dara Singh workout"
     },
     {
       "start_s": 37.7,
@@ -227,61 +221,57 @@
       "treatment": [
         "zoom"
       ],
-      "note": "Close-up portrait of Dara Singh lifting weights"
+      "note": "Dara Singh close up flexing"
     },
     {
       "start_s": 39.5,
-      "end_s": 41.8,
+      "end_s": 41.9,
       "layout": "split",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Older Dara Singh doing pushups above and classic bodybuilder pose below"
+      "note": "Dara Singh doing pushups and posing"
     },
     {
-      "start_s": 41.8,
-      "end_s": 44.4,
+      "start_s": 41.9,
+      "end_s": 44.3,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 2.6,
+      "clip_s": 2.4,
       "treatment": [],
-      "note": "Man doing handstand against studio mirrors representing yoga practice"
+      "note": "Handstand wall workout clip"
     },
     {
-      "start_s": 44.4,
+      "start_s": 44.3,
       "end_s": 47.5,
       "layout": "presenter_full",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter discussing Gama's undefeated career record"
+      "treatment": [],
+      "note": "Host discussing Gama's 50 year career record"
     },
     {
       "start_s": 47.5,
-      "end_s": 52.0,
-      "layout": "full_footage",
+      "end_s": 51.9,
+      "layout": "split",
       "background": "moving_footage",
       "footage_kind": "archival_or_news",
-      "clip_s": 4.5,
+      "clip_s": 4.4,
       "treatment": [],
-      "note": "Archival footage of Gama Pehalwan grappling and defeating world champion opponent"
+      "note": "Archival footage of international wrestling match"
     },
     {
-      "start_s": 52.0,
+      "start_s": 51.9,
       "end_s": 54.1,
       "layout": "presenter_full",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Presenter talking about Dara Singh's record and biggest match against King Kong"
+      "treatment": [],
+      "note": "Host talking about Dara Singh's career record"
     },
     {
       "start_s": 54.1,
@@ -291,7 +281,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Side-by-side photos of Dara Singh and wrestler King Kong"
+      "note": "Dara Singh vs King Kong photos"
     },
     {
       "start_s": 55.3,
@@ -301,7 +291,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Archival photo of Dara Singh body-slamming King Kong in the ring"
+      "note": "Dara Singh lifting King Kong in match"
     },
     {
       "start_s": 57.1,
@@ -311,543 +301,588 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Dara Singh wrestling action shots in ring with subscribe notification animation"
+      "note": "Dara Singh wrestling action shots"
     }
   ],
   "effects": [
     {
-      "at_s": 0.6,
-      "duration_s": 1.0,
-      "emphasis": "image",
-      "name": "title_card_pop",
-      "description": "Black banner badge with white text 'INDIA'S TWO GREAT WRESTLERS' pops on screen",
-      "component": "card"
+      "at_s": 0.5,
+      "duration_s": 1.1,
+      "emphasis": "word",
+      "name": "header_text",
+      "description": "Bold white headline text in box: INDIA'S TWO GREAT WRESTLERS",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.9,
+        "region": "middle"
+      }
     },
     {
       "at_s": 1.7,
       "duration_s": 0.4,
       "emphasis": "word",
-      "name": "name_title_banner",
-      "description": "Yellow bold text 'DARA SINGH' pops in center",
-      "component": "unregistered"
+      "name": "name_title_dara",
+      "description": "Yellow bold label: DARA SINGH",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.1,
+        "size": 0.6,
+        "region": "middle"
+      }
     },
     {
-      "at_s": 2.5,
-      "duration_s": 0.8,
-      "emphasis": "word",
-      "name": "name_title_banner",
-      "description": "Red bold text 'GAMA PEHALWAN' pops in lower center",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 3.7,
-      "duration_s": 0.8,
-      "emphasis": "word",
-      "name": "title_card_pop",
-      "description": "Black label box with white text 'WORLD'S FIRST VIDEO' pops in",
-      "component": "card"
-    },
-    {
-      "at_s": 4.9,
-      "duration_s": 1.4,
-      "emphasis": "image",
-      "name": "vs_matchup_overlay",
-      "description": "Yellow text 'DARA SINGH' vs 'THE GREAT GAMA' with red 'VS' badge pops onto screen",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 7.7,
+      "at_s": 2.3,
       "duration_s": 1.0,
       "emphasis": "word",
-      "name": "title_card_pop",
-      "description": "White title card with yellow/black text 'GAMA PEHALWAN DIET' pops in",
-      "component": "card"
+      "name": "name_title_gama",
+      "description": "Red bold label: GAMA PEHALWAN",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.1,
+        "size": 0.7,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 3.6,
+      "duration_s": 1.0,
+      "emphasis": "word",
+      "name": "first_video_title",
+      "description": "White title card with text WORLD'S First Video",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "bottom"
+      }
+    },
+    {
+      "at_s": 4.8,
+      "duration_s": 1.5,
+      "emphasis": "word",
+      "name": "vs_title",
+      "description": "DARA SINGH VS THE GREAT GAMA text comparison graphic",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.9,
+        "region": "middle"
+      }
+    },
+    {
+      "at_s": 7.8,
+      "duration_s": 1.0,
+      "emphasis": "word",
+      "name": "gama_diet_title",
+      "description": "Bold title text: GAMA PEHALWAN DIET",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 9.1,
-      "duration_s": 2.5,
+      "duration_s": 2.6,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Sticker of milk pail with yellow text '10 LITRE MILK' pops on",
-      "component": "unregistered"
+      "name": "milk_quantity",
+      "description": "Text label: 10 LITRE MILK with bucket illustration",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "top"
+      }
     },
     {
-      "at_s": 10.3,
-      "duration_s": 1.4,
+      "at_s": 10.2,
+      "duration_s": 1.5,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Fried chicken image with red text '6 KILO CHICKEN' pops on",
-      "component": "unregistered"
+      "name": "chicken_quantity",
+      "description": "Red text: 6 KILO CHICKEN with fried chicken image",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "middle"
+      }
     },
     {
       "at_s": 11.0,
       "duration_s": 0.7,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Mutton bowl image with yellow text '2 KILO MUTTON' pops on",
-      "component": "unregistered"
+      "name": "mutton_quantity",
+      "description": "Yellow text: 2 KILO MUTTON with mutton curry image",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 12.1,
-      "duration_s": 1.7,
+      "duration_s": 1.8,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Ghee bowl with red text '2 LITRE GHEE' pops in lower right",
-      "component": "unregistered"
+      "name": "ghee_quantity",
+      "description": "Red label: 2 LITRE GHEE with ghee bowl image",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "bottom"
+      }
     },
     {
-      "at_s": 13.0,
-      "duration_s": 0.9,
+      "at_s": 13.1,
+      "duration_s": 0.8,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Fruit basket image with yellow text '2 BUCKET FROOTS' pops in",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 14.5,
-      "duration_s": 1.4,
-      "emphasis": "image",
-      "name": "reaction_cutout_pop",
-      "description": "Shocked man hands on head cutout with text 'BASIC DIET' pops on",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 16.1,
-      "duration_s": 1.2,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Red text with white outline '100 ROTIS' pops in over roti preparation photo",
-      "component": "unregistered"
+      "name": "fruits_quantity",
+      "description": "Yellow label: 2 BUCKET FROOTS with fruit basket illustration",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "middle"
+      }
     },
     {
       "at_s": 18.1,
       "duration_s": 0.8,
       "emphasis": "word",
-      "name": "title_card_pop",
-      "description": "Yellow label 'DARA SINGH DIET' pops up",
-      "component": "card"
+      "name": "dara_diet_title",
+      "description": "Title label: DARA SINGH DIET",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 19.3,
       "duration_s": 2.8,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Hands holding almonds with yellow text '100 ALMONDS' pops on",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 20.1,
-      "duration_s": 2.0,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Ghee bowl with red text '2 LITRE GHEE' pops on",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 20.6,
-      "duration_s": 1.5,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Milk pail sticker with yellow text '2 LITRE MILK' pops on",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 21.2,
-      "duration_s": 0.9,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Plate of rotis with red text '6-8 ROTIS' pops on",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 22.3,
-      "duration_s": 1.4,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Whole roasted chicken image with red text '1/2 KG CHICKEN' pops on",
-      "component": "unregistered"
+      "name": "almonds_quantity",
+      "description": "Label: 100 ALMONDS with hands holding almonds",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 24.6,
       "duration_s": 1.0,
       "emphasis": "word",
-      "name": "title_card_pop",
-      "description": "White card with black text 'THE GREAT GAMA WORKOUT' pops on",
-      "component": "card"
+      "name": "gama_workout_title",
+      "description": "Title: THE GREAT GAMA WORKOUT",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "slide",
+        "entrance_s": 0.2,
+        "size": 0.8,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 26.1,
-      "duration_s": 1.8,
+      "duration_s": 1.9,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Yellow text '5000 SQUATS' pops into top right corner",
-      "component": "unregistered"
+      "name": "squats_gama",
+      "description": "Yellow text: 5000 SQUATS",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "top"
+      }
     },
     {
       "at_s": 27.1,
-      "duration_s": 0.8,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Red text '3000 PUSHUPS' pops into top left corner",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 28.8,
       "duration_s": 0.9,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Yellow text 'FIGHT 40 WRESTLERS' pops at bottom",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 34.3,
-      "duration_s": 1.6,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Iron chain photo with white text '100 KG IRON CHAIN' pops at bottom",
-      "component": "unregistered"
+      "name": "pushups_gama",
+      "description": "Red text: 3000 PUSHUPS",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "top"
+      }
     },
     {
       "at_s": 38.1,
       "duration_s": 1.4,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Yellow text '4 HOUR EXERCISE' pops at bottom",
-      "component": "unregistered"
+      "emphasis": "word",
+      "name": "dara_exercise_time",
+      "description": "Label: 4 HOUR EXERCISE",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.7,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 39.7,
-      "duration_s": 2.1,
+      "duration_s": 2.2,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Red text '1200 PUSHUP' pops on top panel",
-      "component": "unregistered"
+      "name": "dara_pushups",
+      "description": "Red label: 1200 PUSHUP",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "top"
+      }
     },
     {
       "at_s": 40.5,
-      "duration_s": 1.3,
+      "duration_s": 1.4,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Yellow text '1200 SQUATS' pops on bottom panel",
-      "component": "unregistered"
+      "name": "dara_squats",
+      "description": "Yellow label: 1200 SQUATS",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 43.1,
-      "duration_s": 1.3,
+      "duration_s": 1.2,
       "emphasis": "word",
-      "name": "graphic_callout_pop",
-      "description": "Yellow bold text 'YOGA' pops at bottom center",
-      "component": "unregistered"
+      "name": "yoga_text",
+      "description": "Yellow text label: YOGA",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 45.4,
-      "duration_s": 1.1,
+      "duration_s": 2.1,
       "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Black sticker with yellow text '50 YEAR CAREER' pops on",
-      "component": "card"
+      "name": "gama_career_years",
+      "description": "Text: 50 YEAR CAREER",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 46.5,
       "duration_s": 1.0,
       "emphasis": "word",
-      "name": "graphic_callout_pop",
-      "description": "Yellow text 'NEVER LOST' pops on screen",
-      "component": "unregistered"
+      "name": "never_lost_text",
+      "description": "Bold label: NEVER LOST",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "bottom"
+      }
     },
     {
-      "at_s": 48.3,
-      "duration_s": 1.4,
+      "at_s": 54.7,
+      "duration_s": 2.4,
       "emphasis": "word",
-      "name": "graphic_callout_pop",
-      "description": "Yellow text 'DEFEATED ALL WORLD CHAMPIONS' pops at bottom",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 50.4,
-      "duration_s": 1.6,
-      "emphasis": "number",
-      "name": "graphic_callout_pop",
-      "description": "Red text 'ONLY IN 1.5 MINUTES' pops at bottom",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 54.6,
-      "duration_s": 0.7,
-      "emphasis": "word",
-      "name": "graphic_callout_pop",
-      "description": "Yellow bold text 'KING KONG' pops at bottom",
-      "component": "unregistered"
-    },
-    {
-      "at_s": 55.4,
-      "duration_s": 4.1,
-      "emphasis": "image",
-      "name": "subscribe_button_animation",
-      "description": "YouTube subscribe button animation with mouse click and bell toggle",
-      "component": "unregistered"
+      "name": "king_kong_label",
+      "description": "Bold yellow label: KING KONG",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.2,
+        "size": 0.6,
+        "region": "bottom"
+      }
     }
   ],
   "transitions": [
     {
       "at_s": 1.6,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut from presenter to Dara Singh collage",
+      "description": "Straight cut to Dara Singh photo montage",
       "component": "cut"
     },
     {
       "at_s": 2.1,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Gama Pehalwan photo collage",
+      "description": "Straight cut to Gama Pehalwan collage",
       "component": "cut"
     },
     {
       "at_s": 3.3,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut back to presenter",
+      "description": "Straight cut to host",
       "component": "cut"
     },
     {
-      "at_s": 4.5,
-      "duration_s": 0.1,
+      "at_s": 4.6,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Dara Singh vs Gama comparison split screen",
+      "description": "Straight cut to Dara vs Gama comparison",
       "component": "cut"
     },
     {
       "at_s": 6.3,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut back to presenter",
+      "description": "Straight cut back to host",
       "component": "cut"
     },
     {
-      "at_s": 8.7,
-      "duration_s": 0.1,
+      "at_s": 8.8,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Gama photos and diet breakdown",
+      "description": "Cut to Gama diet images",
       "component": "cut"
     },
     {
       "at_s": 11.7,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Gama walking photo with ghee and fruit",
+      "description": "Cut to archival footage",
       "component": "cut"
     },
     {
       "at_s": 13.9,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut back to presenter",
+      "description": "Cut to host talking",
       "component": "cut"
     },
     {
       "at_s": 15.9,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to roti preparation and wrestling troupe photo",
+      "description": "Cut to split roti visuals",
       "component": "cut"
     },
     {
       "at_s": 17.3,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut back to presenter talking about Dara Singh diet",
+      "description": "Cut to host talking",
       "component": "cut"
     },
     {
       "at_s": 18.9,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Dara Singh diet breakdown collage",
+      "description": "Cut to Dara Singh diet collage",
       "component": "cut"
     },
     {
-      "at_s": 22.2,
-      "duration_s": 0.1,
+      "at_s": 22.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to chicken diet panel",
+      "description": "Cut to chicken diet shot",
       "component": "cut"
     },
     {
       "at_s": 23.7,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut back to presenter talking about workout",
+      "description": "Cut to host",
       "component": "cut"
     },
     {
       "at_s": 25.6,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Gama squats archival photos",
+      "description": "Cut to Gama exercise stills",
       "component": "cut"
     },
     {
-      "at_s": 27.9,
-      "duration_s": 0.1,
+      "at_s": 28.0,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Gama wrestling troupe photo",
+      "description": "Cut to Gama group photo",
       "component": "cut"
     },
     {
-      "at_s": 29.7,
-      "duration_s": 0.1,
-      "name": "wipe",
-      "description": "Bright vertical flash light wipe transition into archival match footage",
-      "component": "unregistered"
+      "at_s": 29.8,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Cut to archival footage with light streak transition",
+      "component": "cut"
     },
     {
       "at_s": 32.1,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to 4-panel training photo collage",
+      "description": "Cut to training montage",
       "component": "cut"
     },
     {
-      "at_s": 34.1,
-      "duration_s": 0.1,
+      "at_s": 34.0,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to stone weight training photos",
+      "description": "Cut to weight lifting photo",
       "component": "cut"
     },
     {
-      "at_s": 35.9,
-      "duration_s": 0.1,
+      "at_s": 36.0,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut back to presenter talking about Dara Singh workout",
+      "description": "Cut to host",
       "component": "cut"
     },
     {
       "at_s": 37.7,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Dara Singh lifting photo",
+      "description": "Cut to Dara Singh portrait",
       "component": "cut"
     },
     {
       "at_s": 39.5,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to pushups and bodybuilding photo split",
+      "description": "Cut to pushups and posing",
       "component": "cut"
     },
     {
-      "at_s": 41.8,
-      "duration_s": 0.1,
+      "at_s": 41.9,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to yoga handstand footage",
+      "description": "Cut to handstand video",
       "component": "cut"
     },
     {
-      "at_s": 44.4,
-      "duration_s": 0.1,
+      "at_s": 44.3,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to presenter talking about career records",
+      "description": "Cut to host",
       "component": "cut"
     },
     {
       "at_s": 47.5,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to historic Gama Pehalwan match footage",
+      "description": "Cut to wrestling archive clip",
       "component": "cut"
     },
     {
-      "at_s": 52.0,
-      "duration_s": 0.1,
+      "at_s": 51.9,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to presenter discussing Dara Singh vs King Kong",
+      "description": "Cut to host",
       "component": "cut"
     },
     {
       "at_s": 54.1,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to Dara Singh and King Kong side-by-side photo",
+      "description": "Cut to Dara and King Kong split",
       "component": "cut"
     },
     {
       "at_s": 55.3,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to wrestling match photo in ring",
+      "description": "Cut to Dara carrying King Kong",
       "component": "cut"
     },
     {
       "at_s": 57.1,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Direct cut to closing wrestling action photos",
+      "description": "Cut to wrestling action collage",
       "component": "cut"
     }
   ],
   "text": {
-    "caption_position": "Center, bottom third, or over topic headings; no continuous auto-subtitles, relies on bold sticker titles",
-    "caption_size": "Medium to large bold sans-serif text labels across screen width",
-    "caption_colours": "Yellow or red text with black/white outlines, or white text inside solid black rounded cards",
-    "active_word": "None; titles and key stat callouts appear as static text blocks with pop animation",
-    "title_entry": "Instant scale pop with slight bounce",
-    "number_entry": "Pop-in with bold colored typography accompanied by graphic images"
+    "caption_position": "bottom middle or overlaying subjects",
+    "caption_size": "medium uppercase bold font",
+    "caption_colours": "yellow, white, and red with black stroke",
+    "active_word": "no dynamic per-word highlight, uses full static or pop-in phrases",
+    "title_entry": "pop with scale overshoot and occasional slide",
+    "number_entry": "pop with scale overshoot and bold numbers"
   },
   "sound": {
     "bed": true,
-    "bed_mood": "Upbeat, energetic hip-hop instrumental background beat",
+    "bed_mood": "energetic_beat",
     "effects": [
       {
-        "at_s": 0.6,
+        "at_s": 0.5,
         "kind": "whoosh",
-        "synced_to": "title_card_pop"
+        "synced_to": "header text appearance",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.2
       },
       {
-        "at_s": 1.7,
-        "kind": "whoosh",
-        "synced_to": "name_title_banner"
-      },
-      {
-        "at_s": 2.1,
-        "kind": "whoosh",
-        "synced_to": "name_title_banner"
-      },
-      {
-        "at_s": 4.9,
+        "at_s": 4.8,
         "kind": "hit",
-        "synced_to": "vs_matchup_overlay"
+        "synced_to": "VS graphic reveal",
+        "event": "reveal",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
         "at_s": 9.1,
         "kind": "whoosh",
-        "synced_to": "graphic_callout_pop"
-      },
-      {
-        "at_s": 19.3,
-        "kind": "whoosh",
-        "synced_to": "graphic_callout_pop"
+        "synced_to": "milk graphic entry",
+        "event": "text_pop",
+        "loudness": "soft",
+        "length_s": 0.2
       },
       {
         "at_s": 26.1,
-        "kind": "whoosh",
-        "synced_to": "graphic_callout_pop"
-      },
-      {
-        "at_s": 29.7,
-        "kind": "whoosh",
-        "synced_to": "wipe"
+        "kind": "hit",
+        "synced_to": "5000 squats text",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.2
       },
       {
         "at_s": 55.4,
         "kind": "ding",
-        "synced_to": "subscribe_button_animation"
+        "synced_to": "subscribe bell animation",
+        "event": "other",
+        "loudness": "loud",
+        "length_s": 0.4
       }
     ]
   },
   "hook": {
-    "on_screen": "Presenter in yellow shirt gestures as a black banner pops reading 'INDIA'S TWO GREAT WRESTLERS' followed by photos of Dara Singh and Gama Pehalwan",
-    "heard": "Presenter introduces India's two greatest wrestlers, Dara Singh and Gama Pehalwan, over an energetic beat"
+    "on_screen": "Host speaking with header text 'INDIA'S TWO GREAT WRESTLERS' and vintage wrestling pictures",
+    "heard": "Speaker announces comparing two greatest Indian wrestlers: Dara Singh and The Great Gama"
   },
   "tag": "ESTIMATED",
   "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
@@ -859,18 +894,379 @@
   "title": "",
   "model": "gemini-3.8-flash",
   "fps": 5.0,
-  "prompt_version": "v1",
-  "analysed_on": "2026-09-27",
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
   "usage": {
-    "prompt_tokens": 24665,
+    "prompt_tokens": 29252,
     "video_tokens": 21158,
-    "output_tokens": 7995,
-    "thoughts_tokens": 1076,
-    "total_tokens": 33736
+    "output_tokens": 9176,
+    "thoughts_tokens": 0,
+    "total_tokens": 38428
   },
   "counts": {
     "shots_per_10s": 4.9,
-    "effects_per_10s": 5.7,
-    "sfx_per_10s": 1.5
-  }
+    "effects_per_10s": 3.9,
+    "sfx_per_10s": 0.8
+  },
+  "script": {
+    "about": "A comparison between the legendary Indian wrestlers Dara Singh and Gama Pehalwan covering their massive diets, intense training routines, and undefeated wrestling legacies.",
+    "topic": "sport",
+    "tone": "energetic informative",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 6.3,
+      "music_mood": "energetic_beat",
+      "music_flavour": "indian"
+    },
+    {
+      "part": "build_up",
+      "start_s": 6.3,
+      "end_s": 44.3,
+      "music_mood": "energetic_beat",
+      "music_flavour": "indian"
+    },
+    {
+      "part": "reveal",
+      "start_s": 44.3,
+      "end_s": 55.3,
+      "music_mood": "energetic_beat",
+      "music_flavour": "indian"
+    },
+    {
+      "part": "ending",
+      "start_s": 55.3,
+      "end_s": 59.5,
+      "music_mood": "energetic_beat",
+      "music_flavour": "indian"
+    }
+  ],
+  "music_changes": [],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 1.6,
+      "said": "Two greatest wrestlers of India.",
+      "shows": "Presenter with vintage wrestler photo",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 1.6,
+      "end_s": 2.1,
+      "said": "Dara Singh",
+      "shows": "Collage of Dara Singh posing",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "grid",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 2.1,
+      "end_s": 3.3,
+      "said": "and Gama Pehalwan.",
+      "shows": "Archival images of Gama Pehalwan",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "grid",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 3.3,
+      "end_s": 4.6,
+      "said": "First video in the world",
+      "shows": "Host in front of wrestler King Kong",
+      "match": "illustrative",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 4.6,
+      "end_s": 6.3,
+      "said": "comparing both legends together.",
+      "shows": "Split graphic of Dara Singh vs Gama Pehalwan",
+      "match": "named_entity",
+      "part": "hook",
+      "layout": "grid",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 6.3,
+      "end_s": 8.8,
+      "said": "First let us talk about Gama Pehalwan's diet.",
+      "shows": "Host introducing Gama's daily food",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 8.8,
+      "end_s": 11.7,
+      "said": "Ten liters milk, six kg chicken, two kg mutton,",
+      "shows": "Graphics for milk, chicken, and mutton",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "grid",
+      "effect": "text_pop",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 11.7,
+      "end_s": 13.9,
+      "said": "two liters ghee and two buckets of fruits.",
+      "shows": "Archival footage with ghee and fruit graphics",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 13.9,
+      "end_s": 15.9,
+      "said": "This was just his basic daily diet.",
+      "shows": "Host discussing the unbelievable diet scale",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 15.9,
+      "end_s": 17.3,
+      "said": "In addition he ate one hundred rotis.",
+      "shows": "Gama with wrestlers and roti preparation",
+      "match": "number",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 17.3,
+      "end_s": 18.9,
+      "said": "Now looking at Dara Singh's diet.",
+      "shows": "Host presenting Dara Singh's food intake",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 18.9,
+      "end_s": 22.1,
+      "said": "One hundred almonds, two liters ghee, two liters milk, eight rotis,",
+      "shows": "Collage of almond, ghee, and milk items",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "grid",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 22.1,
+      "end_s": 23.7,
+      "said": "and only half a kilogram chicken.",
+      "shows": "Dara Singh match and chicken overlay",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 23.7,
+      "end_s": 25.6,
+      "said": "Now comparing Gama Pehalwan's intense workout.",
+      "shows": "Host explaining Gama's exercises",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 25.6,
+      "end_s": 28.0,
+      "said": "Five thousand squats and three thousand pushups.",
+      "shows": "Old photos of wrestlers doing squats",
+      "match": "number",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": "hit"
+    },
+    {
+      "start_s": 28.0,
+      "end_s": 29.8,
+      "said": "Then he wrestled against forty wrestlers daily,",
+      "shows": "Gama seated with forty fellow wrestlers",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 29.8,
+      "end_s": 32.1,
+      "said": "never stopping until beating every one.",
+      "shows": "Archival footage of wrestling bout",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 32.1,
+      "end_s": 34.0,
+      "said": "He performed his squats",
+      "shows": "Stills of Gama performing exercises",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "grid",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 34.0,
+      "end_s": 36.0,
+      "said": "wearing a hundred kilogram iron chain.",
+      "shows": "Wrestler with collar stone and chain graphic",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 36.0,
+      "end_s": 37.7,
+      "said": "Dara Singh's training was also extreme.",
+      "shows": "Host describing Dara Singh's routine",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 37.7,
+      "end_s": 39.5,
+      "said": "Four hours of strenuous exercises daily,",
+      "shows": "Portrait of Dara Singh flexing",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 39.5,
+      "end_s": 41.9,
+      "said": "twelve hundred pushups and twelve hundred squats.",
+      "shows": "Dara Singh doing pushups and flexing",
+      "match": "number",
+      "part": "build_up",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 41.9,
+      "end_s": 44.3,
+      "said": "Most of his time was dedicated to yoga.",
+      "shows": "Video of handstand against mirrored wall",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 44.3,
+      "end_s": 47.5,
+      "said": "Gama Pehalwan remained undefeated over fifty years.",
+      "shows": "Host talking in front of Gama photo",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 47.5,
+      "end_s": 51.9,
+      "said": "Defeated every world champion in minutes.",
+      "shows": "Vintage film of Gama defeating an opponent",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 51.9,
+      "end_s": 54.1,
+      "said": "Dara Singh also never lost a single match.",
+      "shows": "Host speaking about Dara Singh's record",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 54.1,
+      "end_s": 55.3,
+      "said": "His greatest victory was over King Kong.",
+      "shows": "Comparison of Dara Singh and King Kong",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "split",
+      "effect": "text_pop",
+      "sound": null
+    },
+    {
+      "start_s": 55.3,
+      "end_s": 57.1,
+      "said": "In an epic bout he lifted and slammed him,",
+      "shows": "Dara Singh lifting King Kong in the ring",
+      "match": "literal",
+      "part": "ending",
+      "layout": "full_still",
+      "effect": null,
+      "sound": "ding"
+    },
+    {
+      "start_s": 57.1,
+      "end_s": 59.5,
+      "said": "defeating King Kong in legendary style.",
+      "shows": "Dara Singh pinning and fighting in ring",
+      "match": "literal",
+      "part": "ending",
+      "layout": "split",
+      "effect": null,
+      "sound": null
+    }
+  ],
+  "styles": [
+    "vishva"
+  ]
 }

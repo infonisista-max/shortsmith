@@ -73,3 +73,26 @@ effects:
   yellow_callout_pop: text_pop
   yellow_highlighter_box: null  # 078
   yellow_strip_highlighter: null  # 078
+  # Added 29 Sep 2026 with the v2 cards (079 step 2). Null keeps them skipped exactly as
+  # before they were listed, so run05's planner input is unchanged; the operator or 083
+  # picks the closest component.
+  alternate_logo_reveal: null
+  bloodstain_splatter: null
+  brand_network_radial_diagram: null
+  cartoon_scientist: null
+  countdown_number_one: null
+  countdown_number_two: null
+  label_slide: null
+  negative_temperature_gauge: null
+  number_badge_pop: null
+  numbered_tag: null
+  persistent_header_banner: null
+  shutter_slice: null
+  spellcheck_squiggly_underline: null
+  stacked_labels: null
+  sun_energy_orb: null
+  tag_pangea: null
+  tag_supercontinent: null
+  text_badge_pop: null
+  text_banner: null
+  volkswagen_central_reveal: null

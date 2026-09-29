@@ -1,0 +1,717 @@
+{
+  "duration_s": 59.5,
+  "shots": [
+    {
+      "start_s": 0.0,
+      "end_s": 1.8,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter introduces Rolls Royce with Spirit of Ecstasy grille popping up."
+    },
+    {
+      "start_s": 1.8,
+      "end_s": 3.4,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter holding grille against falling dollar bills graphic background."
+    },
+    {
+      "start_s": 3.4,
+      "end_s": 6.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter with black Rolls Royce Ghost cutout and '5 Cr.' text graphic."
+    },
+    {
+      "start_s": 6.1,
+      "end_s": 8.6,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter with red Porsche SUV cutout and '83 LAKH' text overlay."
+    },
+    {
+      "start_s": 8.6,
+      "end_s": 11.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter asks why it is so expensive over Rolls Royce car cutout."
+    },
+    {
+      "start_s": 11.1,
+      "end_s": 13.9,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter introduces point #1 Customization with red badge and lower car cutout."
+    },
+    {
+      "start_s": 13.9,
+      "end_s": 17.2,
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Article screenshot showing Rolls Royce paint sample wall with highlighted text."
+    },
+    {
+      "start_s": 17.2,
+      "end_s": 17.7,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 0.5,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Close-up zoom out of Rolls Royce front hood and emblem."
+    },
+    {
+      "start_s": 17.7,
+      "end_s": 19.1,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter introduces point #2 that cars are not mass-produced."
+    },
+    {
+      "start_s": 19.1,
+      "end_s": 20.6,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.5,
+      "treatment": [],
+      "note": "Worker maneuvering Rolls Royce front chassis in assembly plant."
+    },
+    {
+      "start_s": 20.6,
+      "end_s": 22.7,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.1,
+      "treatment": [],
+      "note": "Sales representative handing miniature car model to client."
+    },
+    {
+      "start_s": 22.7,
+      "end_s": 24.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.3,
+      "treatment": [],
+      "note": "Technician in blue uniform installing filter under car hood."
+    },
+    {
+      "start_s": 24.0,
+      "end_s": 27.8,
+      "layout": "presenter_full",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 3.8,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter speaking in front of rows of manufactured cars covered in protective cloth."
+    },
+    {
+      "start_s": 27.8,
+      "end_s": 28.5,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter introduces point #3 Detailing."
+    },
+    {
+      "start_s": 28.5,
+      "end_s": 29.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.4,
+      "treatment": [],
+      "note": "Craftsmen examining full-scale clay / buck prototype in design studio."
+    },
+    {
+      "start_s": 29.9,
+      "end_s": 30.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.0,
+      "treatment": [],
+      "note": "Artisan painting a fine coachline stripe along wooden dash trim."
+    },
+    {
+      "start_s": 30.9,
+      "end_s": 31.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 1.0,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Macro shot of fine brush detailing wooden veneer surface."
+    },
+    {
+      "start_s": 31.9,
+      "end_s": 33.7,
+      "layout": "presenter_full",
+      "background": "generated_or_animated",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter introduces point #4 Insulation."
+    },
+    {
+      "start_s": 33.7,
+      "end_s": 35.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Pan over interior seats with 300-POUND SOUNDPROOFING label."
+    },
+    {
+      "start_s": 35.9,
+      "end_s": 37.5,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.6,
+      "treatment": [],
+      "note": "Rear view of luxury cabin showing embroidered flower starlight ceiling."
+    },
+    {
+      "start_s": 37.5,
+      "end_s": 38.6,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.1,
+      "treatment": [],
+      "note": "Spinning Rolls Royce wheel with stationary RR center cap."
+    },
+    {
+      "start_s": 38.6,
+      "end_s": 39.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.3,
+      "treatment": [
+        "slow_motion"
+      ],
+      "note": "Low angle tracking of chrome wheel rolling over pavement."
+    },
+    {
+      "start_s": 39.9,
+      "end_s": 42.1,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [],
+      "note": "White Rolls Royce Ghost driving along scenic winding lakeside road."
+    },
+    {
+      "start_s": 42.1,
+      "end_s": 43.3,
+      "layout": "presenter_full",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "overlay"
+      ],
+      "note": "Presenter discussing interior customization options."
+    },
+    {
+      "start_s": 43.3,
+      "end_s": 46.5,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 3.2,
+      "treatment": [],
+      "note": "Montage showcasing sculpted dashboard art gallery panels."
+    },
+    {
+      "start_s": 46.5,
+      "end_s": 48.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.5,
+      "treatment": [],
+      "note": "Center armrest console opening to reveal whiskey decanter and tumblers."
+    },
+    {
+      "start_s": 48.0,
+      "end_s": 49.9,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 1.9,
+      "treatment": [],
+      "note": "Hand typing code into hidden dash panel opening a jewellery safe."
+    },
+    {
+      "start_s": 49.9,
+      "end_s": 52.0,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.1,
+      "treatment": [],
+      "note": "Hand opening rear mini fridge compartment revealing champagne bottle."
+    },
+    {
+      "start_s": 52.0,
+      "end_s": 55.3,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 3.3,
+      "treatment": [],
+      "note": "Suicide coach doors open outdoors at night revealing glowing starlight ceiling."
+    },
+    {
+      "start_s": 55.3,
+      "end_s": 57.3,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "archival_or_news",
+      "clip_s": 2.0,
+      "treatment": [],
+      "note": "Factory technician inserting fiber optic strands into headliner fabric."
+    },
+    {
+      "start_s": 57.3,
+      "end_s": 59.5,
+      "layout": "full_footage",
+      "background": "moving_footage",
+      "footage_kind": "stock",
+      "clip_s": 2.2,
+      "treatment": [
+        "slow_motion"
+      ],
+      "note": "Cinematic tilt-up view of headliner twinkling like stars in night sky."
+    }
+  ],
+  "effects": [
+    {
+      "at_s": 0.2,
+      "duration_s": 3.0,
+      "emphasis": "image",
+      "name": "prop_pop_in",
+      "description": "Chrome Spirit of Ecstasy grille pops up into presenter's hands.",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 3.4,
+      "duration_s": 2.7,
+      "emphasis": "number",
+      "name": "price_pop_overlay",
+      "description": "Black Rolls Royce cutout slides in with giant '5 Cr.' text in bold.",
+      "component": "stamp"
+    },
+    {
+      "at_s": 6.1,
+      "duration_s": 2.5,
+      "emphasis": "number",
+      "name": "price_pop_overlay",
+      "description": "Red Porsche SUV cutout slides in with bold red '83 LAKH' text banner.",
+      "component": "stamp"
+    },
+    {
+      "at_s": 11.1,
+      "duration_s": 2.8,
+      "emphasis": "word",
+      "name": "numbered_badge_callout",
+      "description": "Red square '#1' tag in upper left with 'CUSTOMIZATION' floating text and car cutout.",
+      "component": "card"
+    },
+    {
+      "at_s": 14.1,
+      "duration_s": 2.9,
+      "emphasis": "word",
+      "name": "text_highlight",
+      "description": "Yellow highlight boxes animate across article sentences about 44,000 colours.",
+      "component": "unregistered"
+    },
+    {
+      "at_s": 17.7,
+      "duration_s": 6.3,
+      "emphasis": "word",
+      "name": "numbered_badge_callout",
+      "description": "Red '#2' badge appears in top left corner.",
+      "component": "card"
+    },
+    {
+      "at_s": 27.8,
+      "duration_s": 4.1,
+      "emphasis": "word",
+      "name": "numbered_badge_callout",
+      "description": "Red '#3' badge appears in top left corner.",
+      "component": "card"
+    },
+    {
+      "at_s": 31.9,
+      "duration_s": 10.2,
+      "emphasis": "word",
+      "name": "numbered_badge_callout",
+      "description": "Red '#4' badge appears in top left corner with 'INSULATION' label.",
+      "component": "card"
+    },
+    {
+      "at_s": 33.9,
+      "duration_s": 2.0,
+      "emphasis": "word",
+      "name": "text_stamp_soundproof",
+      "description": "'300-POUND SOUNDPROOFING' bold text overlay on car interior.",
+      "component": "stamp"
+    }
+  ],
+  "transitions": [
+    {
+      "at_s": 1.8,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to falling money background.",
+      "component": "cut"
+    },
+    {
+      "at_s": 3.4,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to 5 Crore Rolls Royce graphic.",
+      "component": "cut"
+    },
+    {
+      "at_s": 6.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to 83 Lakh Porsche graphic.",
+      "component": "cut"
+    },
+    {
+      "at_s": 8.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter with lower car graphic.",
+      "component": "cut"
+    },
+    {
+      "at_s": 11.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to point #1 layout.",
+      "component": "cut"
+    },
+    {
+      "at_s": 13.9,
+      "duration_s": 0.2,
+      "name": "whip",
+      "description": "Fast whip pan into article screenshot.",
+      "component": "whip"
+    },
+    {
+      "at_s": 17.2,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to hood close-up.",
+      "component": "cut"
+    },
+    {
+      "at_s": 17.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter for point #2.",
+      "component": "cut"
+    },
+    {
+      "at_s": 19.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to assembly plant footage.",
+      "component": "cut"
+    },
+    {
+      "at_s": 20.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to model car handover.",
+      "component": "cut"
+    },
+    {
+      "at_s": 22.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to factory worker installing filter.",
+      "component": "cut"
+    },
+    {
+      "at_s": 24.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter with factory car lot background.",
+      "component": "cut"
+    },
+    {
+      "at_s": 27.8,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter introducing point #3.",
+      "component": "cut"
+    },
+    {
+      "at_s": 28.5,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to clay styling buck studio footage.",
+      "component": "cut"
+    },
+    {
+      "at_s": 29.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to craftsman pin-striping dash.",
+      "component": "cut"
+    },
+    {
+      "at_s": 30.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to macro shot of fine detail painting.",
+      "component": "cut"
+    },
+    {
+      "at_s": 31.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter point #4.",
+      "component": "cut"
+    },
+    {
+      "at_s": 33.7,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to soundproofing interior pan.",
+      "component": "cut"
+    },
+    {
+      "at_s": 35.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to embroidered roof cabin.",
+      "component": "cut"
+    },
+    {
+      "at_s": 37.5,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to spinning rim close-up.",
+      "component": "cut"
+    },
+    {
+      "at_s": 38.6,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to low angle wheel rolling.",
+      "component": "cut"
+    },
+    {
+      "at_s": 39.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to car driving along lake.",
+      "component": "cut"
+    },
+    {
+      "at_s": 42.1,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to presenter.",
+      "component": "cut"
+    },
+    {
+      "at_s": 43.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to dashboard gallery options.",
+      "component": "cut"
+    },
+    {
+      "at_s": 46.5,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to whiskey cabinet interior footage.",
+      "component": "cut"
+    },
+    {
+      "at_s": 48.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to safe opening footage.",
+      "component": "cut"
+    },
+    {
+      "at_s": 49.9,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to fridge compartment footage.",
+      "component": "cut"
+    },
+    {
+      "at_s": 52.0,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to door opening at night.",
+      "component": "cut"
+    },
+    {
+      "at_s": 55.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to worker threading optical fibers.",
+      "component": "cut"
+    },
+    {
+      "at_s": 57.3,
+      "duration_s": 0.1,
+      "name": "cut",
+      "description": "Cut to starry sky headliner interior view.",
+      "component": "cut"
+    }
+  ],
+  "text": {
+    "caption_position": "Center horizontal band, lower third around y 1150-1200",
+    "caption_size": "Medium sans-serif, approx 3-5% frame height",
+    "caption_colours": "White text on semi-transparent dark rounded banner background",
+    "active_word": "No active word colour change, captions appear sentence by sentence",
+    "title_entry": "Pop in with red numbered corner badge and uppercase title",
+    "number_entry": "Bold scale pop with drop shadow and outline"
+  },
+  "sound": {
+    "bed": true,
+    "bed_mood": "Upbeat, inquisitive electronic pop background music",
+    "effects": [
+      {
+        "at_s": 0.2,
+        "kind": "whoosh",
+        "synced_to": "Spirit of Ecstasy grille pop up"
+      },
+      {
+        "at_s": 3.4,
+        "kind": "hit",
+        "synced_to": "5 Cr car cutout entrance"
+      },
+      {
+        "at_s": 6.1,
+        "kind": "hit",
+        "synced_to": "83 Lakh Porsche cutout entrance"
+      },
+      {
+        "at_s": 11.1,
+        "kind": "ding",
+        "synced_to": "#1 badge pop up"
+      },
+      {
+        "at_s": 13.9,
+        "kind": "whoosh",
+        "synced_to": "Whip pan to CoverNest blog"
+      },
+      {
+        "at_s": 17.7,
+        "kind": "ding",
+        "synced_to": "#2 badge pop up"
+      },
+      {
+        "at_s": 27.8,
+        "kind": "ding",
+        "synced_to": "#3 badge pop up"
+      },
+      {
+        "at_s": 31.9,
+        "kind": "ding",
+        "synced_to": "#4 badge pop up"
+      }
+    ]
+  },
+  "hook": {
+    "on_screen": "Presenter gesturing as an iconic Rolls Royce chrome grille pops into view.",
+    "heard": "Rolls Royce is said to be the most expensive car brand."
+  },
+  "tag": "ESTIMATED",
+  "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
+  "video_id": "ATkSnL_CdLg",
+  "url": "https://www.youtube.com/watch?v=ATkSnL_CdLg",
+  "category": "explainer",
+  "tier": "A",
+  "creator": "",
+  "title": "",
+  "model": "gemini-3.8-flash",
+  "fps": 5.0,
+  "prompt_version": "v1",
+  "analysed_on": "2026-09-27",
+  "usage": {
+    "prompt_tokens": 26095,
+    "video_tokens": 21159,
+    "output_tokens": 6326,
+    "thoughts_tokens": 1425,
+    "total_tokens": 33846
+  },
+  "counts": {
+    "shots_per_10s": 5.2,
+    "effects_per_10s": 1.5,
+    "sfx_per_10s": 1.3
+  }
+}

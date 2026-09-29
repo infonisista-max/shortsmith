@@ -1,35 +1,40 @@
 {
-  "duration_s": 34.8,
+  "duration_s": 34.7,
   "shots": [
     {
       "start_s": 0.0,
-      "end_s": 3.2,
+      "end_s": 3.3,
       "layout": "presenter_full",
       "background": "solid_or_gradient",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter speaking to camera with dark studio background and neon logo"
+      "note": "Presenter introduces useless facts"
     },
     {
-      "start_s": 3.2,
+      "start_s": 3.3,
       "end_s": 5.8,
-      "layout": "full_footage",
-      "background": "moving_footage",
-      "footage_kind": "stock",
-      "clip_s": 2.6,
-      "treatment": [],
-      "note": "Glass bottle labeled Hydrogen Peroxide in laboratory setting"
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Bottle of hydrogen peroxide in a lab"
     },
     {
       "start_s": 5.8,
       "end_s": 8.1,
-      "layout": "full_footage",
-      "background": "moving_footage",
-      "footage_kind": "stock",
-      "clip_s": 2.3,
-      "treatment": [],
-      "note": "Coca-Cola bottle converted into a spray dispenser"
+      "layout": "full_still",
+      "background": "still_photo",
+      "footage_kind": null,
+      "clip_s": null,
+      "treatment": [
+        "zoom",
+        "overlay"
+      ],
+      "note": "Coca-Cola bottle with spray trigger nozzle and bloodstain effect"
     },
     {
       "start_s": 8.1,
@@ -39,71 +44,67 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter speaking to camera"
+      "note": "Presenter explaining Coca-Cola cleaning blood"
     },
     {
       "start_s": 12.6,
-      "end_s": 14.7,
+      "end_s": 14.8,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 2.1,
-      "treatment": [
-        "slow_motion"
-      ],
-      "note": "Small piglet walking through green grass"
+      "clip_s": 2.2,
+      "treatment": [],
+      "note": "Cute baby pig running in green grass"
     },
     {
-      "start_s": 14.7,
-      "end_s": 16.2,
+      "start_s": 14.8,
+      "end_s": 16.3,
       "layout": "presenter_full",
       "background": "solid_or_gradient",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter speaking to camera"
+      "note": "Presenter delivering punchline about sweaty friend"
     },
     {
-      "start_s": 16.2,
-      "end_s": 18.2,
+      "start_s": 16.3,
+      "end_s": 18.3,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "archival_or_news",
       "clip_s": 2.0,
       "treatment": [],
-      "note": "Terrified bloodied woman screaming surrounded by people"
+      "note": "Cannibal movie scene with woman covered in blood"
     },
     {
-      "start_s": 18.2,
-      "end_s": 19.5,
-      "layout": "full_still",
+      "start_s": 18.3,
+      "end_s": 19.6,
+      "layout": "card",
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [
-        "overlay"
-      ],
-      "note": "Dictionary definition card showing pork translation"
+      "treatment": [],
+      "note": "Translation card showing pork definition"
     },
     {
-      "start_s": 19.5,
-      "end_s": 20.6,
+      "start_s": 19.6,
+      "end_s": 20.7,
       "layout": "presenter_full",
       "background": "solid_or_gradient",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter speaking to camera"
+      "note": "Presenter saying he has only heard about human meat"
     },
     {
-      "start_s": 20.6,
+      "start_s": 20.7,
       "end_s": 27.2,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 6.6,
+      "clip_s": 6.5,
       "treatment": [],
-      "note": "Sea turtle swimming underwater over ocean floor"
+      "note": "Sea turtle swimming underwater over corals"
     },
     {
       "start_s": 27.2,
@@ -113,7 +114,7 @@
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter speaking to camera"
+      "note": "Presenter introduces guillotine topic"
     },
     {
       "start_s": 28.1,
@@ -122,28 +123,30 @@
       "background": "still_photo",
       "footage_kind": null,
       "clip_s": null,
-      "treatment": [],
-      "note": "Historical illustration of an execution by guillotine"
+      "treatment": [
+        "zoom"
+      ],
+      "note": "Historical drawing depicting guillotine execution"
     },
     {
       "start_s": 29.6,
-      "end_s": 31.0,
+      "end_s": 30.9,
       "layout": "full_footage",
       "background": "moving_footage",
       "footage_kind": "stock",
-      "clip_s": 1.4,
+      "clip_s": 1.3,
       "treatment": [],
-      "note": "Full scale wooden guillotine frame against blue sky"
+      "note": "Wooden guillotine standing against blue sky"
     },
     {
-      "start_s": 31.0,
-      "end_s": 34.8,
+      "start_s": 30.9,
+      "end_s": 34.7,
       "layout": "presenter_full",
       "background": "solid_or_gradient",
       "footage_kind": null,
       "clip_s": null,
       "treatment": [],
-      "note": "Presenter finishing statement to camera"
+      "note": "Presenter explaining consciousness after beheading"
     }
   ],
   "effects": [
@@ -151,169 +154,181 @@
       "at_s": 0.2,
       "duration_s": 2.6,
       "emphasis": "word",
-      "name": "animated_title_drop",
-      "description": "Letters of 'Waahiyaat Facts' drop down and pop into center frame in white and green",
-      "component": "unregistered"
+      "name": "bouncy_title_pop",
+      "description": "Letters of 'Waahiyaat Facts' pop in with overshoot and green color",
+      "component": "text_pop",
+      "motion": {
+        "entrance": "pop_overshoot",
+        "entrance_s": 0.4,
+        "size": 0.65,
+        "region": "bottom"
+      }
     },
     {
       "at_s": 7.4,
       "duration_s": 0.7,
       "emphasis": "image",
-      "name": "bloodstain_stamp",
-      "description": "Blood splatter graphic animates on with 'Bloodstain' text overlay",
-      "component": "unregistered"
+      "name": "bloodstain_splatter",
+      "description": "Animated blood splatter overlay with Bloodstain text",
+      "component": "unregistered",
+      "motion": {
+        "entrance": "scale",
+        "entrance_s": 0.2,
+        "size": 0.5,
+        "region": "middle"
+      }
     }
   ],
   "transitions": [
     {
-      "at_s": 3.2,
+      "at_s": 3.3,
       "duration_s": 0.2,
-      "name": "radial_blur_zoom",
-      "description": "High-speed directional blur zoom transition into b-roll",
+      "name": "zoom_blur",
+      "description": "Directional motion zoom blur cut",
       "component": "zoom"
     },
     {
       "at_s": 5.8,
       "duration_s": 0.2,
-      "name": "radial_blur_zoom",
-      "description": "Quick zoom blur transition",
+      "name": "zoom_blur",
+      "description": "Zoom blur transition",
       "component": "zoom"
     },
     {
       "at_s": 8.1,
-      "duration_s": 0.2,
-      "name": "radial_blur_zoom",
-      "description": "Fast blur zoom back to presenter",
-      "component": "zoom"
+      "duration_s": 0.3,
+      "name": "crossfade",
+      "description": "Fade transition between spray bottle and presenter",
+      "component": "fade"
     },
     {
       "at_s": 12.6,
       "duration_s": 0.2,
-      "name": "whip_zoom",
-      "description": "Whip blur cut to piglet footage",
-      "component": "whip"
-    },
-    {
-      "at_s": 14.7,
-      "duration_s": 0.2,
-      "name": "zoom_transition",
-      "description": "Fast zoom blur cut to presenter",
+      "name": "zoom_blur",
+      "description": "Zoom blur transition to piglet",
       "component": "zoom"
     },
     {
-      "at_s": 16.2,
-      "duration_s": 0.1,
+      "at_s": 14.8,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut to film clip",
+      "description": "Direct cut",
       "component": "cut"
     },
     {
-      "at_s": 18.2,
-      "duration_s": 0.1,
+      "at_s": 16.3,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut to vocabulary card",
+      "description": "Direct cut",
       "component": "cut"
     },
     {
-      "at_s": 19.5,
-      "duration_s": 0.1,
+      "at_s": 18.3,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut back to presenter",
+      "description": "Direct cut",
       "component": "cut"
     },
     {
-      "at_s": 20.6,
-      "duration_s": 0.1,
+      "at_s": 19.6,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut to sea turtle clip",
+      "description": "Direct cut",
+      "component": "cut"
+    },
+    {
+      "at_s": 20.7,
+      "duration_s": 0.0,
+      "name": "cut",
+      "description": "Direct cut",
       "component": "cut"
     },
     {
       "at_s": 27.2,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut back to presenter",
+      "description": "Direct cut",
       "component": "cut"
     },
     {
       "at_s": 28.1,
-      "duration_s": 0.1,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut to painting",
+      "description": "Direct cut",
       "component": "cut"
     },
     {
       "at_s": 29.6,
       "duration_s": 0.2,
-      "name": "vertical_slits_zoom",
-      "description": "Blinds / multi-slit zoom transition",
+      "name": "shutter_slice",
+      "description": "Horizontal Venetian blind slice transition",
       "component": "unregistered"
     },
     {
-      "at_s": 31.0,
-      "duration_s": 0.1,
+      "at_s": 30.9,
+      "duration_s": 0.0,
       "name": "cut",
-      "description": "Plain cut back to presenter",
+      "description": "Direct cut",
       "component": "cut"
     }
   ],
   "text": {
-    "caption_position": "Center middle of screen for the hook title, standard auto-captions otherwise not present",
-    "caption_size": "Large hook title taking roughly one third width",
-    "caption_colours": "White text turning bright lime green with dark stroke",
-    "active_word": "Pop-in staggered animation for individual letters",
-    "title_entry": "Letters drop down with spring overshoot",
-    "number_entry": "No numbers animated"
+    "caption_position": "bottom middle",
+    "caption_size": "medium, around 60px bold sans-serif",
+    "caption_colours": "white with green accents and dark drop shadow",
+    "active_word": "green highlight pop",
+    "title_entry": "letter by letter pop overshoot",
+    "number_entry": "none"
   },
   "sound": {
     "bed": true,
-    "bed_mood": "Subtle ambient background music",
+    "bed_mood": "mysterious eerie playful background melody",
     "effects": [
       {
-        "at_s": 0.3,
+        "at_s": 0.2,
         "kind": "whoosh",
-        "synced_to": "Title letters bouncing in"
+        "synced_to": "Waahiyaat Facts title pop",
+        "event": "text_pop",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
-        "at_s": 3.2,
+        "at_s": 3.3,
         "kind": "whoosh",
-        "synced_to": "Zoom transition into Hydrogen Peroxide bottle"
-      },
-      {
-        "at_s": 5.8,
-        "kind": "whoosh",
-        "synced_to": "Transition to Coca-Cola spray bottle"
+        "synced_to": "zoom transition to hydrogen peroxide",
+        "event": "cut",
+        "loudness": "medium",
+        "length_s": 0.2
       },
       {
         "at_s": 7.4,
         "kind": "hit",
-        "synced_to": "Bloodstain stamp graphic appearance"
-      },
-      {
-        "at_s": 8.1,
-        "kind": "whoosh",
-        "synced_to": "Zoom transition back to speaker"
+        "synced_to": "bloodstain stamp pop",
+        "event": "stamp",
+        "loudness": "medium",
+        "length_s": 0.3
       },
       {
         "at_s": 12.6,
         "kind": "whoosh",
-        "synced_to": "Transition to piglet footage"
-      },
-      {
-        "at_s": 14.7,
-        "kind": "whoosh",
-        "synced_to": "Transition back to speaker"
+        "synced_to": "zoom transition to piglet",
+        "event": "cut",
+        "loudness": "soft",
+        "length_s": 0.2
       },
       {
         "at_s": 29.6,
         "kind": "whoosh",
-        "synced_to": "Slit transition to guillotine shot"
+        "synced_to": "shutter slice transition to guillotine",
+        "event": "cut",
+        "loudness": "medium",
+        "length_s": 0.3
       }
     ]
   },
   "hook": {
-    "on_screen": "Presenter faces camera as 3D stylized text 'Waahiyaat Facts' drops into the center",
-    "heard": "Wahiyat facts jinhe main kisi wajah se janta hoon"
+    "on_screen": "Presenter talking in front of a dark backdrop with animated green title 'Waahiyaat Facts'",
+    "heard": "Presenter introducing ridiculous facts that he knows for some reason"
   },
   "tag": "ESTIMATED",
   "tag_meaning": "every figure is model-observed on frames sampled from the YouTube link; timestamps and durations are approximate",
@@ -325,18 +340,214 @@
   "title": "Fun Facts That Are Not Funny",
   "model": "gemini-3.8-flash",
   "fps": 5.0,
-  "prompt_version": "v1",
-  "analysed_on": "2026-09-27",
+  "prompt_version": "v2",
+  "analysed_on": "2026-09-29",
   "usage": {
-    "prompt_tokens": 15862,
+    "prompt_tokens": 20449,
     "video_tokens": 12355,
-    "output_tokens": 2865,
-    "thoughts_tokens": 804,
-    "total_tokens": 19531
+    "output_tokens": 4659,
+    "thoughts_tokens": 982,
+    "total_tokens": 26090
   },
   "counts": {
     "shots_per_10s": 4.0,
     "effects_per_10s": 0.6,
-    "sfx_per_10s": 2.3
-  }
+    "sfx_per_10s": 1.4
+  },
+  "script": {
+    "about": "A presenter shares bizarre, obscure, and slightly morbid trivia facts.",
+    "topic": "science",
+    "tone": "humorous curious morbid",
+    "language": "hi"
+  },
+  "parts": [
+    {
+      "part": "hook",
+      "start_s": 0.0,
+      "end_s": 3.3,
+      "music_mood": "mysterious_curiosity",
+      "music_flavour": null
+    },
+    {
+      "part": "build_up",
+      "start_s": 3.3,
+      "end_s": 27.2,
+      "music_mood": "mysterious_curiosity",
+      "music_flavour": null
+    },
+    {
+      "part": "reveal",
+      "start_s": 27.2,
+      "end_s": 34.7,
+      "music_mood": "tense_dramatic",
+      "music_flavour": null
+    }
+  ],
+  "music_changes": [
+    {
+      "at_s": 27.2,
+      "from_part": "build_up",
+      "to_part": "reveal",
+      "how": "crossfade"
+    }
+  ],
+  "beats": [
+    {
+      "start_s": 0.0,
+      "end_s": 3.3,
+      "said": "Absurd facts that I somehow know for various reasons.",
+      "shows": "Presenter introducing the topic to camera",
+      "match": "literal",
+      "part": "hook",
+      "layout": "presenter_full",
+      "effect": "text_pop",
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 3.3,
+      "end_s": 5.8,
+      "said": "If you do not have hydrogen peroxide available,",
+      "shows": "Amber laboratory bottle of hydrogen peroxide",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 5.8,
+      "end_s": 8.1,
+      "said": "Coca-Cola can be used to clean bloodstains.",
+      "shows": "Coke bottle with spray head and bloodstain text",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "full_still",
+      "effect": "unregistered",
+      "sound": "hit"
+    },
+    {
+      "start_s": 8.1,
+      "end_s": 12.6,
+      "said": "It is not professional cleaning, but it gets the job done.",
+      "shows": "Presenter speaking to camera with gestures",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 12.6,
+      "end_s": 14.8,
+      "said": "Pigs do not sweat at all.",
+      "shows": "Cute baby piglet walking through lush grass",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 14.8,
+      "end_s": 16.3,
+      "said": "Then why does my friend sweat so much?",
+      "shows": "Presenter jokingly questioning camera",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 16.3,
+      "end_s": 18.3,
+      "said": "Human meat tastes remarkably similar to pork.",
+      "shows": "Woman screaming covered in red blood in jungle",
+      "match": "metaphor",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 18.3,
+      "end_s": 19.6,
+      "said": "Pork translation card confirming pig meat.",
+      "shows": "Dictionary card defining pork in Hindi",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "card",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 19.6,
+      "end_s": 20.7,
+      "said": "At least that is what I have heard.",
+      "shows": "Presenter smiling and reassuring viewers",
+      "match": "illustrative",
+      "part": "build_up",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 20.7,
+      "end_s": 27.2,
+      "said": "Sea turtles breathe through their butts in winter to survive.",
+      "shows": "Sea turtle swimming underwater over sandy sea floor",
+      "match": "literal",
+      "part": "build_up",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 27.2,
+      "end_s": 28.1,
+      "said": "Next, the toy of death,",
+      "shows": "Presenter looking excited introducing final fact",
+      "match": "illustrative",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 28.1,
+      "end_s": 29.6,
+      "said": "namely the guillotine decapitation tool.",
+      "shows": "Historical illustration of guillotine execution",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_still",
+      "effect": null,
+      "sound": null
+    },
+    {
+      "start_s": 29.6,
+      "end_s": 30.9,
+      "said": "After decapitation by guillotine,",
+      "shows": "Close view of real wooden guillotine apparatus",
+      "match": "named_entity",
+      "part": "reveal",
+      "layout": "full_footage",
+      "effect": null,
+      "sound": "whoosh"
+    },
+    {
+      "start_s": 30.9,
+      "end_s": 34.7,
+      "said": "a human remains conscious for twenty to thirty seconds.",
+      "shows": "Presenter explaining shocking conscious time to camera",
+      "match": "literal",
+      "part": "reveal",
+      "layout": "presenter_full",
+      "effect": null,
+      "sound": null
+    }
+  ],
+  "styles": [
+    "footage"
+  ]
 }
