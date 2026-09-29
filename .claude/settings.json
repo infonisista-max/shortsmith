@@ -32,6 +32,7 @@
     ],
     "deny": [
       "Bash(git push*)",
+      "Bash(git add -A*)", "Bash(git add .)", "Bash(git add --all*)",
       "Bash(git commit --amend*)", "Bash(git reset --hard*)", "Bash(git clean*)",
       "Bash(git rebase*)", "Bash(git branch -D*)", "Bash(git checkout -- *)", "Bash(git checkout .)",
       "Bash(uv add *)", "Bash(uv pip *)", "Bash(pip *)", "Bash(pip3 *)", "Bash(pipx *)",
@@ -49,6 +50,7 @@
       "Edit(ralph/*.ps1)", "Edit(ralph/*.sh)",
       "Edit(docs/grill-decisions.md)", "Edit(issues/prd.md)", "Edit(docs/references.md)",
       "PowerShell(git push*)",
+      "PowerShell(git add -A*)", "PowerShell(git add .)", "PowerShell(git add --all*)",
       "PowerShell(git commit --amend*)", "PowerShell(git reset --hard*)", "PowerShell(git clean*)",
       "PowerShell(git rebase*)", "PowerShell(git branch -D*)", "PowerShell(git checkout -- *)", "PowerShell(git checkout .)",
       "PowerShell(uv add *)", "PowerShell(uv pip *)", "PowerShell(pip *)", "PowerShell(pip3 *)", "PowerShell(pipx *)",
