@@ -1363,12 +1363,13 @@ def test_without_a_catalogue_the_mix_is_the_voice_alone(
     assert "no audio search configured" in app.render_job_page(reloaded)
 
 
-def test_an_empty_catalogue_with_a_search_still_mixes_a_bed_and_cues(
+def test_an_empty_catalogue_with_a_search_still_mixes_a_bed_but_never_searches_an_effect(
     tmp_path: Path, fixture_clip: Path, media: Media, library: sound.Library
 ) -> None:
     """054: F1 went out silent because the empty shipped catalogue returned before the
-    search was asked. With a search the director runs, adopts a bed and the SFX, and
-    every search and decision is a line in job.log."""
+    search was asked. With a search the director runs and adopts a bed, every search and
+    decision a line in job.log. 070: effects come only from the approved library, so the
+    search is never asked for one and the empty library places no cue, saying so."""
     job = _job_with(tmp_path, fixture_clip)
     _synthetic_picture(job, media)
     story = FakePlanner().plan_sound(_plan_request(), _plan())
@@ -1378,14 +1379,15 @@ def test_an_empty_catalogue_with_a_search_still_mixes_a_bed_and_cues(
     empty = sound.Library(root=library.root)  # the shelf's files land under this root
     render.mux(job, library=empty, search=search)
     stems = job.work_dir / "stems"
-    for name in ("voice.wav", "music.wav", "sfx.wav", "mix.wav"):
+    for name in ("voice.wav", "music.wav", "mix.wav"):
         assert (stems / name).is_file(), name
-    assert search.calls and search.sfx_calls
+    assert not (stems / "sfx.wav").exists()
+    assert search.calls and search.sfx_calls == []
     log = job.log_path.read_text(encoding="utf-8")
-    assert "sound: audio search fake bed " in log and "sound: audio search fake sfx " in log
-    assert "from the audio search" in log and "placed at" in log
+    assert "sound: audio search fake bed " in log and "sound: audio search fake sfx " not in log
+    assert "from the audio search" in log and sound.NO_APPROVED_LINE in log
     rows = rights.audio_rows(job.path)
-    assert {r.kind for r in rows} == {"music", "sfx"}, "the fetched files have rights rows"
+    assert {r.kind for r in rows} == {"music"}, "the fetched bed has its rights row"
     assert not [w for w in jobs.load(job.path).record.warnings if "voice only" in w]
 
 

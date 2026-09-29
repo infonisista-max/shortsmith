@@ -165,6 +165,18 @@ def whoosh_allowed(style: PlanStyle) -> bool:
     return not banned and numbers.get(WHOOSH) is not None
 
 
+def whoosh_on(style: PlanStyle) -> tuple[str, ...]:
+    """070: the triggers the style's `sound.whoosh.on` names; none where whooshes are
+    not allowed or the request carries no numbers."""
+    if not whoosh_allowed(style):
+        return ()
+    row = cast(Mapping[str, object], style.numbers["sound"]).get(WHOOSH)
+    on = cast(Mapping[str, object], row).get("on") if isinstance(row, Mapping) else None
+    if not isinstance(on, Sequence) or isinstance(on, str):
+        return ()
+    return tuple(str(t) for t in cast(Sequence[object], on))
+
+
 def text_pops_allowed(style: PlanStyle) -> bool:
     """061: the style's `broll.text_pops_max_per_60s` is over 0; a request with no
     numbers allows none (the explainer's rule)."""
@@ -358,30 +370,36 @@ class FakePlanner(Planner):
         ids = [b.id for b in picture.beats]
         first, second = ids[0], ids[1] if len(ids) > 1 else ids[0]
         last = ids[-1]
+        # 070: only the closed palette. The opening lands on a bass, the card on a thump,
+        # a stamp or counter on a bass (a money reveal on a drum), the finale on a drum.
         cues = [
-            Cue(beat_id=first, intent="opening_hit", at="start"),
-            Cue(beat_id=second, intent="changeover", at="start"),
+            Cue(beat_id=first, intent="bass", at="start"),
+            Cue(beat_id=second, intent="thump", at="start"),
         ]
         cues += [
-            Cue(beat_id=b.id, intent="money" if b.money_reveal else "popup_tick", at="event")
+            Cue(beat_id=b.id, intent="drum" if b.money_reveal else "bass", at="event")
             for b in picture.beats
             if b.event.kind == "stamp" or b.counter is not None
         ]
-        # 060: one whoosh on the first flash, where the style allows whooshes at all.
-        flashed = [b.id for b in picture.beats if b.enter == "flash"]
-        whooshed = flashed[0] if flashed and whoosh_allowed(request.style) else None
-        # 061: a tick where the text pop lands, on the beat that carries one - unless the
-        # beat's flash already carries the whoosh (059: the recipes flash b03 and pop on
-        # it), the one cue `sound.cues_per_beat_max` allows. (062: the sticker's beat, b01,
-        # already carries the opening hit, so it gets no ding of its own.)
-        cues += [
-            Cue(beat_id=b.id, intent="popup_tick", at="event")
-            for b in picture.beats
-            if b.text_pops and b.event.kind == "none" and b.counter is None and b.id != whooshed
-        ]
-        cues.append(Cue(beat_id=last, intent="finale_hit", at="start"))
-        if whooshed is not None:
-            cues.append(Cue(beat_id=whooshed, intent=WHOOSH, at="start"))
+        cued = {c.beat_id for c in cues} | {last}
+        # 061 / 070: one tick where the first free pop-in lands (the recipes pop on b03;
+        # 062: the sticker's beat, b01, already carries the opening hit, so no ding).
+        popped = [
+            b.id for b in picture.beats
+            if (b.text_pops or b.bubbles or b.stickers) and b.event.kind == "none"
+            and b.counter is None and b.id not in cued
+        ]  # fmt: skip
+        if popped:
+            cues.append(Cue(beat_id=popped[0], intent="tick", at="event"))
+            cued.add(popped[0])
+        # 060 / 070: one whoosh on the first free beat entering on a transition the
+        # style's `sound.whoosh.on` names (b03's fade in explainer, b05's in the recipes).
+        allowed = whoosh_on(request.style)
+        moving = [b.id for b in picture.beats
+                  if b.enter != "cut" and b.enter in allowed and b.id not in cued]  # fmt: skip
+        if moving:
+            cues.append(Cue(beat_id=moving[0], intent=WHOOSH, at="start"))
+        cues.append(Cue(beat_id=last, intent="drum", at="start"))
         end = picture.beats[-1].end
         return SoundStory(
             prompt_version=self.PROMPT_VERSION,

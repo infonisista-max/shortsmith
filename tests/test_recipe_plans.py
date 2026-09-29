@@ -45,7 +45,9 @@ def test_the_fake_plan_passes_each_recipes_fixture_rules(name: str) -> None:
     assert isinstance(result, grammar.ValidatedPlan), [str(v) for v in getattr(result, "items", [])]
     flashed = [b.id for b in plan.beats if b.enter == "flash"]
     assert flashed == ["b03"]
-    assert any(c.intent == "whoosh" and c.beat_id == "b03" for c in result.sound.cues)
+    # 070: b03's pop-in carries the tick; the whoosh rides the next transition, b05's fade
+    cues = {(c.intent, c.beat_id) for c in result.sound.cues}
+    assert ("tick", "b03") in cues and ("whoosh", "b05") in cues
 
 
 def test_footage_flashes_and_draws_a_clip() -> None:
@@ -78,4 +80,5 @@ def test_the_explainer_plan_is_unchanged_by_the_recipes() -> None:
     assert plan.title_strip == ""
     assert not any(b.text_pops or b.bubbles or b.stickers for b in plan.beats)
     assert "flash" not in {b.enter for b in plan.beats}
-    assert not any(c.intent == "whoosh" for c in story.cues)
+    # 070: explainer allows a whoosh on its own enters too - b03's fade
+    assert [c.beat_id for c in story.cues if c.intent == "whoosh"] == ["b03"]

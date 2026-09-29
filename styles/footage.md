@@ -1,5 +1,5 @@
 ---
-version: "5"
+version: "6"
 status: shipped
 aliases: [footage, documentary, dhruv, cinematic]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -158,8 +158,12 @@ sound:
   cue_db_min: -10
   cue_db_max: -2
   forbidden: [sweep, riser, rumble_crescendo]
-  # 060: whooshes on a flash or a pop-in only (refs: whooshes in all 12, median ~3.5 a minute)
-  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [flash, pop]}  # "on" quoted: YAML reads a bare on as true
+  # 070 (run04 QA, all styles): a soft mark only on a visible pop-in or transition, never
+  # on every one (refs: ~6.7 sfx a minute against ~9.3 visual events, each synced to one)
+  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [fade, whip, zoom, spring, flash, pop]}  # "on" quoted: YAML reads a bare on as true
+  tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop]}
+  ding: {max_per_60s: 2, max_len_s: 0.8, "on": [idea_sticker]}  # the FactTechz lightbulb (zXK42RMPKUY 34 s)
+  floor_max_len_s: {bass: 1.5, drum: 1.2, thump: 0.8}  # 075's shortlist lengths
 finale:
   kind: finale_card
   mode: "off"
@@ -212,8 +216,8 @@ Moving-footage documentary (recipe 059, the Dhruv Rathee move): full-screen stoc
 - Recipe: SFX about 1.2 per 10 s; a whoosh on each flash is the Dhruv move.
 - Sound is the sound director's job (grill decision 7.1), not a fixed hit table: return a `sound_story` with a theme, a mood curve with build and drop points, a bed query (`theme`, `mood`, `energy`) and a per-beat cue list with intent labels; read the script and choose. Music and SFX come only from the tagged free library; never name a track.
 - Bed target `bed_db_under_voice` dB under the voice, ducking at most `duck_max_db` dB, swells at most `swell_max_db` dB above target and drops at least `drop_min_db` dB below, every ramp at least `ramp_min_s` s. A drop is a step down at a beat boundary followed by a changeover cue, never a rise into a hit (7.3).
-- The floor hits in `floor_hits` are derived by code from plan events so a short is never flat; the planner's cues layer on top within `cues_max_per_60s` and `cues_per_beat_max`, each between `cue_db_min` and `cue_db_max` dB under the voice. A tick on a step change is an ordinary cue choice under those caps (7.1 lifted the old chime/tick ban).
-- Forbidden, checked in code on the SFX stem: `forbidden` (sweeps, risers, rumble crescendos). Nothing on whip cuts, punch-ins, rings or lower-thirds. Whooshes are allowed here (7.3 as amended by 060): `whoosh` is out of `forbidden` and `sound.whoosh` bounds it - a `whoosh` cue sits only on a `flash` enter or a pop-in (a text pop, a bubble or a sticker), at most `max_per_60s` a minute, `min_gap_s` apart, each file at most `max_len_s` long.
+- The floor hits in `floor_hits` are derived by code from plan events so a short is never flat; the planner's cues layer on top within `cues_max_per_60s` and `cues_per_beat_max`, each between `cue_db_min` and `cue_db_max` dB under the voice. The cues are a closed palette (070): `tick` on a pop-in, `whoosh` on a non-cut transition or a pop-in, a soft `ding` only on an `idea` sticker, `bass`, `drum` and `thump` on landed events; the director adds ticks and whooshes itself within `sound.tick` and `sound.whoosh`, never on every event, and every file comes from the operator's approved library.
+- Forbidden, checked in code on the SFX stem: `forbidden` (sweeps, risers, rumble crescendos); no ring, bell or chime is in the palette. No floor hit on whip cuts, punch-ins, rings or lower-thirds. Marks (7.3 as amended by 060 and 070, every style): a `whoosh` sits only on an enter `sound.whoosh.on` names or a pop-in, a `tick` only on a pop-in, a `ding` only on an `idea` sticker's pop-in, each within its row's `max_per_60s`, `min_gap_s` and `max_len_s`.
 - When the library has no matching bed or SFX, code searches the free library with plain keywords from the bed query, then the mood alone, then `default_bed_query`, and adopts only CC0 / CC BY files that pass the sweep detector (7.2, 054); the planner still never names a track.
 - Voice −19 LUFS / −3 dBTP on the stem, master −14 LUFS / −1.5 dBTP (7.3).
 

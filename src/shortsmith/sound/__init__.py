@@ -28,10 +28,8 @@ sentences were one query, and the empty shipped catalogue returned before the se
 was even asked. Now the search is asked with plain keywords, specific to broad
 (`bed_queries`: theme and mood words, fewer of them, the mood alone, one mood word,
 then the style's `sound.default_bed_query`; every rung at most `QUERY_MAX_WORDS`),
-stopping at the first adoption. SFX go the same way (`sfx_queries`, through `SfxShelf`
-inside `place_cues`) when the catalogue has nothing tagged with an intent or a floor
-class, the floor classes first; every fetched SFX passes the 7.3 sweep detector before
-it is adopted (`sound.freesound.adopt`). Only CC0 and CC BY files are adopted. Every
+stopping at the first adoption. 070: effects are never searched for at job time - they
+come only from the approved library (below). Only CC0 and CC BY files are adopted. Every
 search is one `SearchOutcome` - source, query, status, hit count, what was adopted and
 why the rest were skipped - and `build_mix` hands every line to the job log as it is
 made, then the placement decisions, then the summary; a short that goes out voice-only
@@ -45,16 +43,21 @@ style names them. A `counter` (029) lands as a stamp does and earns the stamp's 
 hit, and any `event` cue on its beat, fires where its digits land - the last
 `broll.motion.stamp.duration_s` of the beat (`landing_s`) - not at the beat's start.
 
-**Cues (7.1, 7.3).** One cue per beat (`cues_per_beat_max`): the planner's intent when it
-named one for that beat, else the beat's floor hit. An intent that matches no SFX `intent`
-tag falls back to the beat's floor class - never silence, never a random file. The hit
-class travels with the cue whether the planner named it or not, because the class is what
-sets the level: every cue sits in the style's `cue_db_min`-`cue_db_max` band under the
-voice, the drum at the top of the band, then the bass, then the thump and the planner's
-own intents. Every step the envelope takes also places the changeover cue 7.3 requires a
-drop to be followed by. `cues_max_per_60s` counts all of them together; over the cap the
-classed cues are kept first (drum and changeover, then bass, then thump, earlier before
-later) and the planner's extras fill what is left.
+**Cues (7.1, 7.3; the closed palette of 070).** Every cue is one kind of `CUE_KINDS` -
+tick, whoosh, bass, drum, thump, ding - and plays the shortest file of that kind in the
+approved library (the tracked catalogue, never `fetched/`) no longer than the style's
+length for it (`kind_max_len_s`); a kind with no such file drops its cues with a line.
+One cue per beat (`cues_per_beat_max`): the planner's cue when it named one for that beat,
+then the changeover a drop needs, then the beat's floor hit, then the soft marks the
+director derives itself (`mark_candidates`: a tick on each pop-in, a whoosh on each
+non-cut enter the whoosh row names, a ding instead of the tick on an `idea` sticker),
+each kind - the planner's and the derived together - within its row's `max_per_60s`
+and `min_gap_s`. The kind sets the level: every cue sits in the style's
+`cue_db_min`-`cue_db_max` band under the voice, the drum at the top, then the bass and
+the changeover, then the thump and the whoosh, the tick and the ding softest. The
+changeover plays the approved bass. `cues_max_per_60s` counts all of them together; over
+the cap the classed cues are kept first (drum and changeover, then bass, then thump,
+earlier before later) and the soft marks fill what is left.
 
 **Envelope (7.3).** `envelope` turns the mood curve into the music stem's volume
 automation: levels clipped to `swell_max_db` / `drop_min_db`, ramps left as they are, and
@@ -91,7 +94,7 @@ import re
 import statistics
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -101,12 +104,14 @@ from pydantic import ValidationError
 
 from shortsmith import ffmpeg, styles
 from shortsmith.contracts import (
+    CUE_KINDS,
     AudioEntry,
     AudioKind,
     BalanceReport,
     Beat,
     BedQuery,
     Catalogue,
+    Cue,
     CueRecord,
     CueSheet,
     PicturePlan,
@@ -135,10 +140,13 @@ class SoundError(RuntimeError):
 
 @dataclass(frozen=True)
 class Library:
-    """The parsed catalogue and the directory its `file` paths are relative to."""
+    """The parsed catalogue and the directory its `file` paths are relative to.
+    `fetched` names the entries read from the runtime `fetched/` catalogue (070: never
+    an effect a job may play; only the tracked catalogue is the approved library)."""
 
     root: Path
     entries: tuple[AudioEntry, ...] = ()
+    fetched: frozenset[str] = frozenset()
 
     @property
     def catalogue(self) -> Path:
@@ -158,6 +166,17 @@ class Library:
 
     def sfx(self) -> tuple[AudioEntry, ...]:
         return tuple(e for e in self.entries if e.kind == "sfx")
+
+    def approved_sfx(self) -> tuple[AudioEntry, ...]:
+        """070: the effects a job may play - those the operator approved into the
+        tracked catalogue (075), never one a runtime search fetched."""
+        return tuple(e for e in self.sfx() if e.id not in self.fetched)
+
+    def adding(self, entry: AudioEntry) -> Library:
+        """This library with `entry` appended (a bed the search adopted, 054)."""
+        if self.entry(entry.id) is not None:
+            return self
+        return replace(self, entries=(*self.entries, entry))
 
     def entry(self, entry_id: str) -> AudioEntry | None:
         return next((e for e in self.entries if e.id == entry_id), None)
@@ -198,12 +217,17 @@ def load_catalogue(path: Path = CATALOGUE_PATH) -> Library:
     if path.is_file():
         entries += parse_catalogue(path.read_text(encoding="utf-8"), name=path.name).entries
     fetched = path.parent / FETCHED_DIR / CATALOGUE_NAME
+    runtime: list[AudioEntry] = []
     if fetched.is_file():
         known = {e.id for e in entries}
         name = f"{FETCHED_DIR}/{fetched.name}"
         adopted = parse_catalogue(fetched.read_text(encoding="utf-8"), name=name).entries
-        entries += [e for e in adopted if e.id not in known]
-    return Library(root=path.parent, entries=tuple(entries))
+        runtime = [e for e in adopted if e.id not in known]
+    return Library(
+        root=path.parent,
+        entries=(*entries, *runtime),
+        fetched=frozenset(e.id for e in runtime),
+    )
 
 
 # --- bed selection (7.2) ----------------------------------------------------------------
@@ -303,9 +327,9 @@ def bed_queries(query: BedQuery, default: str, anchor: str = "") -> tuple[str, .
 
 def sfx_queries(intent: str) -> tuple[str, ...]:
     """The SFX search's queries for one intent (054 (3)): a floor class asks for its hit
-    ("bass hit") and then the class word alone; a planner intent asks with its words,
-    and the director's own fall-back to the beat's floor class is the broader rung."""
-    if intent in CLASS_RANK:
+    ("bass hit") and then the class word alone; any other intent asks with its words.
+    070: a job never searches for an effect; the Freesound adapter keeps the ladder."""
+    if intent in styles.FLOOR_CLASSES:
         return (f"{intent} hit", intent)
     return _rungs(keywords(intent.replace("_", " ")))
 
@@ -576,17 +600,26 @@ def floor_hits(
 
 # --- cues (7.1, 7.3) --------------------------------------------------------------------
 
-# Where each class sits in the style's `cue_db_min`-`cue_db_max` band: the drum at the
-# top, then the changeover and the bass, then the thump, with a planner intent that
-# earned no class taking the middle. The band is the style's; these are the engine's
-# weights, like the geometry constants in `render`.
+# Where each kind sits in the style's `cue_db_min`-`cue_db_max` band: the drum at the
+# top, then the changeover and the bass, then the thump and the whoosh, with the tick and
+# the ding softest (070: marks sit at the quiet end, thump level or below). The band is
+# the style's; these are the engine's weights, like the geometry constants in `render`.
 CHANGEOVER = "changeover"
-CLASS_LEVEL: Mapping[str, float] = {"drum": 1.0, CHANGEOVER: 0.75, "bass": 0.75, "thump": 0.4}
+# 070: the palette has no changeover kind, so the cue 7.3 puts after a drop plays the
+# approved bass file, at the bass level.
+CHANGEOVER_KIND = "bass"
+CLASS_LEVEL: Mapping[str, float] = {
+    "drum": 1.0, CHANGEOVER: 0.75, "bass": 0.75, "thump": 0.4, styles.WHOOSH: 0.4,
+    styles.TICK: 0.2, styles.DING: 0.2,
+}  # fmt: skip
 PLANNER_LEVEL = 0.5
 # Which cue survives the cap: the classes first (the short is never flat, and a drop is
-# never left without its changeover), then the planner's extras. Earlier beats win
-# inside a rank.
+# never left without its changeover), then the soft marks. Earlier beats win inside a
+# rank.
 CLASS_RANK: Mapping[str, int] = {"drum": 3, CHANGEOVER: 3, "bass": 2, "thump": 1}
+MARK_KINDS: tuple[str, ...] = (styles.TICK, styles.WHOOSH, styles.DING)
+IDEA = "idea"  # 062's sticker tag a ding rides (070)
+NO_APPROVED_LINE = "no approved sfx in the audio library"
 BOUNDARY_TOL_S = 0.05  # how near a mood point must sit to a beat start to be that beat's
 
 CueSource = Literal["planner", "floor"]
@@ -594,10 +627,11 @@ CueSource = Literal["planner", "floor"]
 
 @dataclass(frozen=True)
 class PlacedCue:
-    """One cue on the SFX stem. `hit` is the class its level and its place in the cap
-    come from: the floor class the beat earned (7.1), `changeover` for the cue a drop
-    must be followed by (7.3), or "" for a planner intent on a beat that earned neither.
-    `source` is who named the intent - the planner, or this code."""
+    """One cue on the SFX stem. `hit` is the palette kind its level and its place in the
+    cap come from (070): the kind the planner named, the floor class the beat earned
+    (7.1), `tick` / `whoosh` / `ding` for a mark the director derived, or `changeover`
+    for the cue a drop must be followed by (7.3; it plays the bass file). `source` is
+    who chose the cue - the planner, or this code."""
 
     beat_id: str
     at_s: float
@@ -608,80 +642,110 @@ class PlacedCue:
     source: CueSource
 
 
+def cue_kind(cue: PlacedCue) -> str:
+    """070: the palette kind whose approved file a placed cue plays."""
+    return CHANGEOVER_KIND if cue.hit == CHANGEOVER else cue.hit
+
+
 @dataclass(frozen=True)
 class PlacedCues:
-    """The cues, the log lines, and the library as the search left it (054: an adopted
-    SFX is an entry the stem and the rights rows have to find)."""
+    """The cues, the log lines, and the library they were matched from."""
 
     library: Library
     cues: tuple[PlacedCue, ...] = ()
     notes: tuple[str, ...] = ()
 
 
+def mark_row(kind: str, nums: styles.Sound) -> styles.Mark | None:
+    """070: the style's row for a mark kind (tick, whoosh, ding); None for a floor class,
+    and for a whoosh where the style carries no allowance."""
+    if kind == styles.TICK:
+        return nums.tick
+    if kind == styles.DING:
+        return nums.ding
+    if kind == styles.WHOOSH:
+        return nums.whoosh if styles.allows_whoosh(nums) else None
+    return None
+
+
+def kind_max_len_s(kind: str, nums: styles.Sound) -> float:
+    """070: the longest file a cue of `kind` may play - its row's `max_len_s`, or for a
+    floor class `sound.floor_max_len_s`. Every kind has a length."""
+    row = mark_row(kind, nums)
+    if row is not None:
+        return row.max_len_s
+    if kind in nums.floor_max_len_s:
+        return nums.floor_max_len_s[kind]
+    raise SoundError(f"the style's sound rows give no length for the cue kind {kind!r} (070)")
+
+
+def mark_cap(row: styles.Mark, *, runtime_s: float) -> int:
+    """A mark row's `max_per_60s` scaled to the runtime, rounded up like gate T6's
+    whoosh cap, so a six-second fixture still allows one."""
+    return math.ceil(row.max_per_60s * runtime_s / 60.0 - 1e-6)
+
+
+@dataclass(frozen=True)
+class MarkCandidate:
+    """One place the director may put a soft mark (070)."""
+
+    beat_id: str
+    at_s: float
+    kind: str
+
+
+def mark_candidates(plan: PicturePlan, nums: styles.Sound) -> list[MarkCandidate]:
+    """070 (7.3 as amended): every visible change a soft mark may sit on, in time order -
+    a whoosh on each non-cut enter `sound.whoosh.on` names, a tick on each pop-in (every
+    text pop, bubble and sticker at its `at_s`, the beat's start when unwritten), and a
+    ding instead of the tick on a sticker tagged `idea`. The director considers each
+    one; the caps decide which it marks."""
+    whoosh = mark_row(styles.WHOOSH, nums)
+    ding = styles.IDEA_STICKER in nums.ding.on
+    tick = styles.POP in nums.tick.on
+    out: list[MarkCandidate] = []
+    for beat in plan.beats:
+        if whoosh is not None and beat.enter != "cut" and beat.enter in whoosh.on:
+            out.append(MarkCandidate(beat.id, beat.start, styles.WHOOSH))
+        popping: list[tuple[float | None, bool]] = [
+            *((p.at_s, False) for p in beat.text_pops),
+            *((b.at_s, False) for b in beat.bubbles),
+            *((s.at_s, s.intent == IDEA) for s in beat.stickers),
+        ]
+        for at_s, idea in popping:
+            kind = styles.DING if idea and ding else styles.TICK if tick else None
+            if kind is not None:
+                at = beat.start if at_s is None else max(beat.start, at_s)
+                out.append(MarkCandidate(beat.id, at, kind))
+    return sorted(out, key=lambda m: (m.at_s, m.beat_id, m.kind))
+
+
 class SfxShelf:
-    """What `place_cues` matches intents against (054 (3)): the library first, and when
-    it has nothing tagged with the intent, the search ladder `sfx_queries`, rung by rung,
-    stopping at the first adoption. Every search is a note; an adopted entry joins the
-    library here so the next intent, the stem and the rights rows all see it; a miss is
-    remembered so an intent is searched once.
+    """What `place_cues` matches a palette kind against (070): the approved library
+    alone (075) - the shortest file tagged with the kind and no longer than its
+    `kind_max_len_s`. No effect is ever searched for at job time. A kind with no such
+    file is one note, remembered, and its cues are dropped."""
 
-    060 (5): `whoosh_max_len_s` is the style's `sound.whoosh.max_len_s` when it allows
-    whooshes, else None. A `whoosh` intent is matched only to a file no longer than it,
-    in the library and in the search; under None it resolves to nothing (the caller has
-    already refused the cue as forbidden)."""
-
-    def __init__(
-        self, library: Library, search: AudioSearch | None, *, whoosh_max_len_s: float | None = None
-    ) -> None:
+    def __init__(self, library: Library, nums: styles.Sound) -> None:
         self.library = library
-        self._search = search
-        self._whoosh_max_len_s = whoosh_max_len_s
+        self._approved = replace(library, entries=library.approved_sfx())
+        self._nums = nums
         self.notes: list[str] = []
         self._resolved: dict[str, AudioEntry | None] = {}
 
-    def resolve(self, intent: str) -> AudioEntry | None:
-        key = intent.strip().lower()
+    def resolve(self, kind: str) -> AudioEntry | None:
+        key = kind.strip().lower()
         if key in self._resolved:
             return self._resolved[key]
-        whoosh = styles.is_whoosh(key)
-        if whoosh and self._whoosh_max_len_s is None:
-            self._resolved[key] = None
-            return None
-        limit = self._whoosh_max_len_s if whoosh else None
-        found = match_sfx(key, self.library, max_duration_s=limit)
-        if found is None and self._search is not None and key:
-            found = self._searched(key, limit)
-        if found is None and whoosh and limit is not None and self._search is None:
+        limit = kind_max_len_s(key, self._nums)
+        found = match_sfx(key, self._approved, max_duration_s=limit)
+        if found is None:
             self.notes.append(
-                f"no sfx for {key!r} no longer than sound.whoosh.max_len_s {limit:g} s in the "
-                f"catalogue and {NO_SEARCH_LINE}"
+                f"no approved sfx for {key!r} no longer than {limit:g} s in the library: "
+                "its cues are dropped"
             )
         self._resolved[key] = found
         return found
-
-    def _searched(self, intent: str, whoosh_max_len_s: float | None) -> AudioEntry | None:
-        assert self._search is not None
-        for words in sfx_queries(intent):
-            outcome = self._search.sfx(
-                words, intent, self.library, whoosh_max_len_s=whoosh_max_len_s
-            )
-            self.notes += [outcome.line(), *outcome.notes]
-            if outcome.adopted is not None:
-                if self.library.entry(outcome.adopted.id) is None:
-                    self.library = Library(
-                        root=self.library.root, entries=(*self.library.entries, outcome.adopted)
-                    )
-                return outcome.adopted
-        bound = (
-            f" no longer than sound.whoosh.max_len_s {whoosh_max_len_s:g} s"
-            if whoosh_max_len_s is not None
-            else ""
-        )
-        self.notes.append(
-            f"no sfx for {intent!r}{bound}: nothing in the catalogue is tagged with it and "
-            f"{SEARCH_EMPTY_LINE}"
-        )
-        return None
 
 
 def cue_cap(nums: styles.Sound, *, runtime_s: float) -> int:
@@ -699,7 +763,7 @@ def match_sfx(
 ) -> AudioEntry | None:
     """The SFX whose `intent` tags carry this intent (7.2), the shortest file first so a
     hit is a hit and not a bed; None when nothing is tagged with it. `max_duration_s`
-    (060: a whoosh's `sound.whoosh.max_len_s`) leaves longer files out."""
+    (070: the kind's `max_len_s`) leaves longer files out."""
     wanted = intent.strip().lower()
     if not wanted:
         return None
@@ -712,6 +776,19 @@ def match_sfx(
     return min(matched, key=lambda e: (e.duration_s, e.id)) if matched else None
 
 
+def _planner_at_s(beat: Beat, cue: Cue, counter_land_s: float | None) -> float:
+    """Where a planner cue fires: an `event` cue where the beat's event lands
+    (`landing_s`) - a ding where its `idea` sticker pops in (070) - else the beat's start
+    or end."""
+    if cue.at != "event":
+        return cue_time(beat.start, beat.end, cue.at)
+    if cue.intent == styles.DING:
+        idea = next((s for s in beat.stickers if s.intent == IDEA), None)
+        if idea is not None and idea.at_s is not None:
+            return max(beat.start, idea.at_s)
+    return landing_s(beat, counter_land_s)
+
+
 def place_cues(
     plan: PicturePlan,
     story: SoundStory,
@@ -720,46 +797,66 @@ def place_cues(
     *,
     runtime_s: float,
     counter_land_s: float | None = None,
-    search: AudioSearch | None = None,
 ) -> PlacedCues:
-    """The short's cues, matched to files, levelled and capped (7.1, 7.3).
+    """The short's cues, matched to approved files, levelled and capped (7.1, 7.3).
 
-    In order: the planner's intents, then a changeover on every drop the envelope steps,
-    then the floor hits the plan's events earn. A beat takes at most
-    `sound.cues_per_beat_max` of them, so the earlier pass owns its slot. An `event` cue
-    and a floor hit sit where the beat's event lands (`landing_s`).
+    In order: the planner's cues, then a changeover on every drop the envelope steps,
+    then the floor hits the plan's events earn, then the soft marks the director derives
+    on pop-ins and transitions (`mark_candidates`, 070). A beat takes at most
+    `sound.cues_per_beat_max` of them, so the earlier pass owns its slot; a tick, whoosh
+    or ding - the planner's or derived - stays within its row's `max_per_60s` and
+    `min_gap_s`. Every candidate left unmarked has its line.
 
-    054 (3): an intent the catalogue has no file for is searched (`SfxShelf`); the floor
-    classes the plan earns are resolved first, drum before bass before thump, so the
-    guaranteed floor is what the search budget goes to first."""
-    if not library.sfx() and search is None:
-        return PlacedCues(
-            library=library,
-            notes=(f"no sfx in the audio catalogue and {NO_SEARCH_LINE}: the short has no cues",),
-        )
+    070: every cue plays a file of its palette kind from the approved library, no longer
+    than the kind's `max_len_s`; nothing is searched for, and a kind with no file drops
+    its cues with a line."""
+    if not library.approved_sfx():
+        return PlacedCues(library=library, notes=(f"{NO_APPROVED_LINE}: the short has no cues",))
     beats = {b.id: b for b in plan.beats}
     floor = {h.beat_id: h for h in floor_hits(plan, nums, counter_land_s=counter_land_s)}
-    allowance = nums.whoosh if styles.allows_whoosh(nums) else None  # 060
-    shelf = SfxShelf(
-        library, search, whoosh_max_len_s=allowance.max_len_s if allowance else None
-    )
+    shelf = SfxShelf(library, nums)
     steps = changeover_times(story, nums, runtime_s=runtime_s)
-    wanted: set[str] = {h.hit for h in floor.values()}
-    if steps:
-        wanted.add(CHANGEOVER)
-    for hit_class in sorted(wanted, key=lambda h: (-CLASS_RANK.get(h, 0), h)):
-        shelf.resolve(hit_class)
     placed: list[PlacedCue] = []
     per_beat: dict[str, int] = {}
+    marked: dict[str, list[float]] = {}
 
     def full(beat_id: str) -> bool:
         return per_beat.get(beat_id, 0) >= nums.cues_per_beat_max
 
-    notes = shelf.notes  # the search lines first, then the placement decisions
+    def take(cue: PlacedCue) -> None:
+        placed.append(cue)
+        per_beat[cue.beat_id] = per_beat.get(cue.beat_id, 0) + 1
+        if cue.hit in MARK_KINDS:
+            marked.setdefault(cue.hit, []).append(cue.at_s)
+
+    def over_row(kind: str, at_s: float) -> str | None:
+        row = mark_row(kind, nums)
+        if row is None:
+            return None
+        times = marked.get(kind, [])
+        cap = mark_cap(row, runtime_s=runtime_s)
+        if len(times) >= cap:
+            return (
+                f"sound.{kind}.max_per_60s {row.max_per_60s} allows {cap} over {runtime_s:g} s"
+            )
+        near = [t for t in times if abs(t - at_s) + 1e-9 < row.min_gap_s]
+        if near:
+            return (
+                f"{abs(at_s - near[0]):.2f} s from the {kind} at {near[0]:.2f} s, under "
+                f"sound.{kind}.min_gap_s {row.min_gap_s:g}"
+            )
+        return None
+
+    notes = shelf.notes  # the library lines first, then the placement decisions
     for cue in story.cues:
         beat = beats.get(cue.beat_id)
         if beat is None:
             notes.append(f"{cue.beat_id}: cue {cue.intent!r} names a beat that is not in the plan")
+            continue
+        if cue.intent not in CUE_KINDS:
+            # 070: the grammar has refused this already; nothing outside the palette is
+            # ever matched.
+            notes.append(f"{cue.beat_id}: cue {cue.intent!r} dropped: outside the sound palette")
             continue
         if full(cue.beat_id):
             notes.append(
@@ -767,44 +864,27 @@ def place_cues(
                 f"{nums.cues_per_beat_max}"
             )
             continue
-        if styles.is_whoosh(cue.intent) and allowance is None:
-            # 060: the grammar has refused this already; the director never resolves or
-            # searches a whoosh the style forbids.
+        if styles.is_whoosh(cue.intent) and not styles.allows_whoosh(nums):
             notes.append(
                 f"{cue.beat_id}: cue {cue.intent!r} dropped: whooshes are in sound.forbidden "
                 "for this style (060)"
             )
             continue
-        hit = floor[cue.beat_id].hit if cue.beat_id in floor else ""
+        at_s = _planner_at_s(beat, cue, counter_land_s)
+        why = over_row(cue.intent, at_s)
+        if why is not None:
+            notes.append(f"{cue.beat_id}: cue {cue.intent!r} dropped: {why}")
+            continue
         entry = shelf.resolve(cue.intent)
         if entry is None:
-            entry = shelf.resolve(hit) if hit else None
-            if entry is None:
-                notes.append(
-                    f"{cue.beat_id}: cue {cue.intent!r} matched no sfx tag and its beat earns "
-                    "no floor hit; dropped"
-                )
-                continue
-            notes.append(
-                f"{cue.beat_id}: cue {cue.intent!r} matched no sfx tag, fell back to the "
-                f"{hit} floor hit ({entry.id})"
-            )
-        placed.append(
+            notes.append(f"{cue.beat_id}: cue {cue.intent!r} dropped: no approved file of its kind")
+            continue
+        take(
             PlacedCue(
-                beat_id=cue.beat_id,
-                at_s=(
-                    landing_s(beat, counter_land_s)
-                    if cue.at == "event"
-                    else cue_time(beat.start, beat.end, cue.at)
-                ),
-                intent=cue.intent,
-                hit=hit,
-                entry_id=entry.id,
-                gain_db=cue_level_db(hit, nums),
-                source="planner",
-            )
+                beat_id=cue.beat_id, at_s=at_s, intent=cue.intent, hit=cue.intent,
+                entry_id=entry.id, gain_db=cue_level_db(cue.intent, nums), source="planner",
+            )  # fmt: skip
         )
-        per_beat[cue.beat_id] = per_beat.get(cue.beat_id, 0) + 1
 
     # 7.3: a drop is a step down at a beat boundary *followed by a changeover cue*, so
     # the director places one on the beat the step lands on unless the planner already
@@ -813,37 +893,59 @@ def place_cues(
         beat = next((b for b in plan.beats if abs(b.start - t) <= BOUNDARY_TOL_S), None)
         if beat is None or full(beat.id):
             continue
-        entry = shelf.resolve(CHANGEOVER)
+        entry = shelf.resolve(CHANGEOVER_KIND)
         if entry is None:
-            notes.append(f"{beat.id}: no sfx tagged {CHANGEOVER!r} for the drop at {t:g} s")
+            notes.append(f"{beat.id}: no approved {CHANGEOVER_KIND!r} file for the drop at {t:g} s")
             continue
-        placed.append(
+        take(
             PlacedCue(
                 beat_id=beat.id, at_s=beat.start, intent=CHANGEOVER, hit=CHANGEOVER,
                 entry_id=entry.id, gain_db=cue_level_db(CHANGEOVER, nums), source="floor",
             )  # fmt: skip
         )
-        per_beat[beat.id] = per_beat.get(beat.id, 0) + 1
 
     for hit in floor.values():
         if full(hit.beat_id):
             continue
         entry = shelf.resolve(hit.hit)
         if entry is None:
-            notes.append(f"{hit.beat_id}: no sfx tagged {hit.hit!r} for the floor hit")
+            notes.append(f"{hit.beat_id}: no approved {hit.hit!r} file for the floor hit")
             continue
-        placed.append(
+        take(
             PlacedCue(
-                beat_id=hit.beat_id,
-                at_s=hit.at_s,
-                intent=hit.trigger,
-                hit=hit.hit,
-                entry_id=entry.id,
-                gain_db=cue_level_db(hit.hit, nums),
-                source="floor",
-            )
+                beat_id=hit.beat_id, at_s=hit.at_s, intent=hit.trigger, hit=hit.hit,
+                entry_id=entry.id, gain_db=cue_level_db(hit.hit, nums), source="floor",
+            )  # fmt: skip
         )
-        per_beat[hit.beat_id] = per_beat.get(hit.beat_id, 0) + 1
+
+    # 070: the soft marks, never on every event - each candidate in time order, as long as
+    # its beat has a slot and its row's caps allow it.
+    for mark in mark_candidates(plan, nums):
+        if any(
+            c.beat_id == mark.beat_id and c.hit == mark.kind and abs(c.at_s - mark.at_s) < 1e-6
+            for c in placed
+        ):
+            continue  # the planner marked it
+        where = f"{mark.beat_id}: {mark.kind} at {mark.at_s:.2f} s not marked"
+        if full(mark.beat_id):
+            notes.append(
+                f"{where}: the beat has its sound.cues_per_beat_max {nums.cues_per_beat_max}"
+            )
+            continue
+        why = over_row(mark.kind, mark.at_s)
+        if why is not None:
+            notes.append(f"{where}: {why}")
+            continue
+        entry = shelf.resolve(mark.kind)
+        if entry is None:
+            notes.append(f"{where}: no approved file of its kind")
+            continue
+        take(
+            PlacedCue(
+                beat_id=mark.beat_id, at_s=mark.at_s, intent=mark.kind, hit=mark.kind,
+                entry_id=entry.id, gain_db=cue_level_db(mark.kind, nums), source="floor",
+            )  # fmt: skip
+        )
 
     cap = cue_cap(nums, runtime_s=runtime_s)
     kept = sorted(placed, key=lambda c: (-CLASS_RANK.get(c.hit, 0), c.at_s, c.beat_id))
@@ -858,9 +960,9 @@ def place_cues(
     for cue in ordered:  # 054 (1): one line per cue placed
         notes.append(
             f"{cue.beat_id}: cue {cue.intent!r} placed at {cue.at_s:.2f} s "
-            f"({cue.entry_id}, {cue.hit or 'no class'}, {cue.source})"
+            f"({cue.entry_id}, {cue.hit}, {cue.source})"
         )
-    return PlacedCues(library=shelf.library, cues=ordered, notes=tuple(notes))
+    return PlacedCues(library=library, cues=ordered, notes=tuple(notes))
 
 
 def cue_time(start: float, end: float, at: str) -> float:
@@ -1154,12 +1256,11 @@ def build_mix(
             if log is not None:
                 log(line)
 
+    # 070: `search` is asked for beds alone; every cue comes from the approved library.
     placed = place_cues(
-        plan, story, library, nums, runtime_s=runtime_s, counter_land_s=counter_land_s,
-        search=search,
-    )  # fmt: skip
+        plan, story, library, nums, runtime_s=runtime_s, counter_land_s=counter_land_s
+    )
     note(placed.notes)
-    library = placed.library
     sfx = _sfx_stem(
         stems, cues=placed.cues, library=library, voice_db=voice_db, runtime_s=runtime_s
     )
@@ -1180,8 +1281,7 @@ def build_mix(
         if candidate is None or candidate.id in tried:
             continue
         tried.add(candidate.id)
-        if library.entry(candidate.id) is None:
-            library = Library(root=library.root, entries=(*library.entries, candidate))
+        library = library.adding(candidate)
         attempt = _repaired_bed(
             stems, bed=candidate, library=library, story=story, nums=nums, voice=voice,
             voice_db=voice_db, runtime_s=runtime_s, cues=len(placed.cues), note=note,

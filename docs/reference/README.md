@@ -97,11 +97,24 @@ only the sound effects need to be updated".
 - Hits: 16 cues total, down from 45. Short bass hit about 5 dB under voice on
   stamps, reveals and headers. Hard drum hit 2 to 3 dB under on the money
   reveal and the finale word. Channel thump 8 to 10 dB under on card fly-ins.
-  Nothing on whip cuts, punch-ins, rings or lower thirds. No ticks, pops,
-  bells, chimes or heartbeats. (Hit placement is research.md open item 3 —
+  No floor hit on whip cuts, punch-ins, rings or lower thirds. No bells,
+  chimes, rings or heartbeats. (Hit placement is research.md open item 3 —
   the brief says reveals only; the PRD decides.)
-- Banned: any rising or falling broadband-noise envelope. Whooshes, swishes,
-  risers, air transitions, rumble crescendos, reverse cymbals.
+- Marks (amended by the operator's run04 decision, 29 Sep 2026, ticket 070;
+  every style): a soft tick only on a visible pop-in and a short whoosh (at
+  most 0.8 s) only on a visible transition or pop-in, quiet under the voice
+  and never on every change; a soft ding only on an `idea` sticker's pop-in.
+  Every effect file comes from the operator's approved library. Checked
+  against `inventory/` before the change: 85 sfx in the 12 shorts (762.5 s) -
+  whoosh 47, hit 21, ding 11, click 5, other 1 - about 6.7 a minute against
+  about 9.3 visual effects a minute; all 85 are `synced_to` a visible event
+  (a callout or badge pop-up, a flash or whip transition, a cutout entrance);
+  no ring, bell or chime anywhere. The references also put dings on badge
+  pop-ups and a counter's completion; the operator kept the ding to the idea
+  sticker.
+- Banned: any rising or falling broadband-noise envelope. Risers, air
+  transitions, rumble crescendos, reverse cymbals, and any whoosh longer than
+  0.8 s or away from a pop-in or transition.
 - Master: −14 LUFS, −1.5 dBTP ceiling, limiter 0.891. Speech band 250 Hz to
   4 kHz at least 20 dB above the bed. Stems for voice, music and SFX written
   alongside the mix so balance can be measured.

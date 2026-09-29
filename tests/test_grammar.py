@@ -1100,7 +1100,7 @@ def test_a_counter_counts_as_a_number_beat(spec: StyleSpec) -> None:
 def test_a_cue_may_sit_on_a_counters_landing(spec: StyleSpec) -> None:
     """9.4: the counter is a landed event, so an `event` cue has something to hit."""
     plan = _counter(make_plan(), "b05")
-    ok = cued(plan, spec, Cue(beat_id="b05", intent="money", at="event"))
+    ok = cued(plan, spec, Cue(beat_id="b05", intent="drum", at="event"))
     assert isinstance(ok, grammar.SoundCheck)
 
 
@@ -1211,13 +1211,15 @@ def test_an_event_cue_may_sit_on_a_text_pop_and_a_whoosh_rides_a_pop_in(
     popped: StyleSpec, spec: StyleSpec
 ) -> None:
     """061 (6): a pop is something to hit, so an `event` cue on a beat with no landed
-    event but a text pop passes 9.4; under a style that allows whooshes with `pop` in
+    event but a text pop passes 9.4 (070: a `tick` marks it; a floor class on a bare beat
+    is still refused by 9.4); under a style that allows whooshes with `pop` in
     `sound.whoosh.on`, a `whoosh` at the pop's landing (`at: event`) passes 7.3, while
     one at the beat's start (no flash there) or on a beat with no pop is refused."""
     bare = replace(make_plan(), "b05", event=Event())
-    assert ("b05", "9.4") in rules(cued(bare, popped, Cue(beat_id="b05", intent="pop", at="event")))
+    hit = Cue(beat_id="b05", intent="bass", at="event")
+    assert ("b05", "9.4") in rules(cued(bare, popped, hit))
     with_pop = _with_pops(bare, "b05", _pop())
-    ok = cued(with_pop, popped, Cue(beat_id="b05", intent="pop", at="event"))
+    ok = cued(with_pop, popped, Cue(beat_id="b05", intent="tick", at="event"))
     assert isinstance(ok, grammar.SoundCheck)
     both = text_pop_style(flash_whoosh_style(spec))
     whoosh = Cue(beat_id="b05", intent="whoosh", at="event")
@@ -1366,9 +1368,10 @@ def test_a_bubble_is_a_change_on_screen_and_something_a_cue_may_hit(
     assert ("b05", "3.1") in rules(picture(bare, bubbled))
     with_bubble = _with_bubbles(bare, "b05", _bubble())
     checked(with_bubble, bubbled, transcript=_words_on_b05(with_bubble, [11.0]))  # 066: at its word
-    pop = Cue(beat_id="b05", intent="pop", at="event")
-    assert ("b05", "9.4") in rules(cued(bare, bubbled, pop))
-    assert isinstance(cued(with_bubble, bubbled, pop), grammar.SoundCheck)
+    hit = Cue(beat_id="b05", intent="bass", at="event")
+    assert ("b05", "9.4") in rules(cued(bare, bubbled, hit))
+    tick = Cue(beat_id="b05", intent="tick", at="event")  # 070: the pop-in's mark
+    assert isinstance(cued(with_bubble, bubbled, tick), grammar.SoundCheck)
     both = bubble_style(flash_whoosh_style(spec))
     whoosh = Cue(beat_id="b05", intent="whoosh", at="event")
     assert isinstance(cued(with_bubble, both, whoosh), grammar.SoundCheck)
@@ -1469,15 +1472,17 @@ def test_a_sticker_lands_on_a_word_its_picture_beat_covers(stuck: StyleSpec) -> 
 def test_a_sticker_is_a_change_on_screen_and_something_a_cue_may_hit(
     stuck: StyleSpec, spec: StyleSpec
 ) -> None:
-    """062 (5): a sticker counts as a change for 3.1 and a ding or pop cue may hit it
-    (`at: event`); a whoosh may ride its pop-in where `pop` is in `sound.whoosh.on`."""
+    """062 (5): a sticker counts as a change for 3.1 and a tick may mark it (`at:
+    event`; 070: a ding only where it is tagged `idea`); a whoosh may ride its pop-in
+    where `pop` is in `sound.whoosh.on`."""
     bare = replace(make_plan(), "b05", event=Event())
     assert ("b05", "3.1") in rules(picture(bare, stuck))
     with_sticker = _with_sticker(bare, "b05", _sticker())
     checked(with_sticker, stuck, transcript=_words_on_b05(with_sticker, [11.0]))  # 066: at its word
-    ding = Cue(beat_id="b05", intent="popup_tick", at="event")
-    assert ("b05", "9.4") in rules(cued(bare, stuck, ding))
-    assert isinstance(cued(with_sticker, stuck, ding), grammar.SoundCheck)
+    hit = Cue(beat_id="b05", intent="bass", at="event")
+    assert ("b05", "9.4") in rules(cued(bare, stuck, hit))
+    tick = Cue(beat_id="b05", intent="tick", at="event")
+    assert isinstance(cued(with_sticker, stuck, tick), grammar.SoundCheck)
     both = sticker_style(flash_whoosh_style(spec))
     whoosh = Cue(beat_id="b05", intent="whoosh", at="event")
     assert isinstance(cued(with_sticker, both, whoosh), grammar.SoundCheck)
@@ -1651,10 +1656,10 @@ def test_cue_on_a_non_existent_beat_is_rejected(spec: StyleSpec) -> None:
 def test_cue_at_a_transition_or_a_missing_event_is_rejected(spec: StyleSpec) -> None:
     plan = make_plan()
     bare = replace(replace(plan, "b05", event=Event()), "b05", enter="whip")
-    assert ("b05", "9.4") in rules(cued(bare, spec, Cue(beat_id="b05", intent="tick", at="event")))
-    assert ("b05", "9.4") in rules(cued(bare, spec, Cue(beat_id="b05", intent="tick", at="start")))
+    assert ("b05", "9.4") in rules(cued(bare, spec, Cue(beat_id="b05", intent="bass", at="event")))
+    assert ("b05", "9.4") in rules(cued(bare, spec, Cue(beat_id="b05", intent="bass", at="start")))
     landed = replace(plan, "b05", enter="whip")  # keeps its stamp
-    ok = cued(landed, spec, Cue(beat_id="b05", intent="tick", at="start"))
+    ok = cued(landed, spec, Cue(beat_id="b05", intent="bass", at="start"))
     assert isinstance(ok, grammar.SoundCheck)
 
 
@@ -1663,25 +1668,28 @@ def test_a_whoosh_is_allowed_only_on_a_flash_under_a_style_that_allows_it(
 ) -> None:
     """060 (3): a `whoosh` cue at the start of a bare `flash` beat passes the 9.4
     bare-transition rule under the test style; the same cue on a plain cut, at the
-    beat's end, or on a whip is rejected naming the beat; under explainer any whoosh is
-    rejected as forbidden (7.3)."""
+    beat's end, or on a whip is rejected naming the beat; under a style that forbids
+    whooshes any whoosh is rejected as forbidden (7.3)."""
     plan = replace(make_plan(), "b05", event=Event())  # b05 bare: no landed event
     flashed = replace(plan, "b05", enter="flash")
     whoosh = Cue(beat_id="b05", intent="whoosh", at="start")
     ok = cued(flashed, flashy, whoosh)
     assert isinstance(ok, grammar.SoundCheck) and ok.sound.cues == [whoosh]
-    # another intent on the bare flash is still a cue on a bare transition (9.4)
-    tick = Cue(beat_id="b05", intent="tick", at="start")
-    assert ("b05", "9.4") in rules(cued(flashed, flashy, tick))
+    # a floor class on the bare flash is still a cue on a bare transition (9.4)
+    hit = Cue(beat_id="b05", intent="bass", at="start")
+    assert ("b05", "9.4") in rules(cued(flashed, flashy, hit))
     # a whoosh anywhere else: plain cut, the beat's end, a whip with a stamp
     assert ("b05", "7.3") in rules(cued(plan, flashy, whoosh))
     at_end = Cue(beat_id="b05", intent="whoosh", at="end")
     assert ("b05", "7.3") in rules(cued(flashed, flashy, at_end))
     whipped = replace(make_plan(), "b05", enter="whip")
     assert ("b05", "7.3") in rules(cued(whipped, flashy, whoosh))
-    # under explainer a whoosh is forbidden outright, however the beat enters
-    explainer_flashed = replace(make_plan(), "b05", event=Event())
-    found = rules(cued(explainer_flashed, spec, Cue(beat_id="b05", intent="Whoosh", at="start")))
+    # under a style that forbids whooshes a whoosh is refused outright, however the beat
+    # enters (070 gives every shipped style the row; the rule stays for a style without)
+    forbidding = flashy.model_copy(deep=True)
+    forbidding.sound.forbidden = [*forbidding.sound.forbidden, "whoosh"]
+    forbidding.sound.whoosh = None
+    found = rules(cued(flashed, forbidding, whoosh))
     assert ("b05", "7.3") in found
 
 
@@ -1727,17 +1735,17 @@ def test_twenty_first_cue_is_dropped_and_one_cue_per_beat(spec: StyleSpec) -> No
     planner cues dropped from the end, each a logged clamp."""
     plan = make_plan(body_lengths=[2.5] * 22)  # 60.5 s -> 20 cues
     ids = [b.id for b in plan.beats if b.event.kind == "stamp"]  # opening + 22 body beats
-    cues = [Cue(beat_id=i, intent="tick", at="event") for i in ids[:21]]
+    cues = [Cue(beat_id=i, intent="bass", at="event") for i in ids[:21]]
     result = sound(story_for(plan, cues=cues), plan, spec)
     assert isinstance(result, grammar.SoundCheck)
     assert len(result.sound.cues) == 20
     assert [c.beat_id for c in result.clamps] == [ids[20]]
     assert result.clamps[0].rule == "7.3"
-    tick = Cue(beat_id=ids[0], intent="tick", at="event")
-    ring = Cue(beat_id=ids[0], intent="ring", at="start")
-    result = cued(plan, spec, tick, ring)
+    bass = Cue(beat_id=ids[0], intent="bass", at="event")
+    drum = Cue(beat_id=ids[0], intent="drum", at="start")
+    result = cued(plan, spec, bass, drum)
     assert isinstance(result, grammar.SoundCheck)
-    assert [c.intent for c in result.sound.cues] == ["tick"]
+    assert [c.intent for c in result.sound.cues] == ["bass"]
     assert result.clamps[0].beat_id == ids[0] and result.clamps[0].rule == "7.3"
 
 
@@ -1752,13 +1760,13 @@ def test_mood_points_outside_the_runtime_are_rejected(spec: StyleSpec) -> None:
 
 def test_validate_combines_picture_and_sound(spec: StyleSpec) -> None:
     plan = make_plan(keywords=list(range(12)))
-    story = story_for(plan, cues=[Cue(beat_id="b05", intent="tick", at="event")])
+    story = story_for(plan, cues=[Cue(beat_id="b05", intent="bass", at="event")])
     result = grammar.validate(plan, story, transcript_for(plan), spec, brief=BRIEF)
     assert isinstance(result, grammar.ValidatedPlan)
     assert result.picture.keywords == [0, 1, 2, 3, 4]
     assert result.sound == story
     assert [c.rule for c in result.clamps] == ["6.1"]
-    ghost = story_for(plan, cues=[Cue(beat_id="b99", intent="x", at="start")])
+    ghost = story_for(plan, cues=[Cue(beat_id="b99", intent="bass", at="start")])
     bad = grammar.validate(
         replace(plan, "b05", motion=None), ghost, transcript_for(plan), spec, brief=BRIEF
     )

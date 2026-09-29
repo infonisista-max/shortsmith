@@ -570,7 +570,7 @@ def test_plan_request_is_built_from_the_job_files(
     # The beat minimum is the fixture rule set's (009); the untouched numbers are explainer's.
     assert numbers["beats"]["min_s"] == fixture.SMOKE_BEATS["min_s"]  # type: ignore[index]
     assert numbers["presenter"]["pip_max_run"] == 6  # type: ignore[index]
-    assert numbers["sound"]["forbidden"] == ["sweep", "riser", "rumble_crescendo", "whoosh"]  # type: ignore[index]
+    assert numbers["sound"]["forbidden"] == ["sweep", "riser", "rumble_crescendo"]  # type: ignore[index]  # 070
     assert req.style_note == "explainer, energetic"
     assert len(req.transcript.words) == 12
     assert [(r.id, r.kind, r.caption, r.width) for r in req.references] == [

@@ -508,7 +508,9 @@ def test_an_adoption_never_changes_the_tracked_catalogue(
     )  # fmt: skip
     assert chosen is not None and chosen.id == bed.id and adapter.searches == searches
     assert lines[0].startswith(f"bed {bed.id} from the library")
-    assert sound.match_sfx("ding", reloaded) == sfx
+    assert reloaded.entry(sfx.id) == sfx
+    # 070: a fetched effect is never one a job plays; only the tracked catalogue is approved
+    assert sfx.id in reloaded.fetched and sfx not in reloaded.approved_sfx()
 
 
 def test_the_fetched_catalogue_is_git_ignored() -> None:
@@ -554,42 +556,6 @@ def test_a_search_failure_is_logged_per_rung_and_leaves_the_mix_without_a_bed(
     assert len(searched) == len(rungs) == len(tape.requests)
     assert all("status 403, 0 hits" in line for line in searched)
     assert "every audio search came back empty" in lines[-1]
-
-
-def test_an_empty_sfx_catalogue_is_filled_from_the_search_through_the_sweep_detector(
-    tmp_path: Path, sounds: Sounds
-) -> None:
-    """054 (3): no SFX in the catalogue and a working search still yields the floor hits
-    and the cues; a hit that trips R1 is rejected and the next candidate is taken."""
-    from shortsmith import fixture, render, styles
-    from shortsmith.contracts import Constraints, PlanRequest, PlanStyle, Transcript
-    from shortsmith.planner import FakePlanner
-
-    request = PlanRequest(
-        brief="", style=PlanStyle(name="explainer", status="shipped", numbers={}, prose=""),
-        style_note="", transcript=Transcript(duration_s=fixture.DURATION_S, segments=[], words=[]),
-        references=[], constraints=Constraints(max_duration_s=60.0, target_duration_s=6.0),
-        asset_policy="any",
-    )  # fmt: skip
-    plan = FakePlanner().plan_picture(request)
-    story = FakePlanner().plan_sound(request, plan)
-    nums = render.loaded_styles()[styles.DEFAULT].sound
-    empty = sound.Library(root=tmp_path / "audio")  # no catalogue file at all
-    # 068: hits whose own tags name every floor class, so the kind check lets them by
-    body = _results(duration=1.0, license=CC0, tags=["hit", "drum", "bass", "thump"])
-    served = {FIRST_PREVIEW: sounds("noise_500ms"), THIRD_PREVIEW: sounds("clicks")}
-    tape = Tape(body, audio_by_url=served)
-    placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0, search=_adapter(tape))
-    assert placed.cues, "the floor hits and the cues were placed from the search"
-    assert {c.entry_id for c in placed.cues} == {"freesound_377001"}, "the R1 hit was never taken"
-    assert any("R1" in n and "Curious Tech Loop" in n for n in placed.notes)
-    floor_ids = {c.beat_id for c in placed.cues if c.source == "floor"}
-    assert floor_ids, "the floor hits are there"
-    assert placed.library.entry("freesound_377001") is not None
-    grown = sound.load_catalogue(placed.library.catalogue)
-    assert [e.id for e in grown.sfx()] == ["freesound_377001"], "adopted once, tagged for reuse"
-    assert grown.sfx()[0].licence == "CC0 1.0"
-    assert len(tape.fetches()) == 2, "one rejected, one adopted; every later intent reused it"
 
 
 # --- config -------------------------------------------------------------------------------

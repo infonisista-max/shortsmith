@@ -1,5 +1,5 @@
 ---
-version: "13"
+version: "14"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -130,7 +130,13 @@ sound:
   cues_per_beat_max: 1
   cue_db_min: -12
   cue_db_max: -4
-  forbidden: [sweep, riser, rumble_crescendo, whoosh]
+  forbidden: [sweep, riser, rumble_crescendo]
+  # 070 (run04 QA, all styles): a soft mark only on a visible pop-in or transition, never
+  # on every one (refs: ~6.7 sfx a minute against ~9.3 visual events, each synced to one)
+  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [fade, pop]}  # "on" quoted: YAML reads a bare on as true
+  tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop]}
+  ding: {max_per_60s: 2, max_len_s: 0.8, "on": [idea_sticker]}  # the FactTechz lightbulb (zXK42RMPKUY 34 s)
+  floor_max_len_s: {bass: 1.5, drum: 1.2, thump: 0.8}  # 075's shortlist lengths
 finale:
   kind: recap_card
   mode: "off"
@@ -165,7 +171,7 @@ Calm, clear teaching. DRAFT (grill decision 1.4): aliases resolve to `explainer`
 - Full short sentences of `words_per_page` words, neutral typography, no active-word pop; the key term is boxed in the accent colour. Same anchor, safe area and two-line limit as explainer (6.3).
 
 ## Sound
-- Soft ambient bed `bed_db_under_voice` dB under the voice; a soft tick on step changes is a planner cue choice under the 7.3 caps (7.1 lifted the old tick ban). Forbidden: `forbidden`, checked on the SFX stem; whooshes stay forbidden here (060).
+- Soft ambient bed `bed_db_under_voice` dB under the voice; a soft tick only on a pop-in, a short whoosh only on a fade (070). Forbidden: `forbidden`, checked on the SFX stem; a soft tick on a pop-in and a short whoosh on a transition, within `sound.tick` and `sound.whoosh` (070).
 
 ## Finale
 - One-line recap card, `min_s`–`max_s` s, no call to action.

@@ -27,8 +27,8 @@ NAMES = ("explainer", "educational", "animated", "hitech")
 RECIPES = ("fastfacts", "footage", "vishva")
 # 059 changed the explainer's aliases (1.1 as amended): its front matter was v11; 064's
 # 12 dB speech-band margin bumped every style once more.
-VERSIONS = {"explainer": "15", "educational": "13", "animated": "13", "hitech": "14"}  # 072
-FORBIDDEN = ["sweep", "riser", "rumble_crescendo", "whoosh"]  # 7.1, operator rider
+VERSIONS = {"explainer": "16", "educational": "14", "animated": "14", "hitech": "15"}  # 070
+FORBIDDEN = ["sweep", "riser", "rumble_crescendo"]  # 7.1, operator rider; 070 lifts whoosh
 
 
 @pytest.fixture(scope="module")
@@ -94,7 +94,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == VERSIONS.get(spec.name, "5"), spec.name
+        assert spec.version == VERSIONS.get(spec.name, "6"), spec.name
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -165,9 +165,8 @@ def test_forbidden_lists_ban_sweeps_and_risers_and_no_longer_chimes_or_ticks(
     specs: dict[str, StyleSpec],
 ) -> None:
     for spec in specs.values():
-        # 059: the recipes allow whooshes, so only they leave `whoosh` off the list
-        wanted = FORBIDDEN if spec.name in NAMES else [f for f in FORBIDDEN if f != "whoosh"]
-        assert spec.sound.forbidden == wanted, spec.name
+        # 070: every style allows a short whoosh on a transition, so none lists it
+        assert spec.sound.forbidden == FORBIDDEN, spec.name
     assert "7.1" in specs["explainer"].sections["Sound"]
 
 
@@ -303,8 +302,15 @@ WHOOSH = {"max_per_60s": 6, "min_gap_s": 3.0, "max_len_s": 0.8, "on": ["flash", 
 
 
 def _allow_whoosh(fm: dict[str, Any]) -> None:
+    """060's test style: `flash` enabled and the whoosh row on it and on pop-ins."""
+    fm["broll"]["enter_transitions"].append("flash")
+    fm["requires_components"].append("flash")
     fm["sound"]["forbidden"] = [f for f in fm["sound"]["forbidden"] if f != "whoosh"]
     fm["sound"]["whoosh"] = dict(WHOOSH)
+
+
+def _forbid_whoosh(fm: dict[str, Any]) -> None:
+    fm["sound"]["forbidden"] = [*fm["sound"]["forbidden"], "whoosh"]
 
 
 def test_every_spec_carries_the_flash_row_and_cap_and_none_enables_it(
@@ -347,12 +353,15 @@ def test_a_shipped_style_may_enable_flash_when_the_registry_exports_it(tmp_path:
     assert "flash" in REGISTRY
 
 
-def test_no_existing_style_allows_whooshes(existing: dict[str, StyleSpec]) -> None:
-    """060 (4): explainer, educational, animated and hitech keep `whoosh` forbidden and
-    carry no `sound.whoosh` row."""
+def test_every_existing_style_now_allows_whooshes(existing: dict[str, StyleSpec]) -> None:
+    """070 (operator, run04 QA: all styles) overrides 060 (4): explainer, educational,
+    animated and hitech leave `whoosh` out of `forbidden` and carry the row, on their own
+    non-cut enters and `pop`."""
     for spec in existing.values():
-        assert "whoosh" in spec.sound.forbidden and spec.sound.whoosh is None, spec.name
-        assert not styles.allows_whoosh(spec.sound), spec.name
+        assert "whoosh" not in spec.sound.forbidden and spec.sound.whoosh is not None, spec.name
+        assert styles.allows_whoosh(spec.sound), spec.name
+        moving = [t for t in spec.broll.enter_transitions if t != "cut"]
+        assert spec.sound.whoosh.on == [*moving, "pop"], spec.name
 
 
 def test_a_style_allows_whooshes_by_the_row_and_the_forbidden_list_together(
@@ -369,16 +378,13 @@ def test_a_style_allows_whooshes_by_the_row_and_the_forbidden_list_together(
     assert allowance.on == ["flash", "pop"]
 
     def only_unforbidden(fm: dict[str, Any]) -> None:
-        fm["sound"]["forbidden"] = [f for f in fm["sound"]["forbidden"] if f != "whoosh"]
+        del fm["sound"]["whoosh"]
 
     with pytest.raises(StyleError, match=r"hitech.*sound\.whoosh"):
         styles.load_all(REGISTRY, _variant_dir(tmp_path / "a", "hitech", only_unforbidden))
 
-    def only_row(fm: dict[str, Any]) -> None:
-        fm["sound"]["whoosh"] = dict(WHOOSH)
-
     with pytest.raises(StyleError, match=r"hitech.*whoosh.*forbidden"):
-        styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", only_row))
+        styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", _forbid_whoosh))
 
     def bad_trigger(fm: dict[str, Any]) -> None:
         _allow_whoosh(fm)

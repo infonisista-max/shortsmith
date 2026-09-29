@@ -160,7 +160,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v15"
+    assert prompt.PROMPT_VERSION == "v16"
 
 
 def test_the_v15_picture_prompt_says_each_change_counts_at_its_own_time() -> None:
@@ -211,12 +211,12 @@ def test_the_v9_prompts_say_when_to_flash_and_where_a_whoosh_may_sit() -> None:
         assert needle in picture, needle
     sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
     for needle in (
-        "no whooshes unless section 1 carries a\n  `sound.whoosh` allowance",
-        "`intent: whoosh`",
-        "`enter` is `flash`",
-        "`sound.whoosh.max_per_60s`",
-        "`sound.whoosh.min_gap_s`",
-        "Code refuses a whoosh anywhere else",
+        # v16 (070): the whoosh rides any non-cut enter its row names, within its caps
+        "`whoosh`: a short whoosh on a transition",
+        "one `sound.whoosh.on` names (never `cut`)",
+        "`min_gap_s` apart (the",
+        "`sound.tick` and `sound.whoosh` rows",
+        "any other name",
     ):
         assert needle in sound, needle
 
@@ -241,7 +241,7 @@ def test_the_v10_prompts_say_when_to_pop_text_and_where_its_cue_sits() -> None:
     for needle in (
         "`text_pops`",
         "`at: event`",
-        "`pop` in `sound.whoosh.on`",
+        "is in `sound.whoosh.on`",  # v16 (070)
     ):
         assert needle in sound, needle
 
@@ -269,8 +269,8 @@ def test_the_v11_prompts_say_when_to_bubble_and_that_the_words_are_the_recording
     sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
     for needle in (
         "`text_pops`, `bubbles` or `stickers`",  # v13 (062) added the sticker
-        "A text pop, a\n  bubble or a sticker may carry a hit",
-        "`pop` in `sound.whoosh.on`",
+        "`tick`: a soft tick on a pop-in",  # v16 (070): the palette's mark for a pop-in
+        "is in `sound.whoosh.on`",
     ):
         assert needle in sound, needle
 
@@ -395,3 +395,22 @@ def test_the_rendering_matches_the_recorded_snapshot(call: str) -> None:
         path.write_text(text, encoding="utf-8", newline="\n")
     assert path.is_file(), f"no recorded rendering at {path}; record it deliberately"
     assert text == path.read_text(encoding="utf-8")
+
+
+def test_the_v16_sound_prompt_names_the_closed_palette_and_the_schema_lists_it() -> None:
+    """070: the sound file lists the six kinds and where each may sit, says no other name
+    is accepted and that code marks further pop-ins and transitions itself; the schema
+    the reply is validated against carries the six as an enum."""
+    sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))
+    for needle in (
+        "one kind of the closed sound palette",
+        "any other name",
+        "`ding`: a soft ding only on the pop-in of a sticker tagged `idea`",
+        "Never a ring, a bell or a chime anywhere.",
+        "`bass`, `drum`, `thump`: hits on a landed event",
+        "marks further\n  pop-ins and transitions itself",
+        '"enum": [\n',
+    ):
+        assert needle in sound, needle
+    for gone in ("`popup_tick`", "`changeover` cue", "the labels are not a fixed list"):
+        assert gone not in sound, gone

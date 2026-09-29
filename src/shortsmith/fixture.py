@@ -81,9 +81,9 @@ SMOKE_BROLL: dict[str, int] = {
 }
 SMOKE_SOUND: dict[str, float] = {
     "ramp_min_s": 0.4,  # the fake's curve rises over 0.5 s
-    # -> 7 in 6 s: the fake plan earns six floor hits (058: b02 is a planned card, so it
-    # flies in) and one planner cue must still fit beside them
-    "cues_max_per_60s": 70,
+    # -> 9 in 6 s: the fake story's seven cues (070: one pop-in tick and one transition
+    # whoosh among them, where the style has a pop-in) and the two floor hits it leaves
+    "cues_max_per_60s": 90,
 }
 SMOKE_CUT: dict[str, float] = {
     "max_pause_s": 0.8,  # 055: the bursts are 0.7 s apart; a real pause rule would cut them
@@ -176,18 +176,18 @@ CATALOGUE_BEDS: tuple[BedRow, ...] = (
     ("bed_tech_tense", ("tech",), ("tense", "dark"), 4, (2.0,), 82),
     ("bed_history_calm", ("history",), ("calm",), 1, (), 65),
 )  # fmt: skip
-# id, intent tags, click Hz. The first three carry the 7.1 floor-hit classes; the last
-# is the `whoosh` a style may allow (060), a click like the rest and under `max_len_s`.
-CATALOGUE_SFX: tuple[tuple[str, tuple[str, ...], int], ...] = (
-    ("sfx_bass_hit", ("bass", "opening_hit", "reveal"), 70),
-    ("sfx_drum_hit", ("drum", "money", "finale_hit"), 95),
-    ("sfx_thump", ("thump", "card_fly_in"), 130),
-    ("sfx_tick", ("popup_tick", "tick"), 1400),
-    ("sfx_changeover", ("changeover",), 620),
-    ("sfx_whoosh", ("whoosh",), 900),
+# id, intent tag, click Hz, length. 070: one file per kind of the closed palette, tagged
+# with exactly its kind as an approved entry is (075), each under its kind's `max_len_s`
+# (the tick's 0.25 s the shortest).
+CATALOGUE_SFX: tuple[tuple[str, tuple[str, ...], int, float], ...] = (
+    ("sfx_bass_hit", ("bass",), 70, 0.4),
+    ("sfx_drum_hit", ("drum",), 95, 0.4),
+    ("sfx_thump", ("thump",), 130, 0.4),
+    ("sfx_tick", ("tick",), 1400, 0.2),
+    ("sfx_whoosh", ("whoosh",), 900, 0.4),
+    ("sfx_ding", ("ding",), 1760, 0.4),
 )
 CATALOGUE_BED_S = 8.0
-CATALOGUE_SFX_S = 0.4
 CATALOGUE_NAME = "catalog.yaml"
 CATALOGUE_LICENCE = "CC0-1.0"
 CATALOGUE_SOURCE = "synthetic"
@@ -293,15 +293,15 @@ def make_catalogue(root: Path) -> Path:
                 theme=theme, mood=mood, intent=(), drops=drops, loop_ok=True,
             )  # fmt: skip
         )
-    for name, intent, hz in CATALOGUE_SFX:
+    for name, intent, hz, length_s in CATALOGUE_SFX:
         make_wav(
             files / f"{name}.wav",
             expr=f"0.8*sin(2*PI*{hz}*t)*exp(-14*t)",
-            duration_s=CATALOGUE_SFX_S,
+            duration_s=length_s,
         )
         entries.append(
             _entry_yaml(
-                name, kind="sfx", duration_s=CATALOGUE_SFX_S, energy=3,
+                name, kind="sfx", duration_s=length_s, energy=3,
                 theme=(), mood=(), intent=intent, drops=(), loop_ok=False,
             )  # fmt: skip
         )

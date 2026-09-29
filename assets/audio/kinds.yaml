@@ -7,8 +7,9 @@
 # vocals and is not a field recording. The loader (`sound.kinds.load_kinds`) refuses a
 # kind with no `needs`, or a word in both lists, at startup.
 #
-# The SFX kinds are 070's palette plus the floor classes the director places today; a
-# planner intent this file does not name needs its own words until 070 closes the palette.
+# The SFX kinds are 070's closed palette (tick, whoosh, bass, drum, thump, ding): the
+# shortlist (075) asks for each and a job plays only approved files of them. `changeover`
+# stays for `seed retag` on older fetched entries; a job's changeover plays the bass.
 sfx_forbids: [ring, ringing, phone, telephone, bell, chime, alarm, beep, buzzer, ringtone, siren]
 kinds:
   bed:

@@ -1,0 +1,1155 @@
+{
+  "prompt_version": "v14",
+  "cut": {
+    "keep": [
+      {
+        "start": 0.0,
+        "end": 34.54
+      },
+      {
+        "start": 34.68,
+        "end": 59.64
+      }
+    ],
+    "drop": []
+  },
+  "beats": [
+    {
+      "id": "b01",
+      "start": 0.0,
+      "end": 1.9,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "सबसे ज़्यादा बीवियां",
+          "word": 6,
+          "x": 50.0,
+          "y": 22.0,
+          "anchor": "center",
+          "fill": "yellow",
+          "at_s": 1.46
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud bin Abdulaziz portrait",
+      "query_fallback": "King Saud Saudi Arabia 1950s",
+      "source_intent": "reuse",
+      "asset_id": "ref1",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b02",
+      "start": 1.9,
+      "end": 3.5,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [
+        {
+          "shape": "speech",
+          "text": "सबसे ज़्यादा बीवियों वाला PM कौन?",
+          "first": 4,
+          "last": 12,
+          "x": 19.0,
+          "y": 50.0,
+          "at_s": 1.9
+        }
+      ],
+      "stickers": [],
+      "motion": "ken_burns_out",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud bin Abdulaziz royal robes throne",
+      "query_fallback": "King Saud of Saudi Arabia",
+      "source_intent": "search",
+      "asset_id": "saud_robes",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b03",
+      "start": 3.5,
+      "end": 4.4,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "ना मोदी",
+          "word": 16,
+          "x": 50.0,
+          "y": 25.0,
+          "anchor": "center",
+          "fill": "white",
+          "at_s": 3.96
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "Narendra Modi portrait",
+      "query_fallback": "Prime Minister Narendra Modi",
+      "source_intent": "search",
+      "asset_id": "modi",
+      "enter": "cut",
+      "event": {
+        "kind": "lower_third",
+        "text": "नरेंद्र मोदी"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b04",
+      "start": 4.4,
+      "end": 5.78,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "ना ट्रंप",
+          "word": 20,
+          "x": 35.0,
+          "y": 25.0,
+          "anchor": "center",
+          "fill": "white",
+          "at_s": 4.78
+        }
+      ],
+      "bubbles": [],
+      "stickers": [
+        {
+          "intent": "no",
+          "name": "Cross mark",
+          "word": 20,
+          "x": 72.0,
+          "y": 30.0,
+          "at_s": 4.78
+        }
+      ],
+      "motion": "ken_burns_out",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "Donald Trump portrait",
+      "query_fallback": "President Donald Trump",
+      "source_intent": "search",
+      "asset_id": "trump",
+      "enter": "zoom",
+      "event": {
+        "kind": "lower_third",
+        "text": "डोनाल्ड ट्रंप"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b05",
+      "start": 5.78,
+      "end": 7.34,
+      "mode": "off",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud bin Abdulaziz portrait",
+      "query_fallback": "King Saud Saudi Arabia",
+      "source_intent": "reuse",
+      "asset_id": "ref1",
+      "enter": "flash",
+      "event": {
+        "kind": "lower_third",
+        "text": "किंग साऊद"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b06",
+      "start": 7.34,
+      "end": 9.48,
+      "mode": "pip",
+      "reason": null,
+      "kind": "map",
+      "overlays": [
+        "pin_drop"
+      ],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": {
+        "region": "Saudi Arabia",
+        "bbox": null,
+        "markers": [
+          {
+            "name": "Riyadh",
+            "lat": null,
+            "lon": null
+          }
+        ],
+        "route": [],
+        "object": null
+      },
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "travel",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "map of Saudi Arabia with Riyadh",
+      "query_fallback": "Saudi Arabia map",
+      "source_intent": null,
+      "asset_id": null,
+      "enter": "cut",
+      "event": {
+        "kind": "stamp",
+        "text": "1953"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b07",
+      "start": 9.48,
+      "end": 11.44,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "प्राइम मिनिस्टर + किंग",
+          "word": 36,
+          "x": 50.0,
+          "y": 22.0,
+          "anchor": "center",
+          "fill": "yellow",
+          "at_s": 10.24
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_out",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud coronation 1953",
+      "query_fallback": "King Saud 1950s ceremony",
+      "source_intent": "search",
+      "asset_id": "saud_coronation",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b08",
+      "start": 11.44,
+      "end": 14.58,
+      "mode": "pip",
+      "reason": null,
+      "kind": "map",
+      "overlays": [
+        "pin_drop"
+      ],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": {
+        "region": "Kuwait",
+        "bbox": null,
+        "markers": [
+          {
+            "name": "Kuwait City",
+            "lat": null,
+            "lon": null
+          }
+        ],
+        "route": [],
+        "object": null
+      },
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "travel",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "map of Kuwait, birthplace of King Saud",
+      "query_fallback": "Kuwait map",
+      "source_intent": null,
+      "asset_id": null,
+      "enter": "spring",
+      "event": {
+        "kind": "stamp",
+        "text": "1902"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b09",
+      "start": 14.58,
+      "end": 17.38,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud with Saudi council of ministers 1950s",
+      "query_fallback": "King Saud 1950s meeting",
+      "source_intent": "search",
+      "asset_id": "saud_council",
+      "enter": "cut",
+      "event": {
+        "kind": "lower_third",
+        "text": "सऊदी के प्राइम मिनिस्टर"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b10",
+      "start": 17.38,
+      "end": 19.62,
+      "mode": "full",
+      "reason": "emotional_line",
+      "kind": "presenter_full",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [
+        {
+          "intent": "shock",
+          "name": "Exploding head",
+          "word": 59,
+          "x": 50.0,
+          "y": 22.0,
+          "at_s": 18.2
+        }
+      ],
+      "motion": null,
+      "subject_kind": null,
+      "depicts": null,
+      "query": "",
+      "query_fallback": "",
+      "source_intent": null,
+      "asset_id": null,
+      "enter": "flash",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b11",
+      "start": 19.62,
+      "end": 21.12,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_out",
+      "subject_kind": "concept",
+      "depicts": "scene",
+      "query": "Arab royal wedding 1950s veiled women palace",
+      "query_fallback": "Middle East palace harem vintage",
+      "source_intent": "search",
+      "asset_id": "royal_women",
+      "enter": "cut",
+      "event": {
+        "kind": "stamp",
+        "text": "41 बीवियां"
+      },
+      "money_reveal": true
+    },
+    {
+      "id": "b12",
+      "start": 21.12,
+      "end": 23.56,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [
+        "counter"
+      ],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": {
+        "start": 0.0,
+        "target": 115.0,
+        "unit": "बच्चे",
+        "decimals": 0
+      },
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "count_up",
+      "subject_kind": "number",
+      "depicts": "scene",
+      "query": "Arab royal family children 1950s",
+      "query_fallback": "Saudi royal family vintage",
+      "source_intent": "reuse",
+      "asset_id": "royal_women",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b13",
+      "start": 23.56,
+      "end": 26.0,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "young Prince Saud bin Abdulaziz 1920s",
+      "query_fallback": "Prince Saud Saudi Arabia 1930s",
+      "source_intent": "search",
+      "asset_id": "saud_young",
+      "enter": "cut",
+      "event": {
+        "kind": "stamp",
+        "text": "पहली शादी"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b14",
+      "start": 26.0,
+      "end": 28.92,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "19-20 साल",
+          "word": 80,
+          "x": 50.0,
+          "y": 24.0,
+          "anchor": "center",
+          "fill": "accent",
+          "at_s": 26.42
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_out",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "young Prince Saud bin Abdulaziz 1920s",
+      "query_fallback": "Prince Saud Saudi Arabia 1930s",
+      "source_intent": "reuse",
+      "asset_id": "saud_young",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b15",
+      "start": 28.92,
+      "end": 31.6,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "67 years",
+          "word": 90,
+          "x": 50.0,
+          "y": 24.0,
+          "anchor": "center",
+          "fill": "accent",
+          "at_s": 29.28
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud in exile Athens 1960s",
+      "query_fallback": "King Saud later years",
+      "source_intent": "search",
+      "asset_id": "saud_old",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b16",
+      "start": 31.6,
+      "end": 34.84,
+      "mode": "pip",
+      "reason": null,
+      "kind": "split",
+      "overlays": [],
+      "set_piece_title": "पहली शादी 19 — last शादी 65",
+      "items": [
+        {
+          "text": "पहली शादी",
+          "asset_id": "saud_young"
+        },
+        {
+          "text": "last शादी",
+          "asset_id": "saud_old"
+        }
+      ],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "reveal",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud young and old",
+      "query_fallback": "King Saud",
+      "source_intent": "reuse",
+      "asset_id": "saud_coronation",
+      "enter": "fade",
+      "event": {
+        "kind": "stamp",
+        "text": "65 साल"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b17",
+      "start": 34.84,
+      "end": 36.32,
+      "mode": "off",
+      "reason": null,
+      "kind": "clip",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "push_in",
+      "subject_kind": "concept",
+      "depicts": "scene",
+      "query": "pile of gold coins treasure",
+      "query_fallback": "gold wealth money",
+      "source_intent": "search",
+      "asset_id": "gold_clip",
+      "enter": "zoom",
+      "event": {
+        "kind": "stamp",
+        "text": "बहुत पैसा"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b18",
+      "start": 36.32,
+      "end": 39.18,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "concept",
+      "depicts": "scene",
+      "query": "Arab princes arriving at European airport 1950s",
+      "query_fallback": "vintage airport travellers 1950s",
+      "source_intent": "search",
+      "asset_id": "saudi_abroad",
+      "enter": "cut",
+      "event": {
+        "kind": "stamp",
+        "text": "विदेशों में"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b19",
+      "start": 39.18,
+      "end": 42.02,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "बेटियां और बेटे",
+          "word": 129,
+          "x": 50.0,
+          "y": 22.0,
+          "anchor": "center",
+          "fill": "yellow",
+          "at_s": 41.66
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_out",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud with his daughter",
+      "query_fallback": "King Saud family",
+      "source_intent": "reuse",
+      "asset_id": "ref3",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b20",
+      "start": 42.02,
+      "end": 46.32,
+      "mode": "pip",
+      "reason": null,
+      "kind": "map",
+      "overlays": [
+        "pin_drop"
+      ],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": {
+        "region": "",
+        "bbox": [
+          -125.0,
+          10.0,
+          60.0,
+          65.0
+        ],
+        "markers": [
+          {
+            "name": "Riyadh",
+            "lat": null,
+            "lon": null
+          },
+          {
+            "name": "Poland",
+            "lat": null,
+            "lon": null
+          },
+          {
+            "name": "Greece",
+            "lat": null,
+            "lon": null
+          },
+          {
+            "name": "United States",
+            "lat": null,
+            "lon": null
+          }
+        ],
+        "route": [],
+        "object": null
+      },
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "travel",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "map: Poland, Greece, America where King Saud's children lived",
+      "query_fallback": "world map",
+      "source_intent": null,
+      "asset_id": null,
+      "enter": "whip",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b21",
+      "start": 46.32,
+      "end": 48.78,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "Athens Greece 1960s Acropolis",
+      "query_fallback": "Athens Greece vintage",
+      "source_intent": "search",
+      "asset_id": "athens",
+      "enter": "cut",
+      "event": {
+        "kind": "lower_third",
+        "text": "ग्रीस"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b22",
+      "start": 48.78,
+      "end": 50.14,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "ग्रीस में मौत",
+          "word": 153,
+          "x": 50.0,
+          "y": 22.0,
+          "anchor": "center",
+          "fill": "yellow",
+          "at_s": 49.6
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_out",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "Athens Greece 1960s Acropolis",
+      "query_fallback": "Athens Greece vintage",
+      "source_intent": "reuse",
+      "asset_id": "athens",
+      "enter": "cut",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b23",
+      "start": 50.14,
+      "end": 52.66,
+      "mode": "off",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_out",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud with his half-brother Faisal",
+      "query_fallback": "King Saud and Faisal",
+      "source_intent": "reuse",
+      "asset_id": "ref2",
+      "enter": "flash",
+      "event": {
+        "kind": "lower_third",
+        "text": "सौतेला भाई"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b24",
+      "start": 52.66,
+      "end": 55.28,
+      "mode": "pip",
+      "reason": null,
+      "kind": "photo",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [
+        {
+          "text": "crown abduct",
+          "word": 164,
+          "x": 50.0,
+          "y": 22.0,
+          "anchor": "center",
+          "fill": "yellow",
+          "at_s": 54.32
+        }
+      ],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "ken_burns_in",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Faisal bin Abdulaziz portrait",
+      "query_fallback": "King Faisal Saudi Arabia",
+      "source_intent": "search",
+      "asset_id": "faisal",
+      "enter": "zoom",
+      "event": {
+        "kind": "lower_third",
+        "text": "किंग फ़ैसल"
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b25",
+      "start": 55.28,
+      "end": 58.54,
+      "mode": "pip",
+      "reason": null,
+      "kind": "split",
+      "overlays": [],
+      "set_piece_title": "बीवी और बच्चों में busy",
+      "items": [
+        {
+          "text": "बीवी",
+          "asset_id": "royal_women"
+        },
+        {
+          "text": "बच्चों",
+          "asset_id": "ref3"
+        }
+      ],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": "reveal",
+      "subject_kind": "entity",
+      "depicts": "named_entity",
+      "query": "King Saud wives and children",
+      "query_fallback": "King Saud family",
+      "source_intent": "reuse",
+      "asset_id": "saud_old",
+      "enter": "spring",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    },
+    {
+      "id": "b26",
+      "start": 58.54,
+      "end": 59.5,
+      "mode": "off",
+      "reason": null,
+      "kind": "finale",
+      "overlays": [],
+      "set_piece_title": "",
+      "items": [],
+      "chart_form": null,
+      "series": [],
+      "value_unit": "",
+      "labels": [],
+      "map": null,
+      "counter": null,
+      "text_pops": [],
+      "bubbles": [],
+      "stickers": [],
+      "motion": null,
+      "subject_kind": null,
+      "depicts": null,
+      "query": "",
+      "query_fallback": "",
+      "source_intent": null,
+      "asset_id": null,
+      "enter": "fade",
+      "event": {
+        "kind": "none",
+        "text": null
+      },
+      "money_reveal": false
+    }
+  ],
+  "finale": {
+    "beat_id": "b26",
+    "text": "बीवियों में busy, और हाथ से गया ताज"
+  },
+  "keywords": [
+    26,
+    66,
+    70,
+    27,
+    46,
+    16,
+    20,
+    158,
+    164,
+    162,
+    144,
+    48,
+    80,
+    90,
+    101,
+    59,
+    109,
+    179,
+    11
+  ],
+  "name_runs": [
+    {
+      "first": 25,
+      "last": 26
+    },
+    {
+      "first": 9,
+      "last": 10
+    },
+    {
+      "first": 30,
+      "last": 31
+    },
+    {
+      "first": 33,
+      "last": 34
+    },
+    {
+      "first": 55,
+      "last": 56
+    },
+    {
+      "first": 80,
+      "last": 81
+    },
+    {
+      "first": 90,
+      "last": 91
+    },
+    {
+      "first": 101,
+      "last": 102
+    },
+    {
+      "first": 158,
+      "last": 159
+    }
+  ],
+  "title": "41 बीवियां, 115 बच्चे: किंग साऊद की कहानी जिनका ताज भाई ने छीना",
+  "description": "सऊदी अरब के किंग साऊद बिन अब्दुलअज़ीज़: 1953 में किंग और प्राइम मिनिस्टर दोनों, लगभग 41 बीवियां और 115 बच्चे। फिर सौतेले भाई ने ताज छीन लिया और उनकी मौत ग्रीस में हुई।",
+  "hashtags": [
+    "#KingSaud",
+    "#SaudiArabia",
+    "#History",
+    "#Shorts",
+    "#VishvaGyan"
+  ],
+  "category": "history",
+  "title_strip": ""
+}

@@ -59,6 +59,7 @@ from shortsmith import assets, presenter, stickers, styles
 from shortsmith.assets.generate import depicts_of
 from shortsmith.contracts import (
     CATEGORIES,
+    CUE_KINDS,
     TIER2_KINDS,
     Beat,
     Bubble,
@@ -1477,6 +1478,30 @@ def _clamp_fields(
 # --- the sound story --------------------------------------------------------------------
 
 
+IDEA = "idea"  # 062's sticker tag a ding may ride (070)
+
+
+def _mark_problem(cue: Cue, beat: Beat, nums: styles.Sound, *, on_pop: bool) -> str | None:
+    """070 (7.3 as amended): why a tick or a ding cue is not where its row allows, else
+    None (a whoosh keeps 060's own lines; the floor classes 9.4's)."""
+    if cue.intent == styles.TICK:
+        if styles.POP in nums.tick.on and on_pop:
+            return None
+        return (
+            f"cue {cue.intent!r} at {cue.at!r}: a tick sits only on a pop-in - at the event "
+            "of a beat carrying text pops, bubbles or a sticker (070)"
+        )
+    if cue.intent == styles.DING:
+        idea = any(s.intent == IDEA for s in beat.stickers)
+        if styles.IDEA_STICKER in nums.ding.on and cue.at == "event" and idea:
+            return None
+        return (
+            f"cue {cue.intent!r} at {cue.at!r}: a ding sits only on the pop-in of a sticker "
+            f"tagged {IDEA!r} - at the event of its beat (070); rings, bells and chimes never"
+        )
+    return None
+
+
 def validate_sound(
     story: SoundStory, picture: PicturePlan, spec: StyleSpec
 ) -> SoundCheck | Violations:
@@ -1497,23 +1522,38 @@ def validate_sound(
                 _v("8.2", cue.beat_id, f"cue {cue.intent!r} names a beat that is not in the plan")
             )
             continue
+        if cue.intent not in CUE_KINDS:
+            # 070 (7.1 as amended): the palette is closed; a name outside it is never
+            # searched for or matched, so the plan is sent back naming it.
+            found.append(
+                _v(
+                    "7.1",
+                    beat.id,
+                    f"cue {cue.intent!r} is outside the sound palette ({', '.join(CUE_KINDS)})",
+                )
+            )
+            continue
         # 029: a counter lands; 061 / 063 / 062: a text pop, a bubble or a sticker pops
         # in, so an `event` cue has something to hit there too.
         popping = pops_in(beat)
         bare = beat.event.kind == "none" and beat.counter is None and not popping
-        # 060 (7.3 as amended): a whoosh rides only a flash enter or a pop-in (061 / 063 /
-        # 062: a `whoosh` at the `event` of a beat carrying text pops, bubbles or a
-        # sticker rides the first one), and only where the style's allowance names that
-        # trigger.
+        # 060 / 070 (7.3 as amended): a whoosh rides a non-cut enter its row names or a
+        # pop-in (a `whoosh` at the `event` of a beat carrying text pops, bubbles or a
+        # sticker rides the first one); a tick only a pop-in; a ding only an `idea`
+        # sticker's pop-in.
         whoosh = styles.is_whoosh(cue.intent)
-        on_flash = cue.at == "start" and beat.enter == "flash"
+        on_enter = cue.at == "start" and beat.enter != "cut"
         on_pop = cue.at == "event" and popping
         whoosh_ok = (
             whoosh
             and allowance is not None
-            and (("flash" in allowance.on and on_flash) or ("pop" in allowance.on and on_pop))
-        )
-        if whoosh and allowance is None:
+            and ((on_enter and beat.enter in allowance.on)
+                 or (styles.POP in allowance.on and on_pop))
+        )  # fmt: skip
+        mark = _mark_problem(cue, beat, nums, on_pop=on_pop)
+        if mark is not None:
+            found.append(_v("7.3", beat.id, mark))
+        elif whoosh and allowance is None:
             found.append(
                 _v(
                     "7.3",
@@ -1528,9 +1568,9 @@ def validate_sound(
                     "7.3",
                     beat.id,
                     f"cue {cue.intent!r} at {cue.at!r} on a {beat.enter!r} enter: a whoosh is "
-                    f"allowed only on {allowance.on} - at the start of a `flash` beat, or at "
-                    "the event of a beat carrying text pops, bubbles or a sticker (060, 061, "
-                    "063, 062)"
+                    f"allowed only on {allowance.on} - at the start of a beat entering on one "
+                    "of those, or at the event of a beat carrying text pops, bubbles or a "
+                    "sticker (060, 070)"
                     if allowance is not None
                     else f"cue {cue.intent!r}: whooshes are forbidden (060)",
                 )

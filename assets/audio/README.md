@@ -38,9 +38,15 @@ approved API file a fresh clone lacks (drop-folder files are yours to keep).
 
 ## Grown at runtime: `fetched/` (ticket 024)
 
-When no catalogue bed clears the style's `sound.bed_score_threshold`, or no SFX is tagged
-with an intent or a floor class the short needs (ticket 054), the sound director asks the
-Freesound adapter (`sound.freesound`, enabled by `FREESOUND_API_KEY` in `.env`; the key
+Effects are never searched for at job time (ticket 070): every cue is one kind of the
+closed palette - tick, whoosh, bass, drum, thump, ding - and plays the shortest file the
+operator approved into the tracked `catalog.yaml` tagged with that kind and no longer
+than the style's length for it; a `fetched/` effect is never played, and a kind with no
+approved file drops its cues with a `job.log` line. The cue a mood drop is followed by
+plays the approved bass. The rest of this section is the bed's runtime path.
+
+When no catalogue bed clears the style's `sound.bed_score_threshold` (ticket 054), the
+sound director asks the Freesound adapter (`sound.freesound`, enabled by `FREESOUND_API_KEY` in `.env`; the key
 is free and the search is not metered). It asks with a few plain words, specific to
 broad, never the planner's sentence: keywords from the bed query's theme and mood, fewer
 of them, the mood alone, one mood word, then the style's `sound.default_bed_query`; an

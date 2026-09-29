@@ -11,8 +11,9 @@ The Freesound adapter and the fake search ask `refusal` before a hit is adopted,
 Words are single lower-case tokens. A sound's name and tags are split into tokens the
 same way (`buick regal gs_magnaflow.mp3` is buick, regal, gs, magnaflow, mp3), and a
 token matches a word as written or with a plural `s` / `es`. An SFX intent the file does
-not name (a planner's own `date_stamp`) needs its own words and carries the SFX
-forbidden list, until 070 closes the palette. The file is loaded at startup; a kind with
+not name needs its own words and carries the SFX forbidden list (070 closed the job's
+palette to the file's kinds; older fetched entries may still carry other intents). The
+file is loaded at startup; a kind with
 no `needs`, a word in both lists, or no `bed` is a `KindError` naming it.
 
 This module imports nothing from the rest of `shortsmith.sound`, so the package's

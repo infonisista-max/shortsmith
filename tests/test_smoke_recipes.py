@@ -15,7 +15,8 @@ from shortsmith import smoke
 @pytest.mark.parametrize(
     ("style", "shows"),
     [
-        ("footage", ["recipe flash b03, whoosh b03", "clip b04"]),
+        # 070: b03's pop-in carries the tick; the whoosh moves to the next transition
+        ("footage", ["recipe flash b03, tick b03", "clip b04"]),
         ("vishva", ["text pops 1, bubbles 2, stickers 1", "stacked split"]),
         ("fastfacts", ["title strip 'Twelve words of nothing'"]),
     ],

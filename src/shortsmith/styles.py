@@ -197,21 +197,30 @@ class Captions(CaptionStyle):
     gap_break_s: float
 
 
-WhooshTrigger = Literal["flash", "pop"]
 WHOOSH = "whoosh"
+TICK = "tick"
+DING = "ding"
+FLOOR_CLASSES: tuple[str, ...] = ("bass", "drum", "thump")
+# 070: the triggers a mark row may name besides the style's own non-cut enters.
+POP = "pop"  # the enter of a 061 text pop, a 062 sticker or a 063 bubble
+IDEA_STICKER = "idea_sticker"  # the pop-in of a 062 sticker tagged `idea`
 
 
-class Whoosh(StrictModel):
-    """060 (7.3 as amended): a style's whoosh allowance. A whoosh cue is allowed only
-    on one of the `on` triggers (a `flash` enter, or a pop-in: the enters of 061-063),
-    at most `max_per_60s` of them, `min_gap_s` apart, each file no longer than
-    `max_len_s`. The row exists only in a style that has taken `whoosh` out of
-    `sound.forbidden`; sweeps, risers and rumble crescendos stay banned everywhere."""
+class Mark(StrictModel):
+    """060 / 070 (7.3 as amended): where a soft mark may sit. A cue of the row's kind is
+    allowed only on one of the `on` triggers, at most `max_per_60s` of them (scaled to
+    the runtime, rounded up), `min_gap_s` apart, each file no longer than `max_len_s`.
+    `sound.whoosh.on` names the style's non-cut enters and `pop`, `sound.tick.on` names
+    `pop`, `sound.ding.on` names `idea_sticker`; the loader refuses any other trigger.
+    Sweeps, risers and rumble crescendos stay banned everywhere."""
 
     max_per_60s: int = Field(ge=0)
-    min_gap_s: float = Field(ge=0.0)
+    min_gap_s: float = Field(default=0.0, ge=0.0)
     max_len_s: float = Field(gt=0.0)
-    on: list[WhooshTrigger] = Field(min_length=1)
+    on: list[str] = Field(min_length=1)
+
+
+Whoosh = Mark  # 060's name for the whoosh row
 
 
 class Sound(StrictModel):
@@ -243,7 +252,12 @@ class Sound(StrictModel):
     cue_db_max: float
     forbidden: list[str]
     # 060: present only where `whoosh` is out of `forbidden` (`check` asserts both).
-    whoosh: Whoosh | None = None
+    whoosh: Mark | None = None
+    # 070: the closed palette's other marks, and the longest file each floor class may
+    # play (every kind has a length; the tick, whoosh and ding rows carry their own).
+    tick: Mark
+    ding: Mark
+    floor_max_len_s: dict[str, float]
 
 
 def allows_whoosh(nums: Sound) -> bool:
@@ -408,12 +422,48 @@ def check(spec: StyleSpec, registry: Sequence[str]) -> None:
             f"{spec.name}: {WHOOSH!r} is out of sound.forbidden but there is no sound.whoosh "
             "row (max_per_60s, min_gap_s, max_len_s, on) to bound it (060)"
         )
+    _check_marks(spec)
     if spec.status == "shipped":
         missing = [c for c in spec.requires_components if c not in registry]
         if missing:
             raise StyleError(
                 f"{spec.name}: shipped but requires_components {missing} are not in the "
                 f"renderer registry {list(registry)} (9.2)"
+            )
+
+
+def mark_triggers(spec: StyleSpec) -> dict[str, tuple[str, ...]]:
+    """070: the triggers each mark row may name - a whoosh any non-cut enter the style
+    allows or a pop-in, a tick a pop-in, a ding an `idea` sticker's pop-in."""
+    moving = tuple(t for t in spec.broll.enter_transitions if t != "cut")
+    return {WHOOSH: (*moving, POP), TICK: (POP,), DING: (IDEA_STICKER,)}
+
+
+def _check_marks(spec: StyleSpec) -> None:
+    """070: every mark row names only triggers it may sit on, and every floor class the
+    style earns has a length."""
+    nums = spec.sound
+    rows = {WHOOSH: nums.whoosh, TICK: nums.tick, DING: nums.ding}
+    for kind, allowed in mark_triggers(spec).items():
+        row = rows[kind]
+        if row is None:
+            continue
+        unknown = [t for t in row.on if t not in allowed]
+        if unknown:
+            raise StyleError(
+                f"{spec.name}: sound.{kind}.on names {unknown}, not a trigger a {kind} may "
+                f"sit on here ({list(allowed)}; 070)"
+            )
+    for hit in nums.floor_hits:
+        if hit not in FLOOR_CLASSES:
+            raise StyleError(
+                f"{spec.name}: sound.floor_hits class {hit!r} is not one of the palette's "
+                f"floor classes {list(FLOOR_CLASSES)} (070)"
+            )
+        if hit not in nums.floor_max_len_s:
+            raise StyleError(
+                f"{spec.name}: sound.floor_max_len_s has no length for the floor class "
+                f"{hit!r} (070: every kind has a length)"
             )
 
 

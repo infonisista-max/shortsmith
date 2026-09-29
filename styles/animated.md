@@ -1,5 +1,5 @@
 ---
-version: "13"
+version: "14"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -131,7 +131,13 @@ sound:
   cues_per_beat_max: 1
   cue_db_min: -10
   cue_db_max: -2
-  forbidden: [sweep, riser, rumble_crescendo, whoosh]
+  forbidden: [sweep, riser, rumble_crescendo]
+  # 070 (run04 QA, all styles): a soft mark only on a visible pop-in or transition, never
+  # on every one (refs: ~6.7 sfx a minute against ~9.3 visual events, each synced to one)
+  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [fade, whip, zoom, spring, wipe, pop]}  # "on" quoted: YAML reads a bare on as true
+  tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop]}
+  ding: {max_per_60s: 2, max_len_s: 0.8, "on": [idea_sticker]}  # the FactTechz lightbulb (zXK42RMPKUY 34 s)
+  floor_max_len_s: {bass: 1.5, drum: 1.2, thump: 0.8}  # 075's shortlist lengths
 finale:
   kind: end_card
   mode: "off"
@@ -164,7 +170,7 @@ Motion-graphics heavy; illustrated B-roll dominates. DRAFT (grill decision 1.4):
 - Kinetic captions that pop per phrase: `words_per_page` words, heavier weight, the active word scales harder, two-colour emphasis with the accent. Same anchor, safe area and line limit as explainer (6.3).
 
 ## Sound
-- Upbeat bed `bed_db_under_voice` dB under the voice; pops and thumps on pop-ins are floor hits. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3); whooshes stay forbidden here (060).
+- Upbeat bed `bed_db_under_voice` dB under the voice; pops and thumps on pop-ins are floor hits. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3); a soft tick on a pop-in and a short whoosh on a transition, within `sound.tick` and `sound.whoosh` (070).
 
 ## Finale
 - Animated end card with a call to action, `min_s`–`max_s` s.

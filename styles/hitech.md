@@ -1,5 +1,5 @@
 ---
-version: "14"
+version: "15"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -147,7 +147,13 @@ sound:
   cues_per_beat_max: 1
   cue_db_min: -10
   cue_db_max: -2
-  forbidden: [sweep, riser, rumble_crescendo, whoosh]
+  forbidden: [sweep, riser, rumble_crescendo]
+  # 070 (run04 QA, all styles): a soft mark only on a visible pop-in or transition, never
+  # on every one (refs: ~6.7 sfx a minute against ~9.3 visual events, each synced to one)
+  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [fade, wipe, zoom, pop]}  # "on" quoted: YAML reads a bare on as true
+  tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop]}
+  ding: {max_per_60s: 2, max_len_s: 0.8, "on": [idea_sticker]}  # the FactTechz lightbulb (zXK42RMPKUY 34 s)
+  floor_max_len_s: {bass: 1.5, drum: 1.2, thump: 0.8}  # 075's shortlist lengths
 finale:
   kind: spec_summary_card
   mode: "off"
@@ -179,7 +185,7 @@ Dark, glowing, product and tech facts. DRAFT (grill decision 1.4): aliases resol
 - Wider letter spacing for a monospace flavour, cyan/white emphasis, the same lower-third anchor and safe area as explainer (6.3); the plan may move a page to the upper third only once ticket 010 adds per-page zones.
 
 ## Sound
-- Sub-bass electronic bed `bed_db_under_voice` dB under the voice; a single low thump on reveals is the floor. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3); whooshes stay forbidden here (060).
+- Sub-bass electronic bed `bed_db_under_voice` dB under the voice; a single low thump on reveals is the floor. Forbidden: `forbidden`, checked on the SFX stem (7.1, 7.3); a soft tick on a pop-in and a short whoosh on a transition, within `sound.tick` and `sound.whoosh` (070).
 
 ## Finale
 - Spec summary card with a call to action, `min_s`–`max_s` s.

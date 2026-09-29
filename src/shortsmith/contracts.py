@@ -524,9 +524,20 @@ class BedQuery(StrictModel):
     energy: int = Field(ge=1, le=5)
 
 
+# 070 (7.1 as amended at run04 QA): the closed cue palette. A tick marks a pop-in, a
+# whoosh a transition, a ding an `idea` sticker; bass, drum and thump are the floor
+# classes. The schema the planner reads lists them; the grammar refuses any other name
+# (7.1) so the usual one retry applies, and the style says where each may sit.
+CUE_KINDS: tuple[str, ...] = ("tick", "whoosh", "bass", "drum", "thump", "ding")
+
+
 class Cue(StrictModel):
     beat_id: str
-    intent: str
+    intent: str = Field(
+        json_schema_extra={"enum": list(CUE_KINDS)},
+        description="one kind of the sound palette; section 1's sound rows say where each "
+        "may sit",
+    )
     at: Literal["start", "event", "end"]
 
 

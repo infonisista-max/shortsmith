@@ -1,0 +1,127 @@
+{
+  "prompt_version": "v14",
+  "theme": "regal Arabian royal saga with an intriguing oud-coloured pulse that falls away at the betrayal",
+  "mood_curve": [
+    {
+      "t": 0.0,
+      "level": 0.0
+    },
+    {
+      "t": 17.38,
+      "level": 0.0
+    },
+    {
+      "t": 19.62,
+      "level": 3.0
+    },
+    {
+      "t": 34.84,
+      "level": 3.0
+    },
+    {
+      "t": 36.5,
+      "level": 1.0
+    },
+    {
+      "t": 48.64,
+      "level": 1.0
+    },
+    {
+      "t": 50.14,
+      "level": -8.0
+    },
+    {
+      "t": 52.66,
+      "level": -8.0
+    },
+    {
+      "t": 55.28,
+      "level": 0.0
+    },
+    {
+      "t": 58.54,
+      "level": 2.0
+    },
+    {
+      "t": 59.5,
+      "level": 2.0
+    }
+  ],
+  "bed_query": {
+    "theme": "history documentary",
+    "mood": "regal intriguing eastern oud",
+    "energy": 3
+  },
+  "cues": [
+    {
+      "beat_id": "b01",
+      "intent": "popup_tick",
+      "at": "event"
+    },
+    {
+      "beat_id": "b02",
+      "intent": "question_tick",
+      "at": "event"
+    },
+    {
+      "beat_id": "b05",
+      "intent": "whoosh",
+      "at": "start"
+    },
+    {
+      "beat_id": "b06",
+      "intent": "date_stamp",
+      "at": "event"
+    },
+    {
+      "beat_id": "b07",
+      "intent": "popup_tick",
+      "at": "event"
+    },
+    {
+      "beat_id": "b08",
+      "intent": "date_stamp",
+      "at": "event"
+    },
+    {
+      "beat_id": "b10",
+      "intent": "whoosh",
+      "at": "start"
+    },
+    {
+      "beat_id": "b12",
+      "intent": "tally_ding",
+      "at": "event"
+    },
+    {
+      "beat_id": "b14",
+      "intent": "popup_tick",
+      "at": "event"
+    },
+    {
+      "beat_id": "b15",
+      "intent": "popup_tick",
+      "at": "event"
+    },
+    {
+      "beat_id": "b17",
+      "intent": "money",
+      "at": "event"
+    },
+    {
+      "beat_id": "b19",
+      "intent": "popup_tick",
+      "at": "event"
+    },
+    {
+      "beat_id": "b22",
+      "intent": "popup_tick",
+      "at": "event"
+    },
+    {
+      "beat_id": "b23",
+      "intent": "changeover",
+      "at": "start"
+    }
+  ]
+}

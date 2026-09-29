@@ -45,8 +45,11 @@ four-transition subset with `wipe` on a beat - through the same T1-T13. The draf
 style: the smoke proves the form resolves the name to itself, judges the fake plan under
 the style's fixture-shaped copy with its own overlays on at the fixture's counts
 (`judged_specs`), and `check_recipe` reads the recipe off the render spec - the flash and
-its whoosh on b03, the stacked split (vishva), the title strip until the finale
-(fastfacts), none where the style has no row.
+the tick on b03's pop-in (070: the whoosh moves to the next transition), the stacked
+split (vishva), the title strip until the finale (fastfacts), none where the style has
+no row. `check_marks` (070) holds every style to the closed palette: the fake story's
+one transition whoosh and, where the plan pops something in, one pop-in tick, both
+placed.
 
 `--text-pops` (ticket 061) runs the walk under the selected style's copy with text pops
 turned on (`fixture.pops_on`; every existing style keeps them off): the fake plan's b03
@@ -112,6 +115,7 @@ from shortsmith import (
 )
 from shortsmith.contracts import (
     CRITIC_LINES,
+    CUE_KINDS,
     TIER1_KINDS,
     AssetManifest,
     Captions,
@@ -1026,6 +1030,14 @@ def check_sound(
             nums.cue_db_min <= cue.gain_db <= nums.cue_db_max,
             f"cue on {cue.beat_id} is {cue.gain_db:g} dB under the voice, outside the band",
         )
+        # 070: a palette kind's approved file, no longer than the kind's length
+        entry = library.entry(cue.entry_id)
+        kind = sound.cue_kind(cue)
+        check(kind in CUE_KINDS and entry is not None
+              and entry.duration_s <= sound.kind_max_len_s(kind, nums) + 1e-9,
+              f"cue on {cue.beat_id} plays {cue.entry_id} as {kind!r}, outside the palette "
+              "or over its length")  # fmt: skip
+    check_marks(plan, story)
     balance = sound.balance_report(stems)
     check(balance is not None, "the mix did not write stems/balance.json")
     assert balance is not None
@@ -1239,6 +1251,30 @@ def check_stickers(
     return len(drawn["b01"])
 
 
+def check_marks(plan: PicturePlan, story: SoundStory) -> None:
+    """070: the validated fake story speaks only the palette, with one whoosh on a
+    transition and, where the plan pops something in on a beat no other cue holds, one
+    tick on a pop-in. (The render
+    judges them under the shipped `cues_max_per_60s`, two cues in six seconds, so the
+    drums keep the slots; the director tests place them.)"""
+    named = [c.intent for c in story.cues]
+    check(set(named) <= set(CUE_KINDS), f"the story names cues outside the palette: {named}")
+    beats = {b.id: b for b in plan.beats}
+    whooshes = [c for c in story.cues if c.intent == styles.WHOOSH]
+    check(len(whooshes) == 1 and beats[whooshes[0].beat_id].enter != "cut",
+          f"the story's whooshes {whooshes} are not one on a transition")  # fmt: skip
+    ticks = [c for c in story.cues if c.intent == styles.TICK]
+    # one cue a beat: a pop-in on a beat another cue already holds (b01's sticker under
+    # the opening bass, b04's bubbles under the stamp's) gets no tick
+    others = {c.beat_id for c in story.cues if c.intent != styles.TICK}
+    free = any(b.text_pops or b.bubbles or b.stickers for b in plan.beats if b.id not in others)
+    check(len(ticks) == (1 if free else 0), f"the story's ticks are {ticks}")
+    for tick in ticks:
+        beat = beats[tick.beat_id]
+        check(tick.at == "event" and bool(beat.text_pops or beat.bubbles or beat.stickers),
+              f"the tick on {tick.beat_id} is not on a pop-in")  # fmt: skip
+
+
 def check_recipe(
     job: jobs.Job, plan: PicturePlan, story: SoundStory, spec_style: styles.StyleSpec
 ) -> str:
@@ -1257,10 +1293,11 @@ def check_recipe(
         flashed = [b.id for b in spec.beats if b.enter == "flash"]
         check(flashed == ["b03"], f"the flash lands on {flashed}, not on b03")
         shown.append("flash b03")
-        if styles.allows_whoosh(spec_style.sound):
-            whooshed = [c.beat_id for c in story.cues if styles.is_whoosh(c.intent)]
-            check(whooshed == ["b03"], f"the whoosh sits on {whooshed}, not on b03's flash")
-            shown.append("whoosh b03")
+        if any(b.text_pops for b in plan.beats if b.id == "b03"):
+            # 070: b03's pop-in carries the tick; the whoosh moves to the next transition
+            ticked = [c.beat_id for c in story.cues if c.intent == styles.TICK]
+            check(ticked == ["b03"], f"the tick sits on {ticked}, not on b03's pop-in")
+            shown.append("tick b03")
     if numbers.broll.split_layout == "stacked":
         piece = next((b.split for b in spec.beats if b.split is not None), None)
         check(piece is not None, "the stacked style draws no split")

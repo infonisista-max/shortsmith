@@ -18,9 +18,9 @@ from shortsmith.sound import (
 
 ALL = ("explainer", "educational", "animated", "hitech", "footage", "vishva", "fastfacts")
 VERSIONS = {
-    "explainer": "15", "educational": "13", "animated": "13", "hitech": "14",
-    "footage": "5", "vishva": "5", "fastfacts": "5",
-}  # fmt: skip  (067 bumped each once more, 069 once more, 072 every style with a map)
+    "explainer": "16", "educational": "14", "animated": "14", "hitech": "15",
+    "footage": "6", "vishva": "6", "fastfacts": "6",
+}  # fmt: skip  (067 bumped each once more, 069 once more, 072 every map style, 070 each)
 
 
 @pytest.fixture(scope="module")

@@ -42,7 +42,13 @@ from shortsmith.contracts import (
 
 Call = Literal["picture", "sound"]
 
-# v15 (ticket 066): the picture file's Beats section states the still-screen rule (3.1
+# v16 (ticket 070): the sound file names the closed cue palette - `tick` on a pop-in,
+# `whoosh` on a transition `sound.whoosh.on` names or a pop-in, `ding` only on an `idea`
+# sticker, `bass` / `drum` / `thump` on landed events - with the `sound.tick`,
+# `sound.whoosh` and `sound.ding` caps, says code marks further pop-ins and transitions
+# itself, and that no other name is accepted; the schema lists the six kinds. The
+# picture file is v15's unchanged.
+# (v15, ticket 066: the picture file's Beats section states the still-screen rule (3.1
 # as amended): a pop, bubble or sticker counts at its word's time, a stamp or
 # lower-third at mid-beat, the longest span between changes at most
 # `beats.density_gap_max_s`; the text-pop paragraph no longer implies a stamp makes up
@@ -84,8 +90,8 @@ Call = Literal["picture", "sound"]
 # hook cards; the cut removes only silence, beats are written on the recording's
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
-# diagram data; v2, ticket 027: the set-piece content rules.))
-PROMPT_VERSION = "v15"
+# diagram data; v2, ticket 027: the set-piece content rules.)))
+PROMPT_VERSION = "v16"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "

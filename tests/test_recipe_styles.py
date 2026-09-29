@@ -15,7 +15,10 @@ from shortsmith.styles import StyleSpec
 
 REGISTRY = render.registry()
 RECIPES = ("footage", "vishva", "fastfacts")
-WHOOSH = {"max_per_60s": 6, "min_gap_s": 3.0, "max_len_s": 0.8, "on": ["flash", "pop"]}
+WHOOSH = {
+    "max_per_60s": 6, "min_gap_s": 3.0, "max_len_s": 0.8,
+    "on": ["fade", "whip", "zoom", "spring", "flash", "pop"],  # 070: every non-cut enter
+}  # fmt: skip
 README = styles.STYLES_DIR / "README.md"
 # The reference ids each recipe was measured from (the ticket's table).
 REFERENCES = {
@@ -35,7 +38,7 @@ def test_the_three_recipes_load_shipped_at_version_3_with_every_component_regist
 ) -> None:
     for name in RECIPES:
         spec = specs[name]
-        assert spec.status == "shipped" and spec.version == "5", name  # 064 v1 ... 069 v3, 072 v4
+        assert spec.status == "shipped" and spec.version == "6", name  # 064 v1 ... 072 v4, 070 v6
         missing = [c for c in spec.requires_components if c not in REGISTRY]
         assert not missing, (name, missing)
         for component in ("clip", "flash", "text_pop"):
@@ -172,7 +175,7 @@ def test_the_recipe_aliases_resolve(specs: dict[str, StyleSpec], line: str, name
 def test_explainer_gives_up_fact_facts_and_dhruv(specs: dict[str, StyleSpec]) -> None:
     aliases = set(specs["explainer"].aliases)
     assert not aliases & {"fact", "facts", "dhruv"}
-    assert specs["explainer"].version == "15"  # v11 aliases ... v14 069, v15 072's map step
+    assert specs["explainer"].version == "16"  # v11 aliases ... v15 072's map step, v16 070
 
 
 def test_a_multi_word_alias_counts_as_a_phrase(specs: dict[str, StyleSpec]) -> None:

@@ -235,7 +235,7 @@ def test_under_a_style_with_text_pops_on_the_fake_pops_one_word_on_the_full_beat
 ) -> None:
     """061: where the style's `broll.text_pops_max_per_60s` is over 0, b03 (the presenter
     full beat, 1.0-1.5 s) carries one text pop, "THIS", landing on word 2 ("this" at
-    1.2 s), and the sound story cues a `popup_tick` at its event; under explainer (cap
+    1.2 s), and the sound story cues a `tick` at its event (070); under explainer (cap
     0) no beat carries a pop and no such cue exists. The pair passes the grammar under
     the fixture-shaped copy of the pops style, which writes the pop's `at_s`."""
     from shortsmith import grammar, render, styles
@@ -257,7 +257,7 @@ def test_under_a_style_with_text_pops_on_the_fake_pops_one_word_on_the_full_beat
     assert (pop.text, pop.word, pop.at_s) == ("THIS", 2, None)
     assert request_.transcript.words[2].text == "this"
     story = FakePlanner().plan_sound(styled, plan)
-    assert Cue(beat_id="b03", intent="popup_tick", at="event") in story.cues
+    assert Cue(beat_id="b03", intent="tick", at="event") in story.cues
     plain = FakePlanner().plan_picture(request_)
     assert all(not b.text_pops for b in plain.beats)
     assert all(c.beat_id != "b03" for c in FakePlanner().plan_sound(request_, plain).cues)
@@ -300,7 +300,8 @@ def test_under_a_style_with_bubbles_on_the_fake_puts_a_dialogue_pair_on_the_card
     assert speech.text.lower().split()[0].strip("?!.,") == "hello"
     story = FakePlanner().plan_sound(styled, plan)
     plain = FakePlanner().plan_picture(request_)
-    assert story.cues == FakePlanner().plan_sound(request_, plain).cues
+    # 070: the overlay's beat already carries a hit, so it adds no tick of its own
+    assert story.cues == FakePlanner().plan_sound(styled, plain).cues
     assert all(not b.bubbles for b in plain.beats)
     judged = fixture.smoke_specs({"explainer": bubbled})["explainer"]
     result = grammar.validate(plan, story, request_.transcript, judged)
@@ -336,7 +337,8 @@ def test_under_a_style_with_stickers_on_the_fake_puts_one_sticker_above_the_circ
     )  # fmt: skip
     story = FakePlanner().plan_sound(styled, plan)
     plain = FakePlanner().plan_picture(request_)
-    assert story.cues == FakePlanner().plan_sound(request_, plain).cues
+    # 070: the overlay's beat already carries a hit, so it adds no tick of its own
+    assert story.cues == FakePlanner().plan_sound(styled, plain).cues
     assert all(not b.stickers for b in plain.beats)
     assert plain == plan.model_copy(update={"beats": [
         b.model_copy(update={"stickers": []}) for b in plan.beats

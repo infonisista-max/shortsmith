@@ -51,4 +51,4 @@ Three shipped styles built from the reference inventory (036: `docs/reference/in
 
 The prose sections are exactly, in order: **Beat grammar**, **B-roll**, **Captions**, **Sound**, **Finale**. The renderer and QA read only the numbers; the planner reads numbers and prose.
 
-Rules: numbers are contracts (a sweep, a tight PIP crop, a collision fails QC). Add a style by adding a file; never hard-code a style rule in code. Quote `"off"` in YAML (a bare `off` is a boolean). Every `sound.forbidden` list bans sweeps and risers; chimes and ticks are ordinary planner cue choices under the 7.3 caps (7.1).
+Rules: numbers are contracts (a sweep, a tight PIP crop, a collision fails QC). Add a style by adding a file; never hard-code a style rule in code. Quote `"off"` in YAML (a bare `off` is a boolean). Every `sound.forbidden` list bans sweeps and risers; cues are the closed palette tick, whoosh, bass, drum, thump and ding, each with its row or length in `sound` (070), and never a ring, bell or chime.

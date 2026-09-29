@@ -2709,8 +2709,8 @@ def sound_mix(
     nothing to mix - a job planned before the sound call (the renderer's own tests), or
     an empty catalogue with no search to fill it - and the short is then the voice
     alone, as it was before 022. `search` is the 7.2 audio search the director asks
-    under the bed-score threshold and for every SFX the catalogue lacks (024, 054); None
-    means no search is configured.
+    under the bed-score threshold (024, 054; 070: never for an effect, which comes only
+    from the approved library); None means no search is configured.
 
     054 (1, 5): every search and every sound decision is a `sound:` line in `job.log`,
     and a short that goes out voice-only says why in one line on the job page."""

@@ -526,6 +526,10 @@ def test_t6_says_so_when_no_cue_sounds_before_a_hit() -> None:
 
 WHOOSHY = flash_whoosh_style(render.loaded_styles()["explainer"]).sound
 EXPLAINER_SOUND = render.loaded_styles()["explainer"].sound
+# 070 gives every shipped style a whoosh row; a style without one still refuses them all.
+FORBIDDING = EXPLAINER_SOUND.model_copy(
+    update={"forbidden": [*EXPLAINER_SOUND.forbidden, "whoosh"], "whoosh": None}
+)
 
 
 def _whoosh_sheet(*starts: float, length_s: float = 0.5) -> CueSheet:
@@ -550,7 +554,7 @@ def test_t6_passes_a_whoosh_on_a_flash_under_the_allowance_and_ignores_its_own_n
     assert check.detail == "R1-R4 clean on the SFX stem (1 cue; 1 whoosh under sound.whoosh)"
 
 
-def test_t6_fails_a_whoosh_on_a_plain_cut_a_long_one_and_any_under_explainer() -> None:
+def test_t6_fails_a_whoosh_on_a_plain_cut_a_long_one_and_any_where_forbidden() -> None:
     sheet = _whoosh_sheet(2.0)
     on_cut = technical.t6([], sheet, enters={"f1": "cut"}, nums=WHOOSHY, runtime_s=60.0)
     assert not on_cut.passed
@@ -561,11 +565,20 @@ def test_t6_fails_a_whoosh_on_a_plain_cut_a_long_one_and_any_under_explainer() -
     long = technical.t6([], _whoosh_sheet(2.0, length_s=1.5), enters=FLASHES, nums=WHOOSHY,
                         runtime_s=60.0)  # fmt: skip
     assert not long.passed and "1.50 s long, over sound.whoosh.max_len_s 0.8" in long.detail
-    explainer = technical.t6([], sheet, enters=FLASHES, nums=EXPLAINER_SOUND, runtime_s=60.0)
-    assert not explainer.passed
-    assert explainer.detail == (
+    forbidden = technical.t6([], sheet, enters=FLASHES, nums=FORBIDDING, runtime_s=60.0)
+    assert not forbidden.passed
+    assert forbidden.detail == (
         "whoosh cue sfx_whoosh on f1: whooshes are in sound.forbidden for this style"
     )
+    # 070: explainer's row names its own non-cut enters; it has no flash, so a whoosh on
+    # one is refused naming them, and one on a fade passes
+    explainer = technical.t6([], sheet, enters=FLASHES, nums=EXPLAINER_SOUND, runtime_s=60.0)
+    assert explainer.detail == (
+        "whoosh cue sfx_whoosh on f1: on a 'flash' enter; sound.whoosh.on allows a whoosh only "
+        "on fade, whip, zoom, spring, pop"
+    )
+    faded = technical.t6([], sheet, enters={"f1": "fade"}, nums=EXPLAINER_SOUND, runtime_s=60.0)
+    assert faded.passed, faded.detail
     # the noise of a whoosh that breaks the allowance is named too, hits first
     hit = sweep.Hit(rule="R1", at_s=2.0, detail="flat")
     both = technical.t6([hit], sheet, enters={"f1": "cut"}, nums=WHOOSHY, runtime_s=60.0)
@@ -667,7 +680,7 @@ def test_run_judges_a_whoosh_by_the_jobs_style(
 ) -> None:
     """End to end: the same stem (0.5 s of noise, an R1 hit, cued as a whoosh on a beat
     entering with a flash) passes T6 under the test style and fails it under explainer,
-    named as forbidden rather than only as noise."""
+    whose row (070) names no flash - named by its trigger rather than only as noise."""
     plan = _good_plan()
     plan = plan.model_copy(
         update={"beats": [plan.beats[0].model_copy(update={"enter": "flash"}), *plan.beats[1:]]}
@@ -684,7 +697,9 @@ def test_run_judges_a_whoosh_by_the_jobs_style(
     report = technical.run(job)
     assert report.failed is not None and report.failed.name == "T6"
     assert report.failed.detail.startswith("R1 at 0.00 s in cue sfx_whoosh on b1 ('whoosh')")
-    assert "whooshes are in sound.forbidden" in report.failed.detail
+    assert "on a 'flash' enter; sound.whoosh.on allows a whoosh only on fade" in (
+        report.failed.detail
+    )
 
 
 def _with_sfx_stem(job: jobs.Job, source: Path, sheet: CueSheet) -> None:

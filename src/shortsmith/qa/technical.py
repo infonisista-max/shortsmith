@@ -438,8 +438,9 @@ def whoosh_faults(
     """060 (7.3 as amended): every `whoosh` cue of `sheet` that breaks the style's
     allowance, by its index in the sheet, with the reason. Under a style that forbids
     whooshes every whoosh cue is a fault. Under an allowance a whoosh must sit on a
-    trigger `sound.whoosh.on` names - a beat entering with `flash`, or (061) a beat in
-    `pops`, one carrying text pops - be no longer than `max_len_s`, and the whooshes
+    trigger `sound.whoosh.on` names - a beat entering on one of its non-cut enters (070;
+    060's `flash`), or (061) a beat in `pops`, one carrying text pops - be no longer than
+    `max_len_s`, and the whooshes
     together stay within `max_per_60s` (scaled to the runtime, rounded up) and
     `min_gap_s` apart."""
     whooshes = [(i, c) for i, c in enumerate(sheet.cues) if styles.is_whoosh(c.intent)]
@@ -461,9 +462,10 @@ def whoosh_faults(
         where = f"whoosh cue {cue.entry_id} on {cue.beat_id}"
         enter = enters.get(cue.beat_id, "cut")
         length = cue.end_s - cue.start_s
-        on_flash = "flash" in allowance.on and enter == "flash"
+        # 070: any non-cut enter the row names (060's `flash` among them), or a pop-in
+        on_enter = enter != "cut" and enter in allowance.on
         on_pop = "pop" in allowance.on and cue.beat_id in pops
-        if not (on_flash or on_pop):
+        if not (on_enter or on_pop):
             faults[i] = (
                 f"{where}: on a {enter!r} enter; sound.whoosh.on allows a whoosh only on "
                 f"{triggers}"

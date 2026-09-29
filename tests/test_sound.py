@@ -80,7 +80,7 @@ def test_catalogue_loads_every_field(library: sound.Library) -> None:
 
 def test_catalogue_tags_are_the_planner_facing_text(library: sound.Library) -> None:
     tags = library.tags()
-    assert "tech" in tags and "curious" in tags and "popup_tick" in tags
+    assert "tech" in tags and "curious" in tags and "tick" in tags
     assert tags == tuple(sorted(set(tags))), "tags are sorted and unique for the prompt"
 
 
@@ -257,47 +257,24 @@ def test_sfx_queries_are_the_intent_words_and_a_floor_class_tries_hit_first() ->
     assert long and all(len(r.split()) <= sound.QUERY_MAX_WORDS for r in long)
 
 
-def test_an_empty_sfx_catalogue_with_a_search_still_places_the_floor_and_the_cues(
+def test_every_placed_cue_has_its_line(
     plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
 ) -> None:
-    """054 (3): the floor classes are searched first (drum, bass, thump), then the
-    planner's intents; what the search adopts is placed, and the grown library comes
-    back with the cues so the stem and the rights rows can find the files."""
-    empty = sound.Library(root=library.root, entries=())
-    search = sound.FakeAudioSearch(shelf=library)
-    placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0, search=search)
-    assert placed.cues, "the search filled the empty catalogue"
-    with_search = sound.place_cues(plan, story, library, nums, runtime_s=60.0)
-    assert [(c.beat_id, c.entry_id, c.hit) for c in placed.cues] == [
-        (c.beat_id, c.entry_id, c.hit) for c in with_search.cues
-    ], "the same cues as a seeded catalogue places"
-    assert search.sfx_calls[:3] == ["drum hit", "bass hit", "thump hit"], "the floor first"
-    assert all(placed.library.entry(c.entry_id) is not None for c in placed.cues)
-    assert any("adopted" in n for n in placed.notes)
+    placed = sound.place_cues(plan, story, library, nums, runtime_s=60.0)
+    assert placed.cues
     placed_lines = [n for n in placed.notes if "placed at" in n]
     assert len(placed_lines) == len(placed.cues), "one line per placed cue (054 (1))"
 
 
-def test_an_empty_sfx_catalogue_and_no_search_places_nothing_and_says_so(
+def test_an_empty_approved_library_places_nothing_and_says_so(
     plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
 ) -> None:
+    """070: effects come only from the approved library; with none there is no cue, and
+    nothing is searched for (`place_cues` takes no search at all)."""
     empty = sound.Library(root=library.root, entries=())
     placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0)
     assert placed.cues == ()
-    assert any(
-        "no sfx in the audio catalogue" in n and "no audio search" in n for n in placed.notes
-    )
-
-
-def test_a_search_that_finds_no_sfx_leaves_a_line_per_miss(
-    plan: PicturePlan, story: SoundStory, library: sound.Library, nums: styles.Sound
-) -> None:
-    empty = sound.Library(root=library.root, entries=())
-    search = sound.FakeAudioSearch()  # an empty shelf: every search is a miss
-    placed = sound.place_cues(plan, story, empty, nums, runtime_s=60.0, search=search)
-    assert placed.cues == ()
-    assert "bass" in search.sfx_calls and "drum" in search.sfx_calls
-    assert any("no sfx for 'bass'" in n for n in placed.notes)
+    assert any(sound.NO_APPROVED_LINE in n for n in placed.notes)
 
 
 def test_above_the_threshold_the_search_adapter_is_never_asked(
@@ -391,13 +368,13 @@ def test_nothing_on_whips_punch_ins_rings_or_lower_thirds(
     assert "b02" not in {h.beat_id for h in sound.floor_hits(bare, nums)}
 
 
-def test_no_transition_triggers_a_cue(
+def test_a_transition_earns_only_a_whoosh(
     plan: PicturePlan, library: sound.Library, nums: styles.Sound
 ) -> None:
-    """9.4 / 7.1 (030): a whip on every beat, no events, no planner cues and a flat mood
-    curve place nothing beyond the floor - the director never reads `enter`, so the
-    cues are exactly those of the same plan entering on cuts. (The grammar would reject
-    this plan; the director is tested past it.)"""
+    """9.4 / 7.1 (030) as amended by 070: a whip on every beat, no events, no planner
+    cues and a flat mood curve place the floor and, beyond it, only the whooshes the
+    style's row allows on those enters (at most `max_per_60s`, `min_gap_s` apart); the
+    same plan entering on cuts places the floor alone."""
 
     def entering(enter: str) -> PicturePlan:
         return plan.model_copy(
@@ -419,9 +396,17 @@ def test_no_transition_triggers_a_cue(
     )  # fmt: skip
     placed = sound.place_cues(whipped, silent, library, nums, runtime_s=60.0)
     floor = {h.beat_id for h in sound.floor_hits(whipped, nums)}
-    assert {c.beat_id for c in placed.cues} == floor
+    assert {c.beat_id for c in placed.cues if c.hit != "whoosh"} == floor
     assert all(c.source == "floor" for c in placed.cues)
-    assert placed == sound.place_cues(cut, silent, library, nums, runtime_s=60.0)
+    whooshes = [c for c in placed.cues if c.hit == "whoosh"]
+    assert whooshes and all(c.beat_id not in floor for c in whooshes)
+    assert nums.whoosh is not None
+    gaps = [b.at_s - a.at_s for a, b in zip(whooshes, whooshes[1:], strict=False)]
+    assert all(g >= nums.whoosh.min_gap_s - 1e-9 for g in gaps)
+    on_cuts = sound.place_cues(cut, silent, library, nums, runtime_s=60.0)
+    assert {c.beat_id for c in on_cuts.cues} == floor and on_cuts.cues == tuple(
+        c for c in placed.cues if c.hit != "whoosh"
+    )
 
 
 def test_the_floor_classes_come_from_the_style(plan: PicturePlan, nums: styles.Sound) -> None:
@@ -475,11 +460,10 @@ def test_an_event_cue_on_a_text_pop_fires_where_the_pop_lands(
     story = SoundStory(
         prompt_version="t", theme="t", mood_curve=[MoodPoint(t=0.0, level=0.0)],
         bed_query=BedQuery(theme="tech", mood="curious", energy=3),
-        cues=[Cue(beat_id="b03", intent="popup_tick", at="event")],
+        cues=[Cue(beat_id="b03", intent="tick", at="event")],
     )  # fmt: skip
-    # the fixture-shaped cap (seven cues in 6 s, one over the plan's six floor hits):
-    # under the shipped 20 per 60 s only two survive, the classed floor hits, so the
-    # unclassed tick would be cut for cost
+    # the fixture-shaped cap (nine cues in 6 s): under the shipped 20 per 60 s only two
+    # survive, the classed floor hits, so the soft tick would be cut for cost
     judged = fixture.smoke_specs(render.loaded_styles())[styles.DEFAULT].sound
     placed = sound.place_cues(popped, story, library, judged, runtime_s=6.0)
     cue = next(c for c in placed.cues if c.beat_id == "b03")
@@ -511,7 +495,7 @@ def test_an_event_cue_on_a_bubble_fires_where_the_first_bubble_lands(
     story = SoundStory(
         prompt_version="t", theme="t", mood_curve=[MoodPoint(t=0.0, level=0.0)],
         bed_query=BedQuery(theme="tech", mood="curious", energy=3),
-        cues=[Cue(beat_id="b03", intent="popup_tick", at="event")],
+        cues=[Cue(beat_id="b03", intent="tick", at="event")],
     )  # fmt: skip
     judged = fixture.smoke_specs(render.loaded_styles())[styles.DEFAULT].sound
     placed = sound.place_cues(bubbled, story, library, judged, runtime_s=6.0)
@@ -560,9 +544,11 @@ def test_cue_intents_match_sfx_by_tag(
     assert by_beat["b11"].entry_id == "sfx_drum_hit"
 
 
-def test_an_unmatched_intent_falls_back_to_the_floor_hit(
+def test_an_intent_outside_the_palette_is_dropped_and_the_floor_still_lands(
     plan: PicturePlan, library: sound.Library, nums: styles.Sound
 ) -> None:
+    """070: a name outside the palette (the grammar refuses it first) is never matched;
+    the beat's own floor hit still lands."""
     story = SoundStory(
         prompt_version="t", theme="t", mood_curve=[MoodPoint(t=0.0, level=0.0)],
         bed_query=BedQuery(theme="tech", mood="curious", energy=3),
@@ -570,8 +556,9 @@ def test_an_unmatched_intent_falls_back_to_the_floor_hit(
     )  # fmt: skip
     placed = sound.place_cues(plan, story, library, nums, runtime_s=6.0)
     cue = next(c for c in placed.cues if c.beat_id == "b06")
-    assert cue.hit == "drum" and cue.entry_id == "sfx_drum_hit"
-    assert any("nothing_matches_this" in n for n in placed.notes)
+    assert (cue.hit, cue.entry_id, cue.source) == ("drum", "sfx_drum_hit", "floor")
+    assert any("nothing_matches_this" in n and "outside the sound palette" in n
+               for n in placed.notes)  # fmt: skip
 
 
 # --- whooshes (ticket 060; 7.3 as amended) -------------------------------------------------
@@ -613,22 +600,21 @@ def test_the_fixture_catalogue_carries_a_short_whoosh(library: sound.Library) ->
 def test_a_whoosh_cue_is_placed_on_a_flash_under_a_style_that_allows_it(
     plan: PicturePlan, library: sound.Library, nums: styles.Sound, whooshy: styles.Sound
 ) -> None:
-    """060 (3, 5): under the test style the planner's whoosh on the flash beat is placed
-    from the library's `whoosh` tag with no class (the planner level); under explainer
-    the same cue is dropped with a note, never resolved or searched."""
+    """060 (3, 5) as amended by 070: under the test style the planner's whoosh on the
+    flash beat is placed from the library's `whoosh` tag at the whoosh level; under a
+    style that forbids whooshes the same cue is dropped with a note, never resolved."""
     flashed = _flashed(plan)
     placed = sound.place_cues(flashed, _whoosh_story(), library, whooshy, runtime_s=60.0)
-    whooshes = [c for c in placed.cues if c.intent == "whoosh"]
+    whooshes = [c for c in placed.cues if c.intent == "whoosh" and c.source == "planner"]
     assert len(whooshes) == 1
     cue = whooshes[0]
-    assert (cue.beat_id, cue.entry_id, cue.source, cue.hit) == ("b03", "sfx_whoosh", "planner", "")
-    assert cue.gain_db == sound.cue_level_db("", whooshy)
+    assert (cue.beat_id, cue.entry_id, cue.hit) == ("b03", "sfx_whoosh", "whoosh")
+    assert cue.gain_db == sound.cue_level_db("whoosh", whooshy)
     assert cue.at_s == next(b.start for b in flashed.beats if b.id == "b03")
-    search = sound.FakeAudioSearch(sound.Library(root=library.root))  # an empty shelf
-    kept = sound.place_cues(flashed, _whoosh_story(), library, nums, runtime_s=60.0, search=search)
+    forbidding = nums.model_copy(update={"forbidden": [*nums.forbidden, "whoosh"], "whoosh": None})
+    kept = sound.place_cues(flashed, _whoosh_story(), library, forbidding, runtime_s=60.0)
     assert not [c for c in kept.cues if c.intent == "whoosh"]
     assert any("b03" in n and "whoosh" in n and "forbidden" in n for n in kept.notes)
-    assert search.sfx_calls == [], "a forbidden whoosh is never searched for"
 
 
 def test_a_library_whoosh_over_the_allowance_length_is_not_taken(
@@ -643,14 +629,7 @@ def test_a_library_whoosh_over_the_allowance_length_is_not_taken(
     )
     placed = sound.place_cues(_flashed(plan), _whoosh_story(), only_long, whooshy, runtime_s=60.0)
     assert not [c for c in placed.cues if c.intent == "whoosh"]
-    assert any("whoosh" in n and "max_len_s" in n for n in placed.notes)
-    # the search, when there is one, is told the length it may adopt
-    search = sound.FakeAudioSearch(library)
-    found = sound.place_cues(
-        _flashed(plan), _whoosh_story(), only_long, whooshy, runtime_s=60.0, search=search
-    )
-    assert [c.entry_id for c in found.cues if c.intent == "whoosh"] == ["sfx_whoosh"]
-    assert search.sfx_max_len_s == [whooshy.whoosh.max_len_s if whooshy.whoosh else None]
+    assert any("no approved sfx for 'whoosh' no longer than 0.8 s" in n for n in placed.notes)
 
 
 def test_one_cue_per_beat_and_the_planner_wins_the_slot(
@@ -661,13 +640,15 @@ def test_one_cue_per_beat_and_the_planner_wins_the_slot(
     assert len(ids) == len(set(ids)), "sound.cues_per_beat_max is 1"
     assert [c.at_s for c in placed.cues] == sorted(c.at_s for c in placed.cues)
     by_beat = {c.beat_id: c for c in placed.cues}
-    # The five beats the fake story cues are the planner's; the rest come from the floor.
-    assert {b: c.source for b, c in by_beat.items()} == {
-        "b01": "planner", "b02": "planner", "b04": "planner",
-        "b06": "planner", "b08": "floor", "b10": "floor", "b11": "planner",
+    # The five beats the fake story cues are the planner's; the rest come from the floor
+    # and (070) the whooshes the director derives: b03's fade, then b09's zoom 3 s on
+    # (b05's fade and b08's spring fall inside `sound.whoosh.min_gap_s`).
+    assert {b: (c.source, c.hit) for b, c in by_beat.items()} == {
+        "b01": ("planner", "bass"), "b02": ("planner", "thump"), "b03": ("floor", "whoosh"),
+        "b04": ("planner", "bass"), "b06": ("planner", "drum"), "b08": ("floor", "bass"),
+        "b09": ("floor", "whoosh"), "b10": ("floor", "thump"), "b11": ("planner", "drum"),
     }  # fmt: skip
     assert by_beat["b10"].entry_id == "sfx_thump", "a floor cue plays its class's sample"
-    assert by_beat["b01"].hit == "", "a planner cue on a beat the floor never claims"
 
 
 def test_the_twenty_first_cue_is_dropped(
@@ -689,7 +670,7 @@ def test_a_drop_places_its_changeover_cue(
     plan: PicturePlan, library: sound.Library, nums: styles.Sound
 ) -> None:
     """7.3: a drop is a step at a beat boundary followed by a changeover cue, so the
-    director places one on the beat the step lands on."""
+    director places one on the beat the step lands on; 070: it plays the approved bass."""
     boundary = plan.beats[6].start
     story = SoundStory(
         prompt_version="t", theme="t",
@@ -700,7 +681,7 @@ def test_a_drop_places_its_changeover_cue(
     placed = sound.place_cues(plan, story, library, nums, runtime_s=60.0)
     cue = next(c for c in placed.cues if c.beat_id == plan.beats[6].id)
     assert (cue.intent, cue.hit, cue.source) == ("changeover", "changeover", "floor")
-    assert cue.entry_id == "sfx_changeover"
+    assert cue.entry_id == "sfx_bass_hit" and sound.cue_kind(cue) == "bass"
     assert cue.gain_db == sound.cue_level_db("bass", nums), "a changeover sits with the bass"
 
 
@@ -722,7 +703,7 @@ def test_a_catalogue_with_no_sfx_places_no_cue(
     beds_only = sound.Library(root=library.root, entries=tuple(library.beds()))
     placed = sound.place_cues(plan, story, beds_only, nums, runtime_s=60.0)
     assert placed.cues == ()
-    assert any("no sfx" in n for n in placed.notes)
+    assert any(sound.NO_APPROVED_LINE in n for n in placed.notes)
 
 
 # --- the mood envelope (7.3) ------------------------------------------------------------
