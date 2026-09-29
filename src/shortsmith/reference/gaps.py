@@ -3,7 +3,8 @@
 `report(inventories)` renders `GAPS.md` from every `ReferenceInventory`: the
 unregistered effects and the unregistered transitions ranked by how many references
 use them (grouped by the model's own `name` for the technique), each with up to
-`EXAMPLES` links to the moment (`&t=<s>s`) so the operator can watch them; then one
+`EXAMPLES` links to the moment (`&t=<s>s`) so the operator can watch them; the off-list
+words the cards stored as `other` with their counts (092, only when there are any); then one
 table per `<category> / Tier <tier>` - Tier A, Tier B and facts are never pooled (10.3)
 - with each reference's share of runtime by layout and by background (moving footage
 split by kind), median clip length, shots per 10 s and sound effects per 10 s. Every
@@ -13,7 +14,8 @@ inventory folder and writes the report beside them.
 
 from __future__ import annotations
 
-from collections import defaultdict
+import re
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from statistics import median
@@ -31,6 +33,7 @@ from shortsmith.reference import (
 REPORT_NAME = "GAPS.md"
 EXAMPLES = 3
 WATCH_AT = "https://www.youtube.com/watch?v={id}&t={s}s"
+_ROW_NUMBER = re.compile(r"\.\d+(?=\.|$)")
 
 
 def load_all(folder: Path) -> list[ReferenceInventory]:
@@ -67,6 +70,7 @@ def report(inventories: Sequence[ReferenceInventory]) -> str:
         return "\n".join(lines)
     lines += _unregistered("Unregistered effects", inventories, "effects")
     lines += _unregistered("Unregistered transitions", inventories, "transitions")
+    lines += _off_list(inventories)
     groups: dict[tuple[str, str], list[ReferenceInventory]] = defaultdict(list)
     for made in inventories:
         groups[(made.category, made.tier)].append(made)
@@ -103,6 +107,33 @@ def _unregistered(
             for vid, at in examples[key][:EXAMPLES]
         )
         lines.append(f"| `{key}` | {len(videos)} | {links} | {described[key]} |")
+    lines.append("")
+    return lines
+
+
+def _off_list(inventories: Iterable[ReferenceInventory]) -> list[str]:
+    """092: the words the model gave off a closed list (stored as `other`), by field with
+    the row numbers as `N`, ranked by how often they were said. No section when none."""
+    times: Counter[tuple[str, str]] = Counter()
+    users: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for made in inventories:
+        for row in made.off_list:
+            key = (_ROW_NUMBER.sub(".N", row.field), row.said.strip().lower())
+            times[key] += 1
+            users[key].add(made.video_id)
+    if not times:
+        return []
+    lines = [
+        "## Off-list labels",
+        "",
+        "Words the model gave off a closed list; each card stores them as `other`. "
+        "Growing a list is the operator's decision (083).",
+        "",
+        "| field | word | times | references |",
+        "| --- | --- | --- | --- |",
+    ]
+    for (field, word), n in sorted(times.items(), key=lambda kv: (-kv[1], kv[0])):
+        lines.append(f"| `{field}` | `{word}` | {n} | {len(users[(field, word)])} |")
     lines.append("")
     return lines
 

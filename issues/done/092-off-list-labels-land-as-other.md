@@ -56,6 +56,38 @@ The list already has an `other` word for exactly this case. A label the model in
 Re-run `FbaBcWgMIEY` (and `ePTZVwipoAM` if it failed the same way), then `gaps`, as in
 079's agreed order.
 
+## Done (afk, 30 Sep 2026)
+
+All acceptance boxes are met.
+- `reference.parse_reply` returns `Parsed(answer, off_list)`. Before the schema check it
+  walks the answer model's own field annotations (nested models, lists, `X | None`). A
+  string off any `Literal` that holds `other` is replaced with `other` and recorded as
+  `{field, said}`. The rule follows the list: today that covers `SfxKind` (in
+  `sound.effects.N.kind` and `beats.N.sound`), `SfxEvent`, `Entrance` and `Layout` (in
+  `shots.N.layout` and `beats.N.layout`). No names are hard-coded. `parse_answer` keeps
+  its signature and returns `.answer`.
+- `inventory` logs `<video>: <field> '<said>' is not on the list; stored as other` once
+  per word and passes the rows to `from_answer(off_list=...)`.
+- `ReferenceInventory.off_list` (and v2) defaults to empty with `exclude_if` empty. A
+  clean card's JSON has no `off_list` key, so every committed v1 and v2 card loads and
+  dumps unchanged. The field is on the card, not the answer, so the prompt's generated
+  schema is unchanged (the v2 snapshot test pins it).
+- `gaps` gets an "Off-list labels" section (field with row numbers as `N`, word
+  lower-cased and stripped, times, references), ranked by count. It appears only when
+  some card has an off-list word, so the committed `GAPS.md` stays unchanged.
+- Still strict, with the one retry: `Match`, `Loudness`, `Region`, `StoryPart`,
+  `MusicHow`, the vocab moods, flavours and topics, a number or `null` where a word
+  belongs, broken JSON, and `said` over 12 words.
+- `tests/test_reference_v2.py`: the case with an unknown `sound.effects.2.event` was
+  expected to be invalid. `SfxEvent` holds `other`, so 092 now coerces it on purpose. The
+  row now uses `loudness`, which stays strict.
+
+Loops: ruff and pyright are clean. All 75 test files are green in 9 foreground chunks.
+The smoke delivered with T1–T13 passing.
+
+**Operator step:** re-run `FbaBcWgMIEY` (and `ePTZVwipoAM` if it failed the same way),
+then `gaps`, as in 079's agreed order.
+
 ## Blocked by
 
 None - can start immediately.

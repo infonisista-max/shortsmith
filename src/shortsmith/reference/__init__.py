@@ -46,6 +46,11 @@ A card's `music_changes` must cover every boundary between neighbouring parts wh
 mood or flavour differs (`uncovered_boundaries`): a miss is an invalid answer at write
 time (the one retry, told to keep the parts), and a stored card that misses one is
 skipped by `v2_cards` with a log line.
+
+Ticket 092: a word off a closed list that already holds `other` (`SfxKind`, `SfxEvent`,
+`Entrance`, `Layout`; the rule follows the list) is stored as `other` with a log line,
+not a failed answer (`parse_reply`), and kept in the card's `off_list` for `gaps`. Lists
+without `other`, wrong types, broken JSON and a long `said` keep the one retry.
 """
 
 from __future__ import annotations
@@ -58,7 +63,8 @@ from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
 from string import Template
-from typing import Any, Literal, cast, get_args
+from types import UnionType
+from typing import Any, Literal, Union, cast, get_args, get_origin
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -82,6 +88,7 @@ REFERENCES_FILES: tuple[Path, ...] = (REFERENCES_MD, FACTS_MD)
 INVENTORY_DIR = REPO_ROOT / "docs" / "reference" / "inventory"
 STYLES_README = REPO_ROOT / "styles" / "README.md"
 UNREGISTERED = "unregistered"
+OTHER = "other"  # 092: a closed list holding this word takes an off-list word as it
 WATCH_URL = "https://www.youtube.com/watch?v={id}"
 ATTEMPTS = 2  # the call, then one retry with the reasons, then stop
 UNKNOWN_CATEGORY = "unknown"
@@ -360,6 +367,24 @@ class InventoryAnswerV2(InventoryAnswer):
     beats: list[Beat]
 
 
+class OffList(BaseModel):
+    """A word the model gave for a closed list that holds `other`, stored as `other`
+    (092): the field it was in and what it said, kept as evidence for growing a list."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: str
+    said: str
+
+
+@dataclass(frozen=True)
+class Parsed:
+    """A parsed reply and the off-list words it had (`off_list`, in field order)."""
+
+    answer: InventoryAnswer
+    off_list: list[OffList]
+
+
 class Counts(BaseModel):
     """Code's arithmetic over the lists and the duration, per 10 s of runtime."""
 
@@ -402,6 +427,8 @@ class ReferenceInventory(InventoryAnswer):
     analysed_on: str
     usage: Usage
     counts: Counts
+    # 092: left out of the JSON when empty, so older cards load and dump unchanged
+    off_list: list[OffList] = Field(default_factory=lambda: [], exclude_if=lambda v: not v)
 
     @classmethod
     def from_answer(
@@ -415,6 +442,7 @@ class ReferenceInventory(InventoryAnswer):
         analysed_on: str,
         styles: Sequence[str] = (),
         version: PromptVersion | None = None,
+        off_list: Sequence[OffList] = (),
     ) -> ReferenceInventory:
         """The card for the answer: a v2-schema card (with the `styles` it informs) for a
         v2 answer, a v1 card otherwise. `prompt_version` is the prompt that made it
@@ -423,6 +451,7 @@ class ReferenceInventory(InventoryAnswer):
             video_id=link.video_id, url=link.url, category=link.category, tier=link.tier,
             creator=link.creator, title=link.title, model=model, fps=fps,
             analysed_on=analysed_on, usage=usage, counts=counts(answer),
+            off_list=list(off_list),
         )  # fmt: skip
         if isinstance(answer, InventoryAnswerV2):
             return ReferenceInventoryV2.model_validate(
@@ -619,6 +648,19 @@ def parse_answer(
     component label checked against the registry: an unknown one becomes `unregistered`.
     A v2 answer's moods, flavours and topic must be in the data files (`vocabulary`,
     loaded when not given); an unknown one is invalid, naming the field."""
+    return parse_reply(reply, registry=registry, version=version, vocabulary=vocabulary).answer
+
+
+def parse_reply(
+    reply: str,
+    *,
+    registry: Collection[str],
+    version: PromptVersion = PROMPT_VERSION,
+    vocabulary: vocab.Vocabulary | None = None,
+) -> Parsed:
+    """`parse_answer` with the off-list words (092): a string on a closed list that holds
+    `other` but is not on it is stored as `other` and reported, never invalid. Lists
+    without `other`, a wrong type, broken JSON and a long `said` stay invalid."""
     model = InventoryAnswerV2 if uses_v2_schema(version) else InventoryAnswer
     text = _json_text(reply)
     if text is None:
@@ -629,6 +671,7 @@ def parse_answer(
         raise AnswerInvalid(reply, [f"the reply is not valid JSON: {exc}"]) from exc
     if not isinstance(data, dict):
         raise AnswerInvalid(reply, [f"the reply is JSON but not an object ({type(data).__name__})"])
+    off_list = _coerce_off_list(cast(dict[str, object], data), model, "")
     try:
         answer = model.model_validate(data)
     except ValidationError as exc:
@@ -659,7 +702,43 @@ def parse_answer(
             )
             for b in answer.beats
         ]  # fmt: skip
-    return answer.model_copy(update=update)
+    return Parsed(answer.model_copy(update=update), off_list)
+
+
+def _coerce_off_list(
+    data: dict[str, object], model: type[BaseModel], prefix: str
+) -> list[OffList]:
+    """Replace, in place, every string off a closed list that holds `other` with `other`,
+    walking the model's fields (nested models and lists of them); one row per word."""
+    rows: list[OffList] = []
+    for name, info in model.model_fields.items():
+        if name in data:
+            data[name] = _coerced(data[name], info.annotation, f"{prefix}{name}", rows)
+    return rows
+
+
+def _coerced(value: object, annotation: object, field: str, rows: list[OffList]) -> object:
+    """The value with its off-list words as `other`, each one appended to `rows`; nested
+    dicts and lists are coerced in place."""
+    kept = value
+    for option in _options(annotation):
+        if get_origin(option) is Literal:
+            words = get_args(option)
+            if OTHER in words and isinstance(value, str) and value not in words:
+                rows.append(OffList(field=field, said=value))
+                return OTHER
+        elif isinstance(option, type) and issubclass(option, BaseModel) and isinstance(value, dict):
+            rows += _coerce_off_list(cast(dict[str, object], value), option, f"{field}.")
+        elif get_origin(option) is list and isinstance(value, list):
+            (item,) = get_args(option)
+            items: list[object] = cast(list[object], value)
+            items[:] = [_coerced(v, item, f"{field}.{i}", rows) for i, v in enumerate(items)]
+    return kept
+
+
+def _options(annotation: object) -> tuple[object, ...]:
+    """The members of a union (`SfxKind | None`), or the annotation alone."""
+    return get_args(annotation) if get_origin(annotation) in (Union, UnionType) else (annotation,)
 
 
 def _unknown_labels(answer: InventoryAnswerV2, lists: vocab.Vocabulary) -> list[str]:
@@ -832,21 +911,22 @@ def inventory(
             ) from exc
         log(_usage_line(link, answer, analyser.fps))
         try:
-            parsed = parse_answer(
-                answer.text, registry=registry, version=version, vocabulary=lists
-            )
+            read = parse_reply(answer.text, registry=registry, version=version, vocabulary=lists)
         except AnswerInvalid as invalid:
             last = invalid
             log(f"{link.video_id}: the answer did not parse: {invalid}")
             sent = retry_prompt(prompt, invalid)
             continue
+        parsed = read.answer
+        for row in read.off_list:
+            log(f"{link.video_id}: {row.field} {row.said!r} is not on the list; stored as other")
         if topic is not None and isinstance(parsed, InventoryAnswerV2):
             parsed = parsed.model_copy(
                 update={"script": parsed.script.model_copy(update={"topic": topic})}
             )
         made = ReferenceInventory.from_answer(
             parsed, link=link, model=answer.model, fps=analyser.fps, usage=answer.usage,
-            analysed_on=today(), styles=informs, version=version,
+            analysed_on=today(), styles=informs, version=version, off_list=read.off_list,
         )  # fmt: skip
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / (name or f"{link.video_id}.json")

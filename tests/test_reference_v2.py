@@ -125,7 +125,9 @@ def test_said_longer_than_twelve_words_is_refused_at_parse_time() -> None:
         (("music_changes", 0, "how"), "fade_out", "music_changes.0.how"),
         (("beats", 5, "match"), "vibe", "beats.5.match"),
         (("beats", 5, "part"), "climax", "beats.5.part"),
-        (("sound", "effects", 2, "event"), "explosion", "sound.effects.2.event"),
+        # 092: `event` holds `other`, so an off-list event is stored as `other`
+        # (tests/test_off_list_labels.py); `loudness` does not, and stays strict
+        (("sound", "effects", 2, "loudness"), "deafening", "sound.effects.2.loudness"),
     ],
 )
 def test_an_unknown_closed_list_label_is_invalid_naming_the_field(
