@@ -209,8 +209,8 @@ def test_pairing_never_sees_a_failing_card(tmp_path: Path) -> None:
     assert len(lines) == 1 and "aaaaaaaaaaa" in lines[0]
 
 
-def test_the_committed_failing_cards_never_reach_pairing() -> None:
-    joined = "\n".join(music.for_job())
+def test_the_frozen_failing_cards_never_reach_pairing() -> None:
+    joined = "\n".join(music.for_job(INVENTORY_V2))
     for vid in FAILING:
         assert vid not in joined
 

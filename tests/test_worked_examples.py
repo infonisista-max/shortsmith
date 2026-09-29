@@ -156,6 +156,8 @@ def test_the_effect_map_names_only_registered_components_and_every_known_gap() -
     mapping = examples.load_effect_map()
     assert set(v for v in mapping.values() if v is not None) <= set(REGISTRY)
     gaps: set[str] = set()
+    # The live cards on purpose, like GAPS.md: a re-run card naming a new unregistered
+    # effect should stop here until effect_map.yaml maps it.
     for path in examples.INVENTORY_DIR.glob("*.json"):
         card = json.loads(path.read_text(encoding="utf-8"))
         for item in card.get("effects", []) + card.get("transitions", []):
