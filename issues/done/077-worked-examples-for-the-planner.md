@@ -65,6 +65,53 @@ into a picture, an effect and a sound. Operator decisions (grill, 29 Sep 2026):
 - [ ] Done note: the amendment line for 3.x (the planner receives two worked examples
       chosen by style, topic, then Tier B first), for the operator to paste.
 
+## Done (29 Sep 2026, afk session)
+
+All boxes above are met in code and tests (`tests/test_worked_examples.py`, 16 tests).
+
+- **Topic** (`reference.examples.pick_topic`): `topic: <name>` anywhere in the brief wins
+  when it names a topic in `topics.yaml` (an unknown name, e.g. "Topic: King Saud", is
+  ignored). Otherwise each topic's `en` + `hi` keywords are counted in the brief and the
+  transcript words (split on white space and punctuation, including `।`, never on a
+  Devanagari vowel sign); one winner or style-only. `other` never wins by keywords.
+- **Selection** (`select`): the style's v2 cards (never `tier: own`); then only the
+  cards on the topic **when that leaves at least one** (a topic with no card falls back
+  to style-only rather than nothing - my call, overrule it if you want an empty
+  section instead); then Tier B, Tier A, then video id. Two at most.
+- **Section 7** of the picture prompt, "How top shorts edit a line like yours": each
+  card's beat table (time, part, said, shows, match, layout, effect, sound) under
+  "Copy the moves ... never the content". The sound call does not get it. With no
+  card: "(no worked examples for this style)" - which is what every job gets today,
+  since the committed cards are still v1 until `inventory --all` runs (073).
+- **Effect map** `assets/reference/effect_map.yaml`: all 66 `unregistered` names in
+  today's cards, each to its closest registered component or `null`; the loader
+  refuses a target that is not in the registry. An unregistered beat effect is looked up
+  by the card's own effect/transition name inside the beat's time span; unknown →
+  "(no equivalent: skip)". The mappings are my picks - worth one read.
+- **Prompt v17**: `picture_v17.md` adds a "Worked examples" paragraph; `sound_v17.md` is
+  v16's unchanged. Snapshots recorded with two fixed examples.
+- **Records**: `job.json` (`topic`, `examples`), `plan.validated.json` and `meta.json`;
+  `job.log` line `worked examples: topic <t> (brief|keywords); <ids>`; the job page
+  line "Worked examples: topic ... · <ids>".
+- **Match share of a plan** (`examples.plan_match`): a beat counts when it depicts a
+  `named_entity` or its `subject_kind` is `entity` or `number`, over all beats. The
+  comparison table's match-share row now fills its `plan` column from `work/plan.json`.
+- **`compare_plan`**: `uv run python -m shortsmith.compare_plan data/jobs/<job_id>
+  [--dir DIR]` re-plans the picture once with no examples (the `PLANNER` adapter bound to
+  the job, so one ledger row and the prompt under `work/planner/run<n>/`), writes
+  `work/plan.no_examples.json`, and prints both shares. No grammar retry on that one
+  call; the job's own plan is untouched. On a job planned before 077 the "with" side is
+  a plan that had no examples either.
+
+### Amendment line for 3.x (for the operator to paste)
+
+> 3.x (077): before the picture call, code picks the job's topic (a `topic:` line in the
+> brief, else keyword hits from `assets/reference/topics.yaml` in the brief and the
+> transcript; a tie or no hit is style-only) and gives the planner two worked examples:
+> the beat tables of the v2 reference cards of the job's style, on the topic when any
+> exists, the operator's Tier B first, then Tier A. The planner copies their moves,
+> never their content; the grammar still judges every number.
+
 ## Blocked by
 
 - `issues/073-reference-card-v2.md`

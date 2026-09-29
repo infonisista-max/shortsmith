@@ -3,7 +3,9 @@
 `build_prompt(request, call)` renders the versioned instruction file
 `prompts/<call>_<PROMPT_VERSION>.md`, then the PlanRequest in the fixed 2.3 order
 (spec numbers, spec prose, brief, style note, references, transcript: the brief is
-the intent and precedes the transcript, the material), then for the sound call the
+the intent and precedes the transcript, the material), then for the picture call the
+worked examples (077, section 7: two top shorts' beat tables, `reference.examples`),
+for the sound call the
 validated, snapped picture plan and the audio catalogue tags (8.1), then the JSON
 schema generated from the model the parser validates (one source of truth), then on
 the one retry the previous output and the violation list (8.2), and last the
@@ -39,10 +41,15 @@ from shortsmith.contracts import (
     PlanRequest,
     SoundStory,
 )
+from shortsmith.reference import examples
 
 Call = Literal["picture", "sound"]
 
-# v16 (ticket 070): the sound file names the closed cue palette - `tick` on a pop-in,
+# v17 (ticket 077): the picture call gets section 7, "How top shorts edit a line like
+# yours": the two worked examples code picked (style, topic, Tier B first) as beat tables,
+# with the rule to copy the moves and never the content; the picture file says how to
+# read it. The sound file is v16's unchanged.
+# (v16, ticket 070): the sound file names the closed cue palette - `tick` on a pop-in,
 # `whoosh` on a transition `sound.whoosh.on` names or a pop-in, `ding` only on an `idea`
 # sticker, `bass` / `drum` / `thump` on landed events - with the `sound.tick`,
 # `sound.whoosh` and `sound.ding` caps, says code marks further pop-ins and transitions
@@ -91,7 +98,8 @@ Call = Literal["picture", "sound"]
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
 # diagram data; v2, ticket 027: the set-piece content rules.)))
-PROMPT_VERSION = "v16"
+PROMPT_VERSION = "v17"
+EXAMPLES_HEADING = "## 7. How top shorts edit a line like yours"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (
     "You are the Shortsmith planner. You have no tools. Read the whole message and "
@@ -120,6 +128,8 @@ def build_prompt(
     if call == "sound" and picture is None:
         raise ValueError("the sound call needs the validated picture plan (8.1)")
     parts = [_instructions(request, call), *_sections(request)]
+    if call == "picture":
+        parts.append(f"{EXAMPLES_HEADING}\n\n{examples.section(request.examples)}")
     if call == "sound":
         assert picture is not None
         parts.append(

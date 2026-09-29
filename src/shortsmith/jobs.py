@@ -158,6 +158,10 @@ class JobRecord(BaseModel):
     # 035 / 1.2: the version of the style spec's front matter the plan was judged by,
     # recorded at `planning` beside the prompt version; `meta.json` copies both.
     style_version: str | None = None
+    # 077: the topic code picked at `planning` (None: style only) and the video ids of
+    # the worked examples the planner saw; the page shows both, `meta.json` copies them.
+    topic: str | None = None
+    examples: list[str] = []
     # 013 / 3.3: the face box, the PIP window and the circle diameter, measured once at
     # `transcribing`; the render reads the geometry from here and a retry never re-measures.
     presenter: PresenterMeasurement | None = None

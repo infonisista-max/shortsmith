@@ -1,0 +1,75 @@
+# Effect map (ticket 077): how a worked example shows an effect the renderer cannot draw.
+# A reference card names such an effect `unregistered` and keeps the model's own name for
+# it; this file maps that name to the closest registered component (docs/components.md),
+# or to null: "(no equivalent: skip)". A name missing here is skipped the same way.
+# Loaded by `shortsmith.reference.examples.load_effect_map`; a target that is not a
+# registered component is refused naming both. Seeded from every `unregistered` name in
+# docs/reference/inventory/*.json (29 Sep 2026); the agent's picks, for the operator to
+# overrule.
+effects:
+  3d_globe_overlay: map
+  animated_horse_movement: object_path
+  animated_title_drop: text_pop
+  article_text_scroller_highlight: null  # 078 builds the highlighter
+  banner_slide_down: lower_third
+  bloodstain_stamp: stamp
+  bold_title_card: card
+  bold_title_pop: text_pop
+  brain_particles_overlay: null
+  brand_hub_reveal: null
+  calendar_flip: null
+  calendar_page_peel: null
+  cartoon_scientist_slide: sticker
+  cash_cascade: null
+  cern_skull_drop: sticker
+  clock_face_overlay: null
+  coin_toss_animation: null
+  color_flash: flash
+  currency_shower: null
+  date_banner_slide: lower_third
+  dialogue_bubble_sequence: bubble
+  emoji_pop_in: sticker
+  emoji_sticker_pop: sticker
+  giant_temperature_callout: stamp
+  glow_title: text_pop
+  glowing_logo_reveal: null
+  glowing_sun_prop: null
+  graphic_callout_pop: text_pop
+  header_banner: title_strip
+  headline_kinetic_highlight: null  # 078
+  light_burst: flash
+  light_flare: flash
+  lightbulb_idea_pop: sticker
+  lower_third_text: lower_third
+  map_highlight_and_text: map
+  map_target_circle: pin_drop
+  marker_highlighter: null  # 078
+  medical_term_label: label_flyin
+  money_fan_and_crown: sticker
+  name_tag_pop: lower_third
+  name_title_banner: lower_third
+  neon_year_1961: stamp
+  neon_year_pop: stamp
+  pop_label: text_pop
+  prop_pop_in: sticker
+  question_mark_cloud: sticker
+  reaction_cutout_pop: null
+  red_squiggle_underline: null
+  speech_bubble_pop: bubble
+  speech_bubble_quote: bubble
+  speech_bubbles_dialogue: bubble
+  subscribe_button_animation: null
+  suns_comparison_counter: counter
+  text_banner_pop: text_pop
+  text_card_pop: card
+  text_highlight: null  # 078
+  text_tag_pop: text_pop
+  thought_bubble_pop: bubble
+  title_banner_pop: text_pop
+  trait_tags_pop: text_pop
+  vertical_slits_zoom: zoom
+  vs_matchup_overlay: split
+  wipe: wipe
+  yellow_callout_pop: text_pop
+  yellow_highlighter_box: null  # 078
+  yellow_strip_highlighter: null  # 078

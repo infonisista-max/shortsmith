@@ -18,12 +18,14 @@ from shortsmith import fixture
 from shortsmith.contracts import (
     CATEGORIES,
     Constraints,
+    ExampleRow,
     PicturePlan,
     PlanFeedback,
     PlanReference,
     PlanRequest,
     PlanStyle,
     SoundStory,
+    WorkedExample,
 )
 from shortsmith.planner import FakePlanner, prompt
 from shortsmith.transcriber import FakeTranscriber
@@ -160,7 +162,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v16"
+    assert prompt.PROMPT_VERSION == "v17"
 
 
 def test_the_v15_picture_prompt_says_each_change_counts_at_its_own_time() -> None:
@@ -382,9 +384,27 @@ def test_the_prompt_files_are_versioned() -> None:
     assert f"Prompt version: {prompt.PROMPT_VERSION}" in prompt.build_prompt(_request(), "picture")
 
 
+def _worked(video_id: str, tier: str) -> WorkedExample:
+    """077: a fixed two-row example that does not move when a card or the map is edited."""
+    return WorkedExample(
+        video_id=video_id, tier=tier, topic="science", tone="urgent",
+        rows=[
+            ExampleRow(start_s=0.0, end_s=3.0, said="What if the Sun vanished",
+                       shows="a glowing sun", match="literal", part="hook",
+                       layout="presenter_full", effect="(no equivalent: skip)", sound="whoosh"),
+            ExampleRow(start_s=3.0, end_s=9.0, said="Light takes eight minutes",
+                       shows="8 MIN stamp", match="number", part="build_up",
+                       layout="full_footage", effect="stamp"),
+        ],
+    )  # fmt: skip
+
+
 @pytest.mark.parametrize("call", ["picture", "sound"])
 def test_the_rendering_matches_the_recorded_snapshot(call: str) -> None:
-    request = _request()
+    request = _request().model_copy(
+        update={"topic": "science",
+                "examples": [_worked("bbbbbbbbbbb", "B"), _worked("aaaaaaaaaaa", "A")]}
+    )  # fmt: skip
     picture = FakePlanner().plan_picture(request)
     text = prompt.build_prompt(
         request, call, picture=picture, catalogue_tags=["suspense", "money"]  # pyright: ignore[reportArgumentType]

@@ -1,12 +1,13 @@
 """`out/meta.json`: the proof of the bar for one short (decision 10.4; ticket 035).
 
 `build(job)` reads what the job left on disk - `job.json` (status, style, the prompt and
-style versions recorded at `planning`, the ledger rows, the rating, the critic summary
-and the audience), `out/qa.json` (T1-T13 and the critic's report), `work/plan.json`
-(the category), `work/plan.validated.json` (the clamps) and `work/assets.json` (the
-rescued beats) - and the reference pack's version from `docs/reference/README.md`, and
-returns a `contracts.Meta`. Nothing here fails a job: a file that is missing reads as
-absent, so a job that never got past upload still describes itself.
+style versions, the topic and the worked examples (077) recorded at `planning`, the
+ledger rows, the rating, the critic summary and the audience), `out/qa.json` (T1-T13
+and the critic's report), `work/plan.json` (the category), `work/plan.validated.json`
+(the clamps) and `work/assets.json` (the rescued beats) - and the reference pack's
+version from `docs/reference/README.md`, and returns a `contracts.Meta`. Nothing here
+fails a job: a file that is missing reads as absent, so a job that never got past upload
+still describes itself.
 
 074: `inventory` is the self-inventory's comparison (`reference.own.summary`): our
 card's numbers beside the median and range of the style's v2 reference cards, or the
@@ -93,6 +94,8 @@ def build(
         style_version=record.style_version,
         prompt_version=record.prompt_version,
         category=category,
+        topic=record.topic,
+        examples=list(record.examples),
         reference_pack_version=pack_version(readme),
         technical=checks,
         technical_passed=passed,

@@ -16,7 +16,8 @@ not parse after the retry, the hard cap - writes `{"status": "not_analysed", "re
 the job stays where the verdict left it.
 
 `summary(job)` is what `meta.json` and the job page read: the comparison of the card
-with the style's reference cards (`reference.compare`), or the reason it is missing.
+with the style's reference cards (`reference.compare`), or the reason it is missing;
+the match-share row carries our plan's share too (077).
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from pydantic import BaseModel, ValidationError
 
 from shortsmith import jobs, render
 from shortsmith.config import Settings
-from shortsmith.contracts import OwnInventory
+from shortsmith.contracts import OwnInventory, PicturePlan
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
 from shortsmith.reference import (
@@ -38,6 +39,7 @@ from shortsmith.reference import (
     INVENTORY_DIR,
     ReferenceInventoryV2,
     ReferenceLink,
+    examples,
     inventory,
     load_card,
 )
@@ -181,8 +183,15 @@ def summary(job: Job, inventory_dir: Path = INVENTORY_DIR) -> OwnInventory | Non
         return OwnInventory(status="not_analysed", reason=found.reason)
     style = job.record.style
     cards = compare_module.references_for(style, inventory_dir)
+    plan_path = job.work_dir / "plan.json"  # 077: the plan's match share, beside ours
+    plan_match = (
+        examples.match_share(PicturePlan.model_validate_json(plan_path.read_text("utf-8")))
+        if plan_path.is_file()
+        else None
+    )
     return OwnInventory(
-        status="analysed", comparison=compare_module.compare(found, cards, style=style)
+        status="analysed",
+        comparison=compare_module.compare(found, cards, style=style, plan_match=plan_match),
     )
 
 

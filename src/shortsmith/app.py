@@ -1133,7 +1133,7 @@ def render_job_page(
         style_note=html.escape(record.style_note) or "–",
         references=references,
         brief=html.escape(brief),
-        result=_result_block(job, agreed) + _inventory_block(job),
+        result=_examples_block(job) + _result_block(job, agreed) + _inventory_block(job),
         publishing=_publishing_block(job),
         feedback=_feedback_block(job),
         ledger=_ledger_block(job, average),
@@ -1212,6 +1212,17 @@ def _cell(value: float | str | None) -> str:
     if value is None:
         return "–"
     return html.escape(value if isinstance(value, str) else f"{value:g}")
+
+
+def _examples_block(job: Job) -> str:
+    """077: the topic code picked and the worked examples the planner saw; nothing
+    before `planning` has recorded the prompt."""
+    record = job.record
+    if record.prompt_version is None:
+        return ""
+    topic = f"topic {record.topic}" if record.topic else "topic none (style only)"
+    ids = ", ".join(record.examples) or "none for this style"
+    return f'<p class="examples">Worked examples: {html.escape(topic)} · {html.escape(ids)}</p>\n'
 
 
 def _inventory_block(job: Job) -> str:

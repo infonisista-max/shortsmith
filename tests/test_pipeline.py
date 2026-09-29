@@ -150,6 +150,11 @@ def test_run_job_transcribes_plans_renders_gates_and_delivers(
                         "instead (058)"]  # fmt: skip
     assert log.index(sourcing[0]) > log.index("planning -> sourcing")
     log = [line for line in log if not line.startswith("sourcing: ")]
+    # 077: planning names the topic and the worked examples in one line.
+    examples = next(line for line in log if line.startswith("worked examples: topic "))
+    assert log.index("transcribing -> planning") < log.index(examples)
+    assert log.index(examples) < log.index("planning -> sourcing")
+    log.remove(examples)
     assert len(log) == len(TRAIL) + 2 and log[-3].startswith("critic: overall ")
     # 074: the self-inventory runs after `delivered`; the default step has no key.
     assert log[-1].startswith("inventory: not analysed: ") and "GEMINI_API_KEY" in log[-1]

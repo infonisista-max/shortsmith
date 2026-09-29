@@ -124,8 +124,34 @@ class Constraints(StrictModel):
 AssetPolicy = Literal["any", "rights_safe"]
 
 
+class ExampleRow(StrictModel):
+    """One shot of a worked example (077): a v2 card's beat row as the planner reads it,
+    its `effect` already a registered component, "(no equivalent: skip)" or empty."""
+
+    start_s: float
+    end_s: float
+    said: str
+    shows: str
+    match: str
+    part: str
+    layout: str
+    effect: str = ""
+    sound: str = ""
+
+
+class WorkedExample(StrictModel):
+    """A top short's beat table (077), chosen by style, topic, then Tier B first."""
+
+    video_id: str
+    tier: str
+    topic: str
+    tone: str = ""
+    rows: list[ExampleRow] = []
+
+
 class PlanRequest(StrictModel):
-    """Everything the planner receives; nothing from disk, no pixels (2.3)."""
+    """Everything the planner receives; nothing from disk, no pixels (2.3). 077: the
+    job's `topic` (None: style only) and the two worked examples code picked."""
 
     brief: str
     style: PlanStyle
@@ -134,6 +160,8 @@ class PlanRequest(StrictModel):
     references: list[PlanReference]
     constraints: Constraints
     asset_policy: AssetPolicy
+    topic: str | None = None
+    examples: list[WorkedExample] = []
 
 
 # --- picture plan (decisions 3.1, 3.2, 3.4, 4.1, 4.2, 8.1, 9.2, 9.4) ----------------
@@ -687,12 +715,15 @@ class Violation(StrictModel):
 
 class ValidatedPlan(StrictModel):
     """The picture plan with its boundaries snapped and its fields clamped, the sound
-    story clamped, every clamp logged and the 3.4 / 4.3 warnings for the contact sheet."""
+    story clamped, every clamp logged and the 3.4 / 4.3 warnings for the contact sheet.
+    077: the job's `topic` and the video ids of the worked examples the planner saw."""
 
     picture: PicturePlan
     sound: SoundStory
     clamps: list[Clamp] = []
     warnings: list[str] = []
+    topic: str | None = None
+    examples: list[str] = []
 
 
 class PlanFeedback(StrictModel):
@@ -1896,6 +1927,10 @@ class Meta(StrictModel):
     style_version: str | None = None
     prompt_version: str | None = None
     category: str = "other"
+    # 077: the topic code picked before planning (None: style only) and the worked
+    # examples' video ids the planner saw.
+    topic: str | None = None
+    examples: list[str] = []
     reference_pack_version: str | None = None
     technical: list[TechnicalResult] = []
     technical_passed: bool = False

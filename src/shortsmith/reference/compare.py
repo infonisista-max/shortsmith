@@ -11,7 +11,8 @@ The rows: shots, effects and SFX (by kind) per 10 s, the median clip length, the
 of SFX on a visible event, the layout share of the references' top three layouts (ours
 when there is no reference), the bed, the mood per story part against the plan's moods
 (076 fills the plan's side; until then "—"), the music change and its `how`, and the
-match share (literal + named entity + number, as a share of beats; 077 reads it). Every
+match share (literal + named entity + number, as a share of beats), whose plan column is
+our plan's share by the same rule (077, `examples.match_share`). Every
 figure is computed from the cards' lists, never from the rounded `counts`.
 """
 
@@ -48,6 +49,7 @@ TOP_LAYOUTS = 3
 MATCHED = frozenset({"literal", "named_entity", "number"})
 INVISIBLE_EVENT = "other"  # every other `SfxEvent` is something seen on screen
 DIGITS = 2
+MATCH_ROW = "match share (literal + named entity + number)"
 
 Measure = Callable[[ReferenceInventoryV2], float | None]
 
@@ -74,6 +76,7 @@ def compare(
     *,
     style: str,
     plan_moods: Mapping[str, str] | None = None,
+    plan_match: float | None = None,
 ) -> InventoryComparison:
     enough = len(cards) >= MIN_REFERENCES
     kinds = [k for k in get_args(SfxKind) if any(_sfx_count(c, k) for c in [ours, *cards])]
@@ -84,9 +87,14 @@ def compare(
         *[(f"SFX per 10 s: {k}", _sfx_rate(k)) for k in kinds],
         ("SFX on a visible event (share)", _visible_share),
         *[(f"layout share: {name}", _layout_share(name)) for name in _top_layouts(ours, cards)],
-        ("match share (literal + named entity + number)", _match_share),
+        (MATCH_ROW, _match_share),
     ]
     rows = [_number_row(name, measure, ours, cards, enough) for name, measure in numbers]
+    if plan_match is not None:  # 077: our plan's share, by the same rule
+        rows = [
+            r.model_copy(update={"plan": f"{plan_match:.{DIGITS}f}"}) if r.name == MATCH_ROW else r
+            for r in rows
+        ]
     rows.append(_bed_row(ours, cards))
     rows += [_mood_row(part, ours, cards, plan_moods) for part in get_args(StoryPart)]
     rows.append(_change_row(ours, cards))

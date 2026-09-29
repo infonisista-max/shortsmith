@@ -36,7 +36,11 @@ on the page, and the retry is logged in `job.log` (8.2); a reply the models refu
 (`PlanInvalid`) takes the same path. The planner is bound to the job first, once per
 run of the step, so a real adapter writes its prompt under this run's
 `work/planner/run<n>/` (065) and records a ledger row per call and
-retry (8.3), and the picture plan's `prompt_version` is recorded in `job.json`. The
+retry (8.3), and the picture plan's `prompt_version` is recorded in `job.json`. Before
+the first call code picks the job's topic and two worked examples (077,
+`reference.examples`: the style's v2 cards, then the topic, then Tier B first); the
+request carries them, `job.json` and `plan.validated.json` record the topic and the
+examples' ids, and `job.log` names them. The
 sound call receives the snapped picture plan and the catalogue tags. The step builds
 the captions (`captions.build`, 6.1-6.3: cut,
 hidden from the finale, paged, laid out) from the snapped plan and its clamped
@@ -123,6 +127,7 @@ from shortsmith.contracts import (
     ReferenceRecord,
     Transcript,
     ValidatedPlan,
+    WorkedExample,
 )
 from shortsmith.jobs import Clock, Job, Status
 from shortsmith.ledger import BudgetExceeded
@@ -132,7 +137,7 @@ from shortsmith.qa import calibration
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import Gate, TechnicalGate
-from shortsmith.reference import own
+from shortsmith.reference import INVENTORY_DIR, examples, own
 from shortsmith.render import RemotionRenderer, Renderer
 from shortsmith.styles import StyleError, StyleSpec
 from shortsmith.transcriber import Transcriber
@@ -190,6 +195,7 @@ def run_job(
     detector: presenter.FaceDetector | None = None,
     critic: Critic | None = None,
     inventory: own.SelfInventory | None = None,
+    inventory_dir: Path = INVENTORY_DIR,
     max_job_minutes: float | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
@@ -206,7 +212,7 @@ def run_job(
     critic = critic or FakeCritic()
     steps: list[tuple[Status, Step]] = [
         ("transcribing", lambda j: _transcribe(j, transcriber, detector, specs)),
-        ("planning", lambda j: _plan(j, planner, specs, library)),
+        ("planning", lambda j: _plan(j, planner, specs, library, inventory_dir)),
         ("sourcing", lambda j: _source(j, sourcing, specs, clock)),
         ("rendering", lambda j: _render(j, renderer, clock, library)),
         ("qa", lambda j: _qa(j, gate, critic)),
@@ -306,8 +312,16 @@ def style_of(job: Job, specs: Specs) -> StyleSpec:
     return spec
 
 
-def build_plan_request(job: Job, specs: Specs) -> PlanRequest:
-    """PlanRequest per 2.3 from the job's files; nothing else reaches the planner."""
+def build_plan_request(
+    job: Job,
+    specs: Specs,
+    inventory_dir: Path = INVENTORY_DIR,
+    *,
+    note: Callable[[str], None] | None = None,
+) -> PlanRequest:
+    """PlanRequest per 2.3 from the job's files; nothing else reaches the planner. 077:
+    the topic and the two worked examples from the v2 cards in `inventory_dir`, told to
+    `note` in one line."""
     transcript = Transcript.model_validate_json(
         (job.work_dir / "asr.json").read_text(encoding="utf-8")
     )
@@ -315,6 +329,9 @@ def build_plan_request(job: Job, specs: Specs) -> PlanRequest:
     refs_path = job.input_dir / "refs.json"
     refs = _REFS.validate_json(refs_path.read_text(encoding="utf-8")) if refs_path.is_file() else []
     spec = style_of(job, specs)
+    topic, worked = examples.for_job(brief, transcript, spec.name, inventory_dir)
+    if note is not None:
+        note(examples_line(topic, worked))
     return PlanRequest(
         brief=brief,
         style=PlanStyle(
@@ -337,7 +354,15 @@ def build_plan_request(job: Job, specs: Specs) -> PlanRequest:
             target_duration_s=min(MAX_DURATION_S, transcript.duration_s),
         ),
         asset_policy="any",
+        topic=topic.name,
+        examples=worked,
     )
+
+
+def examples_line(topic: examples.TopicPick, worked: Sequence[WorkedExample]) -> str:
+    """077: the job.log line naming the topic (and how it was picked) and the examples."""
+    named = f"topic {topic.name} ({topic.source})" if topic.name else "topic none (style only)"
+    return f"worked examples: {named}; {', '.join(e.video_id for e in worked) or 'none'}"
 
 
 class PlanRejected(Exception):
@@ -401,8 +426,16 @@ def bubble_lines(picture: PicturePlan, transcript: Transcript) -> list[str]:
     return lines
 
 
-def _plan(job: Job, planner: Planner, specs: Specs, library: sound.Library) -> None:
-    request = build_plan_request(job, specs)
+def _plan(
+    job: Job,
+    planner: Planner,
+    specs: Specs,
+    library: sound.Library,
+    inventory_dir: Path = INVENTORY_DIR,
+) -> None:
+    request = build_plan_request(job, specs, inventory_dir, note=lambda line: jobs.note(job, line))
+    ids = [e.video_id for e in request.examples]
+    jobs.amend(job, topic=request.topic, examples=ids)
     spec = style_of(job, specs)
     transcript = request.transcript
     must_use = grammar.must_use_ids(request.brief, request.references)
@@ -439,6 +472,8 @@ def _plan(job: Job, planner: Planner, specs: Specs, library: sound.Library) -> N
         sound=sound.sound,
         clamps=checked.clamps + sound.clamps,
         warnings=checked.warnings,
+        topic=request.topic,
+        examples=ids,
     )
     paged = captions.build(transcript, picture, spec)
     _write(job, "plan.json", picture)
