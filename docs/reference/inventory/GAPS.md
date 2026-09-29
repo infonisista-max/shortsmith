@@ -13,18 +13,16 @@ Written by `python -m shortsmith.reference gaps` from 13 inventories under `docs
 | `coin_toss_animation` | 1 | [VSJzviqMO7k 47s](https://www.youtube.com/watch?v=VSJzviqMO7k&t=47s) | Animated thumb flips a silver coin into the air |
 | `countdown_number_one` | 1 | [Q2pquJ2FlzA 9s](https://www.youtube.com/watch?v=Q2pquJ2FlzA&t=9s) | Bold black number 1 on yellow background |
 | `countdown_number_two` | 1 | [Q2pquJ2FlzA 1s](https://www.youtube.com/watch?v=Q2pquJ2FlzA&t=1s) | Bold black number 2 filling the frame |
-| `label_slide` | 1 | [FbaBcWgMIEY 2s](https://www.youtube.com/watch?v=FbaBcWgMIEY&t=2s) | Stylized text 'Arab' appears on the upper frame |
+| `magical_horse_entry` | 1 | [ePTZVwipoAM 34s](https://www.youtube.com/watch?v=ePTZVwipoAM&t=34s) | Animated magical horse appears in tent engraving with text banners |
 | `negative_temperature_gauge` | 1 | [S5j-2CWYYwM 26s](https://www.youtube.com/watch?v=S5j-2CWYYwM&t=26s) | Red glowing thermometer with -70C text graphic in snowfall |
 | `number_badge_pop` | 1 | [ATkSnL_CdLg 4s](https://www.youtube.com/watch?v=ATkSnL_CdLg&t=4s) | 5 Crore bold number card pops up behind car cutout |
 | `numbered_tag` | 1 | [ATkSnL_CdLg 11s](https://www.youtube.com/watch?v=ATkSnL_CdLg&t=11s) | #1 red badge in top-left corner and CUSTOMIZATION label |
 | `persistent_header_banner` | 1 | [Q2pquJ2FlzA 0s](https://www.youtube.com/watch?v=Q2pquJ2FlzA&t=0s) | Yellow top header with Hindi and English titles |
+| `red_circle_india` | 1 | [ePTZVwipoAM 48s](https://www.youtube.com/watch?v=ePTZVwipoAM&t=48s) | Red circle drawn highlighting India on the map |
 | `spellcheck_squiggly_underline` | 1 | [VSJzviqMO7k 12s](https://www.youtube.com/watch?v=VSJzviqMO7k&t=12s) | Red squiggly underline appearing under Google logo to denote spelling error |
-| `stacked_labels` | 1 | [FbaBcWgMIEY 11s](https://www.youtube.com/watch?v=FbaBcWgMIEY&t=11s) | Labels 'Milk', 'Curd', 'Water' appear sequentially over the stacked images |
 | `sun_energy_orb` | 1 | [S5j-2CWYYwM 0s](https://www.youtube.com/watch?v=S5j-2CWYYwM&t=0s) | Fiery glowing CGI sun sphere floating between presenter's hands |
 | `tag_pangea` | 1 | [Q2pquJ2FlzA 8s](https://www.youtube.com/watch?v=Q2pquJ2FlzA&t=8s) | Yellow badge reading Pangea |
 | `tag_supercontinent` | 1 | [Q2pquJ2FlzA 4s](https://www.youtube.com/watch?v=Q2pquJ2FlzA&t=4s) | Black badge showing text Supercontinent |
-| `text_badge_pop` | 1 | [FbaBcWgMIEY 0s](https://www.youtube.com/watch?v=FbaBcWgMIEY&t=0s) | Text banner reading '7-8000 Years Before' pops onto the top image |
-| `text_banner` | 1 | [FbaBcWgMIEY 9s](https://www.youtube.com/watch?v=FbaBcWgMIEY&t=9s) | Yellow label 'Rennet Enzyme' pops up near the bottom |
 | `volkswagen_central_reveal` | 1 | [VSJzviqMO7k 32s](https://www.youtube.com/watch?v=VSJzviqMO7k&t=32s) | Volkswagen Group logo reveals in center of circular brand arrows |
 
 ## Unregistered transitions
@@ -46,8 +44,8 @@ Written by `python -m shortsmith.reference gaps` from 13 inventories under `docs
 
 | video | creator | s | shots/10 s | effects/10 s | sfx/10 s | median clip s | layout share | background share |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| [FbaBcWgMIEY](https://www.youtube.com/watch?v=FbaBcWgMIEY) | - | 60 | 3.4 | 1.3 | 1.0 | 1.8 | split 77%, grid 10%, map 5%, full_still 4%, presenter_full 3% | still_photo 97%, generated_or_animated 3% |
-| [ePTZVwipoAM](https://www.youtube.com/watch?v=ePTZVwipoAM) | - | 60 | 3.2 | 2.2 | 0.8 | - | presenter_full 42%, split 35%, full_still 23% | still_photo 100% |
+| [FbaBcWgMIEY](https://www.youtube.com/watch?v=FbaBcWgMIEY) | - | 60 | 3.5 | 1.2 | 0.7 | - | presenter_full 71%, split 21%, map 5%, full_still 3% | still_photo 97%, generated_or_animated 3% |
+| [ePTZVwipoAM](https://www.youtube.com/watch?v=ePTZVwipoAM) | - | 60 | 3.2 | 2.7 | 1.2 | - | split 42%, other 35%, full_still 23% | still_photo 100% |
 | [nBihHUlYOQk](https://www.youtube.com/watch?v=nBihHUlYOQk) | - | 60 | 4.9 | 3.9 | 0.8 | 2.3 | split 34%, presenter_full 30%, grid 19%, full_still 9%, full_footage 8% | still_photo 81%, moving_footage 19% (archival_or_news 15%, stock 4%) |
 
 ## facts / Tier A
