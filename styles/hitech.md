@@ -1,5 +1,5 @@
 ---
-version: "16"
+version: "17"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -67,6 +67,9 @@ broll:
              width_px: 640, fill: "#FFFFFF", ink: "#0F172A"}  # 063
     sticker: {kind: pop, duration_s: 0.18, hold_max_s: 2.5, max_per_beat: 1, size_px: 240,
               float_px: 10, float_period_s: 1.8}  # 062
+    # 078: the marker over an owner's article screenshot - the accent at about 45 %,
+    # padded round each text line; the screenshot card pushes to push_to about the lines.
+    highlight: {kind: sweep, color: "#22D3EE", opacity: 0.45, pad_px: 8, push_to: 1.12}
     map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#0F2A44",
           coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2,
           # 072: a pill over another pill or dot flips sides, then steps up or down
@@ -77,6 +80,7 @@ broll:
   text_pops_max_per_60s: 0  # 061: off here
   bubbles_max_per_60s: 0  # 063: off here
   stickers_max_per_60s: 0  # 062: off here
+  highlights_max_per_60s: 0  # 078: off here
   clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}
@@ -187,6 +191,7 @@ Dark, glowing, product and tech facts. DRAFT (grill decision 1.4): aliases resol
 - Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat only (a process, a material, a kind of place), never a named product or person; at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
 - The set pieces, infographics and map are the explainer's components under hitech numbers: flat cards (`rotate_deg` 0, a 2 px border), deeper dims under lists and walls, the map's land in the gradient's blue with a cyan coast.
 - Transitions are `cut`, `fade`, `wipe` and `zoom` (9.4); no whips or springs, no flash (060).
+- Article highlights (4.1 as amended by 078; off here: `highlights_max_per_60s` is 0): where a style allows them, a `photo` or `card` beat that shows the owner's uploaded article or document screenshot (an owner reference; never a searched or generated page, never a made-up article) may carry one `highlight`: the `sentence` to mark as it reads on the screenshot and the transcript `words` that say it. A marker in `motion.highlight.color` at `motion.highlight.opacity` sweeps the sentence's lines left to right from the first word to the last while the screenshot, a straight card, pushes in toward them. Code finds the lines on the image; a sentence it cannot find is dropped and the beat stays.
 
 ## Captions
 - Wider letter spacing for a monospace flavour, cyan/white emphasis, the same lower-third anchor and safe area as explainer (6.3); the plan may move a page to the upper third only once ticket 010 adds per-page zones.

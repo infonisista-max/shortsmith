@@ -161,6 +161,11 @@ class Broll(StrictModel):
     # per-beat cap, the square size, the float) are the `motion.sticker` row, required
     # of every spec too.
     stickers_max_per_60s: int = Field(ge=0)
+    # 078 (4.1 as amended): at most this many article highlights (a marker sweeping a
+    # sentence of the owner's uploaded screenshot) per 60 s of runtime, rounded up; 0 turns
+    # them off. The marker's numbers (colour, opacity, padding, the card's push toward the
+    # lines) are the `motion.highlight` row, required of every spec too.
+    highlights_max_per_60s: int = Field(ge=0)
     # 058 (4.1 as amended): the share of the runtime `clip` beats (full-screen moving
     # stock footage) may take, 0-1; 0 turns clips off. The clip's own numbers (the slow
     # push, the playback speed) are the `motion.clip` row, required of every spec too.

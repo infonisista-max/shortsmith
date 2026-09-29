@@ -164,6 +164,7 @@ from shortsmith.assets.judge import (
     Verdict,
     VisionJudge,
 )
+from shortsmith.assets.lines import FakeLineFinder, LineFinder, VisionLineFinder, find_highlights
 from shortsmith.assets.openverse import OpenverseImageSource
 from shortsmith.assets.pexels import PexelsImageSource
 from shortsmith.assets.pixabay import PixabayImageSource
@@ -213,6 +214,7 @@ __all__ = [
     "FakeClipSource",
     "FakeImageGenerator",
     "FakeImageSource",
+    "FakeLineFinder",
     "FakeRelevanceJudge",
     "GeminiImageGenerator",
     "GeneratedAsset",
@@ -221,6 +223,7 @@ __all__ = [
     "ImageGenerator",
     "ImageSource",
     "Judging",
+    "LineFinder",
     "OpenverseImageSource",
     "PexelsClipSource",
     "PexelsImageSource",
@@ -233,12 +236,14 @@ __all__ = [
     "Thumb",
     "Verdict",
     "VisionJudge",
+    "VisionLineFinder",
     "WebImageSource",
     "card_border",
     "choose_file",
     "clip_need_s",
     "covers_frame",
     "entity_crossings",
+    "find_highlights",
     "image_reuse_problems",
     "image_showings",
     "is_showing",
@@ -1485,6 +1490,9 @@ class Sourcing:
     # 062: where the plan's stickers are fetched from (the catalogue, the fetcher, the
     # cache); None drops every sticker with a job.log line, as a failed fetch does.
     stickers: StickerShelf | None = None
+    # 078: finds a highlight's sentence on the owner's screenshot (the judge model); None
+    # drops every highlight with a job.log line.
+    lines: LineFinder | None = None
     # Why a configured source has no adapter, one line each, written by
     # `from_settings` and logged by the pipeline before the step runs.
     notes: Sequence[str] = ()
@@ -1534,6 +1542,11 @@ class Sourcing:
             clock=clock,
         )
         manifest.stickers = self._stickers(job, validated.picture, clock=clock)
+        manifest.highlights = find_highlights(
+            validated.picture, manifest, job_dir=job_dir,
+            finder=self.lines.bind(job) if self.lines is not None else None,
+            log=lambda line: jobs.note(job, line, now=clock),
+        )  # fmt: skip
         write_manifest(job_dir, manifest)
         rights.write(job_dir, manifest, validated.picture)
         return manifest
@@ -1562,6 +1575,19 @@ def judge_from_settings(settings: Settings, ledger: Callable[[], Ledger]) -> Rel
     if settings.relevance_judge == "fake":
         return FakeRelevanceJudge()
     return VisionJudge(
+        ledger, api_key=settings.anthropic_api_key, model=settings.relevance_judge_model
+    )
+
+
+def lines_from_settings(settings: Settings, ledger: Callable[[], Ledger]) -> LineFinder | None:
+    """078: the highlight's line finder rides the judge `RELEVANCE_JUDGE` names - `none`
+    finds nothing (every highlight is dropped, logged), `fake` the fake, `api` one vision
+    call on `RELEVANCE_JUDGE_MODEL`."""
+    if settings.relevance_judge == "none":
+        return None
+    if settings.relevance_judge == "fake":
+        return FakeLineFinder()
+    return VisionLineFinder(
         ledger, api_key=settings.anthropic_api_key, model=settings.relevance_judge_model
     )
 
@@ -1627,6 +1653,7 @@ def from_settings(settings: Settings, *, ledger: Callable[[], Ledger]) -> Sourci
         policy=settings.asset_policy,
         generator=generator_from_settings(settings, ledger),
         judge=judge_from_settings(settings, ledger),
+        lines=lines_from_settings(settings, ledger),
         clips={name: clips[name] for name in CLIP_ORDER if name in clips},
         stickers=live_shelf(settings.shortsmith_data_dir),  # 062: free, no key
         notes=notes,

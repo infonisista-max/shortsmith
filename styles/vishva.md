@@ -1,5 +1,5 @@
 ---
-version: "7"
+version: "8"
 status: shipped
 aliases: [vishva, vishvagyan, vishva gyan, desi, history]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -82,12 +82,16 @@ broll:
     # size_px square (180-320 px), one per beat at most.
     sticker: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 1, size_px: 240,
               float_px: 10, float_period_s: 1.8}
+    # 078: the marker over an owner's article screenshot - the accent at about 45 %,
+    # padded round each text line; the screenshot card pushes to push_to about the lines.
+    highlight: {kind: sweep, color: "#FFD60A", opacity: 0.45, pad_px: 8, push_to: 1.12}
   enter_transitions: [cut, fade, whip, zoom, spring, flash]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: never two in a row (refs: at most 4 a minute)
   text_pops_max_per_60s: 9  # 061
   bubbles_max_per_60s: 4  # 063
   stickers_max_per_60s: 2  # 062
+  highlights_max_per_60s: 0  # 078: off here
   clip_max_fraction: 0.15  # 058: the runtime share clips may take
   transitions:
     fade: {duration_s: 0.35}
@@ -213,6 +217,7 @@ Desi history and story shorts in the operator's own Vishva Gyan manner (recipe 0
 - Text pops (4.1 as amended by 061; on here, at most `text_pops_max_per_60s` per minute): a `photo`, `card` or presenter-full beat carries `text_pops`, 1–4 bold words from the script pinned near the thing they name at `{x, y, anchor}` in percent of the frame, each landing on its spoken `word`, at most `motion.text_pop.max_per_beat` per beat; code keeps them inside the safe area, off the circle, the captions and any face.
 - Bubbles (4.1 as amended by 063; on here, at most `bubbles_max_per_60s` per minute): a `photo`, `card` or presenter-full beat carries `bubbles`, each a `speech` or `thought` bubble of 1–`motion.bubble.words_max` words that the recording itself carries (what the speaker says someone said or thought, or his own question, shortened or in the caption language; `first`–`last` name the transcript words it came from), its tail pointing at `{x, y}` in percent of the frame — a person in the picture, or the PIP circle when the presenter is the one asking. At most `motion.bubble.max_per_beat` per beat; a dialogue pair's second bubble lands `dialogue_gap_min_s`–`dialogue_gap_max_s` after the first. Code keeps the body inside the safe area, off the captions, the circle, the stamp and any face (the tail points at it instead).
 - Stickers (4.1 as amended by 062; on here, at most `stickers_max_per_60s` per minute): a `photo`, `card`, `clip` or presenter-full beat may carry one Fluent Emoji 3D sticker picked by an intent tag from the sticker catalogue, popping in on its spoken `word` and floating gently; above the speaker's circle when no `{x, y}` is given, else near the thing it reacts to. At most `motion.sticker.max_per_beat` per beat; code keeps it off the circle, the captions, the stamp and any face.
+- Article highlights (4.1 as amended by 078; off here: `highlights_max_per_60s` is 0): where a style allows them, a `photo` or `card` beat that shows the owner's uploaded article or document screenshot (an owner reference; never a searched or generated page, never a made-up article) may carry one `highlight`: the `sentence` to mark as it reads on the screenshot and the transcript `words` that say it. A marker in `motion.highlight.color` at `motion.highlight.opacity` sweeps the sentence's lines left to right from the first word to the last while the screenshot, a straight card, pushes in toward them. Code finds the lines on the image; a sentence it cannot find is dropped and the beat stays.
 
 ## Captions
 - The captions are the explainer's, number for number (run03: "subtitles perfect").

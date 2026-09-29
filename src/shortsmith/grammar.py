@@ -121,6 +121,8 @@ BUBBLE_KINDS = TEXT_POP_KINDS
 # 062: a sticker pops over the same picture beats (above the PIP circle, or near its
 # subject in the picture).
 STICKER_KINDS = TEXT_POP_KINDS
+# 078: a highlight marks the screenshot the beat shows, so only on a still picture beat.
+HIGHLIGHT_KINDS = frozenset({"photo", "card"})
 
 
 class Violations(StrictModel):
@@ -233,6 +235,8 @@ def validate_picture(
     found += bubble_found
     sticker_found, beats = _stickers(beats, runtime, spec, words, spans)
     found += sticker_found
+    highlight_found, beats = _highlights(beats, runtime, spec, words, spans, references)
+    found += highlight_found
     found += density(beats, spec)  # 066: after the passes that resolve each `at_s`
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
@@ -500,13 +504,16 @@ def pops_in(beat: Beat) -> bool:
 
 def change_times(beat: Beat) -> list[float]:
     """066 (3.1): when something changes on screen in `beat`, sorted: its start, every
-    text pop, bubble and sticker at its resolved `at_s` (061 / 063 / 062), its landed
+    text pop, bubble and sticker at its resolved `at_s` (061 / 063 / 062), a highlight's
+    sweep at its first word (078), its landed
     event (stamp, ring, lower-third) at mid-beat, and its end. A counter rides an
     overlay, whose beat `density` does not measure."""
     times = [beat.start, beat.end]
     if beat.event.kind != "none":
         times.append(round((beat.start + beat.end) / 2, 3))
-    for item in (*beat.text_pops, *beat.bubbles, *beat.stickers):
+    # 078: a highlight's marker starts sweeping at its first word.
+    lit = [beat.highlight] if beat.highlight is not None else []
+    for item in (*beat.text_pops, *beat.bubbles, *beat.stickers, *lit):
         if item.at_s is not None:
             times.append(min(max(item.at_s, beat.start), beat.end))
     return sorted(times)
@@ -1251,6 +1258,84 @@ def _stickers(
                 )
             resolved.append(sticker.model_copy(update={"name": name, "at_s": max(at, b.start)}))
         out.append(b.model_copy(update={"stickers": resolved}))
+    return found, out
+
+
+def highlight_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """078: `broll.highlights_max_per_60s` scaled to the runtime, rounded up like the other
+    per-60 s maxima (4.3); 0 stays 0."""
+    return math.ceil(spec.broll.highlights_max_per_60s * runtime / 60 - EPS)
+
+
+def _highlights(
+    beats: Sequence[Beat],
+    runtime: float,
+    spec: StyleSpec,
+    words: Sequence[Word],
+    spans: Sequence[Span],
+    references: Sequence[str],
+) -> tuple[list[Violation], list[Beat]]:
+    """078 (4.1 as amended): a highlight sits on a `photo` or `card` beat with the picture
+    on screen (not `full`), marks the owner's uploaded screenshot - one of `references`,
+    never a searched or generated page - that the beat itself shows, names transcript
+    words the beat says (the first one starts inside it), and there are at most
+    `highlight_cap` over the runtime (a style with the cap at 0 has none). Beats are output
+    seconds here, so `at_s` is rewritten as the first word's start and `end_s` as the last
+    word's end on the output timeline, whatever the planner put there."""
+    found: list[Violation] = []
+    out: list[Beat] = []
+    cap = highlight_cap(spec, runtime=runtime)
+    total = 0
+    for b in beats:
+        lit = b.highlight
+        if lit is None:
+            out.append(b)
+            continue
+        total += 1
+        label = f"highlight {lit.sentence!r}"
+        if total > cap:
+            found.append(
+                _v("4.1", b.id, f"{label}: highlight {total} over {runtime:g} s; "
+                                f"broll.highlights_max_per_60s "
+                                f"{spec.broll.highlights_max_per_60s} allows {cap} "
+                                "(078)")  # fmt: skip
+            )
+        if b.kind not in HIGHLIGHT_KINDS or b.mode == "full":
+            found.append(
+                _v("4.1", b.id, f"{label} sits on a photo or card beat with the picture on "
+                                f"screen; this beat is a {b.mode} {b.kind!r}")  # fmt: skip
+            )
+        if lit.asset_id not in references:
+            found.append(
+                _v("4.1", b.id, f"{label} marks {lit.asset_id!r}, which is not one of the "
+                                "owner's uploaded references; a highlight marks only the "
+                                "owner's article or document screenshot, never a made-up "
+                                "page (078)")  # fmt: skip
+            )
+        if lit.asset_id != b.asset_id:
+            found.append(
+                _v("4.1", b.id, f"{label} marks {lit.asset_id!r} but the beat shows "
+                                f"{b.asset_id!r}; the beat shows the screenshot it "
+                                "highlights")  # fmt: skip
+            )
+        first, last = lit.words
+        if not last < len(words):
+            found.append(
+                _v("4.1", b.id, f"{label} is said by words {first}-{last}; the transcript "
+                                f"has {len(words)} words (0-{len(words) - 1})")  # fmt: skip
+            )
+            out.append(b)
+            continue
+        at = round(presenter.output_time(spans, words[first].start), 3)
+        end = round(presenter.output_time(spans, words[last].end), 3)
+        if not b.start - CONTIGUITY_TOL_S <= at < b.end:
+            found.append(
+                _v("4.1", b.id, f"{label} starts on word {first} ({words[first].text!r} at "
+                                f"{at:g} s on the cut), which this beat ({b.start:g}-"
+                                f"{b.end:g} s) does not say")  # fmt: skip
+            )
+        resolved = lit.model_copy(update={"at_s": max(at, b.start), "end_s": max(end, at)})
+        out.append(b.model_copy(update={"highlight": resolved}))
     return found, out
 
 

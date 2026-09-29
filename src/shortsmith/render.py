@@ -169,10 +169,15 @@ from shortsmith.contracts import (
     DiagramLayout,
     FaceBox,
     FinaleCardSpec,
+    Highlight,
+    HighlightRecord,
+    HighlightSpec,
+    LineBox,
     ListRow,
     ListSpec,
     LowerThirdSpec,
     MapLayout,
+    MarkerLine,
     Mode,
     Palette,
     PicturePlan,
@@ -319,6 +324,12 @@ class BrollNumbers:
     clip_scale_from: float
     clip_scale_to: float
     clip_speed: float
+    # 078: the highlight row - the marker's colour and opacity, its padding round a text
+    # line, and how far the screenshot card pushes toward the lines over the beat.
+    highlight_color: str
+    highlight_opacity: float
+    highlight_pad_px: float
+    highlight_push_to: float
 
 
 @dataclass(frozen=True)
@@ -351,7 +362,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         stamp, lower, finale = motion["stamp"], motion["lower_third"], motion["finale"]
         rows, split, wall = motion["list"], motion["split"], motion["wall"]
         pop, bubble, clip = motion["text_pop"], motion["bubble"], motion["clip"]
-        sticker = motion["sticker"]
+        sticker, highlight = motion["sticker"], motion["highlight"]
         size = int(sticker["size_px"])
         if not STICKER_SIZE_MIN_PX <= size <= STICKER_SIZE_MAX_PX:
             raise styles.StyleError(
@@ -417,6 +428,10 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             clip_scale_from=float(clip["scale_from"]),
             clip_scale_to=float(clip["scale_to"]),
             clip_speed=float(clip["speed"]),
+            highlight_color=str(highlight["color"]),
+            highlight_opacity=float(highlight["opacity"]),
+            highlight_pad_px=float(highlight["pad_px"]),
+            highlight_push_to=float(highlight["push_to"]),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -557,11 +572,19 @@ def _half_extent(card: CardSpec, scale: float) -> float:
     return scale * (card.width * abs(math.sin(theta)) + card.height * math.cos(theta)) / 2
 
 
+def _bottom_below_top(card: CardSpec, scale: float) -> float:
+    """How far under the card's top edge its lowest point sits once pushed to `scale`
+    about its origin (the centre, or a screenshot's lines, 078), tilt included."""
+    origin = card.origin_y * card.height
+    centre = origin + scale * (card.height / 2 - origin)
+    return centre + _half_extent(card, scale)
+
+
 def card_bottom(visual: VisualSpec) -> float:
     """The lowest y the card reaches over its beat (full push, tilt included)."""
     card = visual.card
     assert card is not None
-    return card.top + card.height / 2 + _half_extent(card, max(visual.scale_from, visual.scale_to))
+    return card.top + max(_bottom_below_top(card, s) for s in (visual.scale_from, visual.scale_to))
 
 
 def _card_limit(b: BrollNumbers, pip_top: int | None) -> float:
@@ -603,6 +626,69 @@ def card_visual(src: str, width: int, height: int, *, strip_text: str, ring: boo
         focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=scale_from, scale_to=scale_to,
         pan_px=0.0, card=card,
     )  # fmt: skip
+
+
+def marker_lines(
+    lines: Sequence[LineBox], *, image_width: float, image_height: float, pad_px: float,
+    start_s: float, end_s: float,
+) -> list[MarkerLine]:  # fmt: skip
+    """078: the marker strokes over a card image of `image_width` x `image_height`: each
+    text line padded by `pad_px` above and below, swept one after another from `start_s` to
+    `end_s` (seconds from the beat's start) at one speed, so a line takes its share of the
+    time by its width."""
+    widths = [(box.right - box.left) * image_width for box in lines]
+    total = sum(widths) or 1.0
+    strokes: list[MarkerLine] = []
+    at = start_s
+    for box, width in zip(lines, widths, strict=True):
+        until = at + (end_s - start_s) * width / total
+        strokes.append(MarkerLine(
+            left=box.left * image_width, top=box.top * image_height - pad_px, width=width,
+            height=(box.bottom - box.top) * image_height + 2 * pad_px,
+            start_s=at, end_s=until,
+        ))  # fmt: skip
+        at = until
+    return strokes
+
+
+def highlight_visual(
+    src: str, width: int, height: int, *, highlight: Highlight, record: HighlightRecord,
+    beat_start_s: float, beat_end_s: float, fps: int, numbers: StyleNumbers, pip_top: int,
+) -> VisualSpec:  # fmt: skip
+    """078: the owner's screenshot as a straight card (no tilt, no crop, no caption strip)
+    pushing in from 1.0 to the style's `motion.highlight.push_to` about the centre of the
+    highlighted lines, placed so that at full push it still ends `PIP_GAP_PX` above the
+    circle and above the style limit. The marker sweeps from the sentence's first word to
+    its last, and is done by the beat's last frame."""
+    b = numbers.broll
+    base = card_visual(src, width, height, strip_text="", ring=False, index=0, crop=Crop(),
+                       numbers=numbers, pip_top=pip_top)  # fmt: skip
+    card = base.card
+    assert card is not None
+    last_frame_s = (round(beat_end_s * fps) - 1 - round(beat_start_s * fps)) / fps
+    said = highlight.at_s if highlight.at_s is not None else beat_start_s
+    done = highlight.end_s if highlight.end_s is not None else beat_end_s
+    start = max(said - beat_start_s, 0.0)
+    end = max(min(done - beat_start_s, last_frame_s), start)
+    strokes = marker_lines(
+        record.lines, image_width=card.image_width, image_height=card.image_height,
+        pad_px=b.highlight_pad_px, start_s=start, end_s=end,
+    )  # fmt: skip
+    left = min(box.left for box in record.lines) * card.image_width
+    right = max(box.right for box in record.lines) * card.image_width
+    top = min(box.top for box in record.lines) * card.image_height
+    bottom = max(box.bottom for box in record.lines) * card.image_height
+    card = card.model_copy(update={
+        "rotate_deg": 0.0,
+        "origin_x": (card.border_px + (left + right) / 2) / card.width,
+        "origin_y": (card.border_px + (top + bottom) / 2) / card.height,
+        "highlight": HighlightSpec(lines=strokes, color=b.highlight_color,
+                                   opacity=b.highlight_opacity),
+    })  # fmt: skip
+    push = max(b.highlight_push_to, 1.0)
+    reach = max(_bottom_below_top(card, s) for s in (1.0, push))
+    card = card.model_copy(update={"top": _card_limit(b, pip_top) - reach})
+    return base.model_copy(update={"card": card, "scale_from": 1.0, "scale_to": push})
 
 
 def clip_visual(src: str, width: int, height: int, *, crop: Crop, numbers: StyleNumbers,
@@ -652,7 +738,7 @@ def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSp
 
 def _visuals(
     plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None,
-    numbers: StyleNumbers, *, pip_top: int,
+    numbers: StyleNumbers, *, pip_top: int, fps: int = FPS,
 ) -> dict[str, tuple[Mode, VisualSpec | None]]:  # fmt: skip
     """Per beat id: the mode to draw (a rung-4 rescue becomes `pip`) and its visual;
     `pip_top` is the top of the circle the spec draws, the cards' placement line."""
@@ -697,7 +783,18 @@ def _visuals(
             and previous is not None
             and previous[2] == decided.asset_id
         )
-        if carries_on and previous is not None:
+        found = manifest.highlight(beat.id)
+        if (
+            beat.highlight is not None and found is not None
+            and found.asset_id == decided.asset_id and record.kind != "clip"
+        ):  # fmt: skip
+            # 078: the owner's screenshot as the straight card the marker sweeps.
+            carries_on = False
+            visual = highlight_visual(src, record.width, record.height,
+                                      highlight=beat.highlight, record=found,
+                                      beat_start_s=beat.start, beat_end_s=beat.end, fps=fps,
+                                      numbers=numbers, pip_top=pip_top)  # fmt: skip
+        elif carries_on and previous is not None:
             earlier, visual, _ = previous
             visual = continued(visual, earlier.end - earlier.start, beat.end - beat.start)
         elif decided.treatment == "clip":
@@ -2072,7 +2169,7 @@ def build_spec(
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     geometry = pip or fixed_pip(source_size, numbers)
-    visuals = _visuals(plan, manifest, job_dir, numbers, pip_top=geometry.top)
+    visuals = _visuals(plan, manifest, job_dir, numbers, pip_top=geometry.top, fps=fps)
     geocoder = geocoder or geo.GazetteerGeocoder()
     if job_dir is not None:
         geocoder = geocoder.for_job(job_dir)

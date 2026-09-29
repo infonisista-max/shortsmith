@@ -44,6 +44,28 @@ export type CardSpec = {
   ring_diameter_px: number;
   ring_px: number;
   ring_at_s: number;
+  // 078: the push's origin (fractions of the box; the centre on every other card) and the
+  // marker a screenshot card carries over its image.
+  origin_x: number;
+  origin_y: number;
+  highlight?: HighlightSpec | null;
+};
+
+// 078: one marker stroke in the card image's pixels, swept left to right over its seconds
+// (from the beat's start).
+export type MarkerLine = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  start_s: number;
+  end_s: number;
+};
+
+export type HighlightSpec = {
+  lines: MarkerLine[];
+  color: string;
+  opacity: number;
 };
 
 export type VisualSpec = {

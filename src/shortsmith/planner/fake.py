@@ -47,6 +47,12 @@ landing on word 1. b01 already carries the opening hit, the one cue
 `sound.cues_per_beat_max` allows, so the sound story is unchanged. Under a cap of 0 the
 plan is byte-identical to before.
 
+Ticket 078: where the style's `broll.highlights_max_per_60s` is over 0 and the request's
+first reference is a screenshot (its caption says "screenshot"), b01 - which shows that
+reference - carries one highlight (`fake_highlight`): `FAKE_SENTENCE` said by words 0-1.
+The sound story is unchanged. With no screenshot, or a cap of 0, the plan is
+byte-identical to before; the smoke uploads no reference, so its plans carry none.
+
 Ticket 059: under the recipe styles (`footage`, `vishva`, `fastfacts`) b03 flashes, its
 whoosh is its one cue (the pop's tick gives way), and where the style carries
 `broll.title_strip` (fastfacts) the plan writes `FAKE_TITLE_STRIP`. Under the explainer the
@@ -83,6 +89,7 @@ from shortsmith.contracts import (
     CutPlan,
     Event,
     Finale,
+    Highlight,
     MapMarker,
     MapPlan,
     MoodPoint,
@@ -251,6 +258,30 @@ FAKE_BUBBLES: tuple[Bubble, ...] = (
     Bubble(shape="speech", text="Hello there?", first=0, last=1, x=19.4, y=50.0),
     Bubble(shape="thought", text="This is...", first=2, last=3, x=62.0, y=30.0),
 )
+# 078: the fake's one highlight, on b01 (the opening photo, 0.0-0.5 s) when the owner's
+# first reference is a screenshot (its caption says so) and the style allows highlights:
+# the sentence as the fixture screenshot prints it, said by words 0-1 ("hello there").
+FAKE_SENTENCE = "Nothing happened here today"
+SCREENSHOT_WORD = "screenshot"
+
+
+def highlights_allowed(style: PlanStyle) -> bool:
+    """078: the style's `broll.highlights_max_per_60s` is over 0; a request with no
+    numbers allows none (the explainer's rule)."""
+    return _cap_over_zero(style, "highlights_max_per_60s")
+
+
+def fake_highlight(request: PlanRequest) -> Highlight | None:
+    """078: the highlight over the first reference when it is a screenshot and the style
+    allows one; None otherwise, so every other plan is byte-identical to before."""
+    if not request.references or not highlights_allowed(request.style):
+        return None
+    first = request.references[0]
+    if SCREENSHOT_WORD not in first.caption.lower():
+        return None
+    return Highlight(asset_id=first.id, sentence=FAKE_SENTENCE, words=(0, 1))
+
+
 # 058: the fake's one clip beat asks for moving footage of a concept; the smoke's fake clip
 # source answers this query with a synthetic clip.
 CLIP_QUERY = "drifting clouds timelapse"
@@ -296,7 +327,7 @@ class FakePlanner(Planner):
             B(id="b01", start=0.0, end=0.5, mode="pip", kind="photo", motion="ken_burns_in",
               subject_kind="concept", depicts="scene", query="slow colour gradient sky",
               query_fallback="abstract gradient", source_intent="search",
-              asset_id=first_asset, stickers=stuck),
+              asset_id=first_asset, stickers=stuck, highlight=fake_highlight(request)),
             B(id="b02", start=0.5, end=1.0, mode="pip", kind="card", motion="push_in",
               subject_kind="entity", query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",

@@ -202,6 +202,25 @@ test("the composition lists title_strip after ticket 059 and draws it over the o
   }
 });
 
+test("the composition lists highlight after ticket 078 and draws it inside the card, under the circle", () => {
+  assert.ok(registry.components.includes("highlight"), "highlight is not registered");
+  const card = readFileSync(join(root, "components", "card.tsx"), "utf-8");
+  // Inside the card's image box, after the picture: it moves with the card's push.
+  assert.ok(card.indexOf("<Framed visual={visual}") < card.indexOf("<Highlight "),
+            "the marker is drawn under the screenshot");  // prettier-ignore
+  assert.match(card, /card\.origin_x/, "the card never pushes about its origin");
+  assert.match(card, /card\.origin_y/, "the card never pushes about its origin");
+  // The card is the beat's picture, drawn before the PIP circle and the captions.
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  assert.ok(short.indexOf("<Card ") < short.indexOf("<Pip "), "the card is drawn over the circle");
+  // Every number is the spec's: the boxes, the times, the colour and the opacity.
+  const source = readFileSync(join(root, "components", "highlight.tsx"), "utf-8");
+  for (const field of ["lines", "left", "top", "width", "height", "start_s", "end_s", "color",
+                       "opacity"]) {
+    assert.ok(source.includes(`.${field}`), `highlight.tsx never reads ${field}`);
+  }
+});
+
 test("the composition lists clip after ticket 058 and draws it muted in the photo's layer", () => {
   assert.ok(registry.components.includes("clip"), "clip is not registered");
   const short = readFileSync(join(root, "Short.tsx"), "utf-8");
@@ -246,9 +265,15 @@ test("Short.tsx draws every registered component", () => {
                   title_strip: "TitleStrip" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
+  // 078: the highlight is drawn inside the screenshot's card, which Short.tsx draws.
+  const card = readFileSync(join(root, "components", "card.tsx"), "utf-8");
   for (const name of registry.components) {
     if (TRANSITIONS.includes(name)) {
       assert.match(enters, new RegExp(`\\b${name}: `), `transitions.tsx never maps ${name}`);
+      continue;
+    }
+    if (name === "highlight") {
+      assert.match(card, /<Highlight\b/, "card.tsx never draws the highlight");
       continue;
     }
     assert.match(short, new RegExp(`<${drawn[name]}\\b`), `Short.tsx never draws ${name}`);

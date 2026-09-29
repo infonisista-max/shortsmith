@@ -27,7 +27,7 @@ NAMES = ("explainer", "educational", "animated", "hitech")
 RECIPES = ("fastfacts", "footage", "vishva")
 # 059 changed the explainer's aliases (1.1 as amended): its front matter was v11; 064's
 # 12 dB speech-band margin bumped every style once more.
-VERSIONS = {"explainer": "17", "educational": "15", "animated": "15", "hitech": "16"}  # 076
+VERSIONS = {"explainer": "18", "educational": "16", "animated": "16", "hitech": "17"}  # 078
 FORBIDDEN = ["sweep", "riser", "rumble_crescendo"]  # 7.1, operator rider; 070 lifts whoosh
 
 
@@ -94,7 +94,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == VERSIONS.get(spec.name, "7"), spec.name
+        assert spec.version == VERSIONS.get(spec.name, "8"), spec.name
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 

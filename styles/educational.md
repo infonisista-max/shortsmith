@@ -1,5 +1,5 @@
 ---
-version: "15"
+version: "16"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -54,12 +54,16 @@ broll:
              width_px: 640, fill: "#FFFFFF", ink: "#123B3A"}  # 063
     sticker: {kind: pop, duration_s: 0.22, hold_max_s: 2.5, max_per_beat: 1, size_px: 220,
               float_px: 8, float_period_s: 2.0}  # 062
+    # 078: the marker over an owner's article screenshot - the accent at about 45 %,
+    # padded round each text line; the screenshot card pushes to push_to about the lines.
+    highlight: {kind: sweep, color: "#1B7F79", opacity: 0.45, pad_px: 8, push_to: 1.12}
   enter_transitions: [cut, fade]
   whip_max_per_3_beats: 0
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here
   bubbles_max_per_60s: 0  # 063: off here
   stickers_max_per_60s: 0  # 062: off here
+  highlights_max_per_60s: 0  # 078: off here
   clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}
@@ -173,6 +177,7 @@ Calm, clear teaching. DRAFT (grill decision 1.4): aliases resolve to `explainer`
 - Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat only (a process, a phenomenon, a kind of place), never a named entity; at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
 - Fewer unique assets than explainer (`unique_assets_min_per_60s`–`unique_assets_max_per_60s`); reuse a diagram across the steps it explains.
 - Transitions are `cut` and `fade` only (9.4); no whips, no flash (060).
+- Article highlights (4.1 as amended by 078; off here: `highlights_max_per_60s` is 0): where a style allows them, a `photo` or `card` beat that shows the owner's uploaded article or document screenshot (an owner reference; never a searched or generated page, never a made-up article) may carry one `highlight`: the `sentence` to mark as it reads on the screenshot and the transcript `words` that say it. A marker in `motion.highlight.color` at `motion.highlight.opacity` sweeps the sentence's lines left to right from the first word to the last while the screenshot, a straight card, pushes in toward them. Code finds the lines on the image; a sentence it cannot find is dropped and the beat stays.
 
 ## Captions
 - Full short sentences of `words_per_page` words, neutral typography, no active-word pop; the key term is boxed in the accent colour. Same anchor, safe area and two-line limit as explainer (6.3).

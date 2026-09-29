@@ -1,5 +1,5 @@
 ---
-version: "17"
+version: "18"
 status: shipped
 # 059 (1.1 as amended): `fact`, `facts` and `dhruv` moved to the fastfacts and footage recipes
 aliases: [explainer, explain, explained, explanation, story, news]
@@ -81,12 +81,16 @@ broll:
     # size_px square (180-320 px), one per beat at most.
     sticker: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 1, size_px: 240,
               float_px: 10, float_period_s: 1.8}
+    # 078: the marker over an owner's article screenshot - the accent at about 45 %,
+    # padded round each text line; the screenshot card pushes to push_to about the lines.
+    highlight: {kind: sweep, color: "#FFD60A", opacity: 0.45, pad_px: 8, push_to: 1.12}
   enter_transitions: [cut, fade, whip, zoom, spring]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here; the recipe styles of 059 turn pops on
   bubbles_max_per_60s: 0  # 063: off here; the recipe styles of 059 turn bubbles on
   stickers_max_per_60s: 0  # 062: off here; the recipe styles of 059 set theirs
+  highlights_max_per_60s: 0  # 078: off here
   clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
   transitions:
     fade: {duration_s: 0.35}
@@ -209,6 +213,7 @@ Fact/story explainer for Hindi/Hinglish and English audiences. High information 
 - Transitions: `enter_transitions` only, at most `whip_max_per_3_beats` whip per three beats and never two whips in a row (9.4); the renderer draws each from `transitions` and refuses a name outside the list. Exit is always a cut, or a fade under a `fade` or `wipe` enter; the next beat's enter carries the motion. Where a style enables `flash` (9.4 as amended by 060; this one does not), it is a full-frame colour flash peaking on the cut, for a turn back to the presenter or a section change: at most `flash_max_per_60s` per minute and never on two consecutive beats; the PIP circle and the captions stay on top of it. Cards end above `card_max_bottom_y`; stamps stay in the top `stamp_max_y_fraction` of the frame; lower-thirds sit at y 1150–1240 and are suppressed under a two-line caption page (6.3).
 - Text pops (4.1 as amended by 061; off here: `text_pops_max_per_60s` is 0): where a style allows them, a `photo`, `card` or presenter-full beat carries `text_pops`, 1–4 bold words from the script pinned near the thing they name at `{x, y, anchor}` in percent of the frame, each landing on its spoken `word`, at most `motion.text_pop.max_per_beat` per beat; code keeps them inside the safe area, off the circle, the captions and any face.
 - Bubbles (4.1 as amended by 063; off here: `bubbles_max_per_60s` is 0): where a style allows them, a `photo`, `card` or presenter-full beat carries `bubbles`, each a `speech` or `thought` bubble of 1–`motion.bubble.words_max` words that the recording itself carries (what the speaker says someone said or thought, or his own question, shortened or in the caption language; `first`–`last` name the transcript words it came from), its tail pointing at `{x, y}` in percent of the frame — a person in the picture, or the PIP circle when the presenter is the one asking. At most `motion.bubble.max_per_beat` per beat; a dialogue pair's second bubble lands `dialogue_gap_min_s`–`dialogue_gap_max_s` after the first. Code keeps the body inside the safe area, off the captions, the circle, the stamp and any face (the tail points at it instead).
+- Article highlights (4.1 as amended by 078; off here: `highlights_max_per_60s` is 0): where a style allows them, a `photo` or `card` beat that shows the owner's uploaded article or document screenshot (an owner reference; never a searched or generated page, never a made-up article) may carry one `highlight`: the `sentence` to mark as it reads on the screenshot and the transcript `words` that say it. A marker in `motion.highlight.color` at `motion.highlight.opacity` sweeps the sentence's lines left to right from the first word to the last while the screenshot, a straight card, pushes in toward them. Code finds the lines on the image; a sentence it cannot find is dropped and the beat stays.
 
 ## Captions
 - Word-synced from the ASR word list only; the planner never touches word times (6.1). Pages hold `words_per_page` words, preferring `prefer`; never split a marked name or number run; break on segment punctuation and on inter-word gaps over `gap_break_s`.

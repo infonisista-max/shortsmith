@@ -394,6 +394,31 @@ class Sticker(StrictModel):
         return self
 
 
+class Highlight(StrictModel):
+    """The article highlighter (078; 4.1 as amended): a marker sweeps across `sentence`
+    on the owner's uploaded article or document screenshot `asset_id` - the picture the
+    beat shows - while the transcript words `words` (first, last, inclusive) say it.
+    Owner screenshots only, never a made-up article. `at_s` and `end_s` are the first
+    word's start and the last word's end on the output timeline, written by the grammar;
+    the planner leaves them empty. The line boxes are found on the image by the judge
+    model at sourcing (`assets.lines`)."""
+
+    asset_id: str
+    sentence: str = Field(min_length=1)
+    words: tuple[int, int]
+    at_s: float | None = None
+    end_s: float | None = None
+
+    @model_validator(mode="after")
+    def _words_in_order(self) -> Highlight:
+        first, last = self.words
+        if first < 0 or last < first:
+            raise ValueError(
+                f"highlight {self.sentence!r}: last word {last} before first {first}"
+            )
+        return self
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -438,6 +463,9 @@ class Beat(StrictModel):
     # 062: at most `broll.motion.sticker.max_per_beat` sticker on a picture beat, under
     # `broll.stickers_max_per_60s`.
     stickers: list[Sticker] = []
+    # 078: the marker sweep over the owner's screenshot this beat shows, at most one, under
+    # `broll.highlights_max_per_60s`.
+    highlight: Highlight | None = None
     motion: Motion | None = None
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
@@ -980,6 +1008,35 @@ class StickerRecord(StrictModel):
     fetched_at: str
 
 
+class LineBox(StrictModel):
+    """One line of text on a screenshot (078), as fractions of the image's width and
+    height, as the judge model found it."""
+
+    left: float = Field(ge=0.0, le=1.0)
+    top: float = Field(ge=0.0, le=1.0)
+    right: float = Field(ge=0.0, le=1.0)
+    bottom: float = Field(ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> LineBox:
+        if self.right <= self.left or self.bottom <= self.top:
+            raise ValueError(
+                f"line box {self.left}-{self.right} x {self.top}-{self.bottom} is empty"
+            )
+        return self
+
+
+class HighlightRecord(StrictModel):
+    """A highlight the sourcing step found the lines for (078): the beat, the owner's
+    screenshot it shows, the sentence and its line boxes in reading order. A highlight
+    with no record is not drawn (its drop is a job.log line)."""
+
+    beat_id: str
+    asset_id: str
+    sentence: str
+    lines: list[LineBox]
+
+
 class AssetManifest(StrictModel):
     """`work/assets.json`: every unique asset, every sourced beat, and the planned
     asset ids resolved to the ids actually used (`aliases`; None = no asset) so set
@@ -1010,6 +1067,8 @@ class AssetManifest(StrictModel):
     # 062: the stickers fetched for the plan, one per catalogue row shown; a sticker whose
     # fetch failed has none and is left out of the picture.
     stickers: list[StickerRecord] = []
+    # 078: the highlights whose lines were found on their screenshot; the rest were dropped.
+    highlights: list[HighlightRecord] = []
 
     def asset(self, asset_id: str) -> AssetRecord | None:
         return next((a for a in self.assets if a.id == asset_id), None)
@@ -1019,6 +1078,9 @@ class AssetManifest(StrictModel):
 
     def sticker(self, name: str) -> StickerRecord | None:
         return next((s for s in self.stickers if s.name == name), None)
+
+    def highlight(self, beat_id: str) -> HighlightRecord | None:
+        return next((h for h in self.highlights if h.beat_id == beat_id), None)
 
     @property
     def rescued(self) -> int:
@@ -1101,10 +1163,33 @@ class CaptionPageSpec(StrictModel):
     words: list[WordBox]
 
 
+class MarkerLine(StrictModel):
+    """One stroke of the highlighter (078) in the card image's own pixels, padded around
+    the text line, and when it sweeps left to right, in seconds from the beat's start."""
+
+    left: float
+    top: float
+    width: float
+    height: float
+    start_s: float
+    end_s: float
+
+
+class HighlightSpec(StrictModel):
+    """The marker over a screenshot card (078): its lines in reading order, each swept
+    after the one before, in the style's `broll.motion.highlight` colour and opacity."""
+
+    lines: list[MarkerLine]
+    color: str
+    opacity: float
+
+
 class CardSpec(StrictModel):
     """The framed archival card (4.1, 5.3) in composition pixels: the outer box
     (white border and caption strip included) before tilt and push, the image inside
-    it, and the blurred darkened cover of the same image behind."""
+    it, and the blurred darkened cover of the same image behind. 078: the push is about
+    `origin_x`, `origin_y` (fractions of the box; the centre on every other card), and a
+    screenshot card carries its `highlight` drawn inside the image."""
 
     left: float
     top: float
@@ -1126,6 +1211,9 @@ class CardSpec(StrictModel):
     ring_diameter_px: float
     ring_px: int
     ring_at_s: float
+    origin_x: float = 0.5
+    origin_y: float = 0.5
+    highlight: HighlightSpec | None = None
 
 
 class VisualSpec(StrictModel):

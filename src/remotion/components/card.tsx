@@ -4,11 +4,14 @@
 // with a caption strip when the beat carries a label, taking the slow Ken Burns push,
 // and the red ring landing on the framing's focus when the beat carries a ring event.
 // Every box and number comes from the spec (render.card_visual places it so it ends
-// above the style's card_max_bottom_y).
+// above the style's card_max_bottom_y). Ticket 078: an owner's article screenshot is a
+// straight card pushing in about its highlighted lines (`origin_x`, `origin_y`), the
+// `highlight` marker sweeping them inside the image.
 import React from "react";
 import { AbsoluteFill, Easing, interpolate } from "remotion";
 import type { BeatSpec } from "../types";
 import { FONT_FAMILY } from "../fonts";
+import { Highlight } from "./highlight";
 import { Framed, beatProgress } from "./photo";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -56,7 +59,7 @@ export const Card: React.FC<{
           background: "#fff",
           boxShadow: "0 18px 48px rgba(0,0,0,0.55)",
           transform: `rotate(${card.rotate_deg}deg) scale(${push})`,
-          transformOrigin: "50% 50%",
+          transformOrigin: `${card.origin_x * 100}% ${card.origin_y * 100}%`,
         }}
       >
         <div
@@ -68,6 +71,7 @@ export const Card: React.FC<{
           }}
         >
           <Framed visual={visual} width={card.image_width} height={card.image_height} scale={1} />
+          {card.highlight ? <Highlight spec={card.highlight} t={t} /> : null}
           {card.ring ? (
             <div
               style={{

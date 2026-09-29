@@ -46,7 +46,12 @@ from shortsmith.reference import examples, music
 
 Call = Literal["picture", "sound"]
 
-# v18 (ticket 076): the sound call gets section 9, "Music in top shorts": the active moods
+# v19 (ticket 078): the picture file says when to write `highlight` (only on the beat that
+# shows an owner's uploaded article or document screenshot, the sentence as printed and
+# the `[first, last]` words that say it, never a made-up article, under
+# `broll.highlights_max_per_60s`, `at_s` / `end_s` left to code); the schema carries the
+# field. The sound file is v18's unchanged.
+# (v18, ticket 076): the sound call gets section 9, "Music in top shorts": the active moods
 # and flavours of `moods.yaml` and one line per reference v2 card (topic, tone, mood per
 # part, changes and how), built by `reference.music`; the sound file asks for the story
 # `parts`, a `bed` of one or two segments by closed mood, and the one `change` on a part
@@ -104,7 +109,7 @@ Call = Literal["picture", "sound"]
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
 # diagram data; v2, ticket 027: the set-piece content rules.)))
-PROMPT_VERSION = "v18"
+PROMPT_VERSION = "v19"
 EXAMPLES_HEADING = "## 7. How top shorts edit a line like yours"
 MUSIC_HEADING = "## 9. Music in top shorts"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"

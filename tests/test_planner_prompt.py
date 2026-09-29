@@ -162,7 +162,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v18"
+    assert prompt.PROMPT_VERSION == "v19"
 
 
 def test_the_v18_sound_prompt_asks_a_mood_per_part_and_one_change_on_a_part_boundary() -> None:

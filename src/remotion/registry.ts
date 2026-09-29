@@ -6,7 +6,9 @@
 // the speech and thought bubbles of the recording's own words. 058 adds `clip`, the
 // full-screen muted stock footage drawn where a photo is. 062 adds `sticker`, the Fluent
 // Emoji 3D pop above the PIP circle or near its subject. 059 adds `title_strip`, the fixed
-// topic bar a recipe style keeps at the top of the frame until the finale.
+// topic bar a recipe style keeps at the top of the frame until the finale. 078 adds
+// `highlight`, the marker sweeping the spoken sentence on an owner's article screenshot,
+// drawn inside the screenshot's card.
 import type React from "react";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
@@ -18,6 +20,7 @@ import { Cut } from "./components/cut";
 import { Fade } from "./components/fade";
 import { Finale } from "./components/finale";
 import { Flash } from "./components/flash";
+import { Highlight } from "./components/highlight";
 import { HookCards } from "./components/hook_cards";
 import { Infographic } from "./components/infographic";
 import { LabelFlyin } from "./components/label_flyin";
@@ -52,6 +55,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   fade: Fade,
   finale: Finale,
   flash: Flash,
+  highlight: Highlight,
   hook_cards: HookCards,
   infographic: Infographic,
   label_flyin: LabelFlyin,

@@ -190,7 +190,7 @@ def test_the_picture_prompt_carries_the_section_and_the_sound_prompt_does_not() 
     assert "How top shorts edit" not in sound
     bare = prompt.build_prompt(_request(), "picture")
     assert "(no worked examples for this style)" in bare
-    assert prompt.PROMPT_VERSION == "v18"  # 077 v17; 076 v18 (the picture file unchanged)
+    assert prompt.PROMPT_VERSION == "v19"  # 077 v17; 076 v18 (the picture file unchanged); 078 v19
 
 
 # --- the plan's match share -------------------------------------------------------------------
