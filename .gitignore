@@ -26,6 +26,10 @@ work/
 *.ogg
 # Audio the runtime search fetches into the catalogue (ticket 024)
 assets/audio/fetched/
+# Approved library files and the operator's drop folder (ticket 075)
+assets/audio/beds/
+assets/audio/sfx/
+assets/audio/inbox/
 
 # Node (the Remotion picture engine, ticket 004); its bundle lands under build/
 node_modules/

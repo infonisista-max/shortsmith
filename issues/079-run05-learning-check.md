@@ -56,9 +56,58 @@ added (081) only after this run shows the worked examples help.
 - [ ] Decision recorded: go / no-go for 080–085, with the reason. A no-go names the
       tickets to write first.
 
+## Progress (HITL session, 29 Sep 2026)
+
+- **Step 1** done by the operator: `sound.seed retag` ran (6 kept, 4 removed, as in 068's
+  done note).
+- **Step 2** done by the operator: `reference inventory --all` wrote 13 of 13 v2 cards
+  (the 12 plus the long-form `id00R-3OmJ0`, which had no committed card before;
+  `ePTZVwipoAM` needed its one retry), then `gaps`. The reviewer checked all 13: every
+  `said` is an English gist of at most 12 words with no Devanagari, and every `shows` is
+  literal.
+  - **Finding:** `FbaBcWgMIEY` (flavour middle_east → european → indian) and
+    `ePTZVwipoAM` (mood changes at three boundaries) have an empty `music_changes`, so
+    `music.pairing` says "no change". The operator confirms by ear that the music
+    changes in both. They are two of the three vishva cards the King Saud re-render
+    learns from. → **ticket 086** (per-boundary check at write time with one retry;
+    stored cards that fail are skipped at read time). **Step 4 is blocked by 086.**
+- Shortlist probe (075) ran by the operator: openverse 200 with 240 results, freesound
+  200 with 11,295.
+- `.gitignore`: added `assets/audio/beds/`, `sfx/` and `inbox/` (075's refused edit);
+  `work/shortlist/` is already covered by `work/`.
+- The QA gate for both run05 jobs is **T1–T13**, not T1–T4.
+- **Step 3** done by the operator: shortlist built with `--voice` set to run04's voice
+  stem, and the listening page answered **30 of 30 yes**. That added 30 entries to
+  `assets/audio/catalog.yaml`: 14 beds and 16 effects, 29 from Freesound and 1 from
+  Openverse, licences CC0 1.0 (13), CC BY 4.0 (13), CC BY 3.0 (4). The Trap Hamza
+  measurement was **not** run before `.env` was parked. It moves to 087's operator step
+  (below).
+- **Ticket 087** (facts-default bed, learned from the cards and the Dyson v2 profile)
+  runs in the same afk run as 086. The finding behind it: 069's
+  `speech_band_margin_max_db` 20 rests on run04's non-music bed (`freesound_557546`), and
+  the operator heard the Dyson v2 bed clearly on the phone. Trap Hamza is measured in
+  step 3 with today's code, and the operator records the cap decision in 087.
+- **What committing the v2 cards needed** (the agent's changes, 29 Sep 2026):
+  - Three tests read the live cards as v1 or listed every gap name. The 12 v1 cards
+    are frozen from HEAD into `tests/fixtures/reference/inventory_v1/`, and the v1
+    tests in `test_reference_v2.py` read them there.
+  - The v2 cards name 20 new unregistered effects. They are added to
+    `assets/reference/effect_map.yaml` as `null`, exactly how an unlisted name was
+    already treated, so run05's planner input is unchanged. **Operator or 083:** pick
+    closest components for them if wanted, before step 4. Candidates like `text_banner`,
+    `label_slide` and `text_badge_pop` may have one.
+- Loops (29 Sep 2026): ruff and pyright are clean. All 70 test files are green in
+  foreground chunks: render; the catalogue, cards and sound chunk (3 failures fixed
+  above and re-run green); the other 51 in four chunks. The smoke delivered with
+  T1–T13 passing. No `src/remotion` change.
+- Order agreed: step 3 now while `.env` is in place (plus the Trap Hamza measurement)
+  → 086 + 087 (one afk run, `.env` parked) → the operator re-runs the two links +
+  `gaps` → the cap decision + the facts-default listening pass → steps 4–7.
+
 ## Blocked by
 
 - 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078
+- 086, 087 (for step 4 onward)
 
 ## User stories addressed
 

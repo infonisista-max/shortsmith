@@ -30,4 +30,1043 @@
 #       loop_ok: true
 #       energy: 3                     # 1-5, measured
 
-entries: []
+entries:
+- id: freesound_331624
+  kind: bed
+  file: beds/freesound_331624.mp3
+  source: freesound
+  source_url: https://freesound.org/people/xtrgamr/sounds/331624/
+  source_name: The Dramatic Music.wav
+  source_tags:
+  - a-bit-cinematic
+  - background
+  - bad
+  - cheesy
+  - chords
+  - cinematic
+  - drama
+  - dramatic
+  - film
+  - garageband
+  - instrument
+  - melodrama
+  - movie
+  - music
+  - narm
+  - orchestra
+  - sad
+  - slow
+  - soundskit
+  - soundskits
+  - string
+  - strings
+  - suspense
+  - tearjerker
+  - tense
+  - violin
+  licence: CC BY 4.0
+  author: xtrgamr
+  credit: The Dramatic Music.wav by xtrgamr (freesound.org), CC BY 4.0
+  duration_s: 54.68
+  bpm: 153.0
+  key: Ab
+  tags:
+    theme: []
+    mood:
+    - tense_dramatic
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 5
+- id: freesound_744877
+  kind: bed
+  file: beds/freesound_744877.mp3
+  source: freesound
+  source_url: https://freesound.org/people/ViraMiller/sounds/744877/
+  source_name: Emotional Piano and Violin
+  source_tags:
+  - atmosphere
+  - background
+  - cinematic
+  - dramatic
+  - emotional
+  - epic
+  - film
+  - haunting
+  - intense
+  - music
+  - orchestral
+  - piano
+  - powerful
+  - score
+  - soundtrack
+  - strings
+  - suspenseful
+  - tense
+  - violin
+  licence: CC BY 4.0
+  author: ViraMiller
+  credit: Emotional Piano and Violin by ViraMiller (freesound.org), CC BY 4.0
+  duration_s: 60.08
+  bpm: 100.0
+  key: Eb
+  tags:
+    theme: []
+    mood:
+    - tense_dramatic
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_621291
+  kind: bed
+  file: beds/freesound_621291.mp3
+  source: freesound
+  source_url: https://freesound.org/people/WelvynZPorterSamples/sounds/621291/
+  source_name: Taiko Drums - NOT mastered.wav
+  source_tags:
+  - Hollywood
+  - Viking
+  - background-music
+  - beat
+  - booming
+  - build
+  - building
+  - cinematic
+  - classical
+  - dramatic
+  - drums
+  - epic
+  - fantasy
+  - film
+  - heroic
+  - movie
+  - music
+  - orchestra
+  - orchestral
+  - pirate
+  - rhythm
+  - rhythmic
+  - soundtrack
+  - suspense
+  - taiko
+  - tense
+  - thrill
+  - trailer
+  - uplifter
+  licence: CC0 1.0
+  author: WelvynZPorterSamples
+  credit: Taiko Drums - NOT mastered.wav by WelvynZPorterSamples (freesound.org),
+    CC0 1.0
+  duration_s: 71.29
+  bpm: 101.0
+  key: Cm
+  tags:
+    theme: []
+    mood:
+    - tense_dramatic
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_742115
+  kind: bed
+  file: beds/freesound_742115.mp3
+  source: freesound
+  source_url: https://freesound.org/people/ViraMiller/sounds/742115/
+  source_name: Music Box For Suspenseful Scenes
+  source_tags:
+  - box
+  - cinematic
+  - creepy
+  - crime
+  - documentary
+  - dreadful
+  - eerie
+  - film
+  - games
+  - gloomy
+  - horror
+  - menacing
+  - music
+  - mysterious
+  - mystical
+  - ominous
+  - scared
+  - spooky
+  - tension
+  - terror
+  - trailer
+  licence: CC BY 4.0
+  author: ViraMiller
+  credit: Music Box For Suspenseful Scenes by ViraMiller (freesound.org), CC BY 4.0
+  duration_s: 69.66
+  bpm: 100.0
+  key: C#m
+  tags:
+    theme: []
+    mood:
+    - investigative_pulse
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_742116
+  kind: bed
+  file: beds/freesound_742116.mp3
+  source: freesound
+  source_url: https://freesound.org/people/ViraMiller/sounds/742116/
+  source_name: Mystical Music Box
+  source_tags:
+  - box
+  - cinematic
+  - creepy
+  - crime
+  - documentary
+  - dreadful
+  - eerie
+  - film
+  - gloomy
+  - horror
+  - menacing
+  - music
+  - mysterious
+  - mystical
+  - ominous
+  - scared
+  - spooky
+  - tension
+  - terror
+  - trailer
+  licence: CC BY 4.0
+  author: ViraMiller
+  credit: Mystical Music Box by ViraMiller (freesound.org), CC BY 4.0
+  duration_s: 48.06
+  bpm: 161.0
+  key: Dm
+  tags:
+    theme: []
+    mood:
+    - investigative_pulse
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_446740
+  kind: bed
+  file: beds/freesound_446740.mp3
+  source: freesound
+  source_url: https://freesound.org/people/RokZRooM/sounds/446740/
+  source_name: Dilemma 2B - Mystery Music Loop
+  source_tags:
+  - 80bpm
+  - curious
+  - dilemma
+  - distorted
+  - electronic
+  - free
+  - india
+  - loop
+  - mqube
+  - music
+  - mysterious
+  - mystery
+  - percs
+  - rame
+  - rhythmic
+  - rokzroom
+  - unknown
+  licence: CC BY 4.0
+  author: RokZRooM
+  credit: Dilemma 2B - Mystery Music Loop by RokZRooM (freesound.org), CC BY 4.0
+  duration_s: 24.0
+  bpm: 107.0
+  key: Em
+  tags:
+    theme: []
+    mood:
+    - mysterious_curiosity
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: true
+  energy: 4
+- id: freesound_446745
+  kind: bed
+  file: beds/freesound_446745.mp3
+  source: freesound
+  source_url: https://freesound.org/people/RokZRooM/sounds/446745/
+  source_name: Dilemma 2A - Mystery Music Loop
+  source_tags:
+  - 80bpm
+  - curious
+  - dilemma
+  - distorted
+  - electronic
+  - free
+  - india
+  - loop
+  - melody
+  - mqube
+  - music
+  - mysterious
+  - mystery
+  - percs
+  - rame
+  - rhythmic
+  - rokzroom
+  - unknown
+  licence: CC BY 4.0
+  author: RokZRooM
+  credit: Dilemma 2A - Mystery Music Loop by RokZRooM (freesound.org), CC BY 4.0
+  duration_s: 24.0
+  bpm: 160.0
+  key: Em
+  tags:
+    theme: []
+    mood:
+    - mysterious_curiosity
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: true
+  energy: 5
+- id: freesound_447098
+  kind: bed
+  file: beds/freesound_447098.mp3
+  source: freesound
+  source_url: https://freesound.org/people/RokZRooM/sounds/447098/
+  source_name: Dilemma 2C - Mystery Music Loop
+  source_tags:
+  - 80bpm
+  - curious
+  - dilemma
+  - distorted
+  - electronic
+  - free
+  - india
+  - loop
+  - mqube
+  - music
+  - mysterious
+  - mystery
+  - percs
+  - rame
+  - rhythmic
+  - rokzroom
+  - unknown
+  licence: CC BY 4.0
+  author: RokZRooM
+  credit: Dilemma 2C - Mystery Music Loop by RokZRooM (freesound.org), CC BY 4.0
+  duration_s: 24.0
+  bpm: 107.0
+  key: Em
+  tags:
+    theme: []
+    mood:
+    - mysterious_curiosity
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: true
+  energy: 4
+- id: freesound_744214
+  kind: bed
+  file: beds/freesound_744214.mp3
+  source: freesound
+  source_url: https://freesound.org/people/ViraMiller/sounds/744214/
+  source_name: Relaxing Ambient Melodies
+  source_tags:
+  - ambient
+  - atmospheric
+  - background
+  - calm
+  - chill
+  - easy
+  - gentle
+  - instrumental
+  - listening
+  - meditative
+  - mindfulness
+  - music
+  - nature
+  - peaceful
+  - relaxation
+  - serene
+  - sleep
+  - soft
+  - soothing
+  - spa
+  - tranquil
+  - zen
+  licence: CC BY 4.0
+  author: ViraMiller
+  credit: Relaxing Ambient Melodies by ViraMiller (freesound.org), CC BY 4.0
+  duration_s: 139.62
+  bpm: 143.0
+  key: Am
+  tags:
+    theme: []
+    mood:
+    - calm_ambient
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 2
+- id: freesound_797706
+  kind: bed
+  file: beds/freesound_797706.mp3
+  source: freesound
+  source_url: https://freesound.org/people/Matio888/sounds/797706/
+  source_name: Calm Atmospheric Music for Film
+  source_tags:
+  - ambient
+  - atmosphere
+  - atmospheric
+  - background
+  - calm
+  - cinematic
+  - design
+  - film
+  - games
+  - introspective
+  - meditation
+  - mood
+  - music
+  - peaceful
+  - quiet
+  - relaxing
+  - serene
+  - soothing
+  - sound
+  - soundscape
+  - tranquil
+  - video
+  licence: CC BY 4.0
+  author: Matio888
+  credit: Calm Atmospheric Music for Film by Matio888 (freesound.org), CC BY 4.0
+  duration_s: 342.37
+  bpm: 114.0
+  key: C
+  tags:
+    theme: []
+    mood:
+    - calm_ambient
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 5
+- id: freesound_351550
+  kind: sfx
+  file: sfx/freesound_351550.mp3
+  source: freesound
+  source_url: https://freesound.org/people/RICHERlandTV/sounds/351550/
+  source_name: Pingding
+  source_tags:
+  - alert
+  - computer
+  - ding
+  - game
+  - ping
+  - scifi
+  licence: CC BY 4.0
+  author: RICHERlandTV
+  credit: Pingding by RICHERlandTV (freesound.org), CC BY 4.0
+  duration_s: 0.77
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - ding
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 2
+- id: freesound_614096
+  kind: bed
+  file: beds/freesound_614096.mp3
+  source: freesound
+  source_url: https://freesound.org/people/ZHR%C3%98/sounds/614096/
+  source_name: Calm Emtim Bell music.mp3
+  source_tags:
+  - ambience
+  - ambient
+  - bell
+  - calm
+  - emtim
+  - loop
+  - music
+  - peaceful
+  - relaxed
+  - serene
+  licence: CC BY 4.0
+  author: ZHRØ
+  credit: Calm Emtim Bell music.mp3 by ZHRØ (freesound.org), CC BY 4.0
+  duration_s: 58.38
+  bpm: 190.0
+  key: Am
+  tags:
+    theme: []
+    mood:
+    - calm_ambient
+    intent: []
+    flavour: []
+  drop_points_s: []
+  loop_ok: true
+  energy: 2
+- id: openverse_4087eaf8-f74a-4759-90ed-be72444727bb
+  kind: bed
+  file: beds/openverse_4087eaf8-f74a-4759-90ed-be72444727bb.mp3
+  source: openverse
+  source_url: https://www.jamendo.com/track/1371452
+  source_name: Beautiful Indian Music
+  source_tags:
+  - instrumental
+  - neutral
+  - sitars
+  - speed_medium
+  licence: CC BY 3.0
+  author: CHASMA
+  credit: '"Beautiful Indian Music" by CHASMA is licensed under CC BY 3.0. To view
+    a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.'
+  duration_s: 289.8
+  bpm: 71.0
+  key: D
+  tags:
+    theme: []
+    mood:
+    - tense_dramatic
+    intent: []
+    flavour:
+    - indian
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_147895
+  kind: bed
+  file: beds/freesound_147895.mp3
+  source: freesound
+  source_url: https://freesound.org/people/mannhawks/sounds/147895/
+  source_name: mark_sitar_01.wav
+  source_tags:
+  - Indian
+  - acoustic
+  - music
+  - raga
+  - sitar
+  licence: CC BY 3.0
+  author: mannhawks
+  credit: mark_sitar_01.wav by mannhawks (freesound.org), CC BY 3.0
+  duration_s: 27.07
+  bpm: 170.0
+  key: C#m
+  tags:
+    theme: []
+    mood:
+    - tense_dramatic
+    intent: []
+    flavour:
+    - indian
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_110334
+  kind: bed
+  file: beds/freesound_110334.mp3
+  source: freesound
+  source_url: https://freesound.org/people/Tomlija/sounds/110334/
+  source_name: Traditional Eastern instrument Sargija - improvisation played by Boris
+    Todorovic.aif
+  source_tags:
+  - asia
+  - atmosphere
+  - balkan
+  - balkans
+  - cinematic
+  - dramatic
+  - drone
+  - droning
+  - east
+  - eastern
+  - emotion
+  - emotional
+  - ethno
+  - etno
+  - europe
+  - exotic
+  - folk
+  - folk-music
+  - folklore
+  - folkmusic
+  - h4n
+  - harmonics
+  - improvisation
+  - india
+  - indian
+  - instrument
+  - jivari
+  - middle
+  - music
+  - overtones
+  - raga
+  - sargija
+  - serbia
+  - sitar
+  - srbija
+  - tomlija
+  - traditional
+  - zoom
+  licence: CC BY 3.0
+  author: Tomlija
+  credit: Traditional Eastern instrument Sargija - improvisation played by Boris Todorovic.aif
+    by Tomlija (freesound.org), CC BY 3.0
+  duration_s: 136.33
+  bpm: 127.0
+  key: Abm
+  tags:
+    theme: []
+    mood:
+    - tense_dramatic
+    intent: []
+    flavour:
+    - indian
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_858793
+  kind: sfx
+  file: sfx/freesound_858793.mp3
+  source: freesound
+  source_url: https://freesound.org/people/bassimat/sounds/858793/
+  source_name: Fractal High Shimmer Tick
+  source_tags:
+  - digital
+  - electronic
+  - fractal
+  - glitch
+  - high-frequency
+  - metallic
+  - shimmer
+  - tick
+  - transient
+  licence: CC0 1.0
+  author: bassimat
+  credit: Fractal High Shimmer Tick by bassimat (freesound.org), CC0 1.0
+  duration_s: 0.13
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - tick
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 5
+- id: freesound_858801
+  kind: sfx
+  file: sfx/freesound_858801.mp3
+  source: freesound
+  source_url: https://freesound.org/people/bassimat/sounds/858801/
+  source_name: Warm Lo-Fi Tick
+  source_tags:
+  - digital
+  - electronic
+  - fractal
+  - lo-fi
+  - low-frequency
+  - short
+  - tick
+  - tonal
+  - warm
+  licence: CC0 1.0
+  author: bassimat
+  credit: Warm Lo-Fi Tick by bassimat (freesound.org), CC0 1.0
+  duration_s: 0.13
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - tick
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 5
+- id: freesound_156667
+  kind: sfx
+  file: sfx/freesound_156667.mp3
+  source: freesound
+  source_url: https://freesound.org/people/unfa/sounds/156667/
+  source_name: Stereo Tick
+  source_tags:
+  - click
+  - hit
+  - oneshot
+  - short
+  - snap
+  - tick
+  licence: CC0 1.0
+  author: unfa
+  credit: Stereo Tick by unfa (freesound.org), CC0 1.0
+  duration_s: 0.01
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - tick
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 1
+- id: freesound_789840
+  kind: sfx
+  file: sfx/freesound_789840.mp3
+  source: freesound
+  source_url: https://freesound.org/people/FartCTO/sounds/789840/
+  source_name: Whoosh Short
+  source_tags:
+  - Short
+  - Whoosh
+  - Wind
+  licence: CC0 1.0
+  author: FartCTO
+  credit: Whoosh Short by FartCTO (freesound.org), CC0 1.0
+  duration_s: 0.53
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - whoosh
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 4
+- id: freesound_582892
+  kind: sfx
+  file: sfx/freesound_582892.mp3
+  source: freesound
+  source_url: https://freesound.org/people/ironcross32/sounds/582892/
+  source_name: Short Woosh 01.wav
+  source_tags:
+  - short
+  - synth
+  - synthetic
+  - whoosh
+  - wipe
+  licence: CC0 1.0
+  author: ironcross32
+  credit: Short Woosh 01.wav by ironcross32 (freesound.org), CC0 1.0
+  duration_s: 0.6
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - whoosh
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 5
+- id: freesound_254247
+  kind: sfx
+  file: sfx/freesound_254247.mp3
+  source: freesound
+  source_url: https://freesound.org/people/kwahmah_02/sounds/254247/
+  source_name: ae.wav
+  source_tags:
+  - computer
+  - digital
+  - electronic
+  - glitch
+  - high
+  - image-to-sound
+  - noise
+  - random
+  - short
+  - swish
+  - tiny-noises
+  - whoosh
+  licence: CC BY 3.0
+  author: kwahmah_02
+  credit: ae.wav by kwahmah_02 (freesound.org), CC BY 3.0
+  duration_s: 0.1
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - whoosh
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 5
+- id: freesound_752164
+  kind: sfx
+  file: sfx/freesound_752164.mp3
+  source: freesound
+  source_url: https://freesound.org/people/Geoff-Bremner-Audio/sounds/752164/
+  source_name: Short Sub Bass Drop C# 69hz
+  source_tags:
+  - bass
+  - big
+  - boom
+  - boomy
+  - cinematic
+  - dark
+  - deep
+  - drop
+  - kick
+  - low
+  - sub
+  - subs
+  - woof
+  - wub
+  - wubby
+  licence: CC BY 4.0
+  author: Geoff-Bremner-Audio
+  credit: Short Sub Bass Drop C# 69hz by Geoff-Bremner-Audio (freesound.org), CC BY
+    4.0
+  duration_s: 1.0
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - bass
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 2
+- id: freesound_340467
+  kind: sfx
+  file: sfx/freesound_340467.mp3
+  source: freesound
+  source_url: https://freesound.org/people/deleted_user_5205523/sounds/340467/
+  source_name: 'Junk Drum Kit: Hi Tom (Single Hit)'
+  source_tags:
+  - drum
+  - drums
+  - fake
+  - hit
+  - junk
+  - kit
+  - percussion
+  - single
+  - tom
+  licence: CC0 1.0
+  author: deleted_user_5205523
+  credit: 'Junk Drum Kit: Hi Tom (Single Hit) by deleted_user_5205523 (freesound.org),
+    CC0 1.0'
+  duration_s: 0.72
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - drum
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 2
+- id: freesound_340472
+  kind: sfx
+  file: sfx/freesound_340472.mp3
+  source: freesound
+  source_url: https://freesound.org/people/deleted_user_5205523/sounds/340472/
+  source_name: 'Junk Drum Kit: Ride (Single Hit)'
+  source_tags:
+  - drum
+  - drums
+  - fake
+  - hit
+  - junk
+  - kit
+  - percussion
+  - ride
+  - single
+  licence: CC0 1.0
+  author: deleted_user_5205523
+  credit: 'Junk Drum Kit: Ride (Single Hit) by deleted_user_5205523 (freesound.org),
+    CC0 1.0'
+  duration_s: 1.0
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - drum
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 2
+- id: freesound_340469
+  kind: sfx
+  file: sfx/freesound_340469.mp3
+  source: freesound
+  source_url: https://freesound.org/people/deleted_user_5205523/sounds/340469/
+  source_name: 'Junk Drum Kit: Hat Closed (Single Hit)'
+  source_tags:
+  - drum
+  - drums
+  - fake
+  - hats
+  - hit
+  - junk
+  - kit
+  - percussion
+  - single
+  licence: CC0 1.0
+  author: deleted_user_5205523
+  credit: 'Junk Drum Kit: Hat Closed (Single Hit) by deleted_user_5205523 (freesound.org),
+    CC0 1.0'
+  duration_s: 0.38
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - drum
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_380640
+  kind: sfx
+  file: sfx/freesound_380640.mp3
+  source: freesound
+  source_url: https://freesound.org/people/jameswrowles/sounds/380640/
+  source_name: Thump 2.wav
+  source_tags:
+  - Comedy
+  - Thump
+  - Wooden-block
+  - bat-hits-head
+  licence: CC0 1.0
+  author: jameswrowles
+  credit: Thump 2.wav by jameswrowles (freesound.org), CC0 1.0
+  duration_s: 0.26
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - thump
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 4
+- id: freesound_380638
+  kind: sfx
+  file: sfx/freesound_380638.mp3
+  source: freesound
+  source_url: https://freesound.org/people/jameswrowles/sounds/380638/
+  source_name: Thump 4.wav
+  source_tags:
+  - Comedy
+  - Thump
+  - Wooden-block
+  - bat-hits-head
+  licence: CC0 1.0
+  author: jameswrowles
+  credit: Thump 4.wav by jameswrowles (freesound.org), CC0 1.0
+  duration_s: 0.21
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - thump
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 4
+- id: freesound_344149
+  kind: sfx
+  file: sfx/freesound_344149.mp3
+  source: freesound
+  source_url: https://freesound.org/people/Brokenphono/sounds/344149/
+  source_name: Thump_001.wav
+  source_tags:
+  - foley
+  - organic
+  - sfx
+  - short
+  - sounddesign
+  - thud
+  - thump
+  licence: CC0 1.0
+  author: Brokenphono
+  credit: Thump_001.wav by Brokenphono (freesound.org), CC0 1.0
+  duration_s: 0.75
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - thump
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 2
+- id: freesound_554803
+  kind: sfx
+  file: sfx/freesound_554803.mp3
+  source: freesound
+  source_url: https://freesound.org/people/LoafDV/sounds/554803/
+  source_name: Glass Ding
+  source_tags:
+  - bong
+  - ding
+  - glass
+  - interface
+  - notification
+  - ping
+  - soft
+  licence: CC BY 4.0
+  author: LoafDV
+  credit: Glass Ding by LoafDV (freesound.org), CC BY 4.0
+  duration_s: 0.58
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - ding
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
+- id: freesound_594443
+  kind: sfx
+  file: sfx/freesound_594443.mp3
+  source: freesound
+  source_url: https://freesound.org/people/_MC5_/sounds/594443/
+  source_name: Empty Glass Bottle Drop of Floor
+  source_tags:
+  - alcohol
+  - bottle
+  - carpet
+  - ding
+  - drink
+  - drinking
+  - drop
+  - dropped
+  - dropping
+  - empty
+  - fall
+  - falling
+  - felt
+  - glass
+  - hit
+  - light
+  - soft
+  - wine
+  licence: CC0 1.0
+  author: _MC5_
+  credit: Empty Glass Bottle Drop of Floor by _MC5_ (freesound.org), CC0 1.0
+  duration_s: 0.68
+  tags:
+    theme: []
+    mood: []
+    intent:
+    - ding
+    flavour: []
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
