@@ -9,13 +9,32 @@ The audio files themselves live beside it (`beds/`, `sfx/`) and are **never comm
 catalogue but no files; an entry whose file is missing fails the mix step with its id, and
 an empty catalogue simply leaves the short as the voice alone.
 
-## Seeding it (ticket 025, operator-run)
+## Seeding it: the shortlist and the approved library (ticket 075, replaces 025)
 
-Twelve beds (suspense, money, history, tech, calm, upbeat; two each) and twenty SFX by
-intent, sourced by hand from the YouTube Audio Library and Mixkit — neither has an API.
-Every file is hand-listened by Shubham and passed through the sweep detector (ticket 023)
-before it is added, and its licence text is recorded in its `licence` field. `duration_s`,
-`bpm`, `key` and `energy` are measured by script; `tags` are hand-written.
+`uv run python -m shortsmith.sound.shortlist [--slot NAME ...]` shortlists three candidates
+per slot of `shortlist.yaml` (the active moods and flavours of `moods.yaml`, and the effect
+kinds with their `max_len_s`) from Openverse audio (no key; CC0 / CC BY only) and
+Freesound (`FREESOUND_API_KEY`; CC0 / CC BY only). Every candidate passes 068's kind check
+on its own name and tags, the 023 measure, the sweep detector (effects but a whoosh) and
+069's audibility against a reference voice (beds) before it reaches the page; an effect
+longer than its `max_len_s` is never downloaded. The files and `shortlist.json` land in
+`work/shortlist/` (git-ignored).
+
+Sources with no API (Pixabay music, the YouTube Audio Library, Mixkit, Incompetech): drop
+the file into `inbox/` (git-ignored) and run the shortlist; it writes a one-line sidecar
+`<file>.source.yaml` beside it. Fill in `source` (`pixabay`, `youtube_audio_library`,
+`mixkit` or `incompetech`), `page_url`, `attribution` (required for Incompetech) and
+`slot`, then run it again: the file joins its slot with the licence text of
+`licences/<source>.txt`. Until then it is listed as "needs source" and cannot be approved.
+
+Listen at `/audio/shortlist` (behind the passcode). **Yes** copies the file into `beds/` or
+`sfx/` (git-ignored) and appends its entry to `catalog.yaml` with its source, page URL,
+licence, author, credits line, the source's own name and tags, the measurements and the
+closed-list tags you confirm (a bed: a mood, optionally a flavour; an effect: its kind).
+**No** adds it to `refused.yaml`, so it is never offered again. The app refuses to start
+on a `catalog.yaml` tag off the closed lists. `shortlist probe` makes one live request per
+API source and prints what it answered; `shortlist fetch-approved` downloads every
+approved API file a fresh clone lacks (drop-folder files are yours to keep).
 
 ## Grown at runtime: `fetched/` (ticket 024)
 

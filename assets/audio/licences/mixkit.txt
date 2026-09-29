@@ -1,0 +1,3 @@
+Mixkit Free License
+Free for commercial and non-commercial projects; no attribution required. Do not
+redistribute the file on its own. https://mixkit.co/license/

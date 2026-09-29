@@ -61,13 +61,24 @@ def _hits(words: Iterable[str], found: Sequence[str]) -> list[str]:
     return out
 
 
+def forbidden(kind: Kind, name: str, tags: Sequence[str]) -> str | None:
+    """The forbidden half of `refusal` alone: why `name` and `tags` carry a word the
+    kind forbids, or None. 075's drop folder asks only this of a file the operator
+    downloaded by hand from a music or effects library, whose file name rarely says
+    `music`."""
+    bad = _hits(kind.forbids, [t for text in (name, *tags) for t in tokens(text)])
+    if bad:
+        return f"name/tags carry {', '.join(bad)!r}, forbidden for {kind.name}"
+    return None
+
+
 def refusal(kind: Kind, name: str, tags: Sequence[str]) -> str | None:
     """Why a sound called `name` with `tags` is not a `kind`, or None when it is: a
     forbidden word is named first, then the absence of any needed word."""
     found = [t for text in (name, *tags) for t in tokens(text)]
-    bad = _hits(kind.forbids, found)
-    if bad:
-        return f"name/tags carry {', '.join(bad)!r}, forbidden for {kind.name}"
+    bad = forbidden(kind, name, tags)
+    if bad is not None:
+        return bad
     if not _hits(kind.needs, found):
         shown = ", ".join(tags) if tags else name
         return f"name/tags {shown!r} carry no {kind.name} word"

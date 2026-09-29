@@ -83,6 +83,7 @@ import math
 import re
 import shutil
 import tempfile
+import urllib.parse
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
@@ -115,6 +116,7 @@ from shortsmith import (
     presenter,
     publishing,
     render,
+    sound,
     stickers,
     styles,
     sweeper,
@@ -124,7 +126,7 @@ from shortsmith import planner as planner_module
 from shortsmith import transcriber as transcriber_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
-from shortsmith.contracts import CriticReport, ReferenceRecord
+from shortsmith.contracts import AudioTags, CriticReport, ReferenceRecord
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
 from shortsmith.jobs import RATING_MAX, RATING_MIN, SETTLED, STATUS_ORDER, Clock, Job, Status
 from shortsmith.performance import YouTube, YouTubeError
@@ -136,7 +138,7 @@ from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
 from shortsmith.reference import own
 from shortsmith.render import Renderer
-from shortsmith.sound import freesound, kinds
+from shortsmith.sound import freesound, kinds, shortlist
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import Transcriber
 
@@ -253,6 +255,9 @@ def create_app(
     audio_kinds: Path | None = None,
     audio_moods: Path | None = None,
     topics: Path | None = None,
+    audio_catalogue: Path | None = None,
+    audio_library: Path | None = None,
+    shortlist_dir: Path | None = None,
 ) -> FastAPI:
     # 065: settings the app loaded itself are re-read where a value may change between
     # jobs (`PLANNER_CLI_MODEL`); settings a caller passed stay as passed.
@@ -267,11 +272,20 @@ def create_app(
     stickers.load_catalogue(sticker_catalogue or stickers.CATALOGUE_PATH)
     # 068: the audio kinds every fetched sound is checked against; a broken row is a
     # `KindError` naming it, and the app does not build.
-    kinds.load_kinds(audio_kinds or kinds.KINDS_PATH)
+    audio_kind_list = kinds.load_kinds(audio_kinds or kinds.KINDS_PATH)
     # 073: the closed mood, flavour and topic lists the planner and the sound director
     # share; a duplicate or empty entry is a `VocabError` naming it.
-    vocab.load_moods(audio_moods or vocab.MOODS_PATH)
+    moods = vocab.load_moods(audio_moods or vocab.MOODS_PATH)
     vocab.load_topics(topics or vocab.TOPICS_PATH)
+    # 075: the approved library's tracked catalogue carries closed-list tags only; an
+    # entry off them is a `SoundError` naming it, and the app does not build.
+    library_root = audio_library or shortlist.LIBRARY_ROOT
+    shortlist.check_catalogue(
+        audio_catalogue or library_root / sound.CATALOGUE_NAME, moods=moods,
+        kinds=audio_kind_list,
+    )  # fmt: skip
+    shortlist_root = shortlist_dir or shortlist.SHORTLIST_DIR
+    effect_kinds = audio_kind_list.sfx_kinds()
     chips = styles.shipped(specs)
     # The ledger loads the prices file at startup (5.6), in the lifespan like the
     # passcode check, so `import shortsmith.app` never needs the file: a provider the
@@ -675,6 +689,67 @@ def create_app(
             headers = {"Content-Disposition": f'attachment; filename="{job.id}-{name}"'}
         return FileResponse(job.out_dir / name, media_type=media_type, headers=headers)
 
+    # --- 075: the listening page ---------------------------------------------------
+
+    def shortlist_page(message: str = "", status_code: int = 200) -> HTMLResponse:
+        listed = shortlist.load_shortlist(shortlist_root)
+        page = render_shortlist_page(
+            listed, moods=shortlist.page_moods(moods), flavours=moods.active_flavours(),
+            intents=effect_kinds, message=message,
+        )  # fmt: skip
+        return HTMLResponse(page, status_code=status_code)
+
+    @app.get("/audio/shortlist", response_class=HTMLResponse)
+    async def audio_shortlist() -> HTMLResponse:
+        return await run_in_threadpool(shortlist_page)
+
+    @app.get("/audio/shortlist/files/{name:path}")
+    async def audio_shortlist_file(name: str) -> Response:
+        """A candidate's file for its player; nothing outside the shortlist folder."""
+        root = shortlist_root.resolve()
+        path = (root / name).resolve()
+        if (
+            not path.is_relative_to(root)
+            or path.suffix.lower() not in shortlist.AUDIO_SUFFIXES
+            or not path.is_file()
+        ):
+            return JSONResponse({"error": "no such file"}, status_code=404)
+        return FileResponse(path)
+
+    @app.post("/audio/shortlist/yes")
+    async def audio_yes(request: Request) -> Response:
+        form = await request.form()
+        key = _text(form.get("key"))
+        tags = AudioTags(
+            mood=[m for m in [_text(form.get("mood")).strip()] if m],
+            flavour=[f for f in [_text(form.get("flavour")).strip()] if f],
+            intent=[i for i in [_text(form.get("intent")).strip()] if i],
+        )
+
+        def store() -> None:
+            shortlist.approve(
+                key, tags=tags, out_dir=shortlist_root, library_root=library_root,
+                moods=moods, kinds=audio_kind_list,
+            )  # fmt: skip
+
+        try:
+            await run_in_threadpool(store)
+        except (shortlist.ShortlistError, sound.SoundError) as exc:
+            return await run_in_threadpool(shortlist_page, str(exc), 422)
+        return RedirectResponse("/audio/shortlist", status_code=303)
+
+    @app.post("/audio/shortlist/no")
+    async def audio_no(request: Request) -> Response:
+        form = await request.form()
+        key = _text(form.get("key"))
+        try:
+            await run_in_threadpool(
+                lambda: shortlist.refuse(key, out_dir=shortlist_root, library_root=library_root)
+            )
+        except shortlist.ShortlistError as exc:
+            return await run_in_threadpool(shortlist_page, str(exc), 422)
+        return RedirectResponse("/audio/shortlist", status_code=303)
+
     return app
 
 
@@ -825,6 +900,94 @@ def _rejection(
 
 
 # --- rendering ------------------------------------------------------------------
+
+
+NO_SHORTLIST_SENTENCE = (
+    "No shortlist yet. Run <code>uv run python -m shortsmith.sound.shortlist</code> "
+    "and reload this page."
+)
+
+
+def _options(name: str, values: Sequence[str], chosen: Sequence[str], *, blank: bool) -> str:
+    options = ['<option value="">(none)</option>'] if blank else []
+    for value in values:
+        selected = " selected" if value in chosen else ""
+        shown = html.escape(value)
+        options.append(f'<option value="{shown}"{selected}>{shown}</option>')
+    return f'<label>{name} <select name="{name}">{"".join(options)}</select></label>'
+
+
+def _shortlist_card(
+    candidate: shortlist.Candidate, *, moods: Sequence[str], flavours: Sequence[str],
+    intents: Sequence[str],
+) -> str:  # fmt: skip
+    """One candidate: its player, where it comes from, what was measured, yes and no."""
+    esc = html.escape
+    src = "/audio/shortlist/files/" + "/".join(
+        urllib.parse.quote(part) for part in candidate.file.split("/")
+    )
+    page = (
+        f' · <a href="{esc(candidate.page_url)}" rel="noreferrer">page</a>'
+        if candidate.page_url else ""
+    )  # fmt: skip
+    licence = " · ".join(
+        esc(p) for p in (candidate.licence, candidate.author or "", candidate.credit) if p
+    )
+    measured = f"{candidate.duration_s:.1f} s, energy {candidate.energy or '-'}"
+    if candidate.bpm is not None:
+        measured += f", {candidate.bpm:g} bpm"
+    if candidate.key_sig:
+        measured += f", {esc(candidate.key_sig)}"
+    if candidate.margin_db is not None:
+        measured += f", speech band clears it by {candidate.margin_db:.1f} dB"
+    key = f'<input type="hidden" name="key" value="{esc(candidate.key)}">'
+    if candidate.needs_source:
+        actions = (
+            '<p class="measured">needs source: fill in its sidecar in '
+            "<code>assets/audio/inbox/</code> and run the shortlist again.</p>"
+        )
+    else:
+        if candidate.kind == "bed":
+            fields = _options("mood", moods, candidate.tags.mood, blank=False) + " " + _options(
+                "flavour", flavours, candidate.tags.flavour, blank=True
+            )
+        else:
+            fields = _options("intent", intents, candidate.tags.intent, blank=False)
+        actions = (
+            f'<form class="yes" method="post" action="/audio/shortlist/yes">{key}{fields} '
+            '<button type="submit">Yes</button></form>'
+            f'<form class="no" method="post" action="/audio/shortlist/no">{key}'
+            '<button type="submit">No</button></form>'
+        )
+    return (
+        '<div class="candidate">'
+        f"<strong>{esc(candidate.name)}</strong> ({esc(candidate.source)}){page}"
+        f'<audio controls preload="none" src="{esc(src)}"></audio>'
+        f'<p class="licence">{licence}</p><p class="measured">{measured}</p>{actions}</div>'
+    )
+
+
+def render_shortlist_page(
+    listed: shortlist.Shortlist, *, moods: Sequence[str], flavours: Sequence[str],
+    intents: Sequence[str], message: str = "",
+) -> str:  # fmt: skip
+    """075: every slot with its candidates, then the drop-folder files still waiting."""
+    parts: list[str] = []
+    for slot, kept in listed.slots.items():
+        cards = "".join(
+            _shortlist_card(c, moods=moods, flavours=flavours, intents=intents) for c in kept
+        )
+        cards = cards or '<p class="sub">nothing passed</p>'
+        parts.append(f"<h2>{html.escape(slot)}</h2>{cards}")
+    if listed.inbox:
+        cards = "".join(
+            _shortlist_card(c, moods=moods, flavours=flavours, intents=intents)
+            for c in listed.inbox
+        )
+        parts.append(f"<h2>drop folder: needs source</h2>{cards}")
+    body = "".join(parts) or f'<p class="sub">{NO_SHORTLIST_SENTENCE}</p>'
+    notice = f'<p class="reject">{html.escape(message)}</p>' if message else ""
+    return _template("shortlist.html").substitute(message=notice, body=body)
 
 
 def render_passcode_form(message: str, next_url: str) -> str:

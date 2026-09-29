@@ -1,0 +1,4 @@
+CC BY 4.0
+Kevin MacLeod (incompetech.com), Creative Commons Attribution 4.0. Attribution is
+required: copy the track's credit line from its page into the sidecar's `attribution`.
+https://creativecommons.org/licenses/by/4.0/

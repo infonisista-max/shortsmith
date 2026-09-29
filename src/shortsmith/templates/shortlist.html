@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shortsmith - audio shortlist</title>
+<style>
+  :root { color-scheme: light dark; --accent: #ffd60a; --muted: #777; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid var(--muted); }
+  .sub, .licence, .measured { color: var(--muted); margin: .1rem 0; font-size: .9rem; }
+  .candidate { border: 1px solid var(--muted); border-radius: 8px; padding: .75rem 1rem; margin: .75rem 0; }
+  .candidate audio { width: 100%; margin: .5rem 0; }
+  .reject { background: #c0392b; color: #fff; padding: .75rem 1rem; border-radius: 8px; margin: 1rem 0; }
+  form { display: inline-block; margin-right: .75rem; }
+  button { font: inherit; font-weight: 700; padding: .4rem 1rem; border: 0; border-radius: 8px; cursor: pointer; }
+  .yes button { background: var(--accent); color: #111; }
+  .no button { background: #555; color: #fff; }
+</style>
+</head>
+<body>
+<h1>Audio shortlist</h1>
+<p class="sub">Listen, then say yes or no. A yes goes into the approved library with the tags
+you confirm; a no is never offered again.</p>
+$message
+$body
+</body>
+</html>

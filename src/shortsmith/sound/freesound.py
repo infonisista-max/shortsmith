@@ -108,9 +108,11 @@ LICENCE_FILTER = 'license:("Attribution" OR "Creative Commons 0")'
 KIND_FILTER: Mapping[AudioKind, str] = {"bed": "tag:music", "sfx": ""}
 
 
-def search_filter(kind: AudioKind) -> str:
-    """The request's `filter`: length, then (a bed) the music tag, then the licences."""
-    return " ".join(p for p in (DURATION_FILTER[kind], KIND_FILTER[kind], LICENCE_FILTER) if p)
+def search_filter(kind: AudioKind, max_len_s: float | None = None) -> str:
+    """The request's `filter`: length, then (a bed) the music tag, then the licences.
+    075: `max_len_s` narrows the length to an effect kind's allowance."""
+    duration = DURATION_FILTER[kind] if max_len_s is None else f"duration:[0 TO {max_len_s:g}]"
+    return " ".join(p for p in (duration, KIND_FILTER[kind], LICENCE_FILTER) if p)
 ALLOWED_LICENCES: tuple[str, ...] = ("CC0", "CC BY")
 LOOP_TAGS = frozenset({"loop", "loopable", "seamless"})
 # The licence URLs Freesound hands out, as the text the rights row carries (5.4).
@@ -268,6 +270,29 @@ class FreesoundAudioSearch(AudioSearch):
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Token {self._api_key.get_secret_value()}"}
 
+    def get(self, url: str, *, params: Mapping[str, str] | None = None) -> httpx.Response:
+        """One authorised GET (075: the shortlist's downloads and lookups)."""
+        return self._get(url, params=params)
+
+    def preview_url(self, sound_id: str) -> str:
+        """075, `shortlist fetch-approved`: the HQ preview of one sound by id; a
+        `SoundError` with the status when it cannot be read."""
+        url = SOUND_URL.format(id=sound_id)
+        try:
+            response = self._get(url, params={"fields": "previews"})
+        except httpx.HTTPError as exc:
+            raise SoundError(f"{url}: {type(exc).__name__}") from None
+        if response.is_error:
+            raise SoundError(f"{url}: status {response.status_code}")
+        try:
+            body: object = response.json()
+        except ValueError:
+            raise SoundError(f"{url}: status {response.status_code} unreadable body") from None
+        preview = _preview(_field(body, "previews"))
+        if not preview:
+            raise SoundError(f"{url}: no preview")
+        return preview
+
     def _get(self, url: str, *, params: Mapping[str, str] | None = None) -> httpx.Response:
         client = self._client
         if client is not None:
@@ -277,14 +302,15 @@ class FreesoundAudioSearch(AudioSearch):
 
     # -- the two HTTP calls --
 
-    def search(self, query: str, kind: AudioKind) -> SearchPage:
+    def search(self, query: str, kind: AudioKind, *, max_len_s: float | None = None) -> SearchPage:
         """Freesound's hits for the plain words `query`, in its order, mapped to
         candidates, with the status and the hit count for the log; a source that fails
-        is a page with its status and no hits, never an exception."""
+        is a page with its status and no hits, never an exception. 075: `max_len_s` is
+        an effect kind's length allowance, asked in the filter."""
         self.searches += 1
         params = {
             "query": " ".join(query.split()),
-            "filter": search_filter(kind),
+            "filter": search_filter(kind, max_len_s),
             "fields": FIELDS,
             "page_size": str(self._page_size),
         }

@@ -1,0 +1,35 @@
+# The audio shortlist's slots (ticket 075; operator grill, 29 Sep 2026).
+#
+# `python -m shortsmith.sound.shortlist` asks the free sources for every slot below, runs
+# every candidate through the same checks a job would (068's kind check, the 023 measure,
+# the sweep detector for effects, 069's audibility for beds), and keeps the best `keep`
+# per slot for the operator's yes or no on `/audio/shortlist`. Nothing here is read by a
+# job: a job only takes what the operator approved into `catalog.yaml`.
+#
+# - `beds` slots are the active moods and flavours of `moods.yaml`; every rung carries
+#   `anchor` (069: a bed search never narrows to a word that is not about music).
+# - `effects` slots are kinds of `kinds.yaml`; each is asked with its words and
+#   `duration:[0 TO max_len_s]`, and a hit longer than `max_len_s` is never downloaded.
+#   The lengths are starting values: tick, whoosh and ding are 070's; bass, drum and
+#   thump are first guesses from the references' hit lengths (0.4-1 s), to be checked
+#   by ear on the page.
+#
+# The loader (`sound.shortlist.load_slots`) refuses a bed slot that is not an active
+# mood or flavour, an effect slot that is not a kind, or a slot with no words.
+keep: 3
+beds:
+  anchor: music
+  slots:
+    tense_dramatic: [tense dramatic, suspense cinematic, dark drone]
+    investigative_pulse: [investigative pulse, documentary tension, news pulse]
+    mysterious_curiosity: [mysterious curious, mystery pluck, curiosity ambient]
+    calm_ambient: [calm ambient, soft pad, reflective piano]
+    middle_east: [middle eastern oud, arabic, darbuka]
+    indian: [indian sitar, tabla, bansuri]
+effects:
+  tick: {max_len_s: 0.25, words: [tick, click, ui click, soft pop]}
+  whoosh: {max_len_s: 0.8, words: [whoosh short, swoosh, swish fast]}
+  bass: {max_len_s: 1.5, words: [bass hit, sub boom]}
+  drum: {max_len_s: 1.2, words: [drum hit, impact hit]}
+  thump: {max_len_s: 0.8, words: [thump, thud]}
+  ding: {max_len_s: 0.8, words: [soft ding, ding]}

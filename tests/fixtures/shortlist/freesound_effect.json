@@ -1,0 +1,31 @@
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 7001,
+      "name": "UI click soft",
+      "tags": ["ui", "click", "soft"],
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "username": "uikit",
+      "url": "https://freesound.org/people/uikit/sounds/7001/",
+      "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/7/7001_1-hq.mp3"},
+      "download": "https://freesound.org/apiv2/sounds/7001/download/",
+      "duration": 0.2,
+      "type": "wav"
+    },
+    {
+      "id": 7002,
+      "name": "Tick long",
+      "tags": ["tick"],
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "username": "slow",
+      "url": "https://freesound.org/people/slow/sounds/7002/",
+      "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/7/7002_1-hq.mp3"},
+      "download": "https://freesound.org/apiv2/sounds/7002/download/",
+      "duration": 1.2,
+      "type": "wav"
+    }
+  ]
+}

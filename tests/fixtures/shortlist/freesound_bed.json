@@ -1,0 +1,43 @@
+{
+  "count": 3,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 9001,
+      "name": "Choir vocal ambient",
+      "tags": ["choir", "vocal", "ambient", "music"],
+      "license": "http://creativecommons.org/licenses/by/4.0/",
+      "username": "voices",
+      "url": "https://freesound.org/people/voices/sounds/9001/",
+      "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/9/9001_1-hq.mp3"},
+      "download": "https://freesound.org/apiv2/sounds/9001/download/",
+      "duration": 80.0,
+      "type": "wav"
+    },
+    {
+      "id": 9002,
+      "name": "Tense piano loop",
+      "tags": ["piano", "tense", "loop", "music"],
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "username": "keys",
+      "url": "https://freesound.org/people/keys/sounds/9002/",
+      "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/9/9002_1-hq.mp3"},
+      "download": "https://freesound.org/apiv2/sounds/9002/download/",
+      "duration": 64.0,
+      "type": "wav"
+    },
+    {
+      "id": 9003,
+      "name": "Suspense score",
+      "tags": ["suspense", "score", "music"],
+      "license": "http://creativecommons.org/licenses/by-nc/4.0/",
+      "username": "nc_only",
+      "url": "https://freesound.org/people/nc_only/sounds/9003/",
+      "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/9/9003_1-hq.mp3"},
+      "download": "https://freesound.org/apiv2/sounds/9003/download/",
+      "duration": 90.0,
+      "type": "wav"
+    }
+  ]
+}

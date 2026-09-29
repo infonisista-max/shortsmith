@@ -550,6 +550,8 @@ class AudioTags(StrictModel):
     theme: list[str] = []
     mood: list[str] = []
     intent: list[str] = []
+    # 075: a bed's regional colour, from `moods.yaml`'s `flavours` (approved library only).
+    flavour: list[str] = []
 
 
 class AudioEntry(StrictModel):
@@ -569,6 +571,9 @@ class AudioEntry(StrictModel):
     source_tags: list[str] = []
     licence: str
     author: str | None = None
+    # 075: the credits line the source asks for (Openverse's attribution sentence, a
+    # drop-folder file's sidecar), kept with the approved entry.
+    credit: str | None = None
     duration_s: float
     bpm: float | None = None
     key: str | None = None

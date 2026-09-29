@@ -1,0 +1,26 @@
+{
+  "result_count": 1,
+  "page_count": 1,
+  "page_size": 5,
+  "page": 1,
+  "results": [
+    {
+      "id": "7e1f0000-0001-4c2d-8e9f-000000000011",
+      "title": "Soft pop click",
+      "foreign_landing_url": "https://commons.wikimedia.org/wiki/File:Soft_pop_click.ogg",
+      "url": "https://cdn.example.test/openverse/soft-pop-click.ogg",
+      "creator": "Clicker",
+      "license": "cc0",
+      "license_version": "1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "provider": "wikimedia_audio",
+      "source": "wikimedia_audio",
+      "category": "sound_effect",
+      "filetype": "ogg",
+      "tags": [{"name": "click"}, {"name": "pop"}],
+      "duration": 180,
+      "attribution": "\"Soft pop click\" by Clicker is marked with CC0 1.0.",
+      "mature": false
+    }
+  ]
+}

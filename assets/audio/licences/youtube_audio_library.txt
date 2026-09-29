@@ -1,0 +1,4 @@
+YouTube Audio Library
+Free to use in videos you publish on YouTube, under the terms shown for the track in
+YouTube Studio's Audio Library. Where Studio shows an attribution line, it goes in the
+video description; copy it into the sidecar's `attribution`.
