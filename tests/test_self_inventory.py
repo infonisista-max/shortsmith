@@ -27,6 +27,7 @@ from shortsmith.planner import FakePlanner
 from shortsmith.qa.critic import FakeCritic
 from shortsmith.qa.gate import FakeGate
 from shortsmith.reference import (
+    PROMPT_VERSION,
     InventoryAnswerV2,
     ReferenceInventory,
     ReferenceInventoryV2,
@@ -225,7 +226,7 @@ def test_the_step_writes_a_v2_card_with_tier_own_and_the_job_id(tmp_path: Path) 
     card = own.load(job)
     assert isinstance(card, ReferenceInventoryV2)
     assert (card.tier, card.video_id, card.styles) == ("own", job.id, ["explainer"])
-    assert card.prompt_version == "v2"
+    assert card.prompt_version == PROMPT_VERSION
     assert fake.calls[0][0] == str(job.out_dir / "short.mp4")
     assert (job.out_dir / own.NAME).is_file()
     assert jobs.load(job.path).status == "delivered"

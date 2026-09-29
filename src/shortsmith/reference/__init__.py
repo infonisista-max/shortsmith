@@ -39,6 +39,13 @@ Moods, flavours and topics are data (`shortsmith.vocab`), listed into the prompt
 checked after the schema; an unknown one takes the same one retry, then the reference
 stops naming the field. `load_card` reads each card as its own version, and a reader of
 v2 fields skips a v1 card with a log line (`v2_cards`).
+
+Prompt v3 (ticket 086) is the default; `--prompt v2` stays possible and both write the
+v2 schema, so every reader of v2 fields takes v2 and v3 cards alike (`uses_v2_schema`).
+A card's `music_changes` must cover every boundary between neighbouring parts whose
+mood or flavour differs (`uncovered_boundaries`): a miss is an invalid answer at write
+time (the one retry, told to keep the parts), and a stored card that misses one is
+skipped by `v2_cards` with a log line.
 """
 
 from __future__ import annotations
@@ -48,6 +55,7 @@ import re
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from string import Template
 from typing import Any, Literal, cast, get_args
@@ -59,9 +67,10 @@ from shortsmith import vocab
 from shortsmith.contracts import BedHow, StoryPart
 from shortsmith.reference.gemini import AnalyserError, Answer, ReferenceAnalyser, Usage
 
-PromptVersion = Literal["v1", "v2"]
-PROMPT_VERSION: PromptVersion = "v2"
+PromptVersion = Literal["v1", "v2", "v3"]
+PROMPT_VERSION: PromptVersion = "v3"
 PROMPT_VERSIONS: tuple[PromptVersion, ...] = get_args(PromptVersion)
+V2_SCHEMA_VERSIONS = frozenset({"v2", "v3"})  # 086: v3 changed the text, not the schema
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPONENTS_MD = REPO_ROOT / "docs" / "components.md"
@@ -405,9 +414,11 @@ class ReferenceInventory(InventoryAnswer):
         usage: Usage,
         analysed_on: str,
         styles: Sequence[str] = (),
+        version: PromptVersion | None = None,
     ) -> ReferenceInventory:
-        """The card for the answer: a v2 card (with the `styles` it informs) for a v2
-        answer, a v1 card otherwise."""
+        """The card for the answer: a v2-schema card (with the `styles` it informs) for a
+        v2 answer, a v1 card otherwise. `prompt_version` is the prompt that made it
+        (`version`; `PROMPT_VERSION` for a v2 answer when not given)."""
         card: dict[str, Any] = answer.model_dump() | dict(
             video_id=link.video_id, url=link.url, category=link.category, tier=link.tier,
             creator=link.creator, title=link.title, model=model, fps=fps,
@@ -415,7 +426,7 @@ class ReferenceInventory(InventoryAnswer):
         )  # fmt: skip
         if isinstance(answer, InventoryAnswerV2):
             return ReferenceInventoryV2.model_validate(
-                card | {"prompt_version": "v2", "styles": list(styles)}
+                card | {"prompt_version": version or PROMPT_VERSION, "styles": list(styles)}
             )
         return ReferenceInventory.model_validate(card | {"prompt_version": "v1"})
 
@@ -431,22 +442,51 @@ def load_card(text: str) -> ReferenceInventory:
     """A card's JSON as its own version: a v1 card simply has no v2 fields."""
     data: object = json.loads(text)
     fields = cast(dict[str, object], data) if isinstance(data, dict) else {}
-    if fields.get("prompt_version") == "v2":
+    if uses_v2_schema(fields.get("prompt_version")):
         return ReferenceInventoryV2.model_validate_json(text)
     return ReferenceInventory.model_validate_json(text)
+
+
+def uses_v2_schema(version: object) -> bool:
+    """Whether a card or answer of this prompt version has the v2 fields (v2 or v3)."""
+    return version in V2_SCHEMA_VERSIONS
 
 
 def v2_cards(
     cards: Iterable[ReferenceInventory], *, log: Log = print
 ) -> list[ReferenceInventoryV2]:
-    """The cards a reader of v2 fields can use; each v1 card is skipped with a log line."""
+    """The cards a reader of v2 fields can use; each v1 card, and each card whose
+    `music_changes` miss a boundary its parts show (086), is skipped with a log line."""
     found: list[ReferenceInventoryV2] = []
     for card in cards:
-        if isinstance(card, ReferenceInventoryV2):
-            found.append(card)
-        else:
+        if not isinstance(card, ReferenceInventoryV2):
             log(f"{card.video_id}: a v1 card has no v2 fields; skipped")
+        elif missed := uncovered_boundaries(card):
+            log(f"{card.video_id}: music_changes misses {_boundaries(missed)}; skipped")
+        else:
+            found.append(card)
     return found
+
+
+Boundary = tuple[StoryPart, StoryPart]
+
+
+def uncovered_boundaries(answer: InventoryAnswerV2) -> list[Boundary]:
+    """Each pair of neighbouring parts whose music differs (mood or flavour, music
+    starting or stopping included) with no change from the earlier to the later in
+    `music_changes`. A change where nothing differs is allowed: a bed can change inside
+    one mood."""
+    covered = {(change.from_part, change.to_part) for change in answer.music_changes}
+    return [
+        (before.part, after.part)
+        for before, after in pairwise(answer.parts)
+        if (before.music_mood, before.music_flavour) != (after.music_mood, after.music_flavour)
+        and (before.part, after.part) not in covered
+    ]
+
+
+def _boundaries(missed: Sequence[Boundary]) -> str:
+    return ", ".join(f"{before} -> {after}" for before, after in missed)
 
 
 def styles_for(video: str, readme: Path = STYLES_README) -> list[str]:
@@ -579,7 +619,7 @@ def parse_answer(
     component label checked against the registry: an unknown one becomes `unregistered`.
     A v2 answer's moods, flavours and topic must be in the data files (`vocabulary`,
     loaded when not given); an unknown one is invalid, naming the field."""
-    model = InventoryAnswerV2 if version == "v2" else InventoryAnswer
+    model = InventoryAnswerV2 if uses_v2_schema(version) else InventoryAnswer
     text = _json_text(reply)
     if text is None:
         raise AnswerInvalid(reply, ["the reply holds no JSON object"])
@@ -604,6 +644,13 @@ def parse_answer(
     }
     if isinstance(answer, InventoryAnswerV2):
         unknown = _unknown_labels(answer, vocabulary if vocabulary is not None else vocab.load())
+        missed = uncovered_boundaries(answer)
+        if missed:
+            unknown.append(
+                f"music_changes: the parts' music differs at {_boundaries(missed)} but no "
+                "change is listed there; keep `parts` as they are; add the missing "
+                "`music_changes` entry"
+            )
         if unknown:
             raise AnswerInvalid(reply, unknown)
         update["beats"] = [
@@ -799,7 +846,7 @@ def inventory(
             )
         made = ReferenceInventory.from_answer(
             parsed, link=link, model=answer.model, fps=analyser.fps, usage=answer.usage,
-            analysed_on=today(), styles=informs,
+            analysed_on=today(), styles=informs, version=version,
         )  # fmt: skip
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / (name or f"{link.video_id}.json")
@@ -831,7 +878,7 @@ def inventory_all(
 ) -> int:
     """Every link, one request each; a failing one is logged and the next is tried.
     Returns how many failed."""
-    if vocabulary is None and version == "v2":
+    if vocabulary is None and uses_v2_schema(version):
         vocabulary = vocab.load()
     failed = 0
     for link in links:

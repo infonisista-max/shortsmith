@@ -133,7 +133,7 @@ from shortsmith.planner import FakePlanner, Planner, kinds_named
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa import technical
 from shortsmith.qa.critic import FakeCritic
-from shortsmith.reference import ReferenceInventoryV2, own
+from shortsmith.reference import PROMPT_VERSION, ReferenceInventoryV2, own
 from shortsmith.reference.gemini import FakeAnalyser
 from shortsmith.render import Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
@@ -1540,7 +1540,7 @@ def check_inventory(job: jobs.Job, analyser: FakeAnalyser, style: str) -> int:
     assert isinstance(card, ReferenceInventoryV2)
     check(
         (card.tier, card.video_id, card.styles, card.prompt_version)
-        == ("own", job.id, [style], "v2"),
+        == ("own", job.id, [style], PROMPT_VERSION),
         f"out/inventory.json is {card.tier} {card.video_id} {card.styles} {card.prompt_version}",
     )
     recorded = meta.load(job)

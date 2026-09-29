@@ -78,21 +78,21 @@ No number is needed: the check matches part names, not times.
 
 ## Acceptance criteria
 
-- [ ] Unit tests on hand-built cards: no boundary differs + empty list passes; one
+- [x] Unit tests on hand-built cards: no boundary differs + empty list passes; one
       differing flavour boundary + empty list fails naming it; three differing mood
       boundaries + one change fails naming the other two; `null` → mood counts as a
       difference; an extra change where nothing differs passes.
-- [ ] The two committed cards `FbaBcWgMIEY` and `ePTZVwipoAM` fail the check (a test
+- [x] The two committed cards `FbaBcWgMIEY` and `ePTZVwipoAM` fail the check (a test
       reads them from `docs/reference/inventory/`); the other 11 pass. If another card
       fails, that is logged in the done note, not hidden.
-- [ ] `FakeAnalyser` test: a first answer that fails the check triggers one retry whose
+- [x] `FakeAnalyser` test: a first answer that fails the check triggers one retry whose
       prompt names the boundary; a second failing answer writes no card.
-- [ ] `v2_cards` skips a failing card with the log line above; `pairing()` never sees it.
-- [ ] `inventory_v3.md` exists with its snapshot; `inventory_v2.md` and its snapshot are
+- [x] `v2_cards` skips a failing card with the log line above; `pairing()` never sees it.
+- [x] `inventory_v3.md` exists with its snapshot; `inventory_v2.md` and its snapshot are
       byte-for-byte unchanged. A card written with the default prompt carries
       `prompt_version: "v3"`; a v3 card and a v2 card load side by side and both reach
       `pairing()`. The retry text for a boundary miss says to keep `parts`.
-- [ ] Tests never reach the network. Ruff, pyright and every test file green in
+- [x] Tests never reach the network. Ruff, pyright and every test file green in
       foreground chunks; the smoke passes T1–T13.
 
 ### Operator step, in the done note (with `.env` back)
@@ -119,3 +119,58 @@ goes ahead with fewer, or the link is re-run once more.
 
 - Operator, 29 Sep 2026 (079 HITL): "handle the card finding the Matt way before
   step 4"; per-boundary check and the second-failure rule settled in that session.
+
+## Done (afk, 29 Sep 2026)
+
+- `reference/__init__.py`: `uncovered_boundaries(answer)` is the one pure check, a list
+  of `(from_part, to_part)` pairs. It compares `(music_mood, music_flavour)` of each
+  neighbouring pair (null counts as a value, so music starting or stopping differs) and
+  looks for an exact `from_part`/`to_part` change. An extra change where nothing
+  differs is allowed. `parse_answer` adds one reason when a v2-schema answer misses a
+  boundary: `music_changes: the parts' music differs at <a -> b, ...> but no change is
+  listed there; keep `parts` as they are; add the missing `music_changes` entry`. It
+  takes 073's retry, and a second miss writes nothing. The check runs for `--prompt v2`
+  too, because a v2 card that misses a boundary would be skipped at read time anyway.
+  `v2_cards` skips a failing card with `<id>: music_changes misses <a -> b>, <c -> d>;
+  skipped`, so `compare.all_references`, `music.for_job` / `pairing` and 077's worked
+  examples never see it.
+- Prompt v3: `prompts/inventory_v3.md` is v2 with only item 10 (Music changes) rewritten
+  (one entry per boundary where mood or flavour differs, the list and the parts agree,
+  never make the parts alike to fit the list). `PROMPT_VERSION = "v3"`, and
+  `--prompt v2` / `--prompt v1` still work. `V2_SCHEMA_VERSIONS` and `uses_v2_schema`
+  replace the `== "v2"` checks in `load_card`, `parse_answer` and `inventory_all`.
+  `from_answer(..., version=)` writes the prompt actually used, defaulting to
+  `PROMPT_VERSION` for a v2 answer. `inventory` passes its `version`.
+  `inventory_v2.md` and `inventory_v2.snapshot.md` are byte-for-byte unchanged. The new
+  snapshot is `tests/fixtures/reference/inventory_v3.snapshot.md`.
+- Committed cards: exactly `FbaBcWgMIEY` and `ePTZVwipoAM` fail. The other 11 pass,
+  and no other card fails.
+- Sweep (`rg '"v2"|PROMPT_VERSION' src tests`): `smoke.py:1543`,
+  `test_self_inventory.py` (the step's card) and `test_reference_v2.py` (the default
+  card, twice) now follow `PROMPT_VERSION`. `"v2"` is left on purpose in these places:
+  `test_reference_v2.py`'s snapshot test (it pins the v2 prompt, `version="v2"`), and
+  `test_self_inventory.py:351` and `test_worked_examples.py:57`, which parse the
+  recorded answer with the v2 schema (the same schema as v3).
+- Tests: `tests/test_card_music_changes.py` (16).
+- Loops: ruff and pyright are clean. All 71 test files are green in six foreground
+  chunks. The smoke delivered with T1–T13 passing. No `src/remotion` change.
+
+### Operator step (with `.env` back)
+
+Both cards were made by `inventory --all`: category and tier come from
+`docs/references.md`, `vishva` comes from the trace table, and the topic is the model's
+own (no `--topic`). Re-run each, then `gaps`:
+
+    uv run python -m shortsmith.reference inventory https://youtube.com/shorts/FbaBcWgMIEY --style vishva
+    uv run python -m shortsmith.reference inventory https://youtube.com/shorts/ePTZVwipoAM --style vishva
+    uv run python -m shortsmith.reference gaps
+
+Read back:
+
+    uv run python -c "import json; [print(v, (d:=json.load(open(f'docs/reference/inventory/{v}.json', encoding='utf-8')))['prompt_version'], [(p['part'], p['music_mood'], p['music_flavour']) for p in d['parts']], [(c['from_part'], c['to_part'], c['how']) for c in d['music_changes']]) for v in ('FbaBcWgMIEY', 'ePTZVwipoAM')]"
+
+The re-run passes if each card has at least one music change and its parts still differ
+where the music does. A card flattened to one mood and flavour counts as a failed
+re-run, the same as a link that fails twice. Until they are re-run, both stored cards
+are skipped with the log line above, so the King Saud job learns from 1 vishva card
+(`nBihHUlYOQk`). Record the count in 079.

@@ -76,8 +76,8 @@ def _fake(*answers: str) -> FakeAnalyser:
 # --- the v2 answer -------------------------------------------------------------------------
 
 
-def test_the_v2_default_and_v1_still_possible() -> None:
-    assert PROMPT_VERSION == "v2"
+def test_v1_is_still_possible_beside_the_default() -> None:
+    assert PROMPT_VERSION == "v3"  # 086: v3 is the default; tests/test_card_music_changes.py
     assert "## JSON schema (InventoryAnswer)" in build_prompt(REGISTRY, version="v1")
 
 
@@ -162,7 +162,7 @@ def test_an_unknown_topic_is_retried_once_and_a_good_second_answer_is_written(
     bad["script"]["topic"] = "cooking"
     fake = _fake(_text(bad), _text())
     made = inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lambda _: None)
-    assert made.prompt_version == "v2" and (tmp_path / "S5j-2CWYYwM.json").is_file()
+    assert made.prompt_version == PROMPT_VERSION and (tmp_path / "S5j-2CWYYwM.json").is_file()
     assert "script.topic" in fake.calls[1][1]
 
 
@@ -173,7 +173,7 @@ def test_the_fake_analyser_serves_the_v2_fixture_into_a_v2_card(tmp_path: Path) 
     fake = _fake(_text())
     made = inventory(_link(), fake, out_dir=tmp_path, registry=REGISTRY, log=lambda _: None)
     assert isinstance(made, ReferenceInventoryV2)
-    assert made.prompt_version == "v2"
+    assert made.prompt_version == PROMPT_VERSION
     # the styles this reference informs, from the trace table in styles/README.md
     assert made.styles == ["footage"]
     loaded = load_card((tmp_path / "S5j-2CWYYwM.json").read_text(encoding="utf-8"))
@@ -276,9 +276,9 @@ def test_the_v2_prompt_follows_an_edited_moods_file(tmp_path: Path) -> None:
 
 def test_the_v2_prompt_matches_the_recorded_snapshot() -> None:
     text = build_prompt(
-        SNAPSHOT_REGISTRY, components_md=FIXTURES / "reference" / "components.md"
+        SNAPSHOT_REGISTRY, components_md=FIXTURES / "reference" / "components.md", version="v2"
     )
-    path = FIXTURES / "reference" / f"inventory_{PROMPT_VERSION}.snapshot.md"
+    path = FIXTURES / "reference" / "inventory_v2.snapshot.md"  # 086: v2 stays pinned
     if os.environ.get("SHORTSMITH_UPDATE_SNAPSHOTS") == "1":
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8", newline="\n")
