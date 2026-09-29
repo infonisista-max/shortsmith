@@ -69,7 +69,8 @@ refused by the check.**
 ### Operator step, in the done note
 
 Re-run
-`uv run python -m shortsmith.sound.shortlist --slot investigative_pulse --voice data/jobs/20260928-140620-f774e1/work/stems/voice.wav`.
+`uv run python -m shortsmith.sound.shortlist --slot investigative_pulse --voice work/089/run04_voice.wav`
+(run04's own `work/` goes on the next sweep).
 Trap Hamza should now reach the page. Listen under the voice and say yes or no. Then
 continue with 087's operator step 2 (the facts-default pass).
 

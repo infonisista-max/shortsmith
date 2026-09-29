@@ -71,9 +71,9 @@ anyway, with a note.
 
 ### Operator step, in the done note
 
-Open run04's job page. First use 093's picker to put a bed you can judge under it (run04's
-own bed is a car exhaust). Then move the slider, remix, and play the file on the phone
-speaker.
+On run05's King Saud re-render (079 step 4), within 24 h of its upload (the sweeper
+then takes its stems; run04's are already due), move the slider, remix, and play the
+file on the phone speaker.
 
 ## Blocked by
 

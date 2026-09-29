@@ -2,9 +2,8 @@
 
 ## Type
 
-AFK — no new packages. The one network step (fetching run03's bed) runs only if
-`FREESOUND_API_KEY` is in `.env`. Otherwise the ticket stops at its first step and
-reports (see "Files").
+AFK — no network, no keys, no new packages. Every file it needs is on disk under
+`work/089/` (git-ignored) before the run (see "Files").
 
 ## Parent PRD
 
@@ -32,18 +31,19 @@ engaged". No dB number is chosen by the operator.
 
 ## Files (the check runs on the real beds, not on synthetic ones)
 
-- **Voice:** run04's voice stem, `data/jobs/20260928-140620-f774e1/work/stems/voice.wav`.
-  run03 was swept on 28 Sep (`swept_at`), so its own voice stem is gone. Same presenter,
+- **Voice:** `work/089/run04_voice.wav`, copied on 30 Sep 2026 from run04's
+  `work/stems/voice.wav`. run04 is past the sweeper's 24 h, so its `work/` goes on the
+  next sweep. run03 was swept on 28 Sep, so its own voice stem is gone. Same presenter,
   same 7.3 voice chain. The done note states this substitution.
-- **A's bed:** `freesound_738836`, the HQ mp3 preview the adapter fetched for run03
-  (`sound.freesound` fetches the preview, not the original). No local copy exists. If
-  `FREESOUND_API_KEY` is set, fetch it once through the adapter into `work/089/`
-  (git-ignored). Otherwise, or if the fetch fails: **stop before any code change**, add a
-  note to this file saying the operator should put the file at
-  `work/089/freesound_738836.mp3` (source URL in run03's `out/rights.json`), and commit
-  only the note.
+- **A's bed:** `work/089/freesound_738836.mp3`, the HQ mp3 preview, which is the variant
+  `sound.freesound` fetched for run03 (preview-hq-mp3 first). The operator saves it with
+  the adapter before the run (https://freesound.org/s/738836/; run03's `out/rights.json`
+  has no audio rows, so there is no hash to check it against).
 - **B's bed:** `assets/audio/inbox/mixkit-trap-hamza-267.mp3` (operator, 30 Sep 2026).
-- **C's bed:** run04's `work/stems/music.wav` (the car recording, already levelled at −14).
+- **C's bed:** `work/089/run04_music.wav`, copied from run04's `work/stems/music.wav` (the
+  car recording, already levelled at −14).
+- If any of the four is missing: **stop before any code change**, add a note naming the
+  missing file, and commit only the note.
 
 ## What to build
 
@@ -51,9 +51,10 @@ engaged". No dB number is chosen by the operator.
    two points after the fact. Each measure compares the bed with the voice after one
    filter:
    1. today's 250–4000 Hz band (expected to fail; it is the baseline);
-   2. a phone-speaker band: a high-pass at a small phone speaker's low cutoff and **no**
-      upper cutoff below 16 kHz. The cutoff is one value taken from a cited source and
-      written in the ticket note before any measuring. It is not tuned afterwards;
+   2. a phone-speaker band: a high-pass at **300 Hz** and **no** upper cutoff below
+      16 kHz. 300 Hz is the commonly quoted lower limit of a phone's built-in speaker. It
+      is an approximation, fixed here in the ticket so it cannot be tuned to the two
+      points (the run is offline, so there is no lookup);
    3. K-weighted loudness (ffmpeg `ebur128`, already used by `loudnorm`) after the same
       phone high-pass.
    No new package. Numpy and ffmpeg filters only.
@@ -96,8 +97,7 @@ engaged". No dB number is chosen by the operator.
 
 ## Acceptance criteria
 
-- [ ] The candidate list and the phone cutoff (with its source) are in the ticket note
-      before the measuring commit.
+- [ ] The measures are exactly the three declared above, and no cutoff is changed.
 - [ ] A test measures A, B and C on the real files (skipped with a reason when the
       git-ignored files are absent, so CI and the smoke never depend on them). On the
       chosen measure it asserts A and B within 2 dB and C under both by more than 2 dB.
@@ -116,7 +116,8 @@ engaged". No dB number is chosen by the operator.
 Play the two `work/089/` files on the phone speaker. These are beds the operator has
 judged: run03's bed and the Dyson bed, not run04's exhaust. Both should sound like "a
 normal level, clearly there, never over my voice". After 088's Trap Hamza approval, 093's
-picker puts Trap Hamza under run04 on its job page for the full-reel check.
+picker puts Trap Hamza under run05's King Saud re-render (079 step 4) on its job page for
+the full-reel check.
 
 ## Blocked by
 
