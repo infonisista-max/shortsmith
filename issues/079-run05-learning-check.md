@@ -104,8 +104,25 @@ added (081) only after this run shows the worked examples help.
   → 086 + 087 (one afk run, `.env` parked) → the operator re-runs the two links +
   `gaps` → the cap decision + the facts-default listening pass → steps 4–7.
 
+## Progress (HITL session, 30 Sep 2026)
+
+- **087 operator step 1** run: the shortlist refused Trap Hamza on 069's ceiling (25.4 dB at
+  −14). The cap decision is recorded in 087: the level follows the ear, and a bed approved
+  by ear is never refused. → **088, 089, 090, 091, 093**.
+- **086 re-run of `FbaBcWgMIEY`**: 3 of 4 answers failed on off-list sound kinds
+  (`sound.effects.N.kind`, `beats.N.sound`), plus one broken-JSON reply and one 13-word
+  `said`. → **092** (an off-list label on a list with `other` lands as `other`).
+- Order for the overnight afk run: 088 → 089 → 090 → 091 → 093, with 092 independent.
+  089 checks its measure on the real beds (run03's `freesound_738836` and Trap Hamza under
+  run04's voice) and stops with a table if no measure puts both where the ear put them.
+  090, 091 and 093 do not wait on it.
+  Then the operator re-runs the links and `gaps` (092), approves Trap Hamza by ear (088),
+  does the facts-default pass (087 step 2), and continues with step 4.
+
 ## Blocked by
 
+- 088, 089, 092 (for step 4 onward; 090, 091 and 093 are wanted before the phone verdict
+  but do not block the render)
 - 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078
 - 086, 087 (for step 4 onward)
 

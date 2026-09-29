@@ -204,6 +204,16 @@ All acceptance criteria are met; tests in `tests/test_facts_default.py`.
    slot: investigative_pulse}`, then
    `uv run python -m shortsmith.sound.shortlist --slot investigative_pulse --voice <run04 voice stem>`.
    The log line now names the bed level. Record the cap decision here.
+   - **Run 30 Sep 2026:** `inbox 'mixkit-trap-hamza-267.mp3' (mixkit) skipped: the speech
+     band 250-4000 Hz clears the bed by 25.4 dB (bed level -14.0 dB under the voice), over
+     sound.speech_band_margin_max_db 20 dB`.
+   - **Cap decision (operator, 30 Sep 2026):** no dB number is chosen by the operator.
+     The level follows the ear and the references (Dyson v2 heard clearly; run03 a bit
+     loud; run04 not heard). A bed approved by ear must never be refused by the check.
+     Built as 088 (the ceiling screens unheard beds only), 089 (a phone-speaker level
+     measure that must put run03's bed at its asked level and Trap Hamza at the Dyson
+     level together, or the run stops and reports), 090/091 (the
+     job-page slider, remembered for the next job) and 093 (pick another bed).
 2. The facts-default listening pass: set the sidecar's `slot: facts_default`, add more
    drop-folder tracks (Mixkit, Pixabay: dark, minimal, bass-led, documentary; likely the
    main source, since the API sources find little), then
