@@ -270,6 +270,9 @@ class Sound(StrictModel):
     bed_crossfade_s: float = Field(gt=0.0)
     bed_silence_s: float = Field(gt=0.0)
     bed_cut_fade_s: float = Field(gt=0.0)
+    # 087: a flavour or mood miss takes an approved `facts_default` bed before a same-mood
+    # bed of another flavour (true), or after it (false, 076's order).
+    facts_default_first: bool
 
 
 def allows_whoosh(nums: Sound) -> bool:

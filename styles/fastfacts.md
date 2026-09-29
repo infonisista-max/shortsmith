@@ -1,5 +1,5 @@
 ---
-version: "8"
+version: "9"
 status: shipped
 aliases: [fastfacts, fast facts, facts, fact, quick]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -178,6 +178,9 @@ sound:
   bed_crossfade_s: 1.0  # both beds heard together this long
   bed_silence_s: 0.5  # a drop to silence holds this long before the new bed
   bed_cut_fade_s: 0.02  # a hard cut's fade, under one frame at 30 fps
+  # 087: every shipped style is a fact or explainer channel, so a flavour or mood miss
+  # takes the facts-default bed before a same-mood bed of another flavour.
+  facts_default_first: true
 finale:
   kind: finale_card
   mode: "off"

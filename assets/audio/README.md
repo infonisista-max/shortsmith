@@ -36,6 +36,27 @@ on a `catalog.yaml` tag off the closed lists. `shortlist probe` makes one live r
 API source and prints what it answered; `shortlist fetch-approved` downloads every
 approved API file a fresh clone lacks (drop-folder files are yours to keep).
 
+## The facts-default bed (ticket 087)
+
+When a segment's planned flavour, or its mood, has no approved bed, a facts short takes an
+approved bed tagged `role: [facts_default]` (the only role on the closed list), not a
+random Freesound hit. The director's order per segment is: the planned mood + flavour →
+the facts default → a same-mood bed of any flavour → the Freesound search, which runs only
+when the library has no `facts_default` bed at all. A style with `sound.facts_default_first:
+false` swaps the middle two (076's order). The facts default is levelled and checked by
+069 like any bed, and its `fallback bed: facts_default <id> for <mood>/<flavour>` line
+reaches `job.log` and the job page.
+
+`facts_default.yaml` is what that bed sounds like, as numbers with their sources: minor
+key, static harmony, about 15 % percussive, a sub-bass floor, a ceiling on the energy above
+1 kHz, no vocals. The shortlist's `facts_default` slot asks its `queries` first, then the
+words of the default mood learned from the reference short cards (the largest runtime
+share), and ranks every candidate by its distance to the profile, nearest first; the page
+shows the distance and the measured numbers, and a **Yes** writes the `facts_default` role
+with the learned mood. The drop folder (Mixkit, Pixabay: dark, minimal, bass-led,
+documentary tracks) is probably its main source; give a dropped file `slot:
+facts_default` in its sidecar.
+
 ## Grown at runtime: `fetched/` (ticket 024)
 
 Effects are never searched for at job time (ticket 070): every cue is one kind of the

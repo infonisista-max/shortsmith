@@ -26,6 +26,12 @@ beds:
     calm_ambient: [calm ambient, soft pad, reflective piano]
     middle_east: [middle eastern oud, arabic, darbuka]
     indian: [indian sitar, tabla, bansuri]
+    # 087: the bed fact channels use, the director's fallback on a flavour or mood miss.
+    # It asks `facts_default.yaml`'s `queries` first, then the learned default mood's words
+    # above, then any listed here; every candidate is ranked by its distance to that
+    # profile, nearest first. The drop folder (Mixkit, Pixabay: dark, minimal, bass-led,
+    # documentary tracks; the Dyson bed was Mixkit's "Trap Hamza") is its likely main source.
+    facts_default: []
 effects:
   tick: {max_len_s: 0.25, words: [tick, click, ui click, soft pop]}
   whoosh: {max_len_s: 0.8, words: [whoosh short, swoosh, swish fast]}

@@ -138,7 +138,7 @@ from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
 from shortsmith.reference import own
 from shortsmith.render import Renderer
-from shortsmith.sound import freesound, kinds, shortlist
+from shortsmith.sound import facts_default, freesound, kinds, shortlist
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import Transcriber
 
@@ -284,6 +284,8 @@ def create_app(
         audio_catalogue or library_root / sound.CATALOGUE_NAME, moods=moods,
         kinds=audio_kind_list,
     )  # fmt: skip
+    # 087: the facts-default profile; a value off its stated range stops the app naming it.
+    facts_default.load_profile()
     shortlist_root = shortlist_dir or shortlist.SHORTLIST_DIR
     effect_kinds = audio_kind_list.sfx_kinds()
     chips = styles.shipped(specs)
@@ -724,6 +726,7 @@ def create_app(
             mood=[m for m in [_text(form.get("mood")).strip()] if m],
             flavour=[f for f in [_text(form.get("flavour")).strip()] if f],
             intent=[i for i in [_text(form.get("intent")).strip()] if i],
+            role=[r for r in [_text(form.get("role")).strip()] if r],  # 087
         )
 
         def store() -> None:
@@ -940,7 +943,19 @@ def _shortlist_card(
         measured += f", {esc(candidate.key_sig)}"
     if candidate.margin_db is not None:
         measured += f", speech band clears it by {candidate.margin_db:.1f} dB"
+    if candidate.distance is not None:  # 087: the facts-default profile, measured
+        p = candidate.profile
+        measured += (
+            f"<br>distance {candidate.distance:.2f} to the facts-default profile: "
+            f"harmonic change {p.get('harmonic_change', 0):.3f}, "
+            f"percussive {p.get('percussive_share', 0):.0%}, "
+            f"sub-bass {p.get('sub_bass_share', 0):.0%}, "
+            f"above 1 kHz {p.get('above_1khz_share', 0):.1%}"
+        )
     key = f'<input type="hidden" name="key" value="{esc(candidate.key)}">'
+    key += "".join(
+        f'<input type="hidden" name="role" value="{esc(role)}">' for role in candidate.tags.role
+    )
     if candidate.needs_source:
         actions = (
             '<p class="measured">needs source: fill in its sidecar in '

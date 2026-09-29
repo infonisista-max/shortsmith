@@ -37,6 +37,11 @@ two-bed mix drops the change for the first segment's beds alone. A segment with 
 approved bed drops the change and asks the search for one bed of that mood
 (`FALLBACK_LINE`, on the job page and in `job.log`); so does a mood whose approved beds all
 fail the balance. A story from before 076 (no `bed`) is scored by its `bed_query` below.
+087: a flavour or mood miss first takes an approved bed tagged `facts_default` (the bed
+fact channels use, `sound.facts_default`) with `FACTS_DEFAULT_LINE` - before a same-mood
+bed of another flavour where the style's `sound.facts_default_first` says so, after it
+otherwise (`segment_beds`); the search only runs when the library has no such bed. A
+speech-band line names the bed level it was measured at (`level_note`).
 
 **Search ladders (054).** F1 went out silent: the planner's whole theme and mood
 sentences were one query, and the empty shipped catalogue returned before the search
@@ -120,6 +125,7 @@ from pydantic import ValidationError
 from shortsmith import ffmpeg, styles
 from shortsmith.contracts import (
     CUE_KINDS,
+    FACTS_DEFAULT,
     AudioEntry,
     AudioKind,
     BalanceReport,
@@ -531,6 +537,7 @@ def choose_bed(
 # --- the bed per story part (076) --------------------------------------------------------
 
 FALLBACK_LINE = "fallback bed: {mood}, no approved bed"
+FACTS_DEFAULT_LINE = "fallback bed: facts_default {entry} for {wanted}, no approved bed"
 
 
 @dataclass(frozen=True)
@@ -601,6 +608,42 @@ def select_mood_bed(
     return found[0] if found else None
 
 
+def facts_default_beds(
+    library: Library, *, energy: int, first_stamp_s: float
+) -> list[AudioEntry]:
+    """087: the approved beds the operator tagged `facts_default`, best first: the energy
+    distance, then the drop-point fit, then the id."""
+    tagged = [e for e in approved_beds(library) if FACTS_DEFAULT in e.tags.role]
+    return sorted(tagged, key=lambda e: (abs(e.energy - energy), drop_fit(e, first_stamp_s), e.id))
+
+
+def segment_beds(
+    library: Library, segment: BedSegment, *, energy: int, first_stamp_s: float, facts_first: bool
+) -> list[tuple[AudioEntry, str | None]]:
+    """087: a segment's approved beds in the director's order, each with its fallback line
+    when it is the facts default. The planned mood + flavour (the mood alone when the plan
+    names no flavour) comes first; then, with the style's `sound.facts_default_first`, a
+    `facts_default` bed before a same-mood bed of another flavour, else after it (076)."""
+    same = mood_beds(library, segment, energy=energy, first_stamp_s=first_stamp_s)
+    flavour = segment.flavour
+    exact = [e for e in same if flavour is None or flavour in e.tags.flavour]
+    other = [e for e in same if e not in exact]
+    wanted = f"{segment.mood}/{flavour}" if flavour else segment.mood
+    facts: list[tuple[AudioEntry, str | None]] = [
+        (e, FACTS_DEFAULT_LINE.format(entry=e.id, wanted=wanted))
+        for e in facts_default_beds(library, energy=energy, first_stamp_s=first_stamp_s)
+    ]
+    plain: list[tuple[AudioEntry, str | None]] = [(e, None) for e in other]
+    rungs = [(e, None) for e in exact] + (facts + plain if facts_first else plain + facts)
+    seen: set[str] = set()
+    out: list[tuple[AudioEntry, str | None]] = []
+    for entry, line in rungs:
+        if entry.id not in seen:
+            seen.add(entry.id)
+            out.append((entry, line))
+    return out
+
+
 def part_start_s(story: SoundStory, plan: PicturePlan, part: str) -> float:
     """When a story part's first beat starts on the plan's timeline (0 when unnamed)."""
     first = next((p.first_beat for p in story.parts if p.part == part), None)
@@ -608,13 +651,16 @@ def part_start_s(story: SoundStory, plan: PicturePlan, part: str) -> float:
 
 
 def _segment_bed(
-    library: Library, segment: BedSegment, story: SoundStory, plan: PicturePlan, start_s: float
-) -> AudioEntry | None:
+    library: Library, segment: BedSegment, story: SoundStory, plan: PicturePlan, start_s: float,
+    *, facts_first: bool,
+) -> tuple[AudioEntry, str | None] | None:  # fmt: skip
     stamps = [
         b.start - start_s for b in plan.beats if b.event.kind == "stamp" and b.start >= start_s
     ]
     stamp = min(stamps) if stamps else 0.0
-    return select_mood_bed(library, segment, energy=story.bed_query.energy, first_stamp_s=stamp)
+    found = segment_beds(library, segment, energy=story.bed_query.energy, first_stamp_s=stamp,
+                         facts_first=facts_first)  # fmt: skip
+    return found[0] if found else None
 
 
 def score_candidates(
@@ -629,11 +675,13 @@ def score_candidates(
     when it is a Freesound fallback (076).
 
     A story with no `bed` segments is scored the pre-076 way (`bed_candidates` over its
-    `bed_query`). Otherwise every segment takes the best approved bed of its mood
-    (`mood_beds`) and the change sits on the second segment's part start; after it, the
-    first segment's approved beds alone (a change never survives a failed balance). A
-    segment with no approved bed for its mood drops the change: one Freesound bed is
-    searched for that mood with 069's music-anchored ladder, and its line says so."""
+    `bed_query`). Otherwise every segment takes the first of its `segment_beds` - the
+    planned mood + flavour, then (087) the `facts_default` bed and a same-mood bed of
+    another flavour in the style's order, the facts default with its fallback line - and
+    the change sits on the second segment's part start; after it, the first segment's
+    approved beds alone (a change never survives a failed balance). A segment with no
+    approved bed at all drops the change: one Freesound bed is searched for that mood with
+    069's music-anchored ladder, and its line says so."""
     if not story.bed:
         for entry, said in bed_candidates(
             library, story.bed_query, first_stamp_s=first_stamp_s(plan),
@@ -644,31 +692,41 @@ def score_candidates(
         return
     spans: list[BedSpan] = []
     lines: list[str] = []
+    stood_in: str | None = None
+    first_in = nums.facts_default_first
     for i, segment in enumerate(story.bed[:2]):
         start = 0.0 if i == 0 else part_start_s(story, plan, segment.part_from)
-        entry = _segment_bed(library, segment, story, plan, start)
+        picked = _segment_bed(library, segment, story, plan, start, facts_first=first_in)
         flavour = f" ({segment.flavour})" if segment.flavour else ""
-        if entry is None:
+        if picked is None:
             fallback = FALLBACK_LINE.format(mood=segment.mood)
             yield from _fallback(library, story, nums, segment, search, fallback)
             return
-        lines.append(
-            f"bed {entry.id} for {segment.part_from}: {segment.mood}{flavour} from the approved "
-            "library"
-        )
+        entry, stand_in = picked
+        if stand_in is not None:
+            lines.append(stand_in)
+            stood_in = stood_in or stand_in
+        else:
+            lines.append(
+                f"bed {entry.id} for {segment.part_from}: {segment.mood}{flavour} from the "
+                "approved library"
+            )
         spans.append(BedSpan(entry=entry, part=segment.part_from, mood=segment.mood, start_s=start))
     change = story.change if len(spans) > 1 else None
     how = change.how if change is not None else None
     if change is not None:
         lines.append(f"bed change at {spans[1].start_s:.2f} s ({change.at_beat}): {change.how}")
-    yield Score(spans=tuple(spans), how=how), tuple(lines), None
+    yield Score(spans=tuple(spans), how=how), tuple(lines), stood_in
     first = story.bed[0]
-    for entry in mood_beds(library, first, energy=story.bed_query.energy,
-                           first_stamp_s=first_stamp_s(plan)):  # fmt: skip
+    for entry, stand_in in segment_beds(
+        library, first, energy=story.bed_query.energy, first_stamp_s=first_stamp_s(plan),
+        facts_first=first_in,
+    ):  # fmt: skip
+        said = (f"bed {entry.id} alone for {first.mood}: the change is dropped",) if how else ()
         yield (
             Score.single(entry, part=first.part_from, mood=first.mood),
-            (f"bed {entry.id} alone for {first.mood}: the change is dropped",) if how else (),
-            None,
+            (*((stand_in,) if stand_in else ()), *said),
+            stand_in,
         )
     if search is not None:
         # 056 (1): past the library's candidates the search supplies the next bed.
@@ -1529,7 +1587,6 @@ def build_mix(
     tried: set[tuple[object, ...]] = set()
     for candidate, lines, fallen in score_candidates(library, story, plan, nums, search=search):
         note(lines)
-        fallback = fallen or fallback
         if candidate is None or candidate.key in tried:
             continue
         tried.add(candidate.key)
@@ -1541,7 +1598,8 @@ def build_mix(
         )  # fmt: skip
         repairs += attempt.repairs
         if not attempt.balance.problems:
-            score, mixed = candidate, attempt
+            # 087: the page names the fallback of the bed that plays, not of one dropped
+            score, mixed, fallback = candidate, attempt, fallen
             break
         dropped = f"{candidate.label}: {'; '.join(attempt.balance.problems)}"
         if len(tried) >= BED_CANDIDATES_MAX:
@@ -1644,7 +1702,10 @@ def _repaired_bed(
     if inaudible(_margins(plain.balance)[1], nums):
         # 069: a dip or a lower bed only pushes the band further down; the caller walks
         # on to the next candidate.
-        note((f"bed {score.label}: no repair makes a bed the phone speaker cannot play audible",))
+        note((
+            f"bed {score.label}: no repair makes a bed the phone speaker cannot play audible"
+            f"{level_note(plain.balance.bed_under_voice_db)}",
+        ))  # fmt: skip
         return plain
     low_hz, high_hz = nums.speech_band_hz
     repairs: list[str] = []
@@ -1661,6 +1722,7 @@ def _repaired_bed(
                 f"bed {score.label}: speech band {low_hz}-{high_hz} Hz dipped by {depth:g} dB "
                 f"(margin {margin:.1f} -> {reached if reached is None else round(reached, 1)} dB, "
                 f"line {nums.speech_band_margin_db:g})"
+                f"{level_note(current.balance.bed_under_voice_db)}"
             )
             repairs.append(line)
             note((line,))
@@ -1696,6 +1758,7 @@ def _repaired_bed(
             f"bed {score.label}: lowered without the dip, which left the band over "
             f"sound.speech_band_margin_max_db {nums.speech_band_margin_max_db:g} dB (margin now "
             f"{reached if reached is None else round(reached, 1)} dB)"
+            f"{level_note(current.balance.bed_under_voice_db)}"
         )
         repairs.append(line)
         note((line,))
@@ -1882,23 +1945,33 @@ def _premix(stems: Path, *, voice: Path, ducked: Path | None, sfx: Path | None) 
     return out
 
 
-def margin_problem(margin_db: float, nums: styles.Sound) -> str | None:
+def level_note(level_db: float | None) -> str:
+    """087: the bed level a margin was measured at, for its line - a margin without its
+    level is not comparable across yardsticks."""
+    return "" if level_db is None else f" (bed level {level_db:.1f} dB under the voice)"
+
+
+def margin_problem(
+    margin_db: float, nums: styles.Sound, *, level_db: float | None = None
+) -> str | None:
     """The 7.3 speech-band window (as amended by 064 and 069): `None` when the voice
     clears the bed by at least `speech_band_margin_db` and at most
     `speech_band_margin_max_db`, else the problem line. Under the floor the bed crowds
     the voice and the repair ladder starts; over the ceiling the bed has nothing in the
-    band a phone speaker plays (run04's car exhaust, 28.7 dB) and no repair helps."""
+    band a phone speaker plays (run04's car exhaust, 28.7 dB) and no repair helps. 087:
+    the line names `level_db`, the bed level the margin was measured at."""
     lo_hz, hi_hz = nums.speech_band_hz
+    at = level_note(level_db)
     if margin_db > nums.speech_band_margin_max_db + 1e-9:
         return (
-            f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by {margin_db:.1f} dB, "
+            f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by {margin_db:.1f} dB{at}, "
             f"over sound.speech_band_margin_max_db {nums.speech_band_margin_max_db:g} dB: "
             "a phone speaker does not play this bed"
         )
     if margin_db + 1e-9 >= nums.speech_band_margin_db:
         return None
     return (
-        f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by only {margin_db:.1f} dB, "
+        f"the speech band {lo_hz}-{hi_hz} Hz clears the bed by only {margin_db:.1f} dB{at}, "
         f"under sound.speech_band_margin_db {nums.speech_band_margin_db:g} dB"
     )
 
@@ -1909,19 +1982,21 @@ def inaudible(margin_db: float | None, nums: styles.Sound) -> bool:
 
 
 def audibility(
-    voice: Path, music: Path, nums: styles.Sound, *, window: str = ""
-) -> tuple[float | None, str | None]:
+    voice: Path, music: Path, nums: styles.Sound, *, window: str = "",
+    level_db: float | None = None,
+) -> tuple[float | None, str | None]:  # fmt: skip
     """069: the speech-band margin of `voice` over `music` (a bed already levelled
     against it) and its `margin_problem`; `(None, None)` when either is silent in the
     band. The mix's balance runs it, and 075's shortlist runs it on every bed candidate
-    before the operator hears one. 076: `window` (an `atrim`) measures one stretch."""
+    before the operator hears one. 076: `window` (an `atrim`) measures one stretch. 087:
+    `level_db` is the bed level under the voice, named in the problem line."""
     band = f"{window},{_speech_band(nums)}" if window else _speech_band(nums)
     voice_band = ffmpeg.mean_volume_db(voice, prefilter=band)
     bed_band = ffmpeg.mean_volume_db(music, prefilter=band)
     if voice_band is None or bed_band is None:
         return None, None
     margin = voice_band - bed_band
-    return margin, margin_problem(margin, nums)
+    return margin, margin_problem(margin, nums, level_db=level_db)
 
 
 def _balance(
@@ -1962,7 +2037,7 @@ def _balance(
                     f"the bed sits {under:.1f} dB under the voice, outside "
                     f"sound.bed_accept_db {low:g} to {high:g} dB"
                 )
-            margin, problem = audibility(voice, music, nums)
+            margin, problem = audibility(voice, music, nums, level_db=under)
             if margin is not None:
                 report["speech_band_margin_db"] = round(margin, 2)
             if problem is not None:
@@ -1993,7 +2068,7 @@ def _balance(
                     f"{window.name}: the bed sits {under:.1f} dB under the voice, outside "
                     f"sound.bed_accept_db {low:g} to {high:g} dB"
                 )
-        margin, problem = audibility(voice, stem, nums, window=cut)
+        margin, problem = audibility(voice, stem, nums, window=cut, level_db=under)
         if problem is not None:
             problems.append(f"{window.name}: {problem}")
         measured.append(

@@ -1,0 +1,47 @@
+# The facts-default bed (ticket 087; operator, 29 Sep 2026, 079 HITL): "a facts short
+# should take the kind of bed fact channels always use", not a random Freesound hit.
+#
+# The profile below is what that bed sounds like, as numbers. `sound.facts_default`
+# measures a candidate with the same numpy features `sound.seed` uses (the chromagram and
+# key) plus band shares and a median-filter percussive share, and ranks every shortlist
+# candidate of the `facts_default` slot by its distance to these values (nearest first).
+# A value off its stated range stops the loader naming the key.
+#
+# Sources (facts only; nothing is copied from the old engine, CLAUDE.md):
+#   [R]  research.md:115 - the approved Dyson v2 short's bed, Mixkit 267 "Trap Hamza"
+#        (Arulo): minor key, static harmony (chroma change 0.023), about 15 % percussive,
+#        no vocals.
+#   [D]  work/old-engine/08_JOB_RECORDS/DysonToothbrush/v2/v2_reference_analysis.md:13,32:
+#        reference 1 (NeelFacts) an A-minor sub-bass drone, drums 0 %, sub 24 %, above
+#        1 kHz 0.8 %, chroma change 0.035; reference 2 (FactsMine) an 808 trap bed, drums
+#        21 %, sub < 80 Hz 79 %, above 1 kHz 4 %; Trap Hamza sub 77 %, above 1 kHz 0.8 %.
+# Those numbers were measured by the old engine on Demucs stems with librosa; ours are
+# measured on the whole file. They are starting values: the operator's facts-default
+# listening pass (the shortlist with Trap Hamza in the drop folder) calibrates them.
+
+mode: minor  # [R] Trap Hamza D minor; [D] reference 1 A minor (reference 2's key was ambiguous)
+# Mean change of the 12-bin chroma from one half second to the next ("static harmony").
+harmonic_change: {max: 0.035}  # [R] 0.023 (Trap Hamza) to [D] 0.035 (reference 1)
+# The percussive share of the energy (a median-filter split of the spectrogram).
+percussive_share: {min: 0.0, max: 0.21, about: 0.15}  # [D] 0 % drone, 21 % trap; [R] about 15 %
+# Energy share under `bands_hz.sub_bass_max`.
+sub_bass_share: {min: 0.24}  # [D] 24 % (reference 1, the lowest), 77 % (Trap Hamza), 79 % (reference 2)
+# Energy share over `bands_hz.high_min`.
+above_1khz_share: {max: 0.04}  # [D] 0.8 % (reference 1, Trap Hamza) to 4 % (reference 2)
+# No vocals: 068's kind check (`kinds.yaml`, bed forbids) refuses a vocal name or tag
+# before a file is fetched, and `rank` never ranks one. Only `false` is valid.
+vocals: false  # [R] Demucs vocals stem -44 dBFS
+bands_hz: {sub_bass_max: 80, high_min: 1000}  # [D] "sub < 80 Hz", "music energy above 1 kHz"
+
+# The default mood is learned from the reference short cards: a card longer than this is
+# long-form (id00R-3OmJ0, 1062 s) and is left out. YouTube caps a Short at 3 minutes.
+short_max_s: 180
+
+# The `facts_default` shortlist slot asks these first, then the learned mood's words
+# (079 step 3: "investigative pulse music" and "news pulse music" got 0 results on both
+# sources; mood words alone find almost nothing). Each describes a profile feature.
+queries:
+  - dark minimal bass  # sub-bass share, few highs, static harmony
+  - sub bass drone  # reference 1: a static sub-bass drone
+  - documentary trap beat  # reference 2 and Trap Hamza: 808 trap, light percussion
+  - dark ambient pulse  # minor, a slow pulse under the voice

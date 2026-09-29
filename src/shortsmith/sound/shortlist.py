@@ -34,7 +34,11 @@ the sweep detector on every effect but a whoosh (a whoosh is a noise sweep by na
 chain, or `--voice`) must clear the speech band inside the default style's window.
 
 **Best `keep`.** The first candidates that pass, in the sources' own relevance order,
-rung by rung (specific to broad); drop-folder files are added beside them. Everything
+rung by rung (specific to broad); drop-folder files are added beside them. 087: the
+`facts_default` slot asks the profile's `queries` (`assets/audio/facts_default.yaml`)
+first, then the learned default mood's words; every candidate that passes, whatever query
+found it, is ranked by its distance to the profile and the nearest `keep` stay, with every
+drop-folder file, nearest first. A yes on one writes the `facts_default` role. Everything
 lands in `work/shortlist/` (git-ignored): the files under `<slot>/` and `shortlist.json`.
 
 **Yes and no.** `approve` copies the file to `assets/audio/beds/` or `sfx/` and appends a
@@ -73,7 +77,14 @@ import yaml
 from pydantic import Field, SecretStr
 
 from shortsmith import ffmpeg, styles, vocab
-from shortsmith.contracts import AudioEntry, AudioKind, AudioTags, StrictModel
+from shortsmith.contracts import (
+    BED_ROLES,
+    FACTS_DEFAULT,
+    AudioEntry,
+    AudioKind,
+    AudioTags,
+    StrictModel,
+)
 from shortsmith.sound import (
     CATALOGUE_NAME,
     CATALOGUE_PATH,
@@ -85,6 +96,7 @@ from shortsmith.sound import (
     seed,
     sweep,
 )
+from shortsmith.sound import facts_default as fd
 from shortsmith.sound import freesound as fs
 from shortsmith.sound.kinds import BED, Kind, Kinds, forbidden, load_kinds, refusal
 
@@ -117,7 +129,7 @@ PROBE_WORDS = "music"
 # entry id; a drop-folder file name becomes lower-case words.
 _SLUG = re.compile(r"[^a-z0-9-]+")
 
-Group = Literal["mood", "flavour", "effect"]
+Group = Literal["mood", "flavour", "effect", "facts_default"]
 Log = Callable[[str], None]
 
 
@@ -139,6 +151,8 @@ class Slot(StrictModel):
     group: Group
     words: list[str] = Field(min_length=1)
     max_len_s: float | None = None
+    # 087: the learned default mood a `facts_default` candidate is tagged with on a yes.
+    mood: str | None = None
 
 
 class Slots(StrictModel):
@@ -157,10 +171,14 @@ def _words(value: object, where: str) -> list[str]:
 
 
 def load_slots(
-    path: Path = SLOTS_PATH, *, moods: vocab.Moods | None = None, kinds: Kinds | None = None
-) -> Slots:
+    path: Path = SLOTS_PATH, *, moods: vocab.Moods | None = None, kinds: Kinds | None = None,
+    profile: fd.Profile | None = None, default_mood: str | None = None,
+) -> Slots:  # fmt: skip
     """`shortlist.yaml`, checked against the closed lists: a bed slot is an active mood
-    or flavour, an effect slot a kind of `kinds.yaml` with a `max_len_s`."""
+    or flavour, an effect slot a kind of `kinds.yaml` with a `max_len_s`. 087: the
+    `facts_default` slot asks the profile's `queries` first, then the words of the learned
+    default mood's slot (`default_mood`, learned from the reference cards when not given),
+    then any words it lists itself."""
     moods = moods or vocab.load_moods()
     kinds = kinds or load_kinds()
     if not path.is_file():
@@ -175,8 +193,12 @@ def load_slots(
     if not isinstance(anchor, str) or not anchor.strip():
         raise ShortlistError(f"{path.name}: beds.anchor is not a word")
     slots: dict[str, Slot] = {}
+    facts_words: list[str] | None = None
     for name, words in cast(dict[str, object], beds.get("slots") or {}).items():
         where = f"{path.name}: bed slot {name!r}"
+        if name == FACTS_DEFAULT:
+            facts_words = [] if words == [] else _words(words, where)
+            continue
         if name in moods.active_moods():
             group: Group = "mood"
         elif name in moods.active_flavours():
@@ -201,7 +223,27 @@ def load_slots(
     keep = data.get("keep")
     if not isinstance(keep, int) or isinstance(keep, bool) or keep < 1:
         raise ShortlistError(f"{path.name}: keep is not a whole number of 1 or more")
+    if facts_words is not None:
+        slots[FACTS_DEFAULT] = _facts_slot(slots, facts_words, profile, default_mood)
     return Slots(keep=keep, anchor=anchor.strip(), slots=slots)
+
+
+def _facts_slot(
+    slots: Mapping[str, Slot], own: list[str], profile: fd.Profile | None,
+    default_mood: str | None,
+) -> Slot:  # fmt: skip
+    profile = profile or fd.load_profile()
+    if default_mood is None:
+        learned = fd.learned_mood(profile=profile, log=log.info)
+        default_mood = learned.mood if learned is not None else None
+    mood_slot = slots.get(default_mood) if default_mood is not None else None
+    mood_words = (
+        mood_slot.words if mood_slot is not None
+        else [default_mood.replace("_", " ")] if default_mood is not None else []
+    )  # fmt: skip
+    words = list(dict.fromkeys([*profile.queries, *mood_words, *own]))
+    return Slot(name=FACTS_DEFAULT, kind="bed", group="facts_default", words=words,
+                mood=default_mood)  # fmt: skip
 
 
 def rungs(slot: Slot, anchor: str) -> list[str]:
@@ -503,17 +545,25 @@ def probe(sources: Sequence[Source]) -> list[str]:
 class Checked:
     measured: seed.Measured
     margin_db: float | None = None
+    numbers: fd.Numbers | None = None
 
 
 @dataclass
 class Checker:
     """The checks that need the file: the 023 measure, the length allowance, the sweep
-    detector (effects but a whoosh), 069's audibility (beds)."""
+    detector (effects but a whoosh), 069's audibility (beds). 087: a `facts_default`
+    candidate is also measured against the facts-default profile (loaded when not given)."""
 
     voice: Path
     nums: styles.Sound
     kinds: Kinds
+    profile: fd.Profile | None = None
     _voice_db: list[float] = field(default_factory=lambda: [])
+
+    def facts_profile(self) -> fd.Profile:
+        if self.profile is None:
+            self.profile = fd.load_profile()
+        return self.profile
 
     def kind(self, slot: Slot) -> Kind:
         return self.kinds.kind(BED) if slot.kind == "bed" else self.kinds.for_sfx(slot.name)
@@ -542,7 +592,10 @@ class Checker:
                 if hits:
                     raise Refused(f"{hits[0].rule} at {hits[0].at_s:.2f} s: {hits[0].detail}")
             return Checked(measured)
-        return Checked(measured, self._audible(path))
+        margin = self._audible(path)
+        if slot.group != "facts_default":
+            return Checked(measured, margin)
+        return Checked(measured, margin, fd.measure_file(path, self.facts_profile()))
 
     def _audible(self, path: Path) -> float:
         bed_db = ffmpeg.mean_volume_db(path)
@@ -556,7 +609,9 @@ class Checker:
                  f"volume={gain:.2f}dB", "-c:a", "pcm_f32le", str(levelled)],
                 timeout_s=ffmpeg.MEASURE_TIMEOUT_S,
             )  # fmt: skip
-            margin, problem = audibility(self.voice, levelled, self.nums)
+            margin, problem = audibility(
+                self.voice, levelled, self.nums, level_db=self.nums.bed_db_under_voice
+            )
         finally:
             levelled.unlink(missing_ok=True)
         if margin is None:
@@ -615,6 +670,13 @@ class Candidate(StrictModel):
     margin_db: float | None = None
     tags: AudioTags = AudioTags()
     needs_source: bool = False
+    # 087: a `facts_default` candidate's measured profile features and its distance to
+    # the profile (nearest first on the page).
+    profile: dict[str, float] = {}
+    distance: float | None = None
+
+    def numbers(self) -> fd.Numbers:
+        return fd.Numbers(key=self.key_sig, **self.profile)
 
     @property
     def entry_id(self) -> str:
@@ -643,6 +705,8 @@ def _slug(text: str) -> str:
 
 
 def suggested_tags(slot: Slot) -> AudioTags:
+    if slot.group == "facts_default":
+        return AudioTags(mood=[slot.mood] if slot.mood else [], role=[FACTS_DEFAULT])
     if slot.group == "mood":
         return AudioTags(mood=[slot.name])
     if slot.group == "flavour":
@@ -677,14 +741,15 @@ def _candidate(
     checked: Checked,
 ) -> Candidate:  # fmt: skip
     m = checked.measured
+    numbers = checked.numbers
     return Candidate(
         key=f"{source}:{source_id}", slot=slot.name, kind=slot.kind, source=source,
         source_id=source_id, name=name, page_url=page_url,
         file=file.relative_to(out_dir).as_posix(), licence=licence, author=author,
         source_tags=list(tags), credit=credit, duration_s=m.duration_s, energy=m.energy,
-        bpm=m.bpm, key_sig=m.key,
+        bpm=m.bpm, key_sig=numbers.key if numbers is not None else m.key,
         margin_db=round(checked.margin_db, 2) if checked.margin_db is not None else None,
-        tags=suggested_tags(slot),
+        tags=suggested_tags(slot), profile=numbers.features() if numbers is not None else {},
     )  # fmt: skip
 
 
@@ -797,8 +862,14 @@ def build(
     }
     for name in names:
         slot = slots.slots[name]
-        kept = _api_candidates(slot, slots, sources, out_dir, checker, refused, approved, log)
-        kept += _drop_candidates(slot, filled, out_dir, checker, refused, approved, log)
+        ranked = slot.group == "facts_default"
+        kept = _api_candidates(slot, slots, sources, out_dir, checker, refused, approved, log,
+                               limit=None if ranked else slots.keep)  # fmt: skip
+        drops = _drop_candidates(slot, filled, out_dir, checker, refused, approved, log)
+        if ranked:
+            kept = _nearest(kept, drops, slots.keep, checker, out_dir, log)
+        else:
+            kept += drops
         result[name] = kept
         log(f"{name}: {len(kept)} on the page")
     ordered = {s: result[s] for s in slots.slots if s in result}
@@ -807,21 +878,53 @@ def build(
     return shortlist
 
 
+def _nearest(
+    found: list[Candidate], drops: list[Candidate], keep: int, checker: Checker, out_dir: Path,
+    log: Log,
+) -> list[Candidate]:  # fmt: skip
+    """087: every candidate of the `facts_default` slot ranked by its distance to the
+    profile, whatever query found it: the nearest `keep` API files and every drop-folder
+    file stay, nearest first; the rest leave the folder. A vocal never ranks."""
+    everyone = [*found, *drops]
+    ranked = fd.rank(
+        [(c.name, c.source_tags, c.numbers()) for c in everyone],
+        checker.facts_profile(), checker.kinds.kind(BED),
+    )  # fmt: skip
+    kept: list[Candidate] = []
+    api = 0
+    dropped = set(range(len(found)))
+    for i, gap in ranked:
+        candidate = everyone[i].model_copy(update={"distance": round(gap, 3)})
+        where = f"{candidate.slot}: {candidate.name!r} distance {gap:.2f} to the profile"
+        if i < len(found):
+            if api >= keep:
+                log(f"{where}; past the nearest {keep}")
+                continue
+            api += 1
+            dropped.discard(i)
+        log(where)
+        kept.append(candidate)
+    for i in dropped:
+        (out_dir / found[i].file).unlink(missing_ok=True)
+    return kept
+
+
 def _api_candidates(
     slot: Slot, slots: Slots, sources: Sequence[Source], out_dir: Path, checker: Checker,
-    refused: set[str], approved: set[str], log: Log,
+    refused: set[str], approved: set[str], log: Log, *, limit: int | None,
 ) -> list[Candidate]:  # fmt: skip
+    """The first `limit` candidates that pass, rung by rung (all of them when None)."""
     kind = checker.kind(slot)
     kept: list[Candidate] = []
     seen: set[str] = set()
     for words in rungs(slot, slots.anchor):
         for source in _preferred(sources, slot.kind):
-            if len(kept) >= slots.keep:
+            if limit is not None and len(kept) >= limit:
                 return kept
             page = source.search(words, slot)
             log(f"{slot.name}: {source.name} {words!r}: status {page.status}, {page.hits} hits")
             for found in page.found:
-                if len(kept) >= slots.keep:
+                if limit is not None and len(kept) >= limit:
                     return kept
                 if found.key in seen:
                     continue
@@ -911,6 +1014,11 @@ def tags_problem(
     `kinds.yaml` and nothing else."""
     if tags.theme:
         return f"theme tags {tags.theme} are not on a closed list"
+    off_roles = [r for r in tags.role if r not in BED_ROLES]
+    if off_roles:
+        return f"role {', '.join(off_roles)} is not one of {', '.join(BED_ROLES)}"
+    if kind != "bed" and tags.role:
+        return f"an effect carries no role (given {', '.join(tags.role)})"
     if kind == "bed":
         if tags.intent:
             return f"a bed carries no intent (given {tags.intent})"
@@ -1079,8 +1187,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return fetch_approved(CATALOGUE_PATH, sources)
     voice = cast(Path | None, args.voice) or reference_voice(SHORTLIST_DIR / "voice.wav")
     checker = Checker(
-        voice=voice, nums=render.loaded_styles()[styles.DEFAULT].sound, kinds=load_kinds()
-    )
+        voice=voice, nums=render.loaded_styles()[styles.DEFAULT].sound, kinds=load_kinds(),
+        profile=fd.load_profile(),
+    )  # fmt: skip
     shortlist = build(load_slots(), sources, checker=checker, only=cast(list[str], args.slot))
     total = sum(len(kept) for kept in shortlist.slots.values())
     print(f"{total} candidates on the page, {len(shortlist.inbox)} drop-folder files need a source")

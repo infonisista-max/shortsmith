@@ -121,14 +121,14 @@ its facts. The Trap Hamza file comes back through the drop folder like any other
 
 ## Acceptance criteria
 
-- [ ] The default mood from hand-built cards: the largest runtime share wins. Long-form,
+- [x] The default mood from hand-built cards: the largest runtime share wins. Long-form,
       `null` parts and cards 086 skips are excluded. A tie is broken by a stated rule
       (logged). On the committed 13 cards it names `investigative_pulse` (a test reads
       them). If 086's re-run changes that, the done note says so.
-- [ ] The profile file loads, and a value off its stated range stops startup naming the
+- [x] The profile file loads, and a value off its stated range stops startup naming the
       key. The distance is tested on synthetic numpy signals: a sub-bass drone is nearer
       than a bright arpeggio, and a vocal file never ranks.
-- [ ] Director tests with a fake library:
+- [x] Director tests with a fake library:
   - **The King Saud case:** `vishva` with `facts_default_first: true`, planned
     investigative_pulse + middle_east. middle_east has no approved bed,
     investigative_pulse beds exist, and a `facts_default` bed exists → the facts default
@@ -140,13 +140,13 @@ its facts. The Trap Hamza file comes back through the drop folder like any other
   - No `facts_default` in the library and no same-mood bed → the Freesound fallback
     exactly as today.
   - The facts default still goes through 069.
-- [ ] `facts_default_first` is required in every style's front matter. A style without
+- [x] `facts_default_first` is required in every style's front matter. A style without
       it stops startup naming the style.
-- [ ] The shortlist `facts_default` slot searches the profile's `queries:` before the
+- [x] The shortlist `facts_default` slot searches the profile's `queries:` before the
       mood's (recorded fixtures, no network) and ranks every candidate by distance. A yes writes the `facts_default` tag. The page shows distance and
       profile numbers (app test).
-- [ ] 069's refusal and repair lines name the bed level.
-- [ ] Tests never reach the network. Ruff, pyright and every test file are green in
+- [x] 069's refusal and repair lines name the bed level.
+- [x] Tests never reach the network. Ruff, pyright and every test file are green in
       foreground chunks. The smoke passes T1–T13.
 
 ### Operator step, in the done note
@@ -157,6 +157,58 @@ The API sources may find little for this slot. The drop folder (Mixkit, Pixabay:
 dark, minimal, bass-led, documentary-style tracks) is probably the main source; the
 note says so and gives the sidecar steps. It
 comes after the cap decision above and before 079 step 4.
+
+## Done (afk run, 30 Sep 2026)
+
+All acceptance criteria are met; tests in `tests/test_facts_default.py`.
+
+- **Default mood.** `sound.facts_default.default_mood` / `learned_mood`. On the committed
+  13 cards it names `investigative_pulse` (265.6 s), runner-up `tense_dramatic`. Left out:
+  `id00R-3OmJ0` (long-form, over the profile's `short_max_s: 180`, YouTube's Shorts cap),
+  `FbaBcWgMIEY` and `ePTZVwipoAM` (086), `null` parts. Tie rule: more cards carrying the
+  mood, then the name; logged. If 086's re-run of the two links changes the winner, the
+  shortlist log says so (it re-learns on every run).
+- **Profile.** `assets/audio/facts_default.yaml`, a source comment on each value. Where
+  the documents give a range, the file gives it: percussive 0-21 % (about 15 %), harmonic
+  change up to 0.035, sub-bass (< 80 Hz) at least 24 %, above 1 kHz at most 4 %.
+  **Note:** the ticket says all three beds put under 1 % above 1 kHz, but
+  `v2_reference_analysis.md:32` gives reference 2 at 4 %. The file follows the document;
+  the operator may tighten it. These numbers came from the old engine's librosa/Demucs
+  measurements. Ours are measured in numpy on the whole file, so they are starting
+  values, and Trap Hamza's own numbers (step 1 below) calibrate them. The app checks the
+  file at startup.
+- **Director.** `sound.segment_beds`: planned mood + flavour → `facts_default` bed →
+  same mood, any flavour → Freesound (076's order when `facts_default_first: false`). The
+  tag is `tags.role: [facts_default]`, on a closed list (`contracts.BED_ROLES`) that
+  `check_catalogue` checks at startup. Line:
+  `fallback bed: facts_default <id> for <mood>/<flavour>, no approved bed` (job log and
+  job page). The job page now shows the fallback line of the bed that actually plays, not
+  of a candidate dropped by the balance.
+- **`sound.facts_default_first: true` on every shipped style**: explainer, fastfacts,
+  footage, vishva (and the drafts educational, animated, hitech). Operator to overrule if
+  any is not a facts channel. All seven versions bumped once.
+- **Shortlist.** `facts_default: []` slot in `shortlist.yaml`. Its words are the
+  profile's `queries`, then the `investigative_pulse` slot's words. Every passing
+  candidate is ranked by distance; the nearest `keep` API files and every drop-folder file
+  stay. The page shows the distance and the four profile numbers; a yes writes
+  `role: [facts_default]` with the learned mood.
+- **069 lines** (refusal, the "no repair" line and the dip / lowered repair lines) end
+  with `(bed level <x> dB under the voice)`.
+- **The cap is unchanged** (`speech_band_margin_max_db: 20`): no operator decision is
+  recorded yet. The first `facts_default` approval waits on it.
+
+### Operator steps (in order, `.env` back)
+
+1. The cap measurement described above: Trap Hamza from its Mixkit page into
+   `assets/audio/inbox/`, sidecar `{source: mixkit, page_url: <page>, attribution: "",
+   slot: investigative_pulse}`, then
+   `uv run python -m shortsmith.sound.shortlist --slot investigative_pulse --voice <run04 voice stem>`.
+   The log line now names the bed level. Record the cap decision here.
+2. The facts-default listening pass: set the sidecar's `slot: facts_default`, add more
+   drop-folder tracks (Mixkit, Pixabay: dark, minimal, bass-led, documentary; likely the
+   main source, since the API sources find little), then
+   `uv run python -m shortsmith.sound.shortlist --slot facts_default --voice <same stem>`,
+   and yes/no on `/audio/shortlist`, nearest first. Then 079 step 4.
 
 ## Blocked by
 

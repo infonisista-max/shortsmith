@@ -662,6 +662,13 @@ class AudioTags(StrictModel):
     intent: list[str] = []
     # 075: a bed's regional colour, from `moods.yaml`'s `flavours` (approved library only).
     flavour: list[str] = []
+    # 087: what a bed stands in for, from `BED_ROLES` (the operator's yes on the page).
+    role: list[str] = []
+
+
+# 087: the bed the director falls back to on a flavour or mood miss, before any search.
+FACTS_DEFAULT = "facts_default"
+BED_ROLES: tuple[str, ...] = (FACTS_DEFAULT,)
 
 
 class AudioEntry(StrictModel):

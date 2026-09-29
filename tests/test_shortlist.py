@@ -166,7 +166,7 @@ def test_the_committed_slots_are_the_first_batch() -> None:
     assert slots.keep == 3
     beds = [s.name for s in slots.slots.values() if s.kind == "bed"]
     assert beds == ["tense_dramatic", "investigative_pulse", "mysterious_curiosity",
-                    "calm_ambient", "middle_east", "indian"]  # fmt: skip
+                    "calm_ambient", "middle_east", "indian", "facts_default"]  # fmt: skip
     effects = {s.name: s.max_len_s for s in slots.slots.values() if s.kind == "sfx"}
     assert effects == {"tick": 0.25, "whoosh": 0.8, "bass": 1.5, "drum": 1.2, "thump": 0.8,
                        "ding": 0.8}  # fmt: skip

@@ -1,5 +1,5 @@
 ---
-version: "16"
+version: "17"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -149,6 +149,9 @@ sound:
   bed_crossfade_s: 1.0  # both beds heard together this long
   bed_silence_s: 0.5  # a drop to silence holds this long before the new bed
   bed_cut_fade_s: 0.02  # a hard cut's fade, under one frame at 30 fps
+  # 087: every shipped style is a fact or explainer channel, so a flavour or mood miss
+  # takes the facts-default bed before a same-mood bed of another flavour.
+  facts_default_first: true
 finale:
   kind: end_card
   mode: "off"
