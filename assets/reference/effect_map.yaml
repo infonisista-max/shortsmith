@@ -73,28 +73,29 @@ effects:
   yellow_callout_pop: text_pop
   yellow_highlighter_box: null  # 078
   yellow_strip_highlighter: null  # 078
-  # Added 29 Sep 2026 with the v2 cards (079 step 2). Null keeps them skipped exactly as
-  # before they were listed, so run05's planner input is unchanged; the operator or 083
-  # picks the closest component.
+  # Added 29 Sep 2026 with the v2 cards (079 step 2). 106 (083 part 1, the operator's
+  # picks, 30 Sep 2026) maps the obvious ones to their closest component; the names
+  # 107-109 build get pointed at their new components when those land. Null still means
+  # no fit yet: skipped, and listed in docs/reference/inventory/GAPS.md.
   alternate_logo_reveal: null
   bloodstain_splatter: null
   brand_network_radial_diagram: null
-  cartoon_scientist: null
-  countdown_number_one: null
-  countdown_number_two: null
-  label_slide: null
+  cartoon_scientist: sticker
+  countdown_number_one: counter
+  countdown_number_two: counter
+  label_slide: label_flyin
   negative_temperature_gauge: null
-  number_badge_pop: null
-  numbered_tag: null
-  persistent_header_banner: null
+  number_badge_pop: stamp
+  numbered_tag: stamp
+  persistent_header_banner: title_strip
   shutter_slice: null
   spellcheck_squiggly_underline: null
-  stacked_labels: null
+  stacked_labels: text_pop
   sun_energy_orb: null
-  tag_pangea: null
-  tag_supercontinent: null
-  text_badge_pop: null
-  text_banner: null
+  tag_pangea: text_pop
+  tag_supercontinent: text_pop
+  text_badge_pop: text_pop
+  text_banner: lower_third  # 107: banner once it lands
   volkswagen_central_reveal: null
   magical_horse_entry: null
-  red_circle_india: null
+  red_circle_india: pin_drop  # 104: the map target circle once it lands

@@ -166,6 +166,37 @@ def test_the_effect_map_names_only_registered_components_and_every_known_gap() -
     assert gaps <= set(mapping), sorted(gaps - set(mapping))
 
 
+# 106 (083 part 1): the operator's picks for the GAPS names, 30 Sep 2026.
+GAPS_PICKS = {
+    "number_badge_pop": "stamp", "numbered_tag": "stamp",
+    "tag_pangea": "text_pop", "tag_supercontinent": "text_pop",
+    "text_badge_pop": "text_pop", "stacked_labels": "text_pop",
+    "text_banner": "lower_third",  # -> banner once 107 lands
+    "persistent_header_banner": "title_strip",
+    "label_slide": "label_flyin",
+    "countdown_number_one": "counter", "countdown_number_two": "counter",
+    "red_circle_india": "pin_drop",  # -> 104's map target circle once it lands
+    "cartoon_scientist": "sticker",
+}  # fmt: skip
+
+
+def test_the_gaps_names_map_to_the_operators_closest_components() -> None:
+    mapping = examples.load_effect_map()
+    assert {name: mapping.get(name) for name in GAPS_PICKS} == GAPS_PICKS
+
+
+def test_the_worked_examples_now_show_the_gaps_effects() -> None:
+    shown: set[str] = set()
+    for path in sorted(examples.INVENTORY_DIR.glob("*.json")):
+        card = ReferenceInventoryV2.model_validate_json(path.read_text(encoding="utf-8"))
+        shown |= {row.effect for row in examples.worked(card, examples.load_effect_map()).rows}
+    picked = {e for e in shown if any(e.endswith(f"(closest to {n})") for n in GAPS_PICKS)}
+    assert picked, "no worked example shows one of the GAPS picks"
+    for effect in picked:
+        name = effect.split("(closest to ")[1].rstrip(")")
+        assert effect == f"{GAPS_PICKS[name]} (closest to {name})"
+
+
 def test_an_effect_map_naming_an_unregistered_component_is_refused(tmp_path: Path) -> None:
     bad = tmp_path / "effect_map.yaml"
     bad.write_text("effects:\n  glow_title: sparkle_engine\n", encoding="utf-8")
