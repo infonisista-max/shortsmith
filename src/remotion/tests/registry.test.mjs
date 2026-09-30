@@ -100,7 +100,7 @@ test("the map draws every label pill before every dot, so no dot is ever hidden 
   }
 });
 
-const TRANSITIONS = ["cut", "fade", "whip", "zoom", "spring", "wipe", "flash"];
+const TRANSITIONS = ["cut", "fade", "whip", "zoom", "spring", "wipe", "flash", "light_flare"];
 
 test("the composition lists the six enter transitions after ticket 030 and flash after 060", () => {
   for (const name of TRANSITIONS) {
@@ -263,7 +263,7 @@ test("Short.tsx draws every registered component", () => {
                   pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath",
                   text_pop: "TextPop", bubble: "Bubble", sticker: "Sticker",
                   title_strip: "TitleStrip", backdrop: "Backdrop", crop_fill: "CropFill",
-                  polaroid: "Polaroid" };
+                  polaroid: "Polaroid", banner: "Banner" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   // 078: the highlight is drawn inside the screenshot's card, which Short.tsx draws.
@@ -457,4 +457,38 @@ test("the era grade is a filter from the spec on every picture and clip (102)", 
   assert.match(clip, /gradeFilter\(visual\)/, "clip.tsx never applies the grade");
   // no strength is written in the component: every number comes from the spec
   assert.doesNotMatch(photo, /sepia\(0\.\d/, "a literal sepia strength in photo.tsx");
+});
+
+test("the banner slides in from its side, clipped to its box, every number the spec's (107)", () => {
+  assert.ok(registry.components.includes("banner"), "banner is not registered");
+  const source = readFileSync(join(root, "components", "banner.tsx"), "utf-8");
+  for (const field of ["left", "top", "width", "height", "font_px", "font_weight", "fill", "ink",
+                       "bar", "bar_px", "from_top", "at_s", "slide_s", "until_s"]) {
+    assert.ok(source.includes(`.${field}`), `banner.tsx never reads ${field}`);
+  }
+  assert.match(source, /overflow: "hidden"/, "the banner is not clipped to its own box");
+  assert.match(source, /translateY\(/, "the banner never slides");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  // with the landed overlays: over the PIP circle's layer, under the text pops and captions
+  const banner = short.indexOf("<Banner ");
+  assert.ok(banner > short.indexOf("<Pip "), "the banner is drawn under the PIP circle");
+  assert.ok(banner < short.indexOf("<TextPop "), "the banner is drawn over the text pops");
+  assert.ok(banner < short.indexOf("<Captions "), "the banner is drawn over the captions");
+});
+
+test("the light flare is an enter drawn like the flash, over the pictures only (107)", () => {
+  assert.ok(registry.components.includes("light_flare"), "light_flare is not registered");
+  const enters = readFileSync(join(root, "components", "transitions.tsx"), "utf-8");
+  assert.match(enters, /light_flare: LightFlare/, "light_flare is not an enter");
+  const source = readFileSync(join(root, "components", "light_flare.tsx"), "utf-8");
+  for (const field of ["duration_s", "core", "glow", "from_x", "to_x", "y"]) {
+    assert.ok(source.includes(`.${field}`), `light_flare.tsx never reads ${field}`);
+  }
+  assert.match(source, /mixBlendMode: "screen"/, "the flare does not burn to light");
+  assert.match(source, /radial-gradient/, "the flare is not a burst");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const flare = short.indexOf("<LightFlareOverlay");
+  assert.ok(flare > short.indexOf("<Transition"), "the flare is drawn under the picture");
+  assert.ok(flare < short.indexOf("<Pip "), "the flare is drawn over the PIP circle");
+  assert.ok(flare < short.indexOf("<Captions "), "the flare is drawn over the captions");
 });

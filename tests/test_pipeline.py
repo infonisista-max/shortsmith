@@ -740,7 +740,7 @@ def test_a_rejected_picture_plan_is_resent_once_with_the_violations(
         "b04 (4.1): non-presenter beat (clip) has no motion; "
         "every non-presenter beat has exactly one",
         "b04 (9.4): enter 'wipe' is not in broll.enter_transitions "
-        "['cut', 'fade', 'whip', 'zoom', 'spring']",
+        "['cut', 'fade', 'whip', 'zoom', 'spring', 'light_flare']",
     ]
     assert planner.sound_feedback == [None]
     plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))

@@ -155,6 +155,8 @@ from shortsmith.contracts import (
     AssetManifest,
     AudioEntry,
     BadgeSpec,
+    Banner,
+    BannerSpec,
     Beat,
     BeatSpec,
     Bubble,
@@ -422,6 +424,8 @@ class StyleNumbers:
     transitions: TransitionStyle
     # 059: the fixed title strip's row, where the style draws one.
     title_strip: styles.TitleStrip | None = None
+    # 107: the banner's row, where the style offers one.
+    banner: styles.BannerRow | None = None
 
 
 def broll_numbers(spec: StyleSpec) -> BrollNumbers:
@@ -585,6 +589,7 @@ def numbers_for(spec: StyleSpec) -> StyleNumbers:
             enabled=list(spec.broll.enter_transitions), **spec.broll.transitions.model_dump()
         ),
         title_strip=spec.broll.title_strip,
+        banner=spec.broll.banner,
     )
 
 
@@ -2466,6 +2471,57 @@ def title_strip_spec(text: str, *, until_frame: int, numbers: StyleNumbers) -> T
     )  # fmt: skip
 
 
+# --- banners (107; 083) ---------------------------------------------------------------
+#
+# A bar of the recording's words across the safe band. A top banner sits at the row's
+# `top_y` (under the 6.3 top zone); a low one ends `gap_px` above the PIP circle on a
+# `pip` beat, else above the caption block, so it never meets either. The words are
+# fitted from `size_px` down to `min_size_px`; still too wide there, the build fails
+# naming the banner (the grammar's `words_max` keeps a planned one short).
+
+BANNER_PAD_X = 28.0  # the title strip's padding (059)
+
+
+def banner_spec(
+    banner: Banner, *, mode: Mode, beat_start_s: float, beat_end_s: float,
+    numbers: StyleNumbers, pip: PipGeometry,
+) -> BannerSpec:  # fmt: skip
+    """107: the banner placed and timed: `at_s` seconds into the beat (the grammar's
+    landing; the beat's start for an unvalidated plan), held to the beat's end or
+    `hold_max_s` after landing, whichever is first."""
+    row = numbers.banner
+    if row is None:
+        raise RenderError(f"banner {banner.text!r}: the style offers no banner (107)")
+    style = numbers.captions
+    width = WIDTH - SAFE_LEFT - SAFE_RIGHT_PX
+    room = width - 2 * BANNER_PAD_X
+    font_px = _fitted(banner.text, font_px=row.size_px, min_font_px=row.min_size_px, style=style,
+                      room=room)  # fmt: skip
+    if _measured(banner.text, font_px=font_px, style=style) > room + EPS:
+        raise RenderError(
+            f"banner {banner.text!r} does not fit the safe band ({room:g} px) at "
+            f"broll.banner.min_size_px {row.min_size_px} (107)"
+        )
+    if banner.position == "top":
+        top = float(row.top_y)
+    else:
+        above = float(pip.top) if mode == "pip" else styles.caption_block_top(style)
+        top = above - row.gap_px - row.height_px
+    length = max(0.0, beat_end_s - beat_start_s)
+    at = min(max(0.0, (banner.at_s if banner.at_s is not None else beat_start_s) - beat_start_s),
+             length)  # fmt: skip
+    return BannerSpec(
+        text=banner.text, left=SAFE_LEFT, top=top, width=width, height=float(row.height_px),
+        font_px=font_px, font_weight=style.font_weight, fill=row.fill, ink=row.ink, bar=row.bar,
+        bar_px=row.bar_px, from_top=banner.position == "top", at_s=round(at, 3),
+        slide_s=row.slide_s, until_s=round(min(length, at + row.hold_max_s), 3),
+    )  # fmt: skip
+
+
+def banner_box(banner: BannerSpec | None) -> Box | None:
+    return None if banner is None else Box(banner.left, banner.top, banner.width, banner.height)
+
+
 def title_strip_box(strip: TitleStripSpec | None) -> Box | None:
     return None if strip is None else Box(strip.left, strip.top, strip.width, strip.height)
 
@@ -2774,8 +2830,12 @@ def build_spec(
     )
     strip_box = title_strip_box(strip)
 
+    # 107: the beat being built's banner, which its pops, bubbles and sticker keep off too
+    beat_banner: list[Box] = []
+
     def clear_of_strip(blocked: dict[str, Box]) -> dict[str, Box]:
-        return blocked if strip_box is None else {**blocked, "the title strip": strip_box}
+        blocked = blocked if strip_box is None else {**blocked, "the title strip": strip_box}
+        return {**blocked, "the banner": beat_banner[0]} if beat_banner else blocked
 
     def face_on(visual: VisualSpec | None) -> Box | None:
         """The face on the beat's image in composition pixels, detected once per file.
@@ -2982,6 +3042,16 @@ def build_spec(
             placed_stamp, moved = stamp_off_split(placed_stamp, split, numbers=numbers)
             if moved and log is not None:
                 log(f"stamp: {b.id}: {placed_stamp.text!r} moved off a split pane's face (105)")
+        placed_banner: BannerSpec | None = None
+        if b.banner is not None:
+            try:
+                placed_banner = banner_spec(
+                    b.banner, mode=mode, beat_start_s=b.start, beat_end_s=b.end,
+                    numbers=numbers, pip=geometry,
+                )  # fmt: skip
+            except RenderError as exc:
+                raise RenderError(f"{b.id}: {exc}") from None
+        beat_banner[:] = [box] if (box := banner_box(placed_banner)) is not None else []
         placed_pops = text_pops(b, mode, visual, split)
         placed_bubbles = bubbles(b, mode, visual, placed_stamp)
         beats.append(
@@ -3003,6 +3073,7 @@ def build_spec(
                 text_pops=placed_pops,
                 bubbles=placed_bubbles,
                 stickers=sticker_specs(b, mode, visual, placed_stamp, placed_pops, placed_bubbles),
+                banner=placed_banner,
                 finale=(
                     finale_spec(plan.finale.text, sources, numbers=numbers)
                     if finale_beat is not None and b.id == finale_beat.id

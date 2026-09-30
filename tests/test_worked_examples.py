@@ -171,7 +171,7 @@ GAPS_PICKS = {
     "number_badge_pop": "stamp", "numbered_tag": "stamp",
     "tag_pangea": "text_pop", "tag_supercontinent": "text_pop",
     "text_badge_pop": "text_pop", "stacked_labels": "text_pop",
-    "text_banner": "lower_third",  # -> banner once 107 lands
+    "text_banner": "banner",  # 107
     "persistent_header_banner": "title_strip",
     "label_slide": "label_flyin",
     "countdown_number_one": "counter", "countdown_number_two": "counter",

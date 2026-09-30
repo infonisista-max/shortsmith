@@ -9,13 +9,25 @@ from pathlib import Path
 import pytest
 
 from shortsmith import fixture, render
-from shortsmith.contracts import TitleStripSpec
+from shortsmith.contracts import PicturePlan, TitleStripSpec
 from shortsmith.qa import technical
 from tests.test_render import (
     _captions,  # pyright: ignore[reportPrivateUsage]
-    _plan,  # pyright: ignore[reportPrivateUsage]
     _two_panes,  # pyright: ignore[reportPrivateUsage]
 )
+from tests.test_render import (
+    _plan as _explainer_plan,  # pyright: ignore[reportPrivateUsage]
+)
+
+
+def _plan() -> PicturePlan:
+    """The explainer's fake plan with b10's light flare (107, explainer only) cut, so the
+    recipe styles can draw it."""
+    plan = _explainer_plan()
+    return plan.model_copy(update={"beats": [
+        b.model_copy(update={"enter": "cut"}) if b.enter == "light_flare" else b
+        for b in plan.beats
+    ]})  # fmt: skip
 
 VISHVA = render.style_numbers("vishva")
 FASTFACTS = render.style_numbers("fastfacts")

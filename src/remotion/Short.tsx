@@ -42,11 +42,17 @@
 // Ticket 103: the picture treatments an editor picks per still (`backdrop`, `crop_fill`,
 // `polaroid`) are drawn in the same layer as the photo and the card they stand beside.
 //
+// Ticket 107: a `light_flare` enter is a cut with a warm light burst over it, drawn like
+// the flash (`lightFlareAt`, over both beats' picture layers, under the circle, the
+// overlays and the captions). A beat's `banner` sits with the landed overlays, after the
+// lower-third and before the text pops; it is placed clear of the circle and the captions.
+//
 // Ticket 059: a recipe style's fixed title strip (`title_strip`) sits above the beat
 // overlays and under the captions from the first frame to the finale's first frame.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Backdrop } from "./components/backdrop";
+import { Banner } from "./components/banner";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
@@ -59,6 +65,7 @@ import { FlashOverlay, flashAt } from "./components/flash";
 import { HookCards } from "./components/hook_cards";
 import { Infographic } from "./components/infographic";
 import { LabelFlyin } from "./components/label_flyin";
+import { LightFlareOverlay, lightFlareAt } from "./components/light_flare";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { MapBase } from "./components/map";
@@ -188,6 +195,7 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       ? since < holdFrames(beat.enter, spec.transitions, spec.fps)
       : false;
   const flash = flashAt(frame, spec.fps, spec.transitions, beat, next);
+  const flare = lightFlareAt(frame, spec.fps, spec.transitions, beat, next);
   return (
     <AbsoluteFill
       style={{ background: `linear-gradient(${spec.palette.angle_deg}deg, ${from}, ${to})` }}
@@ -206,6 +214,12 @@ export const Short: React.FC<RenderSpec> = (spec) => {
         </Transition>
       ) : null}
       <FlashOverlay opacity={flash} numbers={spec.transitions} />
+      <LightFlareOverlay
+        state={flare}
+        numbers={spec.transitions}
+        width={spec.width}
+        height={spec.height}
+      />
       {beat?.mode === "pip" ? <Pip spec={spec} /> : null}
       {beat?.stamp ? (
         <Stamp spec={beat.stamp} style={spec.caption_style} frame={since} fps={spec.fps} />
@@ -220,6 +234,9 @@ export const Short: React.FC<RenderSpec> = (spec) => {
           frame={since}
           fps={spec.fps}
         />
+      ) : null}
+      {beat?.banner ? (
+        <Banner spec={beat.banner} style={spec.caption_style} frame={since} fps={spec.fps} />
       ) : null}
       {beat?.text_pops?.length ? (
         <TextPop pops={beat.text_pops} style={spec.caption_style} frame={since} fps={spec.fps} />

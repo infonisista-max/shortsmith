@@ -144,6 +144,30 @@ class TitleStrip(StrictModel):
     duration_s: float = Field(ge=0.0)
 
 
+class BannerRow(StrictModel):
+    """107 (083; banner_slide_down, date_banner_slide, text_banner_pop): the banner a style
+    offers - at most `max_per_60s` per 60 s of runtime (rounded up), 1-`words_max` words of
+    the recording, sliding in over `slide_s` and held to the beat's end or `hold_max_s`.
+    A `height_px` bar across the safe band: at `top_y` for a top banner, else its bottom
+    `gap_px` above the PIP circle (a `pip` beat) or the caption block; the words in `ink`
+    fitted from `size_px` to `min_size_px` on `fill`, a `bar_px` edge in `bar` on the
+    side it slides in from. A style without the row offers no banner."""
+
+    max_per_60s: int = Field(ge=0)
+    words_max: int = Field(ge=1)
+    slide_s: float = Field(ge=0.0)
+    hold_max_s: float = Field(gt=0.0)
+    top_y: int
+    height_px: int = Field(gt=0)
+    gap_px: int = Field(ge=0)
+    size_px: int = Field(gt=0)
+    min_size_px: int = Field(gt=0)
+    fill: str
+    ink: str
+    bar: str
+    bar_px: int = Field(ge=0)
+
+
 class MoveRow(StrictModel):
     """102: one camera move on a full-screen still - the push `scale_from` -> `scale_to`
     over the beat, the picture's travel over it as a fraction of the frame (`pan_x` of the
@@ -213,6 +237,8 @@ class Broll(StrictModel):
     scene_lighting: str
     # 059: the fixed title strip; only a style that draws one carries the row.
     title_strip: TitleStrip | None = None
+    # 107: the banner; only a style whose references use one carries the row.
+    banner: BannerRow | None = None
     # 103: the picture treatments the planner may pick per still, in the renderer's
     # fallback order (a pick the image cannot take becomes the first allowed one); every
     # one but `photo` and `card` has its `motion.<name>` row. A spec from before 103 offers
@@ -484,6 +510,7 @@ def check(spec: StyleSpec, registry: Sequence[str]) -> None:
         )
     _check_marks(spec)
     _check_treatments(spec)
+    _check_offered(spec)
     if spec.status == "shipped":
         missing = [c for c in spec.requires_components if c not in registry]
         if missing:
@@ -510,6 +537,36 @@ def _check_treatments(spec: StyleSpec) -> None:
         raise StyleError(
             f"{spec.name}: broll.treatments {missing} are not in requires_components; every "
             "treatment the planner may pick is a registered component the style requires (103)"
+        )
+
+
+def offered_components(spec: StyleSpec) -> list[str]:
+    """107-109: the components a style offers by carrying their row or enabling them -
+    each one a shipped spec must require."""
+    b = spec.broll
+    offered = ["banner"] if b.banner is not None else []
+    if "light_flare" in b.enter_transitions:
+        offered.append("light_flare")
+    return offered
+
+
+def _check_offered(spec: StyleSpec) -> None:
+    """107: an enabled `light_flare` carries its `broll.transitions.light_flare` row, and a
+    shipped spec requires every component it offers."""
+    b = spec.broll
+    if "light_flare" in b.enter_transitions and b.transitions.light_flare is None:
+        raise StyleError(
+            f"{spec.name}: broll.enter_transitions enables light_flare but there is no "
+            "broll.transitions.light_flare row (duration_s, core, glow, from_x, to_x, y, "
+            "max_per_60s; 107)"
+        )
+    if spec.status != "shipped":
+        return
+    missing = [c for c in offered_components(spec) if c not in spec.requires_components]
+    if missing:
+        raise StyleError(
+            f"{spec.name}: offers {missing} but they are not in requires_components; a "
+            "shipped style requires every component it offers (107)"
         )
 
 

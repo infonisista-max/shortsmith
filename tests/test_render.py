@@ -1129,7 +1129,7 @@ def test_the_spec_carries_the_styles_transition_list_and_the_9_4_numbers() -> No
     from code: the front matter's `broll.transitions` rows ride along verbatim."""
     spec = _spec()
     t = spec.transitions
-    assert t.enabled == ["cut", "fade", "whip", "zoom", "spring"]
+    assert t.enabled == ["cut", "fade", "whip", "zoom", "spring", "light_flare"]  # 107
     assert t.fade.duration_s == 0.35
     assert (t.whip.duration_s, t.whip.blur_px) == (0.22, 14)
     assert (t.zoom.duration_s, t.zoom.scale_from) == (0.3, 1.6)
@@ -1142,7 +1142,8 @@ def test_every_beat_carries_its_plan_enter_and_the_fake_uses_all_five() -> None:
     plan = _plan()
     spec = _spec()
     assert [b.enter for b in spec.beats] == [b.enter for b in plan.beats]
-    assert {b.enter for b in spec.beats} == {"cut", "fade", "whip", "zoom", "spring"}
+    # 107: and the light flare on the wall
+    assert {b.enter for b in spec.beats} == {"cut", "fade", "whip", "zoom", "spring", "light_flare"}
 
 
 def test_a_beat_entering_outside_the_style_list_fails_the_build() -> None:

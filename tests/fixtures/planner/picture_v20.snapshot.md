@@ -86,6 +86,10 @@ Visual kinds (tiers)
   turn back to the presenter or a section change: at most `broll.flash_max_per_60s`
   per 60 s and never on two consecutive beats. A style without `flash` in the list
   never gets one.
+- Where `broll.enter_transitions` has `light_flare` (a warm light burst sweeping across
+  the cut, the picture only), use it into a reveal, a new document or a turn back to the
+  presenter: at most `broll.transitions.light_flare.max_per_60s` per 60 s, never on two
+  consecutive beats.
 
 Picture treatments (`treatment`)
 - Every `photo` or `card` beat names how its picture is shown in `treatment`, one of the
@@ -342,6 +346,13 @@ Article highlights (a marker over the owner's screenshot)
   write `at_s` or `end_s`: code fills them from the words' times. Code finds the lines
   on the image; a sentence it cannot find is dropped and the beat stays.
 
+Banners (a bar of the speaker's words)
+- Where section 1 carries a `broll.banner` row, a `photo`, `card`, `clip` or
+  presenter-full beat may carry one `banner`: `text`, 1-`broll.banner.words_max` of the
+  speaker's own words (a date, a name, the claim), `word` the transcript index it slides
+  in on, `position` `top` or `bottom`. At most `broll.banner.max_per_60s` per 60 s; a
+  style without the row gets none. Never write `at_s`: code fills it from the word.
+
 The cut
 - `cut.keep` lists the kept spans of the recording in recording order, from the first
   word to the end; `cut.drop` the dropped ones, which hold only silence, breaths and
@@ -472,6 +483,49 @@ Top shorts of this style show, shot by shot, how a spoken line became a picture,
 ```json
 {
   "$defs": {
+    "Banner": {
+      "additionalProperties": false,
+      "description": "107 (083; banner_slide_down, date_banner_slide, text_banner_pop): a bar of the\nrecording's own words across the safe band, at the `top` of the frame or low\n(`bottom`, above the speaker's circle or the captions), sliding in on the spoken\n`word` (a transcript index). `at_s` is written by the grammar, never the planner.",
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "word": {
+          "minimum": 0,
+          "title": "Word",
+          "type": "integer"
+        },
+        "position": {
+          "default": "top",
+          "enum": [
+            "top",
+            "bottom"
+          ],
+          "title": "Position",
+          "type": "string"
+        },
+        "at_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At S"
+        }
+      },
+      "required": [
+        "text",
+        "word"
+      ],
+      "title": "Banner",
+      "type": "object"
+    },
     "Beat": {
       "additionalProperties": false,
       "properties": {
@@ -671,6 +725,17 @@ Top shorts of this style show, shot by shot, how a spoken line became a picture,
           ],
           "default": null
         },
+        "banner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Banner"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "motion": {
           "anyOf": [
             {
@@ -806,7 +871,8 @@ Top shorts of this style show, shot by shot, how a spoken line became a picture,
             "zoom",
             "spring",
             "wipe",
-            "flash"
+            "flash",
+            "light_flare"
           ],
           "title": "Enter",
           "type": "string"

@@ -137,8 +137,11 @@ def kinds_named(plan: PicturePlan) -> set[str]:
     return named
 
 
-# The explainer's five enters (030), which every style enables in full or in part.
-EXPLAINER_ENTERS: tuple[Transition, ...] = ("cut", "fade", "whip", "zoom", "spring")
+# The explainer's five enters (030), which every style enables in full or in part, and
+# 107's light flare, which only the explainer enables.
+EXPLAINER_ENTERS: tuple[Transition, ...] = (
+    "cut", "fade", "whip", "zoom", "spring", "light_flare",
+)  # fmt: skip
 # 048 (9.4): what a canned enter becomes under a style that does not enable it, in
 # order of preference; `cut` is the last resort and is in every list.
 ENTER_FALLBACKS: Mapping[Transition, tuple[Transition, ...]] = {
@@ -147,6 +150,7 @@ ENTER_FALLBACKS: Mapping[Transition, tuple[Transition, ...]] = {
     "wipe": ("fade",),
     "zoom": ("fade",),
     "flash": ("fade",),  # 060: the turn back to the presenter fades where no style flashes
+    "light_flare": (),  # 107: the wall cuts where the style has no flare
     "fade": (),
 }
 WHOOSH = "whoosh"
@@ -384,7 +388,9 @@ class FakePlanner(Planner):
               query_fallback="two portraits", source_intent="search", asset_id="a8",
               enter=enter("zoom"), set_piece_title="Delhi versus Mumbai",
               items=[Item(text="Delhi", asset_id="a1"), Item(text="Mumbai", asset_id="a2")]),
+            # 107: the wall enters with the light flare where the style offers it.
             B(id="b10", start=4.5, end=5.0, mode="off", kind="wall", motion="pan_right",
+              enter=enter("light_flare"),
               subject_kind="concept", depicts="scene", query="grid of colour gradients",
               query_fallback="colour swatches", source_intent="generate", asset_id="a9",
               items=[Item(asset_id="a1"), Item(asset_id="a2"), Item(asset_id="a7"),

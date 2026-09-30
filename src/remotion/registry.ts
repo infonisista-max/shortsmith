@@ -10,9 +10,12 @@
 // `highlight`, the marker sweeping the spoken sentence on an owner's article screenshot,
 // drawn inside the screenshot's card. 103 adds the three picture treatments an editor picks
 // per still beside `photo` and `card`: `backdrop` (sharp over its own blurred copy),
-// `crop_fill` (full screen round the face) and `polaroid` (a dropped print).
+// `crop_fill` (full screen round the face) and `polaroid` (a dropped print). 107 adds
+// `banner`, a bar of the recording's words sliding in at the top or low, and
+// `light_flare`, the warm light burst over a cut.
 import type React from "react";
 import { Backdrop } from "./components/backdrop";
+import { Banner } from "./components/banner";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
@@ -28,6 +31,7 @@ import { Highlight } from "./components/highlight";
 import { HookCards } from "./components/hook_cards";
 import { Infographic } from "./components/infographic";
 import { LabelFlyin } from "./components/label_flyin";
+import { LightFlare } from "./components/light_flare";
 import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { MapBase } from "./components/map";
@@ -51,6 +55,7 @@ import { Zoom } from "./components/zoom";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const REGISTRY: Record<string, React.ComponentType<any>> = {
   backdrop: Backdrop,
+  banner: Banner,
   bubble: Bubble,
   captions: Captions,
   card: Card,
@@ -66,6 +71,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   hook_cards: HookCards,
   infographic: Infographic,
   label_flyin: LabelFlyin,
+  light_flare: LightFlare,
   list: List,
   lower_third: LowerThird,
   map: MapBase,

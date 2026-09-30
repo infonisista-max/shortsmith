@@ -39,7 +39,9 @@ from shortsmith.contracts import (
 )
 from shortsmith.infographics import CITY_SPAN_DEG
 
-Layer = Literal["text_pops", "bubbles", "stickers", "highlight", "event", "counter", "route"]
+Layer = Literal[
+    "text_pops", "bubbles", "stickers", "highlight", "banner", "event", "counter", "route",
+]  # fmt: skip
 LAYERS: tuple[Layer, ...] = get_args(Layer)
 ROUTE_OVERLAYS = frozenset({"route_arrow", "object_path"})
 PHOTO_MOTIONS: frozenset[Motion] = frozenset(CAMERA_MOVES)  # 102: every camera move
@@ -76,6 +78,8 @@ def layers_of(beat: Beat) -> list[Layer]:
         present.append("stickers")
     if beat.highlight is not None:
         present.append("highlight")
+    if beat.banner is not None:
+        present.append("banner")
     if beat.event.kind != "none":
         present.append("event")
     if beat.counter is not None and beat.kind != "counter":
@@ -95,6 +99,8 @@ def _dropped(beat: Beat, layer: Layer) -> Beat:
             return beat.model_copy(update={"stickers": []})
         case "highlight":
             return beat.model_copy(update={"highlight": None})
+        case "banner":
+            return beat.model_copy(update={"banner": None})
         case "event":
             return beat.model_copy(update={"event": Event()})
         case "counter":
@@ -252,8 +258,9 @@ def retile(plan: PicturePlan, runtime: float) -> PicturePlan:
 
 def strip_overlays(plan: PicturePlan, beat_ids: Sequence[str] | None = None) -> PicturePlan:
     """Every overlay layer off every beat (or `beat_ids`): text pops, bubbles, stickers,
-    the highlight, the counter (a `counter` beat keeps its own), the landed event and the
-    motion-graphics overlays. The plain fallback for a render that fails naming no beat."""
+    the highlight, the banner (107), the counter (a `counter` beat keeps its own), the
+    landed event and the motion-graphics overlays. The plain fallback for a render that
+    fails naming no beat."""
 
     def stripped(b: Beat) -> Beat:
         return b.model_copy(
@@ -262,6 +269,7 @@ def strip_overlays(plan: PicturePlan, beat_ids: Sequence[str] | None = None) -> 
                 "bubbles": [],
                 "stickers": [],
                 "highlight": None,
+                "banner": None,
                 "counter": b.counter if b.kind == "counter" else None,
                 "event": Event(),
                 "overlays": [],

@@ -1,5 +1,5 @@
 ---
-version: "15"
+version: "16"
 status: shipped
 aliases: [vishva, vishvagyan, vishva gyan, desi, history]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -7,7 +7,7 @@ requires_components: [captions, pip, photo, card, clip, stamp, lower_third, fina
                       pin_drop, route_arrow, object_path,
                       crop_fill, backdrop, polaroid,
                       cut, fade, whip, zoom, spring, wipe, flash,
-                      text_pop, bubble, sticker]
+                      text_pop, bubble, sticker, banner]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -136,6 +136,16 @@ broll:
   treatments: [photo, crop_fill, backdrop, polaroid, card]
   no_repeat_treatments: [backdrop, polaroid, card]
   card_max_per_60s: 3
+  # 107: the banner of the recording's words. FbaBcWgMIEY (0.4 s top, 9.8 s bottom) and ePTZVwipoAM (24.2 s "yellow banner", 26.2 s): two a minute. slide_s = M78CO3Ybr7U date_stamp
+  # and ePTZVwipoAM indus_war_tag (slide 0.3 s); hold_max_s = the longest reference banner
+  # (bL3rUtUPYsc barabar_banner 2.0 s; the rest 0.8-1.7 s); words_max = the longest ones
+  # ("ALWAYS WIN ON CUCAI'S PREDICTIONS", "INDUS VALLEY WAR 12TH CENTURY"). The cards give
+  # size 0.85-0.9 of the width: the safe band (0.81) is the widest a banner may be. The
+  # bar's height, type sizes and top_y are no card number: the 059 title strip's (the
+  # Q2pquJ2FlzA header banner), gap_px the text pop's clearance.
+  banner: {max_per_60s: 2, words_max: 5, slide_s: 0.3, hold_max_s: 2.0, top_y: 262,
+           height_px: 104, gap_px: 24, size_px: 60, min_size_px: 36, fill: "#FFD60A",
+           ink: "#111111", bar: "#E53935", bar_px: 10}
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}

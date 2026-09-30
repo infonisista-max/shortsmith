@@ -27,7 +27,9 @@ NAMES = ("explainer", "educational", "animated", "hitech")
 RECIPES = ("fastfacts", "footage", "vishva")
 # 059 changed the explainer's aliases (1.1 as amended): its front matter was v11; 064's
 # 12 dB speech-band margin bumped every style once more.
-VERSIONS = {"explainer": "25", "educational": "20", "animated": "20", "hitech": "24"}  # 102
+VERSIONS = {
+    "explainer": "26", "educational": "20", "animated": "20", "hitech": "24", "vishva": "16",
+}  # fmt: skip  (107: explainer and vishva offer the banner)  # 102
 FORBIDDEN = ["sweep", "riser", "rumble_crescendo"]  # 7.1, operator rider; 070 lifts whoosh
 
 
@@ -181,7 +183,8 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     assert ex.presenter.full_reasons == ["emotional_line", "argument_turn"]  # 055: no cold open
     assert (ex.pip.diameter, ex.pip.large_face_diameter, ex.pip.chin_anchor) == (300, 340, 0.82)
     assert ex.pip.large_face_ratio == 0.45  # 3.3
-    assert ex.broll.enter_transitions == ["cut", "fade", "whip", "zoom", "spring"]  # 9.4
+    # 9.4; 107 adds light_flare (QjwDTLPLJ6c)
+    assert ex.broll.enter_transitions == ["cut", "fade", "whip", "zoom", "spring", "light_flare"]
     assert ex.broll.whip_max_per_3_beats == 1
     assert (ex.broll.unique_assets_min_per_60s, ex.broll.unique_assets_max_per_60s) == (12, 24)
     assert ex.broll.reuse_max == 2  # 4.3 as amended by 056 (3): counted per image
@@ -209,8 +212,8 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
         "captions", "pip", "photo", "card", "clip", "stamp", "lower_third", "finale",
         "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
         "pin_drop", "route_arrow", "object_path", "crop_fill", "backdrop", "polaroid",
-        "cut", "fade", "whip", "zoom", "spring", "wipe",
-    ]  # fmt: skip
+        "cut", "fade", "whip", "zoom", "spring", "wipe", "banner", "light_flare",
+    ]  # fmt: skip  (107)
     # 029: the counter writes its digits in the audience's grouping.
     assert ex.broll.motion["counter"] == {"kind": "count_up", "grouping": "indian"}
     # 027: the three tier-1 set pieces carry their own counts and base motion (4.1, 5.2).
@@ -259,7 +262,9 @@ def test_removing_a_component_from_the_registry_fails_the_explainer(component: s
 
 
 def test_each_style_enables_its_9_4_transition_subset(specs: dict[str, StyleSpec]) -> None:
-    assert specs["explainer"].broll.enter_transitions == ["cut", "fade", "whip", "zoom", "spring"]
+    assert specs["explainer"].broll.enter_transitions == [
+        "cut", "fade", "whip", "zoom", "spring", "light_flare",
+    ]  # fmt: skip  (107: QjwDTLPLJ6c flares)
     assert specs["hitech"].broll.enter_transitions == ["cut", "fade", "wipe", "zoom"]
     assert specs["educational"].broll.enter_transitions == ["cut", "fade"]
     assert specs["animated"].broll.enter_transitions == [

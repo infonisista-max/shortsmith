@@ -84,6 +84,10 @@ $tiers
   turn back to the presenter or a section change: at most `broll.flash_max_per_60s`
   per 60 s and never on two consecutive beats. A style without `flash` in the list
   never gets one.
+- Where `broll.enter_transitions` has `light_flare` (a warm light burst sweeping across
+  the cut, the picture only), use it into a reveal, a new document or a turn back to the
+  presenter: at most `broll.transitions.light_flare.max_per_60s` per 60 s, never on two
+  consecutive beats.
 
 Picture treatments (`treatment`)
 - Every `photo` or `card` beat names how its picture is shown in `treatment`, one of the
@@ -313,6 +317,13 @@ Article highlights (a marker over the owner's screenshot)
   `broll.highlights_max_per_60s` per 60 s; a style with the cap at 0 gets none. Never
   write `at_s` or `end_s`: code fills them from the words' times. Code finds the lines
   on the image; a sentence it cannot find is dropped and the beat stays.
+
+Banners (a bar of the speaker's words)
+- Where section 1 carries a `broll.banner` row, a `photo`, `card`, `clip` or
+  presenter-full beat may carry one `banner`: `text`, 1-`broll.banner.words_max` of the
+  speaker's own words (a date, a name, the claim), `word` the transcript index it slides
+  in on, `position` `top` or `bottom`. At most `broll.banner.max_per_60s` per 60 s; a
+  style without the row gets none. Never write `at_s`: code fills it from the word.
 
 The cut
 - `cut.keep` lists the kept spans of the recording in recording order, from the first

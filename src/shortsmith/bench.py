@@ -11,6 +11,11 @@ image over the fixture's presenter - `PATH`, or a generated test pattern - and s
 beat's landed frame (two before its end) as `OUT/103_<treatment>.png`. The face
 `crop_fill` frames is the 3.3 detector's, or a box round the image's upper middle where
 it finds none.
+
+`python -m shortsmith.bench --effects OUT` (tickets 107-109) renders one short beat per
+effect the 083 tickets add (a top and a low banner, the light flare over a cut, ...) over
+a generated test pattern and the fixture's presenter under the explainer's numbers, and
+saves the frame that shows each - landed, or at its peak - as `OUT/<ticket>_<effect>.png`.
 """
 
 from __future__ import annotations
@@ -18,17 +23,20 @@ from __future__ import annotations
 import shutil
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from shortsmith import captions, ffmpeg, fixture, jobs, presenter, render
 from shortsmith.contracts import (
     PICTURE_TREATMENTS,
+    Banner,
     BeatSpec,
     Captions,
     Constraints,
     Crop,
     FaceBox,
     PicturePlan,
+    PipGeometry,
     PlanRequest,
     PlanStyle,
     VisualSpec,
@@ -174,6 +182,80 @@ def run_treatments(root: Path, out: Path, *, image: Path | None = None,
     return stills
 
 
+# 107: frames per effect beat - long enough for a banner to slide in and hold.
+EFFECT_FRAMES = 15
+
+
+@dataclass(frozen=True)
+class EffectShot:
+    """One effect beat and the frame that shows it (absolute), saved as `<name>.png`."""
+
+    name: str
+    beat: BeatSpec
+    frame: int
+
+
+def effect_beats(src: str, size: tuple[int, int], *, numbers: render.StyleNumbers,
+                 pip: PipGeometry) -> list[EffectShot]:  # fmt: skip
+    """107-109: one `EFFECT_FRAMES`-frame `pip` photo beat per new effect, in order."""
+    w, h = size
+    length_s = EFFECT_FRAMES / render.FPS
+
+    def beat(i: int, **update: object) -> BeatSpec:
+        photo = render.photo_visual(src, w, h, index=i, crop=Crop(), numbers=numbers)
+        base = BeatSpec(id=f"e{i + 1:02d}", start_frame=i * EFFECT_FRAMES,
+                        end_frame=(i + 1) * EFFECT_FRAMES, mode="pip", kind="photo",
+                        visual=photo)  # fmt: skip
+        return base.model_copy(update=update)
+
+    def banner(text: str, position: str) -> object:
+        planned = Banner.model_validate({"text": text, "word": 0, "position": position,
+                                         "at_s": 0.05})  # fmt: skip
+        return render.banner_spec(planned, mode="pip", beat_start_s=0.0, beat_end_s=length_s,
+                                  numbers=numbers, pip=pip)  # fmt: skip
+
+    shots = [
+        beat(0, banner=banner("INDUS VALLEY WAR", "top")),
+        beat(1, banner=banner("29 JUN 2022", "bottom")),
+        beat(2, enter="light_flare"),
+    ]
+    return [
+        EffectShot("107_banner_top", shots[0], shots[0].end_frame - 2),
+        EffectShot("107_banner_bottom", shots[1], shots[1].end_frame - 2),
+        EffectShot("107_light_flare", shots[2], shots[2].start_frame),
+    ]
+
+
+def run_effects(root: Path, out: Path, *, concurrency: int = render.CONCURRENCY) -> list[Path]:
+    """107-109: renders `effect_beats` over the fixture's presenter and saves each shot's
+    frame as `out/<name>.png`; returns the PNGs."""
+    clip = fixture.make_fixture(root / "fixture" / "fixture.mp4")
+    src = _pattern(root / "pattern.png", TEST_PATTERN).resolve()
+    size = ffmpeg.video_size(src)
+    numbers = render.style_numbers("explainer")
+    base = render.build_spec(
+        _base_plan(), Captions(pages=[]), presenter=clip, source_size=ffmpeg.video_size(clip),
+        duration_s=1.0, numbers=numbers,
+    )  # fmt: skip
+    shots = effect_beats(str(src), size, numbers=numbers, pip=base.pip)
+    beats = [shot.beat for shot in shots]
+    spec = base.model_copy(update={"beats": beats, "frames": len(beats) * EFFECT_FRAMES})
+    work = root / "effects"
+    work.mkdir(parents=True, exist_ok=True)
+    render.run_driver(spec, spec_path=work / "render_spec.json", out_path=work / "picture.mp4",
+                      log_path=work / "render.log", concurrency=concurrency)  # fmt: skip
+    out.mkdir(parents=True, exist_ok=True)
+    return [
+        ffmpeg.still(work / "picture.mp4", out / f"{shot.name}.png", at_s=shot.frame / spec.fps)
+        for shot in shots
+    ]
+
+
+def parse_effects(args: list[str]) -> Path | None:
+    """107: the out dir of `--effects OUT`, or None when the arguments are anything else."""
+    return Path(args[1]) if len(args) == 2 and args[0] == "--effects" else None
+
+
 Args = tuple[int, Path | None, Path | None]
 
 
@@ -200,10 +282,20 @@ def parse_args(args: list[str]) -> Args | None:
 
 
 def main(argv: list[str] | None = None, *, root: Path | None = None) -> int:
+    effects = parse_effects(list(argv or []))
+    if effects is not None:
+        try:
+            with tempfile.TemporaryDirectory(prefix="shortsmith-bench-") as tmp:
+                stills = run_effects(root or Path(tmp), effects)
+        except Exception as exc:  # noqa: BLE001 - one line on stderr, non-zero exit
+            print(f"bench FAILED: {exc}", file=sys.stderr)
+            return 1
+        print(f"bench: {len(stills)} effect stills in {effects}")
+        return 0
     parsed = parse_args(list(argv or []))
     if parsed is None:
         print("usage: python -m shortsmith.bench [--concurrency N] "
-              "[--treatments OUT [--image PATH]]", file=sys.stderr)  # fmt: skip
+              "[--treatments OUT [--image PATH]] | --effects OUT", file=sys.stderr)  # fmt: skip
         return 2
     concurrency, out, image = parsed
     try:

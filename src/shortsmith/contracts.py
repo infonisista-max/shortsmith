@@ -254,7 +254,9 @@ Render = Literal["illustration", "photoreal"]  # 4.2: a named entity is never ph
 SourceIntent = Literal["search", "generate", "reuse"]
 # 9.4 as amended by 060: `flash` is the seventh enter, a full-frame colour flash peaking
 # on the cut (the picture layers only; the PIP circle and the captions never blink).
-Transition = Literal["cut", "fade", "whip", "zoom", "spring", "wipe", "flash"]
+# 107: `light_flare` is a warm light burst sweeping across the cut, peaking on it (the
+# QjwDTLPLJ6c flare cuts), the picture layers only like the flash.
+Transition = Literal["cut", "fade", "whip", "zoom", "spring", "wipe", "flash", "light_flare"]
 EventKind = Literal["stamp", "ring", "lower_third", "none"]
 # 103: how a still beat's picture is shown, picked per image by the planner like an editor
 # (the style's `broll.treatments`): full-bleed `photo`, `crop_fill` (full screen cropped
@@ -452,6 +454,21 @@ class Highlight(StrictModel):
         return self
 
 
+BannerPosition = Literal["top", "bottom"]
+
+
+class Banner(StrictModel):
+    """107 (083; banner_slide_down, date_banner_slide, text_banner_pop): a bar of the
+    recording's own words across the safe band, at the `top` of the frame or low
+    (`bottom`, above the speaker's circle or the captions), sliding in on the spoken
+    `word` (a transcript index). `at_s` is written by the grammar, never the planner."""
+
+    text: str = Field(min_length=1)
+    word: int = Field(ge=0)
+    position: BannerPosition = "top"
+    at_s: float | None = None
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -499,6 +516,9 @@ class Beat(StrictModel):
     # 078: the marker sweep over the owner's screenshot this beat shows, at most one, under
     # `broll.highlights_max_per_60s`.
     highlight: Highlight | None = None
+    # 107: at most one banner of the recording's words, under `broll.banner.max_per_60s`
+    # (a style without the row offers none).
+    banner: Banner | None = None
     motion: Motion | None = None
     # 103: the picture treatment of a still (`photo` / `card`) beat, one of the style's
     # `broll.treatments`; None leaves it to code. Code draws another allowed one when the
@@ -1447,6 +1467,30 @@ class TextPopSpec(StrictModel):
     until_s: float
 
 
+class BannerSpec(StrictModel):
+    """107: a banner placed and timed - the bar across the safe band (composition pixels),
+    the words in `ink` at `font_px` (fitted from the style's `size_px`) on `fill` with a
+    `bar_px` edge in `bar` on its outer side, sliding in from its outer edge (`from_top`:
+    down from above, else up from below) over `slide_s` at `at_s` seconds into the beat,
+    clipped to its own box, and gone at `until_s`. Placed by `render.banner_spec`."""
+
+    text: str
+    left: float
+    top: float
+    width: float
+    height: float
+    font_px: int
+    font_weight: int
+    fill: str
+    ink: str
+    bar: str
+    bar_px: int
+    from_top: bool
+    at_s: float
+    slide_s: float
+    until_s: float
+
+
 class BubbleDot(StrictModel):
     """One dot of a thought bubble's trail (063), in composition pixels."""
 
@@ -1944,6 +1988,8 @@ class BeatSpec(StrictModel):
     bubbles: tuple[BubbleSpec, ...] = ()
     # 062: the beat's sticker, placed and timed; a tuple for the same reason.
     stickers: tuple[StickerSpec, ...] = ()
+    # 107: the beat's banner, placed and timed.
+    banner: BannerSpec | None = None
     finale: FinaleCardSpec | None = None
     split: SplitSpec | None = None
     wall: WallSpec | None = None
@@ -2036,10 +2082,24 @@ class FlashNumbers(Timed):
     color: str
 
 
+class LightFlareNumbers(Timed):
+    """107 (QjwDTLPLJ6c's flare cuts): the burst's whole length, centred on the cut; its
+    white-hot `core` and warm `glow`; the burst's centre travelling from `from_x` to
+    `to_x` (fractions of the width) at height `y` (of the frame) over the length; at most
+    `max_per_60s` per 60 s of runtime, never two in a row."""
+
+    core: str
+    glow: str
+    from_x: float = Field(ge=0.0, le=1.0)
+    to_x: float = Field(ge=0.0, le=1.0)
+    y: float = Field(ge=0.0, le=1.0)
+    max_per_60s: int = Field(ge=0)
+
+
 class Transitions(StrictModel):
     """9.4: the global enter vocabulary's numbers, one row per transition that has any
     (`cut` has none), read from every style's `broll.transitions` front matter (030;
-    060 adds `flash`)."""
+    060 adds `flash`). 107: `light_flare` is carried only by a style that offers it."""
 
     fade: Timed
     whip: WhipNumbers
@@ -2047,6 +2107,7 @@ class Transitions(StrictModel):
     spring: SpringNumbers
     wipe: Timed
     flash: FlashNumbers
+    light_flare: LightFlareNumbers | None = None
 
 
 class TransitionStyle(Transitions):

@@ -45,3 +45,23 @@ def test_the_treatment_bench_draws_one_beat_per_picture_treatment() -> None:
     with_image = bench.parse_args(["--treatments", "out", "--image", "a.jpg"])
     assert with_image is not None and with_image[2] == Path("a.jpg")
     assert bench.parse_args(["--bogus"]) is None
+
+
+def test_the_effects_bench_draws_one_beat_per_new_effect() -> None:
+    """107: `python -m shortsmith.bench --effects OUT` renders one short beat per effect
+    the 083 tickets add over the fixture's presenter and saves the frame that shows it -
+    a banner landed, the flare at its peak on the cut - as `<ticket>_<effect>.png`."""
+    numbers = render.style_numbers("explainer")
+    shots = bench.effect_beats("image.jpg", (870, 614), numbers=numbers,
+                               pip=render.fixed_pip((1080, 1920), numbers))  # fmt: skip
+    names = [shot.name for shot in shots]
+    assert names[:3] == ["107_banner_top", "107_banner_bottom", "107_light_flare"]
+    beats = [shot.beat for shot in shots]
+    assert [b.start_frame for b in beats] == [i * bench.EFFECT_FRAMES for i in range(len(beats))]
+    top, bottom, flare = shots[:3]
+    assert top.beat.banner is not None and top.beat.banner.from_top
+    assert bottom.beat.banner is not None and not bottom.beat.banner.from_top
+    assert flare.beat.enter == "light_flare" and flare.frame == flare.beat.start_frame
+    assert top.frame == top.beat.end_frame - 2
+    assert bench.parse_effects(["--effects", "out"]) == Path("out")
+    assert bench.parse_effects(["--treatments", "out"]) is None

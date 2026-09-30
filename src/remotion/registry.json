@@ -1,6 +1,7 @@
 {
   "components": [
     "backdrop",
+    "banner",
     "bubble",
     "captions",
     "card",
@@ -16,6 +17,7 @@
     "hook_cards",
     "infographic",
     "label_flyin",
+    "light_flare",
     "list",
     "lower_third",
     "map",

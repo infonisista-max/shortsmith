@@ -602,6 +602,29 @@ export type BeatSpec = {
   text_pops?: TextPopSpec[];
   bubbles?: BubbleSpec[];
   stickers?: StickerSpec[];
+  banner?: BannerSpec | null;
+};
+
+// 107: a banner, placed and timed by `render.banner_spec`: the bar across the safe band,
+// the words fitted in `ink` on `fill` with a `bar_px` edge in `bar` on its outer side,
+// sliding in from that side (`from_top`) over `slide_s` from `at_s` seconds into the
+// beat, clipped to its own box, gone at `until_s`.
+export type BannerSpec = {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  font_px: number;
+  font_weight: number;
+  fill: string;
+  ink: string;
+  bar: string;
+  bar_px: number;
+  from_top: boolean;
+  at_s: number;
+  slide_s: number;
+  until_s: number;
 };
 
 export type PipGeometry = {
@@ -658,6 +681,20 @@ export type TransitionStyle = {
   spring: { damping: number; stiffness: number; mass: number };
   wipe: { duration_s: number };
   flash: { duration_s: number; color: string };
+  // 107: only a style that offers the flare carries its row.
+  light_flare?: LightFlareNumbers | null;
+};
+
+// 107: the light flare's whole length centred on the cut, its core and glow colours, the
+// burst's travel across the frame (fractions) and the cap the grammar reads.
+export type LightFlareNumbers = {
+  duration_s: number;
+  core: string;
+  glow: string;
+  from_x: number;
+  to_x: number;
+  y: number;
+  max_per_60s: number;
 };
 
 export type RenderSpec = {

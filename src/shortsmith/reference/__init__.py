@@ -575,7 +575,8 @@ def build_prompt(
     v2 adds the closed lists: moods, flavours and topics read from the data files
     (`vocabulary`, loaded when not given), the rest from the schema's literals."""
     meanings = component_meanings(components_md)
-    transitions = {"cut", "fade", "whip", "zoom", "spring", "wipe", "flash"}  # 060 adds flash
+    # 060 adds flash, 107 light_flare
+    transitions = {"cut", "fade", "whip", "zoom", "spring", "wipe", "flash", "light_flare"}
     names = sorted(registry)
     components = "\n".join(
         f"- `{name}`: {meanings.get(name) or 'a renderer component'}"

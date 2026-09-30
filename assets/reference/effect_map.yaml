@@ -11,7 +11,7 @@ effects:
   animated_horse_movement: object_path
   animated_title_drop: text_pop
   article_text_scroller_highlight: null  # 078 builds the highlighter
-  banner_slide_down: lower_third
+  banner_slide_down: banner  # 107
   bloodstain_stamp: stamp
   bold_title_card: card
   bold_title_pop: text_pop
@@ -26,7 +26,7 @@ effects:
   coin_toss_animation: null
   color_flash: flash
   currency_shower: null
-  date_banner_slide: lower_third
+  date_banner_slide: banner  # 107
   dialogue_bubble_sequence: bubble
   emoji_pop_in: sticker
   emoji_sticker_pop: sticker
@@ -37,8 +37,8 @@ effects:
   graphic_callout_pop: text_pop
   header_banner: title_strip
   headline_kinetic_highlight: null  # 078
-  light_burst: flash
-  light_flare: flash
+  light_burst: light_flare  # 107
+  light_flare: light_flare  # 107
   lightbulb_idea_pop: sticker
   lower_third_text: lower_third
   map_highlight_and_text: map
@@ -60,7 +60,7 @@ effects:
   speech_bubbles_dialogue: bubble
   subscribe_button_animation: null
   suns_comparison_counter: counter
-  text_banner_pop: text_pop
+  text_banner_pop: banner  # 107
   text_card_pop: card
   text_highlight: null  # 078
   text_tag_pop: text_pop
@@ -95,7 +95,7 @@ effects:
   tag_pangea: text_pop
   tag_supercontinent: text_pop
   text_badge_pop: text_pop
-  text_banner: lower_third  # 107: banner once it lands
+  text_banner: banner  # 107
   volkswagen_central_reveal: null
   magical_horse_entry: null
   red_circle_india: map  # 104: the map's target circle round the named country

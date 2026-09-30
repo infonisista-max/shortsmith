@@ -1,5 +1,5 @@
 ---
-version: "25"
+version: "26"
 status: shipped
 # 059 (1.1 as amended): `fact`, `facts` and `dhruv` moved to the fastfacts and footage recipes
 aliases: [explainer, explain, explained, explanation, story, news]
@@ -7,7 +7,8 @@ requires_components: [captions, pip, photo, card, clip, stamp, lower_third, fina
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
                       crop_fill, backdrop, polaroid,
-                      cut, fade, whip, zoom, spring, wipe]
+                      cut, fade, whip, zoom, spring, wipe,
+                      banner, light_flare]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -121,7 +122,8 @@ broll:
     polaroid: {kind: drop, width_px: 760, border_px: 20, bottom_px: 84, max_upscale: 1.5,
                tilt_min_deg: -6, tilt_max_deg: 6, drop_px: 240, drop_s: 0.3, shadow_px: 36,
                blur_px: 36, brightness: 0.45}
-  enter_transitions: [cut, fade, whip, zoom, spring]
+  # 107: light_flare from QjwDTLPLJ6c (explainer, Tier A), the only reference that flares
+  enter_transitions: [cut, fade, whip, zoom, spring, light_flare]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row
   text_pops_max_per_60s: 0  # 061: off here; the recipe styles of 059 turn pops on
@@ -135,6 +137,16 @@ broll:
   treatments: [photo, crop_fill, backdrop, polaroid, card]
   no_repeat_treatments: [backdrop, polaroid, card]
   card_max_per_60s: 3
+  # 107: the banner of the recording's words. M78CO3Ybr7U 1 s ("black and red lower banner") and id00R-3OmJ0: one a minute. slide_s = M78CO3Ybr7U date_stamp
+  # and ePTZVwipoAM indus_war_tag (slide 0.3 s); hold_max_s = the longest reference banner
+  # (bL3rUtUPYsc barabar_banner 2.0 s; the rest 0.8-1.7 s); words_max = the longest ones
+  # ("ALWAYS WIN ON CUCAI'S PREDICTIONS", "INDUS VALLEY WAR 12TH CENTURY"). The cards give
+  # size 0.85-0.9 of the width: the safe band (0.81) is the widest a banner may be. The
+  # bar's height, type sizes and top_y are no card number: the 059 title strip's (the
+  # Q2pquJ2FlzA header banner), gap_px the text pop's clearance.
+  banner: {max_per_60s: 1, words_max: 5, slide_s: 0.3, hold_max_s: 2.0, top_y: 262,
+           height_px: 104, gap_px: 24, size_px: 60, min_size_px: 36, fill: "#111111",
+           ink: "#FFFFFF", bar: "#E53935", bar_px: 10}
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -142,6 +154,12 @@ broll:
     spring: {damping: 14, stiffness: 160, mass: 0.7}
     wipe: {duration_s: 0.25}
     flash: {duration_s: 0.3, color: "#FFD60A"}  # 060: the accent; not enabled here
+    # 107: QjwDTLPLJ6c's 13 flare cuts, each 0.3 s (v2 card; v1 0.2-0.4 s), 13 in 176 s
+    # (4.4 a minute). The colours are the cards' words ("orange-white exposure burn",
+    # "warm yellow-white"), no hex; the sweep across the upper third, above the circle,
+    # is no card number.
+    light_flare: {duration_s: 0.3, core: "#FFF4D6", glow: "#FF9F1C", from_x: 0.2,
+                  to_x: 0.8, y: 0.3, max_per_60s: 4}
   unique_assets_min_per_60s: 12
   unique_assets_max_per_60s: 24
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
@@ -230,7 +248,7 @@ sound:
   forbidden: [sweep, riser, rumble_crescendo]
   # 070 (run04 QA, all styles): a soft mark only on a visible pop-in or transition, never
   # on every one (refs: ~6.7 sfx a minute against ~9.3 visual events, each synced to one)
-  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [fade, whip, zoom, spring, pop]}  # "on" quoted: YAML reads a bare on as true
+  whoosh: {max_per_60s: 6, min_gap_s: 3.0, max_len_s: 0.8, "on": [fade, whip, zoom, spring, light_flare, pop]}  # "on" quoted: YAML reads a bare on as true
   tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop]}
   ding: {max_per_60s: 2, max_len_s: 0.8, "on": [idea_sticker]}  # the FactTechz lightbulb (zXK42RMPKUY 34 s)
   floor_max_len_s: {bass: 1.5, drum: 1.2, thump: 0.8}  # 075's shortlist lengths

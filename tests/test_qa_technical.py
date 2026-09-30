@@ -575,7 +575,7 @@ def test_t6_fails_a_whoosh_on_a_plain_cut_a_long_one_and_any_where_forbidden() -
     explainer = technical.t6([], sheet, enters=FLASHES, nums=EXPLAINER_SOUND, runtime_s=60.0)
     assert explainer.detail == (
         "whoosh cue sfx_whoosh on f1: on a 'flash' enter; sound.whoosh.on allows a whoosh only "
-        "on fade, whip, zoom, spring, pop"
+        "on fade, whip, zoom, spring, light_flare, pop"
     )
     faded = technical.t6([], sheet, enters={"f1": "fade"}, nums=EXPLAINER_SOUND, runtime_s=60.0)
     assert faded.passed, faded.detail

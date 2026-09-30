@@ -247,6 +247,8 @@ def validate_picture(
     found += sticker_found
     highlight_found, beats = _highlights(beats, runtime, spec, words, spans, references)
     found += highlight_found
+    banner_found, beats = _banners(beats, runtime, spec, words, spans)
+    found += banner_found
     found += density(beats, spec)  # 066: after the passes that resolve each `at_s`
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
@@ -540,9 +542,11 @@ def change_times(beat: Beat) -> list[float]:
     times = [beat.start, beat.end]
     if beat.event.kind != "none":
         times.append(round((beat.start + beat.end) / 2, 3))
-    # 078: a highlight's marker starts sweeping at its first word.
+    # 078: a highlight's marker starts sweeping at its first word; 107: a banner slides in
+    # on its word.
     lit = [beat.highlight] if beat.highlight is not None else []
-    for item in (*beat.text_pops, *beat.bubbles, *beat.stickers, *lit):
+    slid = [beat.banner] if beat.banner is not None else []
+    for item in (*beat.text_pops, *beat.bubbles, *beat.stickers, *lit, *slid):
         if item.at_s is not None:
             times.append(min(max(item.at_s, beat.start), beat.end))
     return sorted(times)
@@ -1411,6 +1415,83 @@ def _highlights(
     return found, out
 
 
+BANNER_KINDS = TEXT_POP_KINDS  # 107: a banner sits over a picture, like a text pop
+
+
+def banner_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """107: `broll.banner.max_per_60s` scaled to the runtime, rounded up like the other
+    per-60 s maxima (4.3); a style without the row offers none."""
+    row = spec.broll.banner
+    return 0 if row is None else math.ceil(row.max_per_60s * runtime / 60 - EPS)
+
+
+def _banners(
+    beats: Sequence[Beat],
+    runtime: float,
+    spec: StyleSpec,
+    words: Sequence[Word],
+    spans: Sequence[Span],
+) -> tuple[list[Violation], list[Beat]]:
+    """107 (083): a banner needs a style that offers one (`broll.banner`), sits on a
+    picture beat (`BANNER_KINDS`, the presenter full), is 1-`words_max` words, lands on a
+    transcript word the beat covers, and there are at most `banner_cap` over the runtime.
+    Beats are output seconds here, so `at_s` is rewritten as the word's start on the
+    output timeline, whatever the planner put there."""
+    found: list[Violation] = []
+    out: list[Beat] = []
+    row = spec.broll.banner
+    cap = banner_cap(spec, runtime=runtime)
+    total = 0
+    for b in beats:
+        banner = b.banner
+        if banner is None:
+            out.append(b)
+            continue
+        label = f"banner {banner.text!r}"
+        if row is None:
+            found.append(_v("4.1", b.id, f"{label}: the style {spec.name!r} offers no banner "
+                                         "(no broll.banner row; 107)"))  # fmt: skip
+            out.append(b)
+            continue
+        total += 1
+        if total > cap:
+            found.append(
+                _v("4.1", b.id, f"{label}: banner {total} over {runtime:g} s; "
+                                f"broll.banner.max_per_60s {row.max_per_60s} allows {cap} "
+                                "(107)")  # fmt: skip
+            )
+        kind = "presenter_full" if b.mode == "full" else b.kind
+        if kind not in BANNER_KINDS:
+            found.append(
+                _v("4.1", b.id, f"{label} sits on a picture beat "
+                                f"({', '.join(sorted(BANNER_KINDS))}); this beat is a "
+                                f"{b.kind!r}")  # fmt: skip
+            )
+        count = len(banner.text.split())
+        if not 1 <= count <= row.words_max:
+            found.append(
+                _v("4.1", b.id, f"{label} is {count} words; broll.banner.words_max allows "
+                                f"1-{row.words_max}")  # fmt: skip
+            )
+        if not banner.word < len(words):
+            found.append(
+                _v("4.1", b.id, f"{label} lands on word {banner.word}; the transcript has "
+                                f"{len(words)} words (0-{len(words) - 1})")  # fmt: skip
+            )
+            out.append(b)
+            continue
+        at = round(presenter.output_time(spans, words[banner.word].start), 3)
+        if not b.start - CONTIGUITY_TOL_S <= at < b.end:
+            found.append(
+                _v("4.1", b.id, f"{label} lands on word {banner.word} "
+                                f"({words[banner.word].text!r} at {at:g} s on the cut), which "
+                                f"this beat ({b.start:g}-{b.end:g} s) does not cover")  # fmt: skip
+            )
+        resolved = banner.model_copy(update={"at_s": max(at, b.start)})
+        out.append(b.model_copy(update={"banner": resolved}))
+    return found, out
+
+
 def _subjects(beats: Sequence[Beat], runtime: float, brief: str) -> list[Violation]:
     """4.2: subject_kind and query on every B-roll beat; an entity beat per 60 s when
     the brief names something."""
@@ -1501,14 +1582,37 @@ def flash_cap(spec: StyleSpec, *, runtime: float) -> int:
     return math.ceil(spec.broll.flash_max_per_60s * runtime / 60 - EPS)
 
 
+def light_flare_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """107: `broll.transitions.light_flare.max_per_60s` scaled to the runtime, rounded up
+    like the other per-60 s maxima (4.3); a style without the row allows none."""
+    row = spec.broll.transitions.light_flare
+    return 0 if row is None else math.ceil(row.max_per_60s * runtime / 60 - EPS)
+
+
 def _transitions(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Violation]:
     """9.4: names inside the style list, `whip_max_per_3_beats`, never two whips in a
-    row; 060: at most `flash_cap` flashes over the runtime, never two in a row."""
+    row; 060: at most `flash_cap` flashes over the runtime, never two in a row; 107: the
+    same for light flares under `light_flare_cap`."""
     nums = spec.broll
     found: list[Violation] = []
     flashes = 0
     cap = flash_cap(spec, runtime=runtime)
+    flares = 0
+    flare_cap = light_flare_cap(spec, runtime=runtime)
     for i, b in enumerate(beats):
+        if b.enter == "light_flare":
+            flares += 1
+            if i > 0 and beats[i - 1].enter == "light_flare":
+                found.append(_v("9.4", b.id, f"two light flares in a row ({beats[i - 1].id} "
+                                             f"then {b.id}) (107)"))  # fmt: skip
+            elif flares > flare_cap:
+                row = nums.transitions.light_flare
+                found.append(
+                    _v("9.4", b.id, f"light flare {flares} over {runtime:g} s; broll."
+                                    "transitions.light_flare.max_per_60s "
+                                    f"{row.max_per_60s if row else 0} allows {flare_cap} "
+                                    "(107)")  # fmt: skip
+                )
         if b.enter not in nums.enter_transitions:
             found.append(
                 _v(
