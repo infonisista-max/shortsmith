@@ -147,6 +147,9 @@ class WorkedExample(StrictModel):
     topic: str
     tone: str = ""
     rows: list[ExampleRow] = []
+    # 110a: a Tier A card of another style, added because the job's own-style examples
+    # show too little moving footage: a vocabulary example, not a style example.
+    vocabulary: bool = False
 
 
 class PlanRequest(StrictModel):
@@ -569,6 +572,12 @@ class Beat(StrictModel):
     enter: Transition = "cut"
     event: Event = Field(default_factory=Event)
     money_reveal: bool = False
+    # 110a: the editor's one-line reason - what this beat chose (picture, move, treatment,
+    # transition, text, pace) and why, against this line and the previous two beats.
+    why: str = Field(
+        default="",
+        description="one line: what this beat chose and why, as an editor would say it",
+    )
 
     @model_validator(mode="after")
     def _end_after_start(self) -> Beat:

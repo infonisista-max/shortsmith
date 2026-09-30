@@ -286,6 +286,22 @@ def fake_highlight(request: PlanRequest) -> Highlight | None:
     return Highlight(asset_id=first.id, sentence=FAKE_SENTENCE, words=(0, 1))
 
 
+# 110a: each beat says what it chose and why, as the creative-editor section asks.
+FAKE_WHY: Mapping[str, str] = {
+    "b01": "opening line: the strongest image behind the speaker, a slow push to start",
+    "b02": "a named place: its archival card with the name on the strip, whipped in",
+    "b03": "the emotional line on the speaker, after two pictures; a flash turns back",
+    "b04": "a concept that moves: footage, a stamp for the key word, the two bubbles",
+    "b05": "a route between two places: the map, pins then the plane, not another still",
+    "b06": "the key number: a chart counting up, not a reuse of the last picture",
+    "b07": "a process to explain: a labelled diagram, labels flying in",
+    "b08": "three items in one breath: a list, a burst after the held diagram",
+    "b09": "two places compared: a split screen, zoomed in",
+    "b10": "a callback to the short's pictures: the wall, a light flare into it",
+    "b11": "the close: the finale line, captions off",
+}
+
+
 # 058: the fake's one clip beat asks for moving footage of a concept; the smoke's fake clip
 # source answers this query with a synthetic clip.
 CLIP_QUERY = "drifting clouds timelapse"
@@ -399,6 +415,7 @@ class FakePlanner(Planner):
             # fixture; the former b11 (photo, ken_burns_out, stamp "6 s") folded into it.
             B(id="b11", start=5.0, end=6.0, mode="off", kind="finale", asset_id="a1"),
         ]  # fmt: skip
+        beats = [b.model_copy(update={"why": FAKE_WHY[b.id]}) for b in beats]
         return PicturePlan(
             prompt_version=self.PROMPT_VERSION,
             cut=CutPlan(keep=[Span(start=0.0, end=request.transcript.duration_s)]),

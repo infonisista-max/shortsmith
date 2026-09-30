@@ -13,6 +13,38 @@ the transcript to serve the brief. Set `prompt_version` to `v20`.
 
 ## How to plan
 
+The creative editor (the standing rule for every job)
+- Plan like a creative human editor, never a template. Read the story of the script
+  first; then for each line ask what this line needs, what the previous two beats did,
+  and what would surprise without distracting. Vary the edit so no two reels feel like
+  one template, and say in each beat's `why`, in one line, what you chose and why.
+- Choose from the full vocabulary. Each is detailed below; section 1 says which the
+  style offers and how often.
+  - Moving footage (`clip`) for places, eras, objects and events as much as for ideas:
+    a place ("desert dunes at dusk", "an old Arabian palace"), an era ("a 1950s oil
+    field"), an object ("an oil tanker at sea"), an event ("a plane taking off", "a
+    rocket launch").
+  - Picture treatments (`treatment`): `photo`, `crop_fill`, `backdrop`, `polaroid`,
+    `card`.
+  - Camera moves (`motion`): `push_in`, `pull_out`, `ken_burns_in`, `ken_burns_out`,
+    `pan_left`, `pan_right`, `pan_up`, `pan_down`, `hold`.
+  - Transitions (`enter`): `cut`, `fade`, `whip`, `zoom`, `spring`, `wipe`, `flash`,
+    `light_flare`.
+  - Text: a `stamp`, `text_pops`, a `banner`, `bubbles`, a `lower_third`, a `calendar`
+    page.
+  - Drawn pictures: a `map` with its country highlight, target circle and tag, a
+    `counter`, a `chart`.
+  - Overlays: `particles` (cash on a money line, brain dots on a thinking line) and
+    `stickers`.
+  - Pacing: a burst of short beats against a held beat.
+- Moving footage is a range, not a rule. Decide per script how much really fits,
+  within the style's `broll.clip_max_fraction`. The low end is a target, never a gate:
+  when good clips run short, the beat takes a still with a logged reason, and the
+  short is delivered. Never force a bad clip to hit a number; a missing clip never
+  fails the job.
+- Pick the treatment per image: the same picture treatment never runs back to back.
+- A named person is always shown as that person: never a stock stranger and never AI.
+
 The speaker's order (the one rule that outranks the rest)
 - The creator recorded the script as finished storytelling. The short starts with the
   first spoken word of the recording and plays every word once, in the order it was
@@ -53,8 +85,9 @@ The opening (the first sentence)
   `asset_id`: full-screen images behind the speaker, normal captions. Code shows an
   image that cannot fill the frame at `broll.full_bleed_max_upscale` another way (see
   Picture treatments below).
-  When the topic is a concept (a thing, a process, nature), an opening beat may be a
-  `clip` instead: moving footage behind the speaker (see Moving footage below).
+  An opening beat may be a `clip` instead when moving footage shows the line better (a
+  place, an era, an object, an event, an idea), never for a named person: moving footage
+  behind the speaker (see Moving footage below).
   There is no hook title and there are no hook cards. The `beats.opening_beats_min`-th
   beat ends by `beats.opening_max_s`.
 - Those images are the short's strongest images of its main subject, so choose the
@@ -105,18 +138,18 @@ Picture treatments (`treatment`)
     memory, a find.
   - `card`: the framed archival card with the red `ring` on its detail; the rarest - at
     most `broll.card_max_per_60s`, for the beat whose detail the viewer must spot.
-- Vary them: never the same treatment of `broll.no_repeat_treatments` on two
-  consecutive beats. Code draws another allowed treatment when the image cannot take
+- Vary them: the same treatment never runs back to back, and never one of
+  `broll.no_repeat_treatments` on two consecutive beats. Code draws another allowed treatment when the image cannot take
   the pick (too small to fill the frame, no face found), so a pick never fails the
   short. Every other kind leaves `treatment` empty.
 
 Moving footage (`clip`)
 - A `clip` beat is a full-screen stock video clip, always muted, drawn where a `photo`
   is drawn: under the speaker's circle and the captions, at the style's
-  `broll.motion.clip.speed`. Ask `clip` on `concept` beats - a thing, a kind of place,
-  a process, nature, science ("cheese", "the sun", "the brain", "a busy market") - and
-  on the opening when the topic is a concept. Give it a `query` that describes the
-  footage, a `query_fallback`, a `motion` and its own `asset_id`.
+  `broll.motion.clip.speed`. Ask `clip` wherever moving footage shows the line better
+  than a still: a place, an era, an object, an event, a process, nature, an idea - in
+  every style and on the opening too. Give it a `query` that describes the footage, a
+  `query_fallback`, a `motion` and its own `asset_id`.
 - Never for a named person: a beat depicting a `named_person` keeps its still
   (`photo` or `card`); code rejects a `clip` there
   (a stock stranger is never the person named, and a named person is never generated).
@@ -923,6 +956,12 @@ Top shorts of this style show, shot by shot, how a spoken line became a picture,
           "default": false,
           "title": "Money Reveal",
           "type": "boolean"
+        },
+        "why": {
+          "default": "",
+          "description": "one line: what this beat chose and why, as an editor would say it",
+          "title": "Why",
+          "type": "string"
         }
       },
       "required": [

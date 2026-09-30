@@ -6,6 +6,13 @@ said / shows / match / part / layout / effect / sound per shot. Code picks two p
 topic (when that leaves any), then the operator's own Tier B before Tier A, then by
 video id so the pick never wobbles. Tone matching is left out of v1.
 
+110a (operator, 30 Sep 2026): a style's own cards may never show moving footage (the
+Vishva Gyan shorts are 97-100 % stills), so its planner never sees a clip used. When
+fewer than `FOOTAGE_EXAMPLES_MIN` of the picked cards show footage (`shows_footage`: a
+`full_footage` beat or a `moving_footage` shot), `select` adds one Tier A card from
+another style that does - the job's topic first, else any topic, then by video id. It
+is a vocabulary example, not a style example (`is_vocabulary`; `section` labels it).
+
 The topic is picked by code before the planner runs (`pick_topic`): `topic: <name>` in
 the brief wins when it names a topic of `assets/reference/topics.yaml`; otherwise the
 topics' English and Hindi keywords are counted in the brief and the transcript, the way
@@ -48,6 +55,7 @@ from shortsmith.reference import compare as compare_module
 
 EFFECT_MAP_PATH = REPO_ROOT / "assets" / "reference" / "effect_map.yaml"
 EXAMPLES_PER_JOB = 2
+FOOTAGE_EXAMPLES_MIN = 2  # 110a: fewer own-style footage examples than this -> one fill
 TIER_ORDER: Mapping[str, int] = {"B": 0, "A": 1}  # the operator's own shorts first
 NO_EQUIVALENT = "(no equivalent: skip)"
 NO_EXAMPLES = "(no worked examples for this style)"
@@ -109,7 +117,25 @@ def select(
     if topic is not None:
         on_topic = [c for c in pool if c.script.topic == topic]
         pool = on_topic or pool
-    return sorted(pool, key=lambda c: (TIER_ORDER.get(c.tier, len(TIER_ORDER)), c.video_id))[:n]
+    picked = sorted(pool, key=lambda c: (TIER_ORDER.get(c.tier, len(TIER_ORDER)), c.video_id))[:n]
+    if sum(1 for c in picked if shows_footage(c)) >= FOOTAGE_EXAMPLES_MIN:
+        return picked
+    others = [c for c in cards if c.tier == "A" and is_vocabulary(c, style) and shows_footage(c)]
+    if topic is not None:
+        others = [c for c in others if c.script.topic == topic] or others
+    return picked + sorted(others, key=lambda c: c.video_id)[:1]
+
+
+def shows_footage(card: ReferenceInventoryV2) -> bool:
+    """110a: the card shows moving footage somewhere (a beat or a shot)."""
+    return any(b.layout == "full_footage" for b in card.beats) or any(
+        s.background == "moving_footage" for s in card.shots
+    )
+
+
+def is_vocabulary(card: ReferenceInventoryV2, style: str) -> bool:
+    """110a: a card picked for a job of another style is a vocabulary example."""
+    return style not in card.styles
 
 
 def load_effect_map(
@@ -152,9 +178,11 @@ def _effect(card: ReferenceInventoryV2, start: float, end: float, effect: str | 
     return f"{target} (closest to {named[0][1]})" if target is not None else NO_EQUIVALENT
 
 
-def worked(card: ReferenceInventoryV2, effect_map: Mapping[str, str | None]) -> WorkedExample:
+def worked(card: ReferenceInventoryV2, effect_map: Mapping[str, str | None], *,
+           vocabulary: bool = False) -> WorkedExample:  # fmt: skip
     return WorkedExample(
         video_id=card.video_id, tier=card.tier, topic=card.script.topic, tone=card.script.tone,
+        vocabulary=vocabulary,
         rows=[
             ExampleRow(
                 start_s=b.start_s, end_s=b.end_s, said=b.said, shows=b.shows, match=b.match,
@@ -177,12 +205,14 @@ def for_job(
 ) -> tuple[TopicPick, list[WorkedExample]]:
     """The job's topic and its two worked examples from the v2 cards in `inventory_dir`."""
     picked = pick_topic(brief, transcript, topics if topics is not None else vocab.load_topics())
-    cards = select(compare_module.references_for(style, inventory_dir), style=style,
+    cards = select(compare_module.all_references(inventory_dir), style=style,
                    topic=picked.name)  # fmt: skip
     if not cards:
         return picked, []
     effect_map = load_effect_map()
-    return picked, [worked(card, effect_map) for card in cards]
+    return picked, [
+        worked(card, effect_map, vocabulary=is_vocabulary(card, style)) for card in cards
+    ]
 
 
 # --- the prompt section ---------------------------------------------------------------------
@@ -196,6 +226,13 @@ SECTION_HEAD = (
     "every picture comes from this transcript. An effect in these tables is the closest one "
     "you may use, or \"(no equivalent: skip)\". Every count still comes from section 1; an "
     "example never outranks a number."
+)
+VOCABULARY_NOTE = (
+    "The vocabulary example below is a top short of another style, added because this "
+    "style's own examples show little or no moving footage: it is a vocabulary example, "
+    "not a style example. Learn from it which moves exist - a clip for a place, an era, an "
+    "object or an event - never its style's look, pace or numbers; section 1 and the "
+    "examples of this style still decide those."
 )
 _TABLE_HEAD = (
     "| time (s) | part | said | shows | match | layout | effect | sound |\n"
@@ -211,8 +248,16 @@ def section(examples: Sequence[WorkedExample]) -> str:
     if not examples:
         return NO_EXAMPLES
     blocks = [SECTION_HEAD]
-    for i, example in enumerate(examples, start=1):
+    if any(e.vocabulary for e in examples):
+        blocks.append(VOCABULARY_NOTE)
+    own = 0
+    for example in examples:
         tone = f", tone {example.tone}" if example.tone else ""
+        if example.vocabulary:
+            label = "Vocabulary example"
+        else:
+            own += 1
+            label = f"Example {own}"
         rows = "\n".join(
             f"| {r.start_s:.1f}-{r.end_s:.1f} | {_cell(r.part)} | {_cell(r.said)} | "
             f"{_cell(r.shows)} | {_cell(r.match)} | {_cell(r.layout)} | {_cell(r.effect)} | "
@@ -220,7 +265,7 @@ def section(examples: Sequence[WorkedExample]) -> str:
             for r in example.rows
         )
         blocks.append(
-            f"### Example {i}: {example.video_id} (Tier {example.tier}, topic "
+            f"### {label}: {example.video_id} (Tier {example.tier}, topic "
             f"{example.topic}{tone})\n\n{_TABLE_HEAD}\n{rows}"
         )
     return "\n\n".join(blocks)

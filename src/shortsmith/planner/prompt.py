@@ -52,6 +52,12 @@ Call = Literal["picture", "sound"]
 # plane taking off"); the era rule (period first, a timeless shot may take a film or
 # sepia grade, never modern cars, skylines, phones or clothes standing in for an old era,
 # then a still). The schema carries the split. The sound file is v19's unchanged.
+# 110a extends v20 in place, as planned (107-109 each added a vocabulary paragraph the
+# same way): "The creative editor" opens How to plan - the full vocabulary in one place,
+# plan each line against the previous two beats, vary, say each beat's `why` (the schema
+# carries `Beat.why`); the operator's taste (footage a range, the low end a target never
+# a gate, never force a bad clip, never fail the job, no treatment back to back, a named
+# person never stock or AI); the concept-only clip examples and opening limit are gone.
 # (v19, ticket 078): the picture file says when to write `highlight` (only on the beat that
 # shows an owner's uploaded article or document screenshot, the sentence as printed and
 # the `[first, last]` words that say it, never a made-up article, under

@@ -337,7 +337,7 @@ def test_the_v12_prompts_say_when_to_ask_a_clip_and_never_for_a_named_entity() -
         "request, never a promise",
         "a `photo`, `card`, `clip` or\n  presenter-full beat may carry `text_pops`",
         "a `photo`, `card`, `clip` or\n  presenter-full beat may carry `bubbles`",
-        "an opening beat may be a\n  `clip`",
+        "An opening beat may be a `clip` instead",  # 110a: any subject, not only a concept
     ):
         assert needle in picture, needle
     sound = prompt.build_prompt(_request(), "sound", picture=FakePlanner().plan_picture(_request()))

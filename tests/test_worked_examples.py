@@ -123,7 +123,12 @@ def test_fewer_than_two_takes_what_it_has_and_none_says_so() -> None:
     assert [c.video_id for c in examples.select(one, style="explainer", topic="sport")] == [
         "aaaaaaaaaaa"
     ]  # no sport card: the topic filter would leave nothing, so style only
-    assert examples.select(one, style="vishva", topic=None) == []
+    assert examples.select([], style="vishva", topic=None) == []
+    # 110a: a vishva job with no own-style card still gets this Tier A footage card, as a
+    # vocabulary example (tests/test_creative_editor.py)
+    assert [c.video_id for c in examples.select(one, style="vishva", topic=None)] == [
+        "aaaaaaaaaaa"
+    ]
     assert examples.section([]) == "(no worked examples for this style)"
 
 

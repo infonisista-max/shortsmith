@@ -185,7 +185,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "opening line: the strongest image behind the speaker, a slow push to start"
     },
     {
       "id": "b02",
@@ -223,7 +224,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "lower_third",
         "text": "India Gate · Delhi"
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "a named place: its archival card with the name on the strip, whipped in"
     },
     {
       "id": "b03",
@@ -261,7 +263,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "the emotional line on the speaker, after two pictures; a flash turns back"
     },
     {
       "id": "b04",
@@ -299,7 +302,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "stamp",
         "text": "NOTHING"
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "a concept that moves: footage, a stamp for the key word, the two bubbles"
     },
     {
       "id": "b05",
@@ -361,7 +365,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "a route between two places: the map, pins then the plane, not another still"
     },
     {
       "id": "b06",
@@ -419,7 +424,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": true
+      "money_reveal": true,
+      "why": "the key number: a chart counting up, not a reuse of the last picture"
     },
     {
       "id": "b07",
@@ -478,7 +484,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "a process to explain: a labelled diagram, labels flying in"
     },
     {
       "id": "b08",
@@ -529,7 +536,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "three items in one breath: a list, a burst after the held diagram"
     },
     {
       "id": "b09",
@@ -576,7 +584,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "two places compared: a split screen, zoomed in"
     },
     {
       "id": "b10",
@@ -631,7 +640,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "a callback to the short's pictures: the wall, a light flare into it"
     },
     {
       "id": "b11",
@@ -669,7 +679,8 @@ Boundaries are snapped and events are final; cue against these beats.
         "kind": "none",
         "text": null
       },
-      "money_reveal": false
+      "money_reveal": false,
+      "why": "the close: the finale line, captions off"
     }
   ],
   "finale": {
