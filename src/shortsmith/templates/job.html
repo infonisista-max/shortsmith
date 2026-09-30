@@ -63,6 +63,19 @@
   .copy-head button { font: inherit; font-size: .85rem; padding: .2rem .6rem; border: 1px solid #8886;
                       border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
   pre.copy { user-select: all; }
+  form.change { display: grid; gap: .5rem; margin: .5rem 0; }
+  form.change textarea { font: inherit; width: 100%; box-sizing: border-box; padding: .5rem;
+                         border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; }
+  form.change button { font: inherit; font-weight: 700; padding: .6rem 1.2rem; border: 0; border-radius: 8px;
+                       background: var(--accent); color: #111; cursor: pointer; justify-self: start; }
+  ul.changes, ul.decisions { list-style: none; padding: 0; }
+  .change-row, .decision { padding: .3rem .6rem; border-left: 4px solid #8886; margin: .25rem 0;
+                           overflow-wrap: anywhere; }
+  .change-row.applied { border-color: #2e7d32; }
+  .change-row.refused { border-color: #c0392b; }
+  .change-row.running { border-color: var(--accent); }
+  .decision.operator { border-color: var(--accent); }
+  .change-row .when, .decision .by { color: var(--muted); font-size: .9rem; }
 </style>
 </head>
 <body>

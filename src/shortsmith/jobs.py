@@ -100,6 +100,7 @@ VERDICTS: frozenset[Status] = frozenset({"delivered", "passed", "rejected"})
 ALL_STATUSES: frozenset[Status] = frozenset(get_args(Status))
 
 Clock = Callable[[], datetime]
+ChangeStatus = Literal["applied", "refused", "running"]
 
 
 def _utc_now() -> datetime:
@@ -508,6 +509,41 @@ def rework(job: Job, from_step: Status, reason: str, *, now: Clock = _utc_now) -
         updated, stamp, f"{current.status} -> uploaded retry_from={from_step} rework: {reason}"
     )
     return updated
+
+
+def add_change(job: Job, change: ChangeRequest, *, now: Clock = _utc_now) -> int:
+    """Append a change-box request (098) to job.json and log `change: asked: <text>`;
+    returns its index on `record.changes` for `update_change`."""
+    stamp = now()
+    current = load(job.path).record
+    updated = amend(job, changes=[*current.changes, change], updated_at=stamp)
+    _append_log(updated, stamp, f"change: asked: {' '.join(change.text.split())}")
+    return len(current.changes)
+
+
+def update_change(
+    job: Job, index: int, *, status: ChangeStatus, summary: str, now: Clock = _utc_now
+) -> Job:
+    """Set the status and the summary of the change at `index` and log
+    `change: <status>: <summary>`."""
+    stamp = now()
+    changes = list(load(job.path).record.changes)
+    changes[index] = changes[index].model_copy(update={"status": status, "summary": summary})
+    updated = amend(job, changes=changes, updated_at=stamp)
+    _append_log(updated, stamp, f"change: {status}: {summary}")
+    return updated
+
+
+def finish_changes(job: Job, *, now: Clock = _utc_now) -> Job:
+    """098: the job delivered again, so every change still `running` (a picture change
+    re-rendered) is `applied`, its summary kept."""
+    current = load(job.path)
+    running = [i for i, c in enumerate(current.record.changes) if c.status == "running"]
+    for i in running:
+        current = update_change(
+            current, i, status="applied", summary=current.record.changes[i].summary, now=now
+        )
+    return current
 
 
 def note(job: Job, line: str, *, now: Clock = _utc_now) -> None:

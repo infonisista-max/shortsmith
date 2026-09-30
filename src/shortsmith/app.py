@@ -140,6 +140,7 @@ from shortsmith import transcriber as transcriber_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
 from shortsmith.contracts import AudioTags, CriticReport, ReferenceRecord
+from shortsmith.editor import change
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
 from shortsmith.jobs import RATING_MAX, RATING_MIN, SETTLED, STATUS_ORDER, Clock, Job, Status
 from shortsmith.performance import YouTube, YouTubeError
@@ -197,6 +198,12 @@ VIEWS_SENTENCE = "Views must be a whole number, zero or more, or left blank."
 RETENTION_SENTENCE = "Retention must be a percentage from 0 to 100, or left blank."
 NOT_RATED = "not rated yet"
 NO_SHORT_TO_LEVEL_SENTENCE = "This job has no short to set a music level for yet."
+# 098: the change box needs a finished short to change, and words saying what to change.
+NO_SHORT_TO_CHANGE_SENTENCE = (
+    "This job has no finished short to change right now; wait until it is delivered."
+)
+NO_CHANGE_TEXT_SENTENCE = "Type what you want changed in the reel."
+CHANGE_TEXT_MAX = 2000
 BODY_SLACK = ingest.MIB  # multipart framing and text fields on top of the file limits
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _REFS = TypeAdapter(list[ReferenceRecord])
@@ -770,6 +777,77 @@ def create_app(
         worker.submit(requeued.path, reserved=True)
         return RedirectResponse(f"/jobs/{requeued.id}", status_code=303)
 
+    @app.post("/jobs/{job_id}/change")
+    async def change_reel(job_id: str, request: Request) -> Response:
+        """098: the change box. The model turns the operator's words into ops from the
+        closed set; code checks and applies them. A picture change patches the plan,
+        keeps the short as the previous version and re-runs the job from sourcing on
+        the worker; a sound-only change remixes the audio here. A refused change is a
+        row on the page with its reason; the reel is untouched."""
+        job = jobs.find(data_dir, job_id)
+        if job is None:
+            return JSONResponse({"error": "no such job"}, status_code=404)
+        if job.status not in SHOWS_SHORT:
+            return HTMLResponse(render_refusal(job, NO_SHORT_TO_CHANGE_SENTENCE), status_code=409)
+        if job.record.swept_at is not None:
+            return HTMLResponse(render_refusal(job, change.SWEPT_SENTENCE), status_code=409)
+        form = await request.form()
+        text = _text(form.get("text")).strip()
+        if not text:
+            return HTMLResponse(render_refusal(job, NO_CHANGE_TEXT_SENTENCE), status_code=422)
+        text = text[:CHANGE_TEXT_MAX]
+        planned = await run_in_threadpool(
+            lambda: change.plan_change(job, text, planner, clock=clock, scale=scale)
+        )
+        back = RedirectResponse(f"/jobs/{job.id}", status_code=303)
+        if planned.refused:
+            return back
+        if not planned.picture:
+            with suppress(change.ChangeRefused):
+                await run_in_threadpool(lambda: change.apply_change(
+                    job, planned, specs=specs, library=bed_library(), clock=clock,
+                ))  # fmt: skip
+            return back
+        try:
+            worker.reserve()
+        except QueueFull:
+            sentence = f"{worker.depth()} shorts are already in the queue; try in an hour."
+            await run_in_threadpool(lambda: jobs.update_change(
+                job, planned.index, status="refused", summary=sentence, now=clock
+            ))  # fmt: skip
+            return HTMLResponse(
+                render_refusal(job, sentence), status_code=503,
+                headers={"Retry-After": str(QUEUE_RETRY_S)},
+            )  # fmt: skip
+        try:
+            await run_in_threadpool(lambda: change.apply_change(
+                job, planned, specs=specs, clock=clock,
+            ))  # fmt: skip
+        except change.ChangeRefused:
+            worker.release()
+            return back
+        except Exception:
+            worker.release()
+            raise
+        reworked = jobs.load(job.path)
+        if reworked.status == "uploaded":
+            worker.submit(reworked.path, reserved=True)
+        else:
+            worker.release()
+        return back
+
+    @app.get("/jobs/{job_id}/previous/short.mp4")
+    async def previous_file(job_id: str, download: bool = False) -> Response:
+        """098: the one previous version a change keeps (`out/previous/short.mp4`)."""
+        job = jobs.find(data_dir, job_id)
+        path = change.previous_short(job) if job is not None else None
+        if job is None or path is None:
+            return JSONResponse({"error": "no such file"}, status_code=404)
+        headers = None
+        if download:
+            headers = {"Content-Disposition": f'attachment; filename="{job.id}-previous.mp4"'}
+        return FileResponse(path, media_type="video/mp4", headers=headers)
+
     @app.get("/jobs/{job_id}/{name}")
     async def job_file(job_id: str, name: str, download: bool = False) -> Response:
         """One of the `out/` deliverables (10.4); `?download=1` makes it an attachment."""
@@ -1262,9 +1340,15 @@ def render_job_page(
         style_note=html.escape(record.style_note) or "–",
         references=references,
         brief=html.escape(brief),
-        result=_examples_block(job) + _result_block(job, agreed) + _inventory_block(job),
+        result=(
+            _examples_block(job) + _result_block(job, agreed) + _previous_block(job)
+            + _decisions_block(job) + _inventory_block(job)
+        ),
         publishing=_publishing_block(job),
-        feedback=_music_level_block(job) + _bed_pick_block(job, library) + _feedback_block(job),
+        feedback=(
+            _music_level_block(job) + _bed_pick_block(job, library) + _change_block(job)
+            + _feedback_block(job)
+        ),
         ledger=_ledger_block(job, average),
         json_url=f"/jobs/{html.escape(job.id)}.json",
         created_at=record.created_at.isoformat(),
@@ -1445,6 +1529,72 @@ def _music_level_block(job: Job) -> str:
     for note in recorded.notes if recorded is not None else []:
         parts.append(f'<p class="warning music-level-note">{html.escape(note)}</p>\n')
     return "".join(parts)
+
+
+def _previous_block(job: Job) -> str:
+    """098 / operator answer 4: the one previous version a change keeps, playable."""
+    if change.previous_short(job) is None:
+        return ""
+    base = f"/jobs/{html.escape(job.id)}/previous/short.mp4"
+    return (
+        "<h2>Previous version</h2>\n"
+        f'<video class="previous" controls playsinline preload="none" src="{base}" '
+        'width="270" height="480"></video>\n'
+        f'<p><a href="{base}?download=1">Download the previous version</a></p>\n'
+    )
+
+
+CHANGE_LABELS: dict[str, str] = {
+    "applied": "applied", "refused": "refused", "running": "re-rendering",
+}  # fmt: skip
+
+
+def _change_block(job: Job) -> str:
+    """098: the change box (a textarea and a button) once the job shows a short, and
+    every change asked so far, newest first, with what was done or why it was refused."""
+    record = job.record
+    parts: list[str] = []
+    if job.status in SHOWS_SHORT and record.swept_at is None:
+        parts += [
+            "<h2>Change this reel</h2>\n",
+            f'<form class="change" method="post" action="/jobs/{html.escape(job.id)}/change">\n'
+            '  <label for="change-text">Say what to change, with times as you see them in '
+            "the reel (e.g. &ldquo;at 0:12 show the map instead&rdquo;, &ldquo;music "
+            "quieter from 0:20 to 0:30&rdquo;).</label>\n"
+            f'  <textarea id="change-text" name="text" rows="3" maxlength="{CHANGE_TEXT_MAX}" '
+            "required></textarea>\n"
+            '  <button type="submit">Change the reel</button>\n'
+            "</form>\n",
+        ]
+    elif record.changes:
+        parts.append("<h2>Changes</h2>\n")
+    if record.changes:
+        rows = "\n".join(
+            f'  <li class="change-row {c.status}"><strong>{CHANGE_LABELS[c.status]}</strong> '
+            f'<span class="when">{c.at.astimezone(jobs.IST):%d %b %H:%M}</span> '
+            f"&ldquo;{html.escape(c.text)}&rdquo;"
+            + (f"<br>{html.escape(c.summary)}" if c.summary else "")
+            + "</li>"
+            for c in reversed(record.changes)
+        )
+        parts.append(f'<ul class="changes">\n{rows}\n</ul>\n')
+    return "".join(parts)
+
+
+def _decisions_block(job: Job) -> str:
+    """094 / 097 / 098: every choice the editor, its code fallback or the operator made:
+    step, beat, problem -> choice, by whom and why."""
+    decisions = job.record.decisions
+    if not decisions:
+        return ""
+    rows = "\n".join(
+        f'  <li class="decision {d.by}"><strong>{html.escape(d.step)} '
+        f"{html.escape(d.beat_id or 'plan')}</strong>: {html.escape(d.problem)} "
+        f"&rarr; <em>{html.escape(d.choice)}</em> "
+        f'<span class="by">({html.escape(d.by)}: {html.escape(d.reason)})</span></li>'
+        for d in decisions
+    )
+    return f'<h2>Editor\'s decisions</h2>\n<ul class="decisions">\n{rows}\n</ul>\n'
 
 
 def _bed_pick_block(job: Job, library: sound.Library | None) -> str:

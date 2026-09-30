@@ -1716,6 +1716,72 @@ def repick(
     )  # fmt: skip
 
 
+def recurve(
+    stems: Path,
+    out: Path,
+    *,
+    library: Library,
+    story: SoundStory,
+    plan: PicturePlan,
+    nums: styles.Sound,
+    runtime_s: float,
+    offset_db: float,
+) -> tuple[Path, BalanceReport]:
+    """098: the beds the delivered short plays (`balance.json` `beds`), rendered again
+    from their library files with `story`'s mood curve - the change box's `music` op
+    moved it - through the renderer's own bed path (`_music_stem`: the level match, the
+    envelope, the fades, 076's change gates, the dip the delivered bed carries). The new
+    stems at the style's starting level go into `out/START_DIR`, the level a later slider
+    offset is taken from, and the bed plays at that level plus `offset_db`, ducked and
+    premixed with the existing cues (`_from_start`, as 090's slider). A 076 change is
+    kept when the story still plans it and two beds play. Never repaired: the balance is
+    measured, problems and all (the ear wins). Raises `SoundError` when no bed plays or
+    a bed is not in the library."""
+    old = balance_report(stems)
+    ids = old.beds if old is not None else []
+    if not ids:
+        raise SoundError("this short has no music bed whose curve could change")
+    entries: list[AudioEntry] = []
+    for entry_id in ids:
+        entry = library.entry(entry_id)
+        if entry is None:
+            raise SoundError(f"the bed {entry_id} is not in the audio library any more")
+        entries.append(entry)
+    if len(entries) > 1 and story.change is not None and len(story.bed) > 1:
+        first, second = story.bed[0], story.bed[1]
+        score = Score(
+            spans=(
+                BedSpan(entry=entries[0], part=first.part_from, mood=first.mood),
+                BedSpan(entry=entries[1], part=second.part_from, mood=second.mood,
+                        start_s=part_start_s(story, plan, second.part_from)),
+            ),
+            how=story.change.how,
+        )  # fmt: skip
+    else:
+        score = Score.single(entries[0])
+    voice_db = _voice_db(stems)
+    start = out / START_DIR
+    start.mkdir(parents=True, exist_ok=True)
+    dip_db = old.dip_db if old is not None and old.dip_db is not None else 0.0
+    _music_stem(
+        start, score=score, library=library, story=story, nums=nums, voice_db=voice_db,
+        runtime_s=runtime_s, dip_db=dip_db,
+    )  # fmt: skip
+    windows: list[tuple[Window, Path]] = []
+    if len(score.spans) > 1:
+        windows = [
+            (w, out / f"music.{w.span + 1}.wav" if w.span is not None else out / "music.wav")
+            for w in balance_windows(score, nums, runtime_s=runtime_s)
+        ]
+    heard = {e.id for e in approved_beds(library)}
+    return _from_start(
+        stems, start, out, nums=nums, offset_db=offset_db, voice_db=voice_db, windows=windows,
+        heard=all(e.id in heard for e in entries),
+        carried={"repairs": old.repairs if old is not None else [], "dip_db": old.dip_db
+                 if old is not None else None, "beds": list(ids)},
+    )  # fmt: skip
+
+
 def _voice_db(stems: Path) -> float:
     voice = stems / "voice.wav"
     voice_db = ffmpeg.mean_volume_db(voice)

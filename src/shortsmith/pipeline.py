@@ -332,6 +332,8 @@ def run_job(
         if watchdog is not None:
             watchdog.stop()
     delivered = jobs.transition(job, "delivered")
+    if any(c.status == "running" for c in delivered.record.changes):
+        delivered = jobs.finish_changes(delivered, now=clock)  # 098: a change re-rendered
     return _after_delivery(delivered, inventory, clock)
 
 
@@ -1031,7 +1033,7 @@ class Rescue:
     def attempt(self, job: Job, status: str, exc: Exception) -> Status | None:
         if not rescuable(status, exc):
             return None
-        validated = _load_validated(job)
+        validated = load_validated(job)
         if validated is None:
             return None
         if self.count >= MAX_RESCUES:
@@ -1161,47 +1163,70 @@ class Rescue:
     def _patch(
         self, job: Job, validated: ValidatedPlan, picture: PicturePlan, step: str
     ) -> bool:
-        """Write the patched picture: re-validated on the output timeline with the soft
-        rules kept (hard survivors forced), into `work/plan.json` and the picture of
-        `work/plan.validated.json` (the sound, clamps, topic and examples kept; the new
-        warnings added), and `work/captions.json` rebuilt. False when a hard truth still
-        stands (the job then fails)."""
-        spec = style_of(job, self.specs)
-        transcript = _transcript(job)
-        brief = (job.input_dir / "brief.md").read_text(encoding="utf-8")
-        refs_path = job.input_dir / "refs.json"
-        refs = (
-            _REFS.validate_json(refs_path.read_text(encoding="utf-8"))
-            if refs_path.is_file()
-            else []
-        )
-        references = [
-            PlanReference(id=r.id, kind="image" if r.kind == "image" else "clip_frame",
-                          caption=r.caption, width=r.width, height=r.height)
-            for r in refs
-        ]  # fmt: skip
-        must_use = grammar.must_use_ids(brief, references)
-
-        def check(
-            plan: PicturePlan, *, keep_soft: bool = True
-        ) -> grammar.PictureCheck | grammar.Violations:
-            return grammar.validate_picture(
-                plan, transcript, spec, brief=brief, must_use=must_use,
-                references=[r.id for r in references], timeline="output", keep_soft=keep_soft,
-            )  # fmt: skip
-
-        result = _force_hard(job, picture, check, transcript, references, step, self.clock)
+        """Write the patched picture (`patch_picture`, hard survivors forced). False when
+        a hard truth still stands (the job then fails)."""
+        result = patch_picture(job, validated, picture, self.specs, step=step, clock=self.clock)
         if isinstance(result, grammar.Violations):
             jobs.note(job, "rescue: the patched plan still breaks a hard rule: "
                       + "; ".join(result.lines()))  # fmt: skip
             return False
-        warnings = list(validated.warnings)
-        warnings += [w for w in result.warnings if w not in warnings]
-        updated = validated.model_copy(update={"picture": result.picture, "warnings": warnings})
-        _write(job, "plan.json", result.picture)
-        _write(job, "plan.validated.json", updated)
-        _write(job, "captions.json", captions.build(transcript, result.picture, spec))
         return True
+
+
+def patch_picture(
+    job: Job,
+    validated: ValidatedPlan,
+    picture: PicturePlan,
+    specs: Specs,
+    *,
+    step: str,
+    clock: Clock,
+    force: bool = True,
+) -> grammar.PictureCheck | grammar.Violations:
+    """097 / 098: write a patched picture: re-validated on the output timeline with the
+    soft rules kept, into `work/plan.json` and the picture of `work/plan.validated.json`
+    (the sound, clamps, topic and examples kept; the new warnings added), and
+    `work/captions.json` rebuilt. With `force` (the rescues) the hard survivors take
+    their forced fallbacks first; without it (the change box) a hard violation is
+    returned and nothing is written."""
+    spec = style_of(job, specs)
+    transcript = _transcript(job)
+    brief = (job.input_dir / "brief.md").read_text(encoding="utf-8")
+    refs_path = job.input_dir / "refs.json"
+    refs = (
+        _REFS.validate_json(refs_path.read_text(encoding="utf-8"))
+        if refs_path.is_file()
+        else []
+    )
+    references = [
+        PlanReference(id=r.id, kind="image" if r.kind == "image" else "clip_frame",
+                      caption=r.caption, width=r.width, height=r.height)
+        for r in refs
+    ]  # fmt: skip
+    must_use = grammar.must_use_ids(brief, references)
+
+    def check(
+        plan: PicturePlan, *, keep_soft: bool = True
+    ) -> grammar.PictureCheck | grammar.Violations:
+        return grammar.validate_picture(
+            plan, transcript, spec, brief=brief, must_use=must_use,
+            references=[r.id for r in references], timeline="output", keep_soft=keep_soft,
+        )  # fmt: skip
+
+    result = (
+        _force_hard(job, picture, check, transcript, references, step, clock)
+        if force
+        else check(picture, keep_soft=True)
+    )
+    if isinstance(result, grammar.Violations):
+        return result
+    warnings = list(validated.warnings)
+    warnings += [w for w in result.warnings if w not in warnings]
+    updated = validated.model_copy(update={"picture": result.picture, "warnings": warnings})
+    _write(job, "plan.json", result.picture)
+    _write(job, "plan.validated.json", updated)
+    _write(job, "captions.json", captions.build(transcript, result.picture, spec))
+    return result
 
 
 def _gradient(plan: PicturePlan, beat_id: str) -> PicturePlan:
@@ -1217,7 +1242,7 @@ def _gradient(plan: PicturePlan, beat_id: str) -> PicturePlan:
     return replaced.model_copy(update={"beats": beats})
 
 
-def _load_validated(job: Job) -> ValidatedPlan | None:
+def load_validated(job: Job) -> ValidatedPlan | None:
     path = job.work_dir / "plan.validated.json"
     if not path.is_file():
         return None
