@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from shortsmith import contact_sheet
+from shortsmith import contact_sheet, jobs
 from shortsmith.jobs import Job
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaCheck, QaReport
@@ -50,10 +50,17 @@ class FakeGate(Gate):
         self.jobs: list[Path] = []
 
     def check(self, job: Job) -> QaReport:
+        """097: a check named in `job.json` `waived_checks` is delivered as `warn`, as
+        `technical.run` does."""
         self.jobs.append(job.path)
+        waived = jobs.load(job.path).record.waived_checks
         checks: list[QaCheck] = []
         for name in technical.CHECK_ORDER:
             failed = name == self.fail
+            if failed and name in waived:
+                checks.append(QaCheck(name=name, passed=True, status="warn",
+                                      detail=f"{technical.WAIVED_PREFIX}fake {name}"))  # fmt: skip
+                continue
             checks.append(QaCheck(name=name, passed=not failed, detail=f"fake {name}"))
             if failed:
                 break

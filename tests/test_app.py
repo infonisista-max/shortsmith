@@ -32,12 +32,13 @@ from shortsmith.contracts import (
 )
 from shortsmith.ingest import MIB, Limits
 from shortsmith.ledger import Caps, Ledger, LedgerError, Prices
-from shortsmith.planner import ApiPlanner, ClaudeCodePlanner, FakePlanner
+from shortsmith.planner import ApiPlanner, ClaudeCodePlanner, FakePlanner, PlanInvalid
 from shortsmith.presenter import FakeFaceDetector
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa import technical
 from shortsmith.qa.critic import FakeCritic, VisionCritic
 from shortsmith.qa.gate import FakeGate
+from shortsmith.qa.technical import QaCheck
 from shortsmith.render import FakeRenderer
 from shortsmith.transcriber import FakeTranscriber, GroqTranscriber
 from tests.conftest import Media
@@ -680,14 +681,13 @@ def test_the_app_builds_the_critic_from_the_config(tmp_path: Path) -> None:
 
 
 class _StillPlanner(FakePlanner):
-    """A planner whose photo beat has no motion, retry or not (4.1: no static still)."""
+    """A planner whose reply never parses, retry or not (097: a plan that parses goes to
+    the editor; only two replies with no plan still fail planning with the list)."""
 
     def plan_picture(
         self, request: PlanRequest, *, feedback: PlanFeedback | None = None
     ) -> PicturePlan:
-        plan = super().plan_picture(request)
-        b04 = plan.beats[3].model_copy(update={"motion": None})  # the stamped card (057)
-        return plan.model_copy(update={"beats": [*plan.beats[:3], b04, *plan.beats[4:]]})
+        raise PlanInvalid("picture", "{}", ["b04 (4.1): a still has no motion <b>"])
 
 
 def test_job_page_lists_the_violations_when_the_planner_was_rejected_twice(
@@ -761,6 +761,19 @@ def test_files_are_404_before_the_short_exists(client: TestClient, media: Media)
     assert "<video" not in client.get(location).text
 
 
+class _DeafGate(FakeGate):
+    """Fails `fail` whatever `waived_checks` says (097: a waived check that still fails
+    is the job's failure)."""
+
+    def check(self, job: jobs.Job) -> Any:
+        self.jobs.append(job.path)
+        rows = [QaCheck(name=n, passed=n != self.fail, detail=f"fake {n}")
+                for n in technical.CHECK_ORDER[: technical.CHECK_ORDER.index("T3") + 1]]
+        report = technical.report(rows)
+        technical.write_report(job, report)
+        return report
+
+
 def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
     tmp_path: Path, media: Media
 ) -> None:
@@ -769,7 +782,7 @@ def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), detector=FakeFaceDetector(),
-        gate=FakeGate(fail="T3"),
+        gate=_DeafGate(fail="T3"),
         start_worker=False,
     )
     with TestClient(app) as client:
@@ -787,12 +800,18 @@ def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
 
 
 class _HealingGate(FakeGate):
-    """Fails T3 once, the way a flaky step does, and passes from then on."""
+    """Loses the contact sheet once, the way a flaky step does, and works from then on
+    (097: a missing deliverable still fails qa; a failed check is rescued)."""
 
-    def check(self, job: jobs.Job) -> Any:
-        report = super().check(job)
-        self.fail = None
-        return report
+    def __init__(self) -> None:
+        super().__init__()
+        self.healed = False
+
+    def contact_sheet(self, job: jobs.Job) -> Path:
+        if not self.healed:
+            self.healed = True
+            return job.out_dir / "contact.jpg"  # never written
+        return super().contact_sheet(job)
 
 
 def _retrying_app(tmp_path: Path, **kwargs: Any) -> FastAPI:
@@ -801,7 +820,7 @@ def _retrying_app(tmp_path: Path, **kwargs: Any) -> FastAPI:
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), detector=FakeFaceDetector(),
-        gate=_HealingGate(fail="T3"),
+        gate=_HealingGate(),
         start_worker=False,
     )
 

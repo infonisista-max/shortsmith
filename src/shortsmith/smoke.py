@@ -335,6 +335,9 @@ def run_smoke(
         transcriber=transcriber, planner=planner, renderer=renderer,
         sourcing=smoke_sourcing(root / "stickers"), specs=judged, library=library,
         critic=critic, inventory=own.SelfInventory(analyser),
+        # 097: the editor on the fake planner (every decision the code's fallback) and
+        # the renderer's fake geocoder.
+        editor=pipeline.default_editor(planner, renderer),
     )  # fmt: skip
     worker.submit(job.path)
     check(worker.run_next(), "the worker had nothing to run")
@@ -345,6 +348,10 @@ def run_smoke(
         err = reloaded.record.error
         raise SmokeFailure(f"job failed at {err.step}: {err.message} ({err.detail.strip()})")
     check(reloaded.status == LAST_STATUS, f"job status is {reloaded.status}")
+    # 097: the fixture plan needs no rescue; a decision here means the editor hid a
+    # regression the smoke used to fail on.
+    rescued = [f"{d.step} {d.beat_id or 'plan'}: {d.problem}" for d in reloaded.record.decisions]
+    check(not rescued, f"the editor had to rescue the fixture job: {'; '.join(rescued)}")
     # 011: every fake is free, so the ledger stays empty (and no cap can be crossed).
     check(reloaded.record.cost == [], f"fake-only job has ledger rows: {reloaded.record.cost}")
     asr_path = job.work_dir / "asr.json"

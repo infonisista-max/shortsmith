@@ -321,20 +321,20 @@ def test_rights_safe_policy_reaches_the_step(tmp_path: Path, fixture_clip: Path)
     assert web.searches == 0 and commons.searches > 0
 
 
-def test_a_missing_reference_file_fails_the_job_at_sourcing(
+def test_a_missing_reference_file_is_a_logged_gradient_not_a_failure(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
+    """096 / 097: one beat's sourcing error never fails the job; it is logged and that
+    beat is shown over the gradient."""
     job = _uploaded(tmp_path, fixture_clip)
     ref = {"id": "r1", "file": "refs/1_gone.png", "kind": "image",
            "caption": "slow colour gradient sky", "original_name": "gone.png",
            "width": 1080, "height": 1920, "size_bytes": 1}  # fmt: skip
     (job.input_dir / "refs.json").write_text(json.dumps([ref]), encoding="utf-8")
     done = _run(job)
-    assert done.status == "failed"
-    assert done.record.error is not None
-    assert done.record.error.step == "sourcing"
-    assert done.record.error.message == pipeline.ERROR_TEXT["sourcing"]
-    assert "refs/1_gone.png is missing" in done.record.error.detail
+    assert done.status == "delivered"
+    log = job.log_path.read_text("utf-8")
+    assert "refs/1_gone.png is missing" in log and "plain fallback" in log
 
 
 class _RightslessGate(FakeGate):
@@ -351,19 +351,26 @@ def test_delivered_requires_rights_and_credits(tmp_path: Path, fixture_clip: Pat
     assert "rights.json" in done.record.error.detail
 
 
-def test_a_failed_check_fails_the_job_at_qa_and_names_the_check(
+def test_a_failed_check_naming_no_beat_is_delivered_with_a_note(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
+    """097: a failing check is a snag, not a failure: with no beat in its detail the one
+    option is "deliver with a note" - the check joins `waived_checks`, qa runs again and
+    the check is `warn` in out/qa.json."""
     job = _uploaded(tmp_path, fixture_clip)
     done = _run(job, gate=FakeGate(fail="T2"))
-    assert done.status == "failed"
-    assert done.record.error is not None
-    assert done.record.error.step == "qa"
-    assert done.record.error.message == "The short failed a technical check (T2)."
-    assert (job.out_dir / "qa.json").is_file()  # the report is written either way (10.1)
-    assert not (job.out_dir / "contact.jpg").exists()  # no sheet from a failed short
+    assert done.status == "delivered"
+    assert done.record.waived_checks == ["T2"]
+    report = json.loads((job.out_dir / "qa.json").read_text("utf-8"))
+    (t2,) = [c for c in report["checks"] if c["name"] == "T2"]
+    assert t2["status"] == "warn" and t2["detail"].startswith(technical.WAIVED_PREFIX)
+    (decision,) = done.record.decisions
+    assert decision.step == "qa" and decision.by == "fallback"
+    assert decision.choice.startswith("deliver with a note")
     log = [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
-    assert log[-1].startswith("qa -> failed step=qa")
+    assert "rescue 1/12: qa: T2: fake T2" in log
+    assert "qa -> qa rewind: T2 delivered with a note (warn)" in log
+    assert "qa -> delivered" in log
 
 
 class _SheetlessGate(FakeGate):
@@ -515,9 +522,12 @@ def test_the_critics_hard_cap_fails_the_job_at_qa_like_any_refused_paid_call(
 
 
 def test_a_failed_check_never_reaches_the_critic(tmp_path: Path, fixture_clip: Path) -> None:
+    """The failing gate run stops before the critic; only the re-run with the check
+    waived (097) reaches it, once."""
     fake = FakeCritic()
-    done = _run(_uploaded(tmp_path, fixture_clip), gate=FakeGate(fail="T2"), critic=fake)
-    assert done.status == "failed" and fake.calls == 0
+    gate = FakeGate(fail="T2")
+    done = _run(_uploaded(tmp_path, fixture_clip), gate=gate, critic=fake)
+    assert done.status == "delivered" and len(gate.jobs) == 2 and fake.calls == 1
 
 
 def test_the_worker_scores_through_the_fake_critic_unless_told_otherwise() -> None:
@@ -591,16 +601,20 @@ def test_plan_request_is_built_from_the_job_files(
     assert req.asset_policy in ("any", "rights_safe")
 
 
-def test_a_job_whose_style_is_unknown_fails_at_planning_naming_it(
+def test_a_job_whose_style_is_unknown_runs_with_the_default_and_says_so(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
+    """097: a style that is not loaded is a plain fallback to `styles.DEFAULT`, noted on
+    the page (`style_notice`) and once in job.log, never a failure."""
     job = _uploaded(tmp_path, fixture_clip)
     record = job.record.model_copy(update={"style": "retro"})
     job.json_path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
     done = _run(jobs.load(job.path))
-    assert done.status == "failed"
-    assert done.record.error is not None and done.record.error.step == "planning"
-    assert "retro" in done.record.error.detail
+    assert done.status == "delivered"
+    assert done.record.style == styles.DEFAULT
+    assert "retro" in done.record.style_notice
+    log = job.log_path.read_text("utf-8")
+    assert log.count("style: 'retro' is not a loaded spec") == 1
 
 
 def test_the_pager_reads_words_per_page_from_the_style(
@@ -747,32 +761,44 @@ def test_a_rejected_sound_story_is_resent_once(tmp_path: Path, fixture_clip: Pat
     assert all(c.beat_id != "b99" for c in story.cues)
 
 
-@pytest.mark.parametrize("call", ["picture", "sound"])
-def test_a_plan_rejected_twice_fails_the_job_at_planning_with_the_list(
-    tmp_path: Path, fixture_clip: Path, call: str
+def test_a_picture_plan_rejected_twice_goes_to_the_editor_and_is_delivered(
+    tmp_path: Path, fixture_clip: Path
 ) -> None:
-    """8.2: exactly one retry; the second rejection fails the job with the violation
-    list in job.json (and on the page), and nothing is rendered."""
+    """097: the second rejection is the editor's: b04 enters on a plain cut instead of the
+    style-less `wipe` (the problem names `enter`), then its missing motion - a soft rule
+    - is kept with a note on the validated plan; every decision is on job.json."""
     job = _uploaded(tmp_path, fixture_clip)
-    bad = {"picture": (9, 0), "sound": (0, 9)}[call]
-    planner = _RetryPlanner(bad_picture=bad[0], bad_sound=bad[1])
+    planner = _RetryPlanner(bad_picture=9)
     done = _run(job, planner=planner)
-    assert done.status == "failed"
-    assert done.record.error is not None
-    assert done.record.error.step == "planning"
-    assert done.record.error.message == pipeline.ERROR_TEXT["planning"]
-    if call == "picture":
-        assert len(planner.picture_feedback) == 2 and planner.sound_feedback == []
-        assert done.record.error.violations[0].startswith("b04 (4.1)")
-    else:
-        assert len(planner.picture_feedback) == 1 and len(planner.sound_feedback) == 2
-        assert done.record.error.violations == [GHOST_CUE]
-    assert all(line in done.record.error.detail for line in done.record.error.violations)
-    assert f"{call} plan was rejected twice" in done.record.error.detail
-    assert not (job.work_dir / "plan.json").exists()
-    assert not (job.work_dir / "plan.validated.json").exists()
-    assert (job.work_dir / "plan.raw.json").is_file()  # the rejected output stays on disk
-    assert jobs.load(job.path).record.error == done.record.error
+    assert done.status == "delivered"
+    assert len(planner.picture_feedback) == 2 and planner.sound_feedback == [None]
+    plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    assert plan.beats[3].enter == "cut" and plan.beats[3].motion is None
+    validated = ValidatedPlan.model_validate_json(
+        (job.work_dir / "plan.validated.json").read_text("utf-8")
+    )
+    assert any(w.startswith("kept by the editor: b04 (4.1)") for w in validated.warnings)
+    choices = [(d.beat_id, d.by, d.choice) for d in done.record.decisions]
+    assert choices[0] == ("b04", "fallback", "enter on a plain cut instead of 'wipe'")
+    assert choices[1][0] == "b04" and choices[1][2].startswith("keep the beat as planned")
+    log = job.log_path.read_text("utf-8")
+    assert "picture plan rejected twice; the editor takes over" in log
+    assert "editor: planning b04:" in log
+    assert (job.work_dir / "plan.raw.json").is_file()  # the planner's output stays on disk
+
+
+def test_a_sound_story_rejected_twice_drops_the_named_cues_and_is_delivered(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    job = _uploaded(tmp_path, fixture_clip)
+    planner = _RetryPlanner(bad_sound=9)
+    done = _run(job, planner=planner)
+    assert done.status == "delivered"
+    assert len(planner.sound_feedback) == 2
+    story = SoundStory.model_validate_json((job.work_dir / "sound.json").read_text("utf-8"))
+    assert all(c.beat_id != "b99" for c in story.cues) and story.cues
+    (decision,) = done.record.decisions
+    assert decision.beat_id == "b99" and decision.choice == "drop this beat's sound cues"
 
 
 # --- ticket 014: the CLI adapter through the planning step (decisions 8.1-8.3) -------
@@ -1412,7 +1438,9 @@ class _CountingTranscriber(FakeTranscriber):
 
 
 class _FlakySource(assets.FakeImageSource):
-    """Searches happily `fail_after` times, then goes down for the rest of the run."""
+    """Searches happily `fail_after` times, then refuses at the hard cap for the rest of
+    the run (097: a plain search error is a per-beat gradient now; the cap still stops
+    the job)."""
 
     def __init__(self, fail_after: int) -> None:
         super().__init__("web")
@@ -1420,7 +1448,7 @@ class _FlakySource(assets.FakeImageSource):
 
     def search(self, query: str, n: int) -> list[Candidate]:
         if self.searches >= self.fail_after:
-            raise RuntimeError("the image search is down")
+            raise BudgetExceeded("sourcing", spent_inr=80.0, estimated_inr=1.0, hard_inr=80.0)
         return super().search(query, n)
 
 
@@ -1542,9 +1570,9 @@ def test_the_worker_runs_a_requeued_job_from_its_step(tmp_path: Path, fixture_cl
     job = _uploaded(tmp_path, fixture_clip)
     stopped = pipeline.Worker(
         transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
-        gate=FakeGate(fail="T3"), sourcing=_sourcing(), specs=SPECS,
+        gate=_SheetlessGate(), sourcing=_sourcing(), specs=SPECS,
         detector=presenter.FakeFaceDetector(),
-    )  # fmt: skip
+    )  # fmt: skip  # 097: a missing deliverable still fails qa; a failed check is rescued
     stopped.submit(job.path)
     assert stopped.run_next() is True
     failed = jobs.load(job.path)

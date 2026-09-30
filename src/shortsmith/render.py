@@ -2103,7 +2103,8 @@ def map_layout(
             infographics.map_recipe(beat), numbers=numbers.info, geocoder=geocoder,
             overlays=beat.overlays, length_s=beat.end - beat.start,
         )  # fmt: skip
-    except infographics.InfographicError as exc:
+    except (infographics.InfographicError, geo.GeocodeError, ValueError, KeyError) as exc:
+        # 097: any geocoding or recipe failure names the beat, so the editor can rescue it
         raise RenderError(f"{beat.id}: {exc}") from None
 
 

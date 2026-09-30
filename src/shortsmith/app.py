@@ -336,10 +336,11 @@ def create_app(
     # tests pass `FakeRenderer` and `FakeGate`. The asset step follows
     # `ASSET_SOURCES` / `ASSET_POLICY` (016) with the `web` adapter (017), the free
     # libraries (018) and the relevance judge `RELEVANCE_JUDGE` names (017).
+    renderer = renderer or render.RemotionRenderer(search=freesound.from_settings(settings))
     worker = pipeline.Worker(
         transcriber=transcriber,
         planner=planner,
-        renderer=renderer or render.RemotionRenderer(search=freesound.from_settings(settings)),
+        renderer=renderer,
         gate=gate,
         sourcing=sourcing or assets.from_settings(settings, ledger=_book),
         specs=specs,
@@ -352,6 +353,9 @@ def create_app(
         max_queue=settings.max_queue,
         max_job_minutes=settings.max_job_minutes,
         clock=clock,
+        # 097: the editor asks the configured planner and frames maps with the
+        # renderer's geocoder; the fake planner makes every decision the fallback.
+        editor=pipeline.default_editor(planner, renderer, clock=clock),
     )
     # 034 / 14.1(a): the read-only view-count pull `YOUTUBE_API_KEY` enables; tests
     # pass one on a mock transport. None leaves views a hand-typed field.
