@@ -174,11 +174,13 @@ class _GappyPlanner(FakePlanner):
 
 
 def test_plan_assertion_failure_names_the_gap(capsys: pytest.CaptureFixture[str]) -> None:
-    """009: the grammar now catches the gap at `planning` (3.1), twice, and the smoke
-    reports the failed job with the violation list."""
+    """009 as amended by 097: the grammar catches the gap at `planning` (3.1), twice;
+    the editor repairs the plan instead of failing the job, and the smoke still fails
+    because the fixture job needed a rescue, naming the step and the violation."""
     assert smoke.main([], planner=_GappyPlanner()) != 0
     err = capsys.readouterr().err
-    assert "failed at planning" in err and "gap" in err and "(3.1)" in err
+    assert "the editor had to rescue the fixture job" in err
+    assert "planning" in err and "gap" in err and "(3.1)" in err
 
 
 def test_main_passes_the_style_flag_to_run_smoke(
