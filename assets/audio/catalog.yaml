@@ -1070,3 +1070,73 @@ entries:
   drop_points_s: []
   loop_ok: false
   energy: 3
+- id: freesound_63567
+  kind: bed
+  file: beds/freesound_63567.mp3
+  source: freesound
+  source_url: https://freesound.org/people/Headphaze/sounds/63567/
+  source_name: a higher state.wav
+  source_tags:
+  - artificial
+  - atmosphere
+  - bass
+  - dark
+  - deep
+  - digital
+  - drone
+  - effect
+  - effects
+  - electronic
+  - fx
+  - metallic
+  - music
+  - noise
+  - oscillate
+  - oscillation
+  - pad
+  - processed
+  - resonance
+  - sci-fi
+  - sound
+  - sound-design
+  - sub
+  - synthetic
+  licence: CC BY 4.0
+  author: Headphaze
+  credit: a higher state.wav by Headphaze (freesound.org), CC BY 4.0
+  duration_s: 46.4
+  bpm: 137.0
+  key: Em
+  tags:
+    theme: []
+    mood:
+    - investigative_pulse
+    intent: []
+    flavour: []
+    role:
+    - facts_default
+  drop_points_s: []
+  loop_ok: false
+  energy: 1
+- id: mixkit_mixkit-trap-hamza-267_mp3
+  kind: bed
+  file: beds/mixkit_mixkit-trap-hamza-267_mp3.mp3
+  source: mixkit
+  source_url: https://mixkit.co/free-stock-music/discover/hamza/
+  source_name: mixkit-trap-hamza-267.mp3
+  source_tags: []
+  licence: Mixkit Free License
+  duration_s: 104.73
+  bpm: 110.0
+  key: Am
+  tags:
+    theme: []
+    mood:
+    - investigative_pulse
+    intent: []
+    flavour: []
+    role:
+    - facts_default
+  drop_points_s: []
+  loop_ok: false
+  energy: 3
