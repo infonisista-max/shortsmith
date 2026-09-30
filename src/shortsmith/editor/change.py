@@ -55,6 +55,7 @@ from pydantic import TypeAdapter
 from shortsmith import grammar, jobs, pipeline, presenter, render, sound, styles
 from shortsmith.assets.generate import depicts_of
 from shortsmith.contracts import (
+    NAMED_DEPICTS,
     Beat,
     ChangeRequest,
     Depicts,
@@ -448,7 +449,7 @@ def patch_picture_op(plan: PicturePlan, op: ChangeOp) -> PicturePlan:
             return repairs.place_reference(plan, op.beat, op.ref)
         case "new_image":
             replaced = repairs.replace_visual(plan, op.beat)
-            subject = "entity" if op.depicts == "named_entity" else None
+            subject = "entity" if op.depicts in NAMED_DEPICTS else None
             beats = [
                 b.model_copy(update={
                     "query": op.query, "query_fallback": "", "depicts": op.depicts,

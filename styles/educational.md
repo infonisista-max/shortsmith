@@ -1,5 +1,5 @@
 ---
-version: "18"
+version: "19"
 status: draft
 aliases: [educational, education, teach, teaching, lesson, tutorial, learn, classroom]
 requires_components: [captions, pip, diagram, step_card, recap_card]
@@ -177,7 +177,7 @@ Calm, clear teaching. DRAFT (grill decision 1.4): aliases resolve to `explainer`
 ## B-roll
 - Diagrams, labelled images, step cards and simple process animations dominate; photos are calm Ken Burns, cards sit flat with no rotation.
 - Sources and rights as in explainer (5.1); generated illustration is the flat diagram look in `illustration_look`.
-- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat only (a process, a phenomenon, a kind of place), never a named entity; at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
+- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat (a process, a phenomenon, a kind of place) or a named place, era, event or object, never a named person (099; on an era beat, period-looking footage comes first; a timeless shot (desert, sea, sky, sand dunes) is fine and may take a light film or sepia grade; never modern cars, skylines, phones or present-day clothes standing in for the old era, then a still (099)); at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
 - Fewer unique assets than explainer (`unique_assets_min_per_60s`–`unique_assets_max_per_60s`); reuse a diagram across the steps it explains.
 - Transitions are `cut` and `fade` only (9.4); no whips, no flash (060).
 - Article highlights (4.1 as amended by 078; off here: `highlights_max_per_60s` is 0): where a style allows them, a `photo` or `card` beat that shows the owner's uploaded article or document screenshot (an owner reference; never a searched or generated page, never a made-up article) may carry one `highlight`: the `sentence` to mark as it reads on the screenshot and the transcript `words` that say it. A marker in `motion.highlight.color` at `motion.highlight.opacity` sweeps the sentence's lines left to right from the first word to the last while the screenshot, a straight card, pushes in toward them. Code finds the lines on the image; a sentence it cannot find is dropped and the beat stays.

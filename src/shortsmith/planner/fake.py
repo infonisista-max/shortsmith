@@ -329,7 +329,8 @@ class FakePlanner(Planner):
               query_fallback="abstract gradient", source_intent="search",
               asset_id=first_asset, stickers=stuck, highlight=fake_highlight(request)),
             B(id="b02", start=0.5, end=1.0, mode="pip", kind="card", motion="push_in",
-              subject_kind="entity", query="India Gate Delhi archival photo",
+              subject_kind="entity", depicts="named_place",  # 099: a place, not a person
+              query="India Gate Delhi archival photo",
               query_fallback="Delhi monument", source_intent="search", asset_id="a2",
               enter=enter("whip"), event=Event(kind="lower_third", text="India Gate · Delhi")),
             # 060: the turn back to the presenter flashes where the style enables it.

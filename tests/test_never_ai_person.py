@@ -135,4 +135,6 @@ def test_a_replaced_named_person_is_never_generated(tmp_path: Path) -> None:
     manifest = _run_replaced(tmp_path, [beat], replaced=frozenset({"b01"}),
                              generating=generating, clips_by_name=no_clips)  # fmt: skip
     assert manifest.beats[0].treatment == "gradient"
-    assert generator.calls == 0 and _refusals(generating)
+    # 099: a `named_person` now takes the named ladder (owner reference, a real photo
+    # already shown, the gradient) and never even reaches the door, so nothing is refused
+    assert generator.calls == 0 and generating.images == 0

@@ -12,6 +12,8 @@ what the beat `depicts`, with the look words taken from the style's front matter
 - `named_entity` - a specific named person, product or org - is the illustration
   pattern, `clearly stylised, not a photograph`, always. That is the one 4.2 ban, and
   gate T9 fails a generated named entity rendered photoreal (`rights.completeness`).
+  099: every split value (`named_place`, `named_era`, `named_event`, `named_object`)
+  takes the same pattern; a `named_person` is never generated at all (100).
 
 Both end in "no text, no watermarks, no logos": text inside a generated image is
 never trusted (9.3 draws labels in code), and every image is asked for at 9:16.
@@ -54,7 +56,7 @@ from shortsmith.assets.base import media_type
 from shortsmith.assets.http import SUFFIX, items
 from shortsmith.assets.http import field as json_field
 from shortsmith.assets.http import text as json_text
-from shortsmith.contracts import Beat, Depicts, Generated, Render
+from shortsmith.contracts import NAMED_DEPICTS, Beat, Depicts, Generated, Render
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
 from shortsmith.styles import StyleSpec
@@ -152,11 +154,22 @@ def depicts_of(beat: Beat) -> Depicts:
     return "named_entity" if beat.subject_kind == "entity" else "scene"
 
 
-# 100: the `depicts` values that name a real person. 099 adds `named_person` to the
-# contract; the old `named_entity` counts as a person on any beat that is not a `concept`
-# (the prompt's `entity` beat is "a named person, place, product ..." and cannot tell
-# them apart, so it is read the safe way).
+# 100: the `depicts` values that name a real person. 099 split `named_entity`: only
+# `named_person` is a person for sure; the old `named_entity` counts as a person on any
+# beat that is not a `concept` (a stored plan's `entity` beat is "a named person, place,
+# product ..." and cannot tell them apart, so it is read the safe way, exactly as before).
+# `named_place`, `named_era`, `named_event` and `named_object` are never a person.
 PERSON_DEPICTS: frozenset[str] = frozenset({"named_person"})
+# 099: the values that keep the no-stock rule (never a stock stranger, never a clip).
+NO_STOCK_DEPICTS: frozenset[str] = frozenset({"named_person", "named_entity"})
+
+# 099: a query that names an era - a year, a decade, a century or an age word.
+_ERA = re.compile(
+    r"\b(1[0-9]{3}|20[0-2][0-9])s?\b|\b[0-9]{1,2}(st|nd|rd|th)[ -]century\b|"
+    r"\b(ancient|medieval|vintage|archival|historic|historical|colonial|victorian|"
+    r"prehistoric|bygone)\b",
+    re.IGNORECASE,
+)
 
 
 def names_a_person(beat: Beat) -> bool:
@@ -164,6 +177,26 @@ def names_a_person(beat: Beat) -> bool:
     if beat.depicts is not None and beat.depicts in PERSON_DEPICTS:
         return True
     return depicts_of(beat) == "named_entity" and beat.subject_kind != "concept"
+
+
+def is_named(beat: Beat) -> bool:
+    """099: whether the beat depicts something named (a person, place, era, event,
+    object, or the old undivided `named_entity`) rather than a scene."""
+    return depicts_of(beat) in NAMED_DEPICTS
+
+
+def never_stock(beat: Beat) -> bool:
+    """099 (053, 058): whether the beat keeps the no-stock rule - a named person, or the
+    old `named_entity` read as before. It never takes a stock library or a stock clip;
+    a named place, era, event or object may."""
+    return depicts_of(beat) in NO_STOCK_DEPICTS
+
+
+def is_era(beat: Beat) -> bool:
+    """099: an era beat - `named_era`, or a query naming a year, a decade, a century or
+    an age ("a 1950s oil field", "19th century caravan", "ancient trade route"). Its
+    clips are judged for the era: period first, timeless next, never modern."""
+    return depicts_of(beat) == "named_era" or bool(_ERA.search(beat.query))
 
 
 def is_diagram_base(beat: Beat) -> bool:
@@ -177,12 +210,12 @@ def build_prompt(beat: Beat, spec: StyleSpec) -> Prompt:
     scene = beat.query.strip()
     look = spec.broll
     tail = f"{TAIL}, {DIAGRAM_TAIL}" if is_diagram_base(beat) else TAIL
-    if depicts_of(beat) == "named_entity":
+    if is_named(beat):  # 099: every named value keeps the illustration (4.2)
         return Prompt(
             f"{look.illustration_look}, vertical 9:16, illustration of {scene}, "
             f"clearly stylised, not a photograph, {tail}",
             "illustration",
-            "named_entity",
+            depicts_of(beat),
         )
     faces = "" if wants_person(scene) else f"{NO_FACES}, "
     return Prompt(

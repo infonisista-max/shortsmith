@@ -33,14 +33,14 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Self, cast
+from typing import Self, cast, get_args
 
 import anthropic
 from anthropic.types import ImageBlockParam, Message, MessageParam, TextBlockParam
 from pydantic import SecretStr
 
 from shortsmith.assets.base import media_type
-from shortsmith.contracts import Candidate
+from shortsmith.contracts import Candidate, Era
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
 
@@ -62,7 +62,9 @@ REASONS: tuple[str, ...] = (
     "too_small",
     "nsfw",
     "logo_only",
+    "modern_for_era",  # 099: modern cars, skylines, phones or clothes standing in for an era
 )
+ERAS: tuple[str, ...] = get_args(Era)  # 099: period, timeless, modern
 MIN_SCORE = 2  # 5.2: best >= 2 wins; everything under 2 falls to the next source
 MAX_SCORE = 3
 
@@ -77,6 +79,14 @@ SYSTEM_PROMPT = (
     "0 = wrong subject, or unshowable.\n"
     f"Reasons must come from this list, and only for what you actually see: {', '.join(REASONS)}. "
     "A score of 3 usually has no reasons.\n"
+    "When the request says `Era beat: yes`, the beat is set in the past (a named era, a "
+    "year, a decade, a century). Judge each candidate like an editor cutting a period "
+    "story and add `era` and `why` to its object: `era` is `period` when it looks of that "
+    "time (archival, old film, period dress and machines), `timeless` when nothing in it "
+    "dates it (a desert, the sea, the sky, sand dunes, a bare landscape; it may take a "
+    "light film or sepia grade), or `modern` when modern cars, skylines, phones or "
+    "people's present-day clothes stand in for the old era; a `modern` candidate scores "
+    "0 with the reason `modern_for_era`. `why` is one short line saying what you saw.\n"
     'Answer with JSON only: {"candidates": [{"index": 1, "score": 2, "reasons": ["watermark"]}]}, '
     "one object per candidate, in the order you were given them, and nothing else."
 )
@@ -96,10 +106,13 @@ class Verdict:
 
     score: int
     reasons: tuple[str, ...] = ()
+    era: Era | None = None  # 099: `period`, `timeless` or `modern` on an era beat
+    why: str = ""  # 099: the judge's one-line reason, logged when it refuses a clip
 
     @property
     def accepted(self) -> bool:
-        return self.score >= MIN_SCORE
+        """5.2's floor; 099: a modern stand-in for an old era is never accepted."""
+        return self.score >= MIN_SCORE and self.era != "modern"
 
 
 @dataclass(frozen=True)
@@ -123,8 +136,11 @@ class RelevanceJudge(ABC):
 
     @abstractmethod
     def score(
-        self, query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb]
-    ) -> list[Verdict]: ...
+        self, query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb],
+        *, era: bool = False,
+    ) -> list[Verdict]:
+        """`era` (099): the beat is set in the past, so each verdict carries its era
+        (`period`, `timeless` or `modern`) and the reason."""
 
 
 def _words(text: str) -> set[str]:
@@ -143,7 +159,8 @@ class FakeRelevanceJudge(RelevanceJudge):
         self.calls = 0
 
     def score(
-        self, query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb]
+        self, query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb],
+        *, era: bool = False,
     ) -> list[Verdict]:
         self.calls += 1
         if self.floor is not None:
@@ -155,12 +172,27 @@ class FakeRelevanceJudge(RelevanceJudge):
             found = _words(thumb.candidate.url.replace("-", " "))
             hit = wanted & found
             if wanted and hit == wanted:
-                verdicts.append(Verdict(MAX_SCORE))
+                verdict = Verdict(MAX_SCORE)
             elif hit:
-                verdicts.append(Verdict(MIN_SCORE))
+                verdict = Verdict(MIN_SCORE)
             else:
-                verdicts.append(Verdict(0, ("wrong_subject",)))
+                verdict = Verdict(0, ("wrong_subject",))
+            verdicts.append(_fake_era(verdict, found) if era else verdict)
         return verdicts
+
+
+_MODERN_WORDS = frozenset({"modern", "car", "cars", "skyline", "skylines", "phone", "phones"})
+_PERIOD_WORDS = frozenset({"archival", "vintage", "sepia", "film", "old"})
+
+
+def _fake_era(verdict: Verdict, url_words: set[str]) -> Verdict:
+    """099's era verdict as the fake reads it from the URL: a modern word is a refused
+    stand-in, a period word is period, anything else is timeless."""
+    if url_words & _MODERN_WORDS:
+        return Verdict(0, ("modern_for_era",), era="modern", why="modern detail in the frame")
+    if url_words & _PERIOD_WORDS:
+        return Verdict(verdict.score, verdict.reasons, era="period", why="looks of the time")
+    return Verdict(verdict.score, verdict.reasons, era="timeless", why="nothing dates it")
 
 
 # The seam tests replace: what one Messages call is, keyword arguments in and the SDK's
@@ -186,14 +218,23 @@ def create_message(api_key: SecretStr, *, max_retries: int, timeout_s: float) ->
     return create
 
 
-def request_text(query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb]) -> str:
-    """The one text block: what the beat asked for and what each candidate is."""
+def request_text(
+    query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb], *, era: bool = False
+) -> str:
+    """The one text block: what the beat asked for and what each candidate is; on an era
+    beat (099) the line that asks for each candidate's `era` and `why`."""
     lines = [
         f"Short topic: {topic or '(not given)'}",
         f"Beat query: {query}",
         f"Subject kind: {subject_kind or 'unknown'}",
-        f"Candidates ({len(thumbs)}), in order:",
     ]
+    if era:
+        lines.append(
+            "Era beat: yes - period-looking first; a timeless shot (desert, sea, sky, dunes) "
+            "is fine; never modern cars, skylines, phones or present-day clothes standing in "
+            "for the old era. Give each candidate `era` and `why`."
+        )
+    lines.append(f"Candidates ({len(thumbs)}), in order:")
     for i, thumb in enumerate(thumbs, start=1):
         size = f"{thumb.candidate.width}x{thumb.candidate.height}" if thumb.candidate.width else "?"
         shown = "thumbnail below" if thumb.body is not None else "no thumbnail, URL only"
@@ -226,9 +267,13 @@ def parse_reply(reply: str, n: int) -> list[Verdict]:
             # 096: NaN or infinity is no score at all; the beat is sourced unjudged
             raise JudgeError(f"the judge scored candidate {i} {score!r}, not a number")
         listed_reasons = cast("list[object]", reasons) if isinstance(reasons, list) else []
+        era = _field(item, "era")
+        why = _field(item, "why")
         by_index[index if isinstance(index, int) else i] = Verdict(
             score=min(max(int(score), 0), MAX_SCORE) if isinstance(score, int | float) else 0,
             reasons=tuple(r for r in listed_reasons if isinstance(r, str) and r in REASONS),
+            era=cast("Era", era) if isinstance(era, str) and era in ERAS else None,
+            why=why.strip() if isinstance(why, str) else "",
         )
     return [by_index.get(i, Verdict(0, ("wrong_subject",))) for i in range(1, n + 1)]
 
@@ -262,14 +307,15 @@ class VisionJudge(RelevanceJudge):
         return bound
 
     def score(
-        self, query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb]
+        self, query: str, subject_kind: str, topic: str, thumbs: Sequence[Thumb],
+        *, era: bool = False,
     ) -> list[Verdict]:
         job = self._job
         if job is None:
             raise JudgeError("VisionJudge has no job: bind(job) before calling")
         if self._api_key is None:
             raise JudgeError("RELEVANCE_JUDGE=api needs ANTHROPIC_API_KEY in .env")
-        text = request_text(query, subject_kind, topic, thumbs)
+        text = request_text(query, subject_kind, topic, thumbs, era=era)
         content: list[TextBlockParam | ImageBlockParam] = [{"type": "text", "text": text}]
         images = 0
         for thumb in thumbs:
@@ -375,10 +421,18 @@ class Judging:
         topic: str,
         candidates: Sequence[Candidate],
         thumbnail: Callable[[Candidate], bytes | None],
+        *,
+        era: bool = False,
     ) -> list[Verdict] | None:
+        """`era` (099): the beat is set in the past; its verdicts carry the era and are
+        cached apart from the same candidate's plain verdict."""
         if self.judge is None or not candidates:
             return None
-        unjudged = [c for c in candidates if c.url not in self.cache]
+
+        def key(c: Candidate) -> str:
+            return f"era:{c.url}" if era else c.url
+
+        unjudged = [c for c in candidates if key(c) not in self.cache]
         if unjudged:
             if self.calls >= self.max_calls:
                 if not self.capped:
@@ -391,10 +445,13 @@ class Judging:
             thumbs = [Thumb(c, thumbnail(c)) for c in unjudged]
             self.calls += 1
             try:
-                scored = self.judge.score(query, subject_kind, topic, thumbs)
+                if era:
+                    scored = self.judge.score(query, subject_kind, topic, thumbs, era=True)
+                else:
+                    scored = self.judge.score(query, subject_kind, topic, thumbs)
             except JudgeError as exc:
                 self.notes.append(f"judge: {exc}")
                 return None
             for candidate, verdict in zip(unjudged, scored, strict=True):
-                self.cache[candidate.url] = verdict
-        return [self.cache[c.url] for c in candidates]
+                self.cache[key(candidate)] = verdict
+        return [self.cache[key(c)] for c in candidates]

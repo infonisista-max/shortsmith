@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ValidationError
 
 from shortsmith import geo, jobs
-from shortsmith.assets.generate import depicts_of
+from shortsmith.assets.generate import is_named
 from shortsmith.contracts import Beat, EditorDecision, PicturePlan, Transcript
 from shortsmith.editor import repairs
 from shortsmith.editor.repairs import LAYERS, Layer, RepairError
@@ -247,7 +247,7 @@ def reference_options(
             continue
         if wanted & _significant(f"{said_in(b, transcript)} {b.query}"):
             matched.append(b)
-        elif b.kind == "photo" and depicts_of(b) != "named_entity":
+        elif b.kind == "photo" and not is_named(b):
             scenes.append(b)
     return [
         Option(

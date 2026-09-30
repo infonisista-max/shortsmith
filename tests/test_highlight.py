@@ -642,7 +642,7 @@ def test_the_fake_planner_highlights_a_fixture_screenshot_only_where_allowed() -
 
 
 def test_the_v19_picture_prompt_says_when_to_highlight_and_never_a_fake_article() -> None:
-    assert prompt.PROMPT_VERSION == "v19"
+    assert prompt.PROMPT_VERSION == "v20"  # 099 v20 keeps v19's highlight text
     text = prompt.build_prompt(_request(), "picture")
     for needle in (
         "`highlight`",

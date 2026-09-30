@@ -972,7 +972,8 @@ class Scoring(assets.RelevanceJudge):
         self.asked: list[tuple[str, str, str, tuple[str, ...]]] = []
 
     def score(self, query: str, subject_kind: str, topic: str,
-              thumbs: Sequence[assets.Thumb]) -> list[assets.Verdict]:  # fmt: skip
+              thumbs: Sequence[assets.Thumb], *, era: bool = False,
+              ) -> list[assets.Verdict]:  # fmt: skip
         self.asked.append((query, subject_kind, topic, tuple(t.candidate.url for t in thumbs)))
         return [assets.Verdict(self.scores.get(t.candidate.url, self.default)) for t in thumbs]
 

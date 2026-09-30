@@ -57,7 +57,7 @@ from itertools import pairwise
 from typing import Literal
 
 from shortsmith import assets, presenter, stickers, styles, vocab
-from shortsmith.assets.generate import depicts_of
+from shortsmith.assets.generate import depicts_of, never_stock
 from shortsmith.contracts import (
     CATEGORIES,
     CUE_KINDS,
@@ -736,8 +736,10 @@ def clip_share(beats: Sequence[Beat]) -> float:
 
 
 def _clips(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Violation]:
-    """058 (4.1 and 5.1 as amended): a `clip` beat shows a concept, never a named entity
-    (2: a stock stranger is never King Saud; those beats keep the still ladder); clip
+    """058 (4.1 and 5.1 as amended): a `clip` beat never shows a named person (2: a stock
+    stranger is never King Saud; those beats keep the still ladder; 099: `named_person`,
+    or the old `named_entity` read as before - a named place, era, event or object may
+    take a clip); clip
     beats cover at most `broll.clip_max_fraction` of the runtime (6); and a clip's asset
     is moving footage (7): another clip beat or a carry-on `number` / `quote` beat may
     name it, a still beat or a set-piece item (stills only) may not, and a clip beat
@@ -751,12 +753,14 @@ def _clips(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Viola
     }
     for b in beats:
         if b.kind == CLIP_KIND:
-            if depicts_of(b) == "named_entity":
+            if never_stock(b):
                 found.append(
-                    _hard("4.1", b.id, "a clip never shows a named entity (a person, place, "
-                                    "product or event keeps the still ladder); this clip "
-                                    f"beat's subject is {b.subject_kind!r} depicting a named "
-                                    "entity (058)")  # fmt: skip
+                    _hard("4.1", b.id, "a clip never shows a named entity who is a "
+                                    "person (a stock stranger is never the person named; a "
+                                    "named_place, named_era, named_event or named_object "
+                                    "may take a clip); this clip beat's subject is "
+                                    f"{b.subject_kind!r} depicting {depicts_of(b)!r} "
+                                    "(058, 099)")  # fmt: skip
                 )
             if b.asset_id in still_ids:
                 found.append(

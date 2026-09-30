@@ -46,7 +46,13 @@ from shortsmith.reference import examples, music
 
 Call = Literal["picture", "sound"]
 
-# v19 (ticket 078): the picture file says when to write `highlight` (only on the beat that
+# v20 (ticket 099; 110 extends it): `depicts` splits `named_entity` into `named_person`
+# (never stock, never a clip, never AI) and `named_place` / `named_era` / `named_event` /
+# `named_object`, which may take clips ("a 1950s oil field", "an old Arabian palace", "a
+# plane taking off"); the era rule (period first, a timeless shot may take a film or
+# sepia grade, never modern cars, skylines, phones or clothes standing in for an old era,
+# then a still). The schema carries the split. The sound file is v19's unchanged.
+# (v19, ticket 078): the picture file says when to write `highlight` (only on the beat that
 # shows an owner's uploaded article or document screenshot, the sentence as printed and
 # the `[first, last]` words that say it, never a made-up article, under
 # `broll.highlights_max_per_60s`, `at_s` / `end_s` left to code); the schema carries the
@@ -109,7 +115,7 @@ Call = Literal["picture", "sound"]
 # timeline; v6, ticket 033: the `category` rule; v5, ticket 020: the `map` recipe; v4,
 # ticket 029: the `counter` overlay and `label_flyin`; v3, ticket 021: the chart and
 # diagram data; v2, ticket 027: the set-piece content rules.)))
-PROMPT_VERSION = "v19"
+PROMPT_VERSION = "v20"
 EXAMPLES_HEADING = "## 7. How top shorts edit a line like yours"
 MUSIC_HEADING = "## 9. Music in top shorts"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"

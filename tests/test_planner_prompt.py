@@ -162,7 +162,7 @@ def test_the_picture_prompt_carries_the_planning_rules() -> None:
     for gone in ("hook.original_position", "cold_open_span", "hook_cards", "hook.title",
                  '"hook"', "cold_open"):
         assert gone not in text, gone
-    assert prompt.PROMPT_VERSION == "v19"
+    assert prompt.PROMPT_VERSION == "v20"
 
 
 def test_the_v18_sound_prompt_asks_a_mood_per_part_and_one_change_on_a_part_boundary() -> None:
@@ -329,7 +329,7 @@ def test_the_v12_prompts_say_when_to_ask_a_clip_and_never_for_a_named_entity() -
     for needle in (
         "Moving footage (`clip`)",
         "always muted",
-        "Never for a named entity",
+        "Never for a named person",  # 099 (v20): was "Never for a named entity"
         "a stock stranger is never the person named",
         "`broll.clip_max_fraction`",
         "Pexels video, then Pixabay video",

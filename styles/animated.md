@@ -1,5 +1,5 @@
 ---
-version: "18"
+version: "19"
 status: draft
 aliases: [animated, animation, cartoon, motion, motion-graphics, illustrated, vector]
 requires_components: [captions, pip, parallax, vector_illustration, title_card, end_card]
@@ -177,7 +177,7 @@ Motion-graphics heavy; illustrated B-roll dominates. DRAFT (grill decision 1.4):
 ## B-roll
 - Generated or vector illustrations with strong motion: parallax, pop-in, path animation; one consistent palette per short, and the accent may come from the user's references' dominant colour (1.3).
 - Sources and rights as in explainer (5.1); generation cap `gen_max_per_short` is higher because illustration is the point here.
-- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat only, never a named entity; at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
+- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat or a named place, era, event or object, never a named person (099; on an era beat, period-looking footage comes first; a timeless shot (desert, sea, sky, sand dunes) is fine and may take a light film or sepia grade; never modern cars, skylines, phones or present-day clothes standing in for the old era, then a still (099)); at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
 - The six 030 enter transitions are enabled (9.4), still at most one whip per three beats; `flash` (060) is not.
 - Article highlights (4.1 as amended by 078; off here: `highlights_max_per_60s` is 0): where a style allows them, a `photo` or `card` beat that shows the owner's uploaded article or document screenshot (an owner reference; never a searched or generated page, never a made-up article) may carry one `highlight`: the `sentence` to mark as it reads on the screenshot and the transcript `words` that say it. A marker in `motion.highlight.color` at `motion.highlight.opacity` sweeps the sentence's lines left to right from the first word to the last while the screenshot, a straight card, pushes in toward them. Code finds the lines on the image; a sentence it cannot find is dropped and the beat stays.
 

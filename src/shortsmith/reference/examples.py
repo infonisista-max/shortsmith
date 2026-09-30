@@ -36,7 +36,13 @@ from typing import Literal, cast
 import yaml
 
 from shortsmith import vocab
-from shortsmith.contracts import ExampleRow, PicturePlan, Transcript, WorkedExample
+from shortsmith.contracts import (
+    NAMED_DEPICTS,
+    ExampleRow,
+    PicturePlan,
+    Transcript,
+    WorkedExample,
+)
 from shortsmith.reference import INVENTORY_DIR, REPO_ROOT, UNREGISTERED, ReferenceInventoryV2
 from shortsmith.reference import compare as compare_module
 
@@ -229,7 +235,7 @@ def plan_match(plan: PicturePlan) -> tuple[int, int]:
     matched = sum(
         1
         for b in plan.beats
-        if b.depicts == "named_entity" or b.subject_kind in MATCHED_SUBJECTS
+        if b.depicts in NAMED_DEPICTS or b.subject_kind in MATCHED_SUBJECTS  # 099: any split
     )
     return matched, len(plan.beats)
 

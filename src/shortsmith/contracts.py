@@ -222,7 +222,23 @@ Motion = Literal[
     "travel",
 ]
 SubjectKind = Literal["entity", "concept", "number", "quote"]
-Depicts = Literal["named_entity", "scene"]
+# 099: a named person is not a named place. `named_person` (a real, named human) keeps
+# the no-stock rule (never a stock stranger, never AI); `named_place`, `named_era`,
+# `named_event` and `named_object` may take clips and stock stills. `named_entity` is the
+# old undivided value, read exactly as before for stored plans (a person, the safe way).
+Depicts = Literal[
+    "named_entity",
+    "scene",
+    "named_person",
+    "named_place",
+    "named_era",
+    "named_event",
+    "named_object",
+]
+NAMED_DEPICTS: frozenset[str] = frozenset(
+    {"named_entity", "named_person", "named_place", "named_era", "named_event", "named_object"}
+)
+Era = Literal["period", "timeless", "modern"]  # 099: the clip judge's era verdict
 Render = Literal["illustration", "photoreal"]  # 4.2: a named entity is never photoreal
 SourceIntent = Literal["search", "generate", "reuse"]
 # 9.4 as amended by 060: `flash` is the seventh enter, a full-frame colour flash peaking
@@ -971,6 +987,10 @@ class JudgeVerdict(StrictModel):
     model: str
     score: int
     reasons: list[str] = []
+    # 099: on an era beat, the judge's era verdict (`period`, `timeless`, or `modern`,
+    # which is never chosen) and its one-line reason; 102 grades a `timeless` clip.
+    era: Era | None = None
+    why: str = ""
 
 
 class AssetRecord(StrictModel):

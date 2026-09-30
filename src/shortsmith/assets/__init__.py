@@ -174,8 +174,10 @@ from shortsmith.assets.generate import (
     Generating,
     GeneratorError,
     ImageGenerator,
-    depicts_of,
     is_diagram_base,
+    is_era,
+    is_named,
+    never_stock,
 )
 from shortsmith.assets.judge import (
     FakeRelevanceJudge,
@@ -532,7 +534,8 @@ def rank(
 def _verdict(model: str, verdict: Verdict | None) -> JudgeVerdict | None:
     if verdict is None:
         return None
-    return JudgeVerdict(model=model, score=verdict.score, reasons=list(verdict.reasons))
+    return JudgeVerdict(model=model, score=verdict.score, reasons=list(verdict.reasons),
+                        era=verdict.era, why=verdict.why)  # fmt: skip
 
 
 def _search_cached(
@@ -719,13 +722,21 @@ def _clip_cached(
     topic: str = "",
     log: Callable[[str], None] = lambda _: None,
     saturated: Callable[[str], str | None] = lambda _: None,
+    era: bool = False,
+    period_only: bool = False,
+    beat_id: str = "",
 ) -> _Fetched | None:
     """The clip `query` from `source` gives a beat needing `need_s` seconds (058), fetched
     once per job. The search is cached like an image search (`result.json` under
     `cache_key(query, source.name)`, a name no image source shares); every file fetched
     for the query is listed in `fetched`, so a later beat asking the same query, or
     needing a longer clip, downloads only what is new. Every line logged about the
-    source's candidates passes through `source.scrub` (058 (8))."""
+    source's candidates passes through `source.scrub` (058 (8)).
+
+    099: on an era beat (`era`) the judge is asked each clip's era; with `period_only`
+    only a clip it judged `period` is taken (the first pass), and on the last pass every
+    clip it refused as a modern stand-in is logged with its reason (`beat_id` names the
+    beat in that line)."""
     name = source.name
 
     def note(line: str) -> None:
@@ -738,7 +749,7 @@ def _clip_cached(
         data = json.loads(result.read_text(encoding="utf-8"))
         candidates = _CANDIDATES.validate_python(data["candidates"])
         verdicts = (
-            judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
+            judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail, era=era)
             if data.get("judged")
             else None
         )
@@ -761,7 +772,9 @@ def _clip_cached(
             chosen = choose_file(hit, max_upscale=max_upscale)
             assert chosen is not None  # reject_clip said a file fits
             candidates.append(chosen)
-        verdicts = judging.verdicts(query, subject_kind, topic, candidates, source.thumbnail)
+        verdicts = judging.verdicts(
+            query, subject_kind, topic, candidates, source.thumbnail, era=era
+        )
         record = {
             "query": query,
             "source": name,
@@ -771,9 +784,16 @@ def _clip_cached(
             "fetched": [],
         }
     by_url: dict[str, dict[str, object]] = {str(f["url"]): f for f in fetched_all}
+    if era and not period_only and verdicts is not None:
+        for candidate, verdict in zip(candidates, verdicts, strict=True):
+            if verdict.era == "modern":
+                note(f"{beat_id}: {candidate.url} refused: modern stands in for the era "
+                     f"({verdict.why or 'no reason given'}) (099)")  # fmt: skip
     fetched: _Fetched | None = None
     for ranked in rank_clips(candidates, verdicts):
         candidate = ranked.candidate
+        if period_only and (ranked.verdict is None or ranked.verdict.era != "period"):
+            continue  # 099: the first pass on an era beat takes period footage only
         if candidate.duration_s + 1e-3 < need_s:
             note(f"{candidate.url} skipped: {candidate.duration_s:g} s clip is shorter than "
                  f"the {need_s:g} s the beat needs")  # fmt: skip
@@ -983,7 +1003,7 @@ def entity_crossings(manifest: AssetManifest, plan: PicturePlan) -> list[str]:
         origin = first.setdefault(record.sha256, beat)
         if origin is beat or beat.kind in SET_PIECE_KINDS or beat.subject_kind in REUSING_KINDS:
             continue
-        if depicts_of(beat) != "named_entity" or depicts_of(origin) != "named_entity":
+        if not is_named(beat) or not is_named(origin):
             continue
         if not same_entity(beat, origin):
             problems.append(
@@ -1174,7 +1194,7 @@ class _Walk:
         """071: whether `record` may be shown on `beat` as the same entity - always for
         a beat that names nobody; for a named entity, only an image first shown for it
         (the same planned id or owner reference, or a shared name word)."""
-        if depicts_of(beat) != "named_entity":
+        if not is_named(beat):
             return True
         if record.id == beat.asset_id:
             return True
@@ -1230,8 +1250,9 @@ def source_assets(
     speed = clip_speed(spec)
 
     def sources_for(beat: Beat) -> list[tuple[str, ImageSource]]:
-        """053 rule 1: a named entity never comes from the stock libraries."""
-        if depicts_of(beat) != "named_entity":
+        """053 rule 1: a named person (or the old `named_entity`) never comes from the
+        stock libraries; 099: a named place, era, event or object may."""
+        if not never_stock(beat):
             return searched
         skipped = [name for name, _ in searched if name in STOCK_ORIGINS]
         if skipped:
@@ -1242,7 +1263,7 @@ def source_assets(
         return [(name, source) for name, source in searched if name not in STOCK_ORIGINS]
 
     def cached(beat: Beat, name: str, source: ImageSource, query: str) -> _Fetched | None:
-        named = depicts_of(beat) == "named_entity"
+        named = is_named(beat)
         return _search_cached(
             source, name, query, cache, clock, judging, searching,
             subject_kind=beat.subject_kind or "", topic=topic, border_px=border,
@@ -1289,10 +1310,11 @@ def source_assets(
         """058: the clip ladder for a `clip` beat - a planned reuse of an earlier clip,
         then every clip source with `query` and `query_fallback` - showing the clip and
         returning True, or False (logged) when the beat is to take the still ladder."""
-        if depicts_of(beat) == "named_entity":
+        if never_stock(beat):
             log(
-                f"sourcing: {beat.id}: a named entity never takes a stock clip; the still "
-                "ladder is used instead (053, 058)"
+                f"sourcing: {beat.id}: a named entity never takes a stock clip (a stock "
+                "stranger is never the person named); the still ladder is used instead "
+                "(053, 058, 099)"
             )
             return False
         planned = beat.asset_id
@@ -1318,24 +1340,31 @@ def source_assets(
         """Every clip source with `query` (rung 0) then `query_fallback` (rung 1) (058):
         the first usable clip, shown on the beat, or None."""
         need = clip_need_s(beat, picture.beats, speed=speed)
-        for rung, query in ((0, beat.query), (1, beat.query_fallback)):
-            if not query:
-                continue
-            for source in clip_sources:
-                found = _clip_cached(
-                    source, query, need, cache, clock, judging, searching,
-                    max_upscale=spec.broll.full_bleed_max_upscale,
-                    subject_kind=beat.subject_kind or "", topic=topic, log=log,
-                    saturated=lambda digest: walk.blocked_sha(beat, digest),
-                )  # fmt: skip
-                if found is None:
+        era = is_era(beat)
+        # 099: an era beat takes period footage first (every source, both queries), then
+        # a timeless shot; a modern stand-in never (the judge's reason is logged).
+        passes = (True, False) if era and judging.judge is not None else (False,)
+        for period_only in passes:
+            for rung, query in ((0, beat.query), (1, beat.query_fallback)):
+                if not query:
                     continue
-                record = walk.add(
-                    walk.new_id(beat), found.path, origin=source.origin, kind=CLIP_KIND,
-                    fetched_at=found.fetched_at, candidate=found.candidate, judge=found.verdict,
-                )  # fmt: skip
-                walk.show(beat, record, rung, judge_skipped=found.judge_skipped)
-                return record
+                for source in clip_sources:
+                    found = _clip_cached(
+                        source, query, need, cache, clock, judging, searching,
+                        max_upscale=spec.broll.full_bleed_max_upscale,
+                        subject_kind=beat.subject_kind or "", topic=topic, log=log,
+                        saturated=lambda digest: walk.blocked_sha(beat, digest),
+                        era=era, period_only=period_only, beat_id=beat.id,
+                    )  # fmt: skip
+                    if found is None:
+                        continue
+                    record = walk.add(
+                        walk.new_id(beat), found.path, origin=source.origin, kind=CLIP_KIND,
+                        fetched_at=found.fetched_at, candidate=found.candidate,
+                        judge=found.verdict,
+                    )  # fmt: skip
+                    walk.show(beat, record, rung, judge_skipped=found.judge_skipped)
+                    return record
         return None
 
     def ladder(beat: Beat, step: str) -> None:
@@ -1347,7 +1376,7 @@ def source_assets(
         already in the reel re-dressed (rung 3), else the gradient. Anything else takes
         a stock clip, else an image generated for the line past the cap (rung 2), else
         the gradient. Every step is a job-log line."""
-        if depicts_of(beat) == "named_entity":
+        if never_stock(beat):  # 099: a named person, or the old named_entity as before
             planned = beat.asset_id
             if planned is not None and planned in by_id:
                 ref, asset_id = by_id[planned], planned
@@ -1435,7 +1464,7 @@ def source_assets(
             if record.kind == CLIP_KIND and beat.kind != CLIP_KIND and not carries_on:
                 # 058: a still beat shows a still; the clip stays with its clip beats
                 why = f"{planned!r} is a clip; a {beat.kind} beat shows a still (058)"
-            elif record.kind == CLIP_KIND and depicts_of(beat) == "named_entity":
+            elif record.kind == CLIP_KIND and never_stock(beat):
                 why = f"{planned!r} is a clip; a named entity never takes one (058)"
             elif record.kind != CLIP_KIND and beat.kind == CLIP_KIND:
                 why = f"{planned!r} is a still; a clip beat shows moving footage (058)"

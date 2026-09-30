@@ -264,7 +264,8 @@ def test_the_styles_judge_max_calls_stops_the_judge_and_the_ladder_goes_on() -> 
 
 def test_a_judge_that_cannot_answer_leaves_the_beat_unjudged_not_failed() -> None:
     class Broken(FakeRelevanceJudge):
-        def score(self, query: str, subject_kind: str, topic: str, thumbs: Any) -> Any:
+        def score(self, query: str, subject_kind: str, topic: str, thumbs: Any,
+                  *, era: bool = False) -> Any:  # fmt: skip
             raise JudgeError("the judge could not be reached: boom")
 
     book = Judging(judge=Broken(), max_calls=40)

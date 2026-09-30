@@ -30,6 +30,7 @@ from pydantic import TypeAdapter
 
 from shortsmith import stickers
 from shortsmith.contracts import (
+    NAMED_DEPICTS,
     AssetManifest,
     AssetRecord,
     Beat,
@@ -178,7 +179,7 @@ def completeness(
         if r.origin == "generated" or r.generated is not None:
             if r.generated is None or not r.generated.prompt.strip():
                 problems.append(f"{r.id}: generated without a prompt")
-            elif r.generated.depicts == "named_entity" and r.generated.render == "photoreal":
+            elif r.generated.depicts in NAMED_DEPICTS and r.generated.render == "photoreal":
                 problems.append(
                     f"{r.id}: a named entity rendered photoreal (4.2 requires illustration)"
                 )
