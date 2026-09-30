@@ -16,7 +16,13 @@ highest run on disk, so a retried job's second run never writes over the first's
 request and reply files. A reply that is not a valid plan (no JSON, or JSON the models reject)
 raises `PlanInvalid` carrying the reply and the 8.2 violation lines, which the
 pipeline treats as a rejection: the same one retry applies. A planner that cannot
-answer at all raises `PlannerError` and the job fails at `planning`.
+answer at all raises `PlannerError` and the job fails at `planning` - unless the
+adapter is wrapped in a `failover.FailoverPlanner` (095), which retries a transient
+error once and then moves the same call to the backup adapter.
+
+`ask` (095) is the editor's free-text call on the same transport; adapters with no
+model behind it (the fake, `UnavailablePlanner`) keep the default, which raises
+`PlannerUnavailable`.
 """
 
 from __future__ import annotations
@@ -67,6 +73,14 @@ class Planner(ABC):
     def bind(self, job: Job) -> Self:
         """This planner for `job`; adapters that write files or ledger rows override it."""
         return self
+
+    def ask(self, name: str, system: str, text: str, *, step: str) -> str:
+        """095: one free-text call on this adapter's transport (the editor's), with its
+        own `system` prompt; `name` names its `work/editor/request_<name>.md` and
+        `reply_<name>.json`, and its ledger row lands at `step`. The reply text comes
+        back unparsed. An adapter with no model behind it (the fake, an unavailable
+        one) raises `PlannerUnavailable`, which the editor answers with its fallback."""
+        raise PlannerUnavailable(f"{type(self).__name__} has no model to ask ({name})")
 
     @abstractmethod
     def plan_picture(

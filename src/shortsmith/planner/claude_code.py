@@ -30,6 +30,13 @@ The quota path (065): an `is_error` envelope with `api_error_status` 429, or who
 `QuotaSpent` instead; the page then says `QUOTA_SENTENCE` (switch the model and press
 Retry), and the CLI's words stay in the detail and on the job.log failure line.
 
+`ask(name, system, text, step=...)` (095) is the editor's free-text call on the same
+transport: the same flags with its own `--system-prompt`, `request_<name>.md` and
+`reply_<name>.json` under `work/editor/`, the ledger row at `step`, the same quota and
+error handling, and the reply's `result` returned unparsed. Under `PLANNER=claude_code`
+with `ANTHROPIC_API_KEY` set this adapter is the primary of a `FailoverPlanner`, so
+`QuotaSpent` and a twice-failed call move to the API adapter instead of failing the job.
+
 The ledger is passed as a callable because the app loads it in its lifespan, after the
 planner is built.
 """
@@ -55,7 +62,8 @@ from shortsmith.planner.parse import parse_reply
 from shortsmith.planner.prompt import PROMPT_VERSION, SYSTEM_PROMPT, Call, build_prompt
 
 PROVIDER = "claude_code"
-CLI_FLAGS: tuple[str, ...] = (
+# 095: every flag but the system prompt, shared by the plan calls and `ask`.
+BASE_FLAGS: tuple[str, ...] = (
     "-p",
     "--output-format",
     "json",
@@ -64,9 +72,9 @@ CLI_FLAGS: tuple[str, ...] = (
     "--safe-mode",
     "--strict-mcp-config",
     "--no-session-persistence",
-    "--system-prompt",
-    SYSTEM_PROMPT,
 )
+CLI_FLAGS: tuple[str, ...] = (*BASE_FLAGS, "--system-prompt", SYSTEM_PROMPT)
+EDITOR_DIR = "editor"  # 095: `ask` files live in `work/editor/`, beside no plan run
 HIDDEN_ENV = ("ANTHROPIC_API_KEY",)
 DEFAULT_MODEL = "claude-opus-5-5"  # 065: the model run04's CLI actually used
 QUOTA_STATUS = 429
@@ -153,15 +161,32 @@ class ClaudeCodePlanner(Planner):
         assert isinstance(story, SoundStory)
         return story
 
+    def ask(self, name: str, system: str, text: str, *, step: str) -> str:
+        """095: one free-text call with its own system prompt; files in `work/editor/`,
+        the ledger row at `step`, the reply's `result` returned as it came."""
+        job = self._job
+        if job is None:
+            raise PlannerError("ClaudeCodePlanner has no job: bind(job) before calling")
+        return self._run_cli(job, job.work_dir / EDITOR_DIR, name, text, system, step=step)
+
     def _call(self, call: Call, text: str, *, retry: bool) -> PicturePlan | SoundStory:
         job, folder = self._job, self._folder
         if job is None or folder is None:
             raise PlannerError("ClaudeCodePlanner has no job: bind(job) before calling")
-        folder.mkdir(parents=True, exist_ok=True)
         name = f"{call}_retry" if retry else call
+        result = self._run_cli(job, folder, name, text, SYSTEM_PROMPT, step="planning")
+        return parse_reply(result, call, prompt_version=PROMPT_VERSION)
+
+    def _run_cli(
+        self, job: Job, folder: Path, name: str, text: str, system: str, *, step: str
+    ) -> str:
+        """Write `request_<name>.md`, run the CLI, keep `reply_<name>.json`, record the
+        ledger row at `step` and return the envelope's `result`; an error envelope
+        raises `QuotaSpent` or `PlannerError`."""
+        folder.mkdir(parents=True, exist_ok=True)
         (folder / f"request_{name}.md").write_text(text, encoding="utf-8", newline="\n")
         env = {k: v for k, v in os.environ.items() if k not in HIDDEN_ENV}
-        argv = [self._executable, *CLI_FLAGS, "--model", self._model]
+        argv = [self._executable, *BASE_FLAGS, "--system-prompt", system, "--model", self._model]
         done = self._run(argv, text, folder, env)
         (folder / f"reply_{name}.json").write_bytes(done.stdout)
         envelope = _envelope(done)
@@ -169,12 +194,12 @@ class ClaudeCodePlanner(Planner):
         differs = " (differs)" if used != self._model else ""
         jobs.note(job, f"planner: {name} asked {self._model}, used {used}{differs}")
         if not (envelope.is_error and not any(envelope.units.values())):
-            self._ledger().record(job, "planning", PROVIDER, used, envelope.units)
+            self._ledger().record(job, step, PROVIDER, used, envelope.units)
         if envelope.is_error:
             if envelope.quota_spent:
                 raise QuotaSpent(f"the claude CLI's usage is spent: {envelope.result}")
             raise PlannerError(f"the claude CLI reported an error: {envelope.result}")
-        return parse_reply(envelope.result, call, prompt_version=PROMPT_VERSION)
+        return envelope.result
 
 
 class CliUsage(BaseModel):

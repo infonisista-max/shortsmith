@@ -9,6 +9,14 @@ from the cache. No tools; the model is `PLANNER_MODEL`. The text is written to
 `reply_<call>[_retry].json` as the CLI adapter does, so both leave the same files; each
 run of `planning` binds its own `run<n>` (065), so a retried job keeps both runs.
 
+`ask(name, system, text, step=...)` (095) is the editor's free-text call: one Messages
+call with `system` as the system prompt and `text` as the one user block (no cache
+markers), `request_<name>.md` / `reply_<name>.json` under `work/editor/`, the same hard
+cap check and one cash row, both at `step`; a refusal or a `max_tokens` cut raises
+`PlannerError`, and the reply's text comes back unparsed. This adapter is also the
+backup of a `FailoverPlanner` under `PLANNER=claude_code` with `ANTHROPIC_API_KEY` set,
+at `PLANNER_MODEL`, its rows landing in the ledger like any `PLANNER=api` job's.
+
 One Messages call is the seam tests replace (`Create`), not the SDK's HTTP client: the
 SDK ships its own httpx build, which the project does not declare, so nothing here
 touches it. Recorded replies under `tests/fixtures/anthropic/` are fed through the
@@ -52,6 +60,7 @@ from shortsmith.planner.prompt import (
 
 PROVIDER = "planner"
 STEP = "planning"
+EDITOR_DIR = "editor"  # 095: `ask` files live in `work/editor/`
 DEFAULT_MODEL = "claude-sonnet-5"
 MAX_TOKENS = 16000  # a full picture plan is a few thousand tokens; under the SDK's
 # non-streaming ceiling, so one plain call suffices
@@ -140,14 +149,60 @@ class ApiPlanner(Planner):
         assert isinstance(story, SoundStory)
         return story
 
+    def ask(self, name: str, system: str, text: str, *, step: str) -> str:
+        """095: one free-text Messages call with `system` as the system prompt; files in
+        `work/editor/`, the cash row at `step`, the reply's text returned unparsed."""
+        job = self._job
+        if job is None:
+            raise PlannerError("ApiPlanner has no job: bind(job) before calling")
+        message = self._message(
+            job,
+            job.work_dir / EDITOR_DIR,
+            name,
+            text,
+            system=[_text(system)],
+            content=[_text(text)],
+            step=step,
+            what=f"the {name} call",
+        )
+        return _reply_text(message)
+
     def _call(self, call: Call, text: str, *, retry: bool) -> PicturePlan | SoundStory:
         job, folder = self._job, self._folder
         if job is None or folder is None:
             raise PlannerError("ApiPlanner has no job: bind(job) before calling")
+        name = f"{call}_retry" if retry else call
+        instructions, spec, rest = split_prompt(text)
+        message = self._message(
+            job,
+            folder,
+            name,
+            text,
+            system=[_text(SYSTEM_PROMPT, cached=True)],
+            content=[_text(instructions), _text(spec, cached=True), _text(rest)],
+            step=STEP,
+            what=f"the {call}",
+        )
+        return parse_reply(_reply_text(message), call, prompt_version=PROMPT_VERSION)
+
+    def _message(
+        self,
+        job: Job,
+        folder: Path,
+        name: str,
+        text: str,
+        *,
+        system: list[TextBlockParam],
+        content: list[TextBlockParam],
+        step: str,
+        what: str,
+    ) -> Message:
+        """Write `request_<name>.md`, check the hard cap, make the one Messages call,
+        keep `reply_<name>.json`, record the cash row at `step`; an HTTP error, a
+        refusal or a reply cut off at `max_tokens` raises `PlannerError`."""
         if self._api_key is None:
             raise PlannerError("PLANNER=api needs ANTHROPIC_API_KEY in .env")
         folder.mkdir(parents=True, exist_ok=True)
-        name = f"{call}_retry" if retry else call
         (folder / f"request_{name}.md").write_text(text, encoding="utf-8", newline="\n")
 
         book = self._ledger()
@@ -155,22 +210,16 @@ class ApiPlanner(Planner):
             "input_tokens": math.ceil(len(text) / CHARS_PER_TOKEN),
             "output_tokens": self._max_tokens,
         }
-        book.check_before_call(job, STEP, book.estimate(PROVIDER, estimate))
+        book.check_before_call(job, step, book.estimate(PROVIDER, estimate))
         create = self._create or create_message(
             self._api_key, max_retries=self._max_retries, timeout_s=self._timeout_s
         )
-        instructions, spec, rest = split_prompt(text)
         try:
             message = create(
                 model=self.model,
                 max_tokens=self._max_tokens,
-                system=[_text(SYSTEM_PROMPT, cached=True)],
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [_text(instructions), _text(spec, cached=True), _text(rest)],
-                    }
-                ],
+                system=system,
+                messages=[{"role": "user", "content": content}],
             )
         except anthropic.APIStatusError as exc:
             raise PlannerError(
@@ -181,16 +230,19 @@ class ApiPlanner(Planner):
         (folder / f"reply_{name}.json").write_text(
             message.model_dump_json(indent=2), encoding="utf-8", newline="\n"
         )
-        book.record(job, STEP, PROVIDER, message.model, _units(message))
+        book.record(job, step, PROVIDER, message.model, _units(message))
         if message.stop_reason == "refusal":
-            raise PlannerError(f"the {call} call was refused by the model (stop_reason refusal)")
+            raise PlannerError(f"{what} call was refused by the model (stop_reason refusal)")
         if message.stop_reason == "max_tokens":
             raise PlannerError(
-                f"the {call} reply was cut off at max_tokens ({self._max_tokens}) "
-                "before the plan was complete"
+                f"{what} reply was cut off at max_tokens ({self._max_tokens}) "
+                "before it was complete"
             )
-        reply = "".join(block.text for block in message.content if block.type == "text")
-        return parse_reply(reply, call, prompt_version=PROMPT_VERSION)
+        return message
+
+
+def _reply_text(message: Message) -> str:
+    return "".join(block.text for block in message.content if block.type == "text")
 
 
 def _units(message: Message) -> dict[str, float]:

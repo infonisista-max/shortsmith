@@ -4,7 +4,9 @@ Secrets are `SecretStr` so they never appear in logs or reprs. Tests construct
 `Settings(_env_file=None)` so no `.env` is ever read under pytest (board rules).
 `check_startup` is the 11.3 startup validation the app runs in its lifespan:
 `PLANNER=claude_code` (the default) needs `SHORTSMITH_SINGLE_OPERATOR=true`, since
-it runs on the operator's own subscription; `TRANSCRIBER=groq` (the default) needs
+it runs on the operator's own subscription (with `ANTHROPIC_API_KEY` also set, the API
+planner at `PLANNER_MODEL` becomes its automatic failover, 095; without the key it runs
+alone and needs none); `TRANSCRIBER=groq` (the default) needs
 `GROQ_API_KEY`; `PLANNER=api`, `RELEVANCE_JUDGE=api` (the default) and `CRITIC=api`
 (the default, 033) need `ANTHROPIC_API_KEY`; `IMAGE_GEN=gemini` needs `GEMINI_API_KEY`;
 and every name in
