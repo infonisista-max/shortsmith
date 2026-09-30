@@ -469,6 +469,18 @@ class Banner(StrictModel):
     at_s: float | None = None
 
 
+class CalendarPlan(StrictModel):
+    """108 (083; calendar_flip, calendar_page_peel): a year or date beat's calendar page,
+    in place of a stamp: it shows `from_text` (the year before, or the date the story
+    leaves), then peels away to `to_text` (the spoken year or date), landing on the
+    transcript `word` that says it. `at_s` is written by the grammar, never the planner."""
+
+    from_text: str = Field(min_length=1)
+    to_text: str = Field(min_length=1)
+    word: int = Field(ge=0)
+    at_s: float | None = None
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -519,6 +531,9 @@ class Beat(StrictModel):
     # 107: at most one banner of the recording's words, under `broll.banner.max_per_60s`
     # (a style without the row offers none).
     banner: Banner | None = None
+    # 108: a year or date beat's calendar page, in place of a stamp, under
+    # `broll.calendar.max_per_60s` (a style without the row offers none).
+    calendar: CalendarPlan | None = None
     motion: Motion | None = None
     # 103: the picture treatment of a still (`photo` / `card`) beat, one of the style's
     # `broll.treatments`; None leaves it to code. Code draws another allowed one when the
@@ -1491,6 +1506,33 @@ class BannerSpec(StrictModel):
     until_s: float
 
 
+class CalendarSpec(StrictModel):
+    """108: a calendar page placed and timed (composition pixels, seconds into the beat):
+    it appears at `appear_s` showing `from_text`, the page peels away from `flip_start_s`
+    to `land_s` (the spoken word) revealing `to_text`, and it is gone at `until_s`. A
+    `header_px` strip in `header` (its rings in `header_ink`) over the `page`, the text in
+    `ink` at `font_px`. Placed by `render.calendar_spec` in the stamp's band, off a face and
+    off a map's content."""
+
+    from_text: str
+    to_text: str
+    left: float
+    top: float
+    width: float
+    height: float
+    header_px: float
+    font_px: int
+    font_weight: int
+    page: str
+    ink: str
+    header: str
+    header_ink: str
+    appear_s: float
+    flip_start_s: float
+    land_s: float
+    until_s: float
+
+
 class BubbleDot(StrictModel):
     """One dot of a thought bubble's trail (063), in composition pixels."""
 
@@ -1944,6 +1986,9 @@ class MapLayout(StrictModel):
     # target circle with its angled tag round the named place (None without one).
     highlight: list[str] = []
     highlight_color: str = ""
+    # 108: the filled country's box (left, top, right, bottom; composition pixels, inside
+    # the band), which a stamp or calendar keeps off; None without a filled country.
+    highlight_box: tuple[float, float, float, float] | None = None
     names: list[MapNameLayout] = []
     name_color: str = ""
     target: MapTargetLayout | None = None
@@ -1990,6 +2035,8 @@ class BeatSpec(StrictModel):
     stickers: tuple[StickerSpec, ...] = ()
     # 107: the beat's banner, placed and timed.
     banner: BannerSpec | None = None
+    # 108: the beat's calendar page, placed and timed.
+    calendar: CalendarSpec | None = None
     finale: FinaleCardSpec | None = None
     split: SplitSpec | None = None
     wall: WallSpec | None = None

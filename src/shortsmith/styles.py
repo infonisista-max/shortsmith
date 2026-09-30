@@ -168,6 +168,30 @@ class BannerRow(StrictModel):
     bar_px: int = Field(ge=0)
 
 
+class CalendarRow(StrictModel):
+    """108 (083; calendar_flip, calendar_page_peel): the calendar page a style offers for a
+    year or date beat in place of a stamp - at most `max_per_60s` per 60 s of runtime
+    (rounded up), each text at most `chars_max` characters. It appears `lead_s` before the
+    flip, peels over `flip_s` to land on the spoken word, and holds `hold_max_s` (or to the
+    beat's end). A `width_px` x `height_px` page with a `header_px` strip, the text fitted
+    from `size_px` to `min_size_px`; `page` / `ink`, `header` / `header_ink`."""
+
+    max_per_60s: int = Field(ge=0)
+    chars_max: int = Field(ge=1)
+    lead_s: float = Field(ge=0.0)
+    flip_s: float = Field(ge=0.0)
+    hold_max_s: float = Field(gt=0.0)
+    width_px: int = Field(gt=0)
+    height_px: int = Field(gt=0)
+    header_px: int = Field(ge=0)
+    size_px: int = Field(gt=0)
+    min_size_px: int = Field(gt=0)
+    page: str
+    ink: str
+    header: str
+    header_ink: str
+
+
 class MoveRow(StrictModel):
     """102: one camera move on a full-screen still - the push `scale_from` -> `scale_to`
     over the beat, the picture's travel over it as a fraction of the frame (`pan_x` of the
@@ -239,6 +263,8 @@ class Broll(StrictModel):
     title_strip: TitleStrip | None = None
     # 107: the banner; only a style whose references use one carries the row.
     banner: BannerRow | None = None
+    # 108: the calendar page; only a style whose references use one carries the row.
+    calendar: CalendarRow | None = None
     # 103: the picture treatments the planner may pick per still, in the renderer's
     # fallback order (a pick the image cannot take becomes the first allowed one); every
     # one but `photo` and `card` has its `motion.<name>` row. A spec from before 103 offers
@@ -545,6 +571,8 @@ def offered_components(spec: StyleSpec) -> list[str]:
     each one a shipped spec must require."""
     b = spec.broll
     offered = ["banner"] if b.banner is not None else []
+    if b.calendar is not None:
+        offered.append("calendar")
     if "light_flare" in b.enter_transitions:
         offered.append("light_flare")
     return offered

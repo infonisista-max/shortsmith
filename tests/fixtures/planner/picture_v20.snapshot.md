@@ -353,6 +353,15 @@ Banners (a bar of the speaker's words)
   in on, `position` `top` or `bottom`. At most `broll.banner.max_per_60s` per 60 s; a
   style without the row gets none. Never write `at_s`: code fills it from the word.
 
+Calendar pages (a year or date flipping to the spoken one)
+- Where section 1 carries a `broll.calendar` row, a year or date beat (a `photo`, `card`,
+  `clip`, presenter-full or `map` beat) may carry a `calendar` instead of a stamp:
+  `from_text` the page it shows first (the year before, or the date the story leaves),
+  `to_text` the spoken year or date, each at most `broll.calendar.chars_max` characters,
+  `word` the transcript index that says it. The beat then has no stamp. At most
+  `broll.calendar.max_per_60s` per 60 s; vary it with stamps rather than using it for
+  every year. Never write `at_s`.
+
 The cut
 - `cut.keep` lists the kept spans of the recording in recording order, from the first
   word to the end; `cut.drop` the dropped ones, which hold only silence, breaths and
@@ -736,6 +745,17 @@ Top shorts of this style show, shot by shot, how a spoken line became a picture,
           ],
           "default": null
         },
+        "calendar": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CalendarPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "motion": {
           "anyOf": [
             {
@@ -956,6 +976,46 @@ Top shorts of this style show, shot by shot, how a spoken line became a picture,
         "y"
       ],
       "title": "Bubble",
+      "type": "object"
+    },
+    "CalendarPlan": {
+      "additionalProperties": false,
+      "description": "108 (083; calendar_flip, calendar_page_peel): a year or date beat's calendar page,\nin place of a stamp: it shows `from_text` (the year before, or the date the story\nleaves), then peels away to `to_text` (the spoken year or date), landing on the\ntranscript `word` that says it. `at_s` is written by the grammar, never the planner.",
+      "properties": {
+        "from_text": {
+          "minLength": 1,
+          "title": "From Text",
+          "type": "string"
+        },
+        "to_text": {
+          "minLength": 1,
+          "title": "To Text",
+          "type": "string"
+        },
+        "word": {
+          "minimum": 0,
+          "title": "Word",
+          "type": "integer"
+        },
+        "at_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At S"
+        }
+      },
+      "required": [
+        "from_text",
+        "to_text",
+        "word"
+      ],
+      "title": "CalendarPlan",
       "type": "object"
     },
     "CounterPlan": {

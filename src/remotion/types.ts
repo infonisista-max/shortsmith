@@ -603,6 +603,30 @@ export type BeatSpec = {
   bubbles?: BubbleSpec[];
   stickers?: StickerSpec[];
   banner?: BannerSpec | null;
+  calendar?: CalendarSpec | null;
+};
+
+// 108: a calendar page, placed and timed by `render.calendar_spec`: it appears at
+// `appear_s` on `from_text`, peels from `flip_start_s` to land on `to_text` at `land_s`
+// (the spoken word) and is gone at `until_s`.
+export type CalendarSpec = {
+  from_text: string;
+  to_text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  header_px: number;
+  font_px: number;
+  font_weight: number;
+  page: string;
+  ink: string;
+  header: string;
+  header_ink: string;
+  appear_s: number;
+  flip_start_s: number;
+  land_s: number;
+  until_s: number;
 };
 
 // 107: a banner, placed and timed by `render.banner_spec`: the bar across the safe band,

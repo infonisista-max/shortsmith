@@ -17,8 +17,8 @@ effects:
   bold_title_pop: text_pop
   brain_particles_overlay: null
   brand_hub_reveal: null
-  calendar_flip: null
-  calendar_page_peel: null
+  calendar_flip: calendar  # 108
+  calendar_page_peel: calendar  # 108
   cartoon_scientist_slide: sticker
   cash_cascade: null
   cern_skull_drop: sticker

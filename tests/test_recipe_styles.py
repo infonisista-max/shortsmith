@@ -38,8 +38,8 @@ def test_the_three_recipes_load_shipped_at_version_3_with_every_component_regist
 ) -> None:
     for name in RECIPES:
         spec = specs[name]
-        # 064 v1 ... v15 102; vishva v16 107 (the banner)
-        want = "16" if name == "vishva" else "15"
+        # 064 v1 ... v15 102, v16 108 (the map's stamp margin); vishva v16 107, v17 108
+        want = "17" if name == "vishva" else "16"
         assert spec.status == "shipped" and spec.version == want, name
         missing = [c for c in spec.requires_components if c not in REGISTRY]
         assert not missing, (name, missing)
@@ -177,7 +177,7 @@ def test_the_recipe_aliases_resolve(specs: dict[str, StyleSpec], line: str, name
 def test_explainer_gives_up_fact_facts_and_dhruv(specs: dict[str, StyleSpec]) -> None:
     aliases = set(specs["explainer"].aliases)
     assert not aliases & {"fact", "facts", "dhruv"}
-    assert specs["explainer"].version == "26"  # v11 aliases ... v24 103, v25 102, v26 107
+    assert specs["explainer"].version == "27"  # v11 aliases ... v25 102, v26 107, v27 108
 
 
 def test_a_multi_word_alias_counts_as_a_phrase(specs: dict[str, StyleSpec]) -> None:

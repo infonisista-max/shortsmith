@@ -26,11 +26,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from shortsmith import captions, ffmpeg, fixture, jobs, presenter, render
+from shortsmith import captions, ffmpeg, fixture, geo, jobs, presenter, render
 from shortsmith.contracts import (
     PICTURE_TREATMENTS,
     Banner,
+    Beat,
     BeatSpec,
+    CalendarPlan,
     Captions,
     Constraints,
     Crop,
@@ -214,15 +216,36 @@ def effect_beats(src: str, size: tuple[int, int], *, numbers: render.StyleNumber
         return render.banner_spec(planned, mode="pip", beat_start_s=0.0, beat_end_s=length_s,
                                   numbers=numbers, pip=pip)  # fmt: skip
 
+    # 108: the page lands 0.4 s into its beat; run05 b07's map with its stamp off the map
+    calendar = render.calendar_spec(
+        CalendarPlan(from_text="1937", to_text="1938", word=0, at_s=0.4), beat_start_s=0.0,
+        beat_end_s=length_s, numbers=numbers,
+    )  # fmt: skip
+    b07 = Beat.model_validate({
+        "id": "b07", "start": 0.0, "end": length_s, "mode": "off", "kind": "map",
+        "motion": "travel", "event": {"kind": "stamp", "text": "PRIME MINISTER + KING"},
+        "map": {"region": "Saudi Arabia", "markers": [{"name": "Riyadh"}]},
+    })  # fmt: skip
+    gazetteer = geo.GazetteerGeocoder()
+    bare = render.map_layout(b07, numbers=numbers, geocoder=gazetteer)
+    assert bare is not None
+    stamp, _ = render.stamp_off_map(render.stamp_spec("PRIME MINISTER + KING", numbers=numbers),
+                                    bare, numbers=numbers)  # fmt: skip
     shots = [
         beat(0, banner=banner("INDUS VALLEY WAR", "top")),
         beat(1, banner=banner("29 JUN 2022", "bottom")),
         beat(2, enter="light_flare"),
+        beat(3, calendar=calendar),
+        beat(4, mode="off", kind="map", visual=None, stamp=stamp,
+             map=render.map_layout(b07, numbers=numbers, geocoder=gazetteer, stamp=stamp)),
     ]
     return [
         EffectShot("107_banner_top", shots[0], shots[0].end_frame - 2),
         EffectShot("107_banner_bottom", shots[1], shots[1].end_frame - 2),
         EffectShot("107_light_flare", shots[2], shots[2].start_frame),
+        EffectShot("108_calendar_flip", shots[3], shots[3].start_frame + 6),
+        EffectShot("108_calendar_landed", shots[3], shots[3].end_frame - 2),
+        EffectShot("108_map_stamp", shots[4], shots[4].end_frame - 2),
     ]
 
 
@@ -238,7 +261,7 @@ def run_effects(root: Path, out: Path, *, concurrency: int = render.CONCURRENCY)
         duration_s=1.0, numbers=numbers,
     )  # fmt: skip
     shots = effect_beats(str(src), size, numbers=numbers, pip=base.pip)
-    beats = [shot.beat for shot in shots]
+    beats = list({shot.beat.id: shot.beat for shot in shots}.values())  # a beat may show twice
     spec = base.model_copy(update={"beats": beats, "frames": len(beats) * EFFECT_FRAMES})
     work = root / "effects"
     work.mkdir(parents=True, exist_ok=True)

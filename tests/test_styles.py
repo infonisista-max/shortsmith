@@ -28,7 +28,7 @@ RECIPES = ("fastfacts", "footage", "vishva")
 # 059 changed the explainer's aliases (1.1 as amended): its front matter was v11; 064's
 # 12 dB speech-band margin bumped every style once more.
 VERSIONS = {
-    "explainer": "26", "educational": "20", "animated": "20", "hitech": "24", "vishva": "16",
+    "explainer": "27", "educational": "20", "animated": "20", "hitech": "25", "vishva": "17",
 }  # fmt: skip  (107: explainer and vishva offer the banner)  # 102
 FORBIDDEN = ["sweep", "riser", "rumble_crescendo"]  # 7.1, operator rider; 070 lifts whoosh
 
@@ -96,7 +96,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == VERSIONS.get(spec.name, "15"), spec.name
+        assert spec.version == VERSIONS.get(spec.name, "16"), spec.name  # 108
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -213,7 +213,8 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
         "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
         "pin_drop", "route_arrow", "object_path", "crop_fill", "backdrop", "polaroid",
         "cut", "fade", "whip", "zoom", "spring", "wipe", "banner", "light_flare",
-    ]  # fmt: skip  (107)
+        "calendar",
+    ]  # fmt: skip  (107, 108)
     # 029: the counter writes its digits in the audience's grouping.
     assert ex.broll.motion["counter"] == {"kind": "count_up", "grouping": "indian"}
     # 027: the three tier-1 set pieces carry their own counts and base motion (4.1, 5.2).

@@ -50,6 +50,7 @@ typography); the geometry below is this engine's look, as in `render`.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 
@@ -216,6 +217,9 @@ class MapNumbers:
     tag_slide_s: float
     tag_fill: str
     tag_ink: str
+    # 108: how far a stamp or calendar keeps off the map's content (the named country, the
+    # target circle and tag, the marker pills and dots)
+    stamp_margin_px: float
 
 
 @dataclass(frozen=True)
@@ -276,6 +280,7 @@ def numbers_for(spec: StyleSpec) -> InfographicNumbers:
                 tag_slide_s=float(map_row["tag_slide_s"]),
                 tag_fill=str(map_row["tag_fill"]),
                 tag_ink=str(map_row["tag_ink"]),
+                stamp_margin_px=float(map_row["stamp_margin_px"]),
             ),
             palette=spec.palette,
             captions=spec.caption_style(),
@@ -1012,6 +1017,26 @@ def route_path(points: Sequence[tuple[float, float]]) -> str:
     return " ".join([f"M {head[0]:.1f} {head[1]:.1f}", *(f"L {x:.1f} {y:.1f}" for x, y in rest)])
 
 
+_PATH_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _paths_box(paths: Sequence[str], band: geo.Rect) -> Edges | None:
+    """108: the box of the SVG paths' points (`M x y L x y ...`), clipped to the map band;
+    None when there are none or none of it is in the band."""
+    xs: list[float] = []
+    ys: list[float] = []
+    for path in paths:
+        values = [float(v) for v in _PATH_NUMBER.findall(path)]
+        xs += values[0::2]
+        ys += values[1::2]
+    if not xs:
+        return None
+    left, top, width, height = band
+    box = (max(min(xs), left), max(min(ys), top), min(max(xs), left + width),
+           min(max(ys), top + height))  # fmt: skip
+    return box if box[0] < box[2] and box[1] < box[3] else None
+
+
 def resolve_map(
     recipe: MapRecipe, *, numbers: InfographicNumbers, geocoder: Geocoder,
     layers: geo.Layers | None = None, overlays: Sequence[OverlayKind] = (),
@@ -1111,6 +1136,7 @@ def resolve_map(
                 skip |= {geo.normalise(recipe.region), geo.normalise(region_place.name)}
                 if region_place.kind == "country":
                     skip.add(geo.normalise(region_place.country))
+    highlight_box = _paths_box(highlight, band)
     in_view = sorted(n for n in paths.land_names if n and geo.normalise(n) not in skip)
     names = _country_names(in_view, projection, taken, style=style, numbers=m)
     return MapLayout(
@@ -1135,6 +1161,7 @@ def resolve_map(
         arrow_px=ARROW_PX if arrow else 0.0, object_start_s=timeline.object_start_s,
         object_travel_s=timeline.object_travel_s, object_px=OBJECT_PX if moving else 0.0,
         landed_s=timeline.landed_s, object_end_t=object_end_t,
-        highlight=highlight, highlight_color=m.highlight, names=names, name_color=m.name_color,
+        highlight=highlight, highlight_color=m.highlight, highlight_box=highlight_box,
+        names=names, name_color=m.name_color,
         target=target,
     )  # fmt: skip

@@ -162,6 +162,8 @@ from shortsmith.contracts import (
     Bubble,
     BubbleDot,
     BubbleSpec,
+    CalendarPlan,
+    CalendarSpec,
     CaptionPageSpec,
     Captions,
     CaptionStyle,
@@ -426,6 +428,8 @@ class StyleNumbers:
     title_strip: styles.TitleStrip | None = None
     # 107: the banner's row, where the style offers one.
     banner: styles.BannerRow | None = None
+    # 108: the calendar page's row, where the style offers one.
+    calendar: styles.CalendarRow | None = None
 
 
 def broll_numbers(spec: StyleSpec) -> BrollNumbers:
@@ -590,6 +594,7 @@ def numbers_for(spec: StyleSpec) -> StyleNumbers:
         ),
         title_strip=spec.broll.title_strip,
         banner=spec.broll.banner,
+        calendar=spec.broll.calendar,
     )
 
 
@@ -1516,6 +1521,165 @@ def stamp_clear_of(
     if best is None:
         return stamp, None
     return best[2], best[1]
+
+
+# --- off a map's content (108; run05 b07) and the calendar page (108) --------------------
+#
+# run05 b07's stamp landed over Saudi Arabia: the map laid its tag and names round the
+# stamp (104), but nothing moved the stamp. Now a stamp or a calendar on a map beat keeps
+# `map.stamp_margin_px` off the named country's box, the target circle, the angled tag and
+# every marker pill and dot: the nearest free spot in the stamp band (x and y), else the
+# band's corner that covers the least of that content. The map is then laid round the
+# stamp as before, so the names and the tag keep clear of it too.
+
+Edges = tuple[float, float, float, float]  # left, top, right, bottom
+
+
+def map_content(layout: MapLayout) -> list[Edges]:
+    """108: the map's content a stamp or calendar keeps off: the named country's box, the
+    target circle and its tag, and each marker's pill and dot."""
+    out: list[Edges] = []
+    if layout.highlight_box is not None:
+        out.append(layout.highlight_box)
+    t = layout.target
+    if t is not None:
+        out.append((t.x - t.radius, t.y - t.radius, t.x + t.radius, t.y + t.radius))
+        if t.tag:
+            out.append((t.tag_box_left, t.tag_box_top, t.tag_box_right, t.tag_box_bottom))
+    ring = layout.dot_px / 2 + layout.ring_px
+    for m in layout.markers:
+        out.append((m.label_left, m.label_top, m.label_left + m.label_width,
+                    m.label_top + m.label_height))  # fmt: skip
+        out.append((m.x - ring, m.y - ring, m.x + ring, m.y + ring))
+    return out
+
+
+def _covered(box: Box, obstacle: Edges, margin: float) -> float:
+    """The area of `box` inside `obstacle` grown by `margin` on every side."""
+    w = min(box.right, obstacle[2] + margin) - max(box.left, obstacle[0] - margin)
+    h = min(box.bottom, obstacle[3] + margin) - max(box.top, obstacle[1] - margin)
+    return w * h if w > 0 and h > 0 else 0.0
+
+
+CLEAR_STEP_PX = 12.0  # the search grid a box is moved on
+
+
+def _steps(low: float, high: float) -> list[float]:
+    if high <= low:
+        return [low]
+    count = int((high - low) // CLEAR_STEP_PX)
+    return [low + i * CLEAR_STEP_PX for i in range(count + 1)] + [high]
+
+
+def clear_spot(
+    start: Box, obstacles: Sequence[Edges], *, margin: float, top: float, bottom: float,
+    left: float = SAFE_LEFT, right: float = WIDTH - SAFE_RIGHT_PX,
+) -> tuple[Box, str]:  # fmt: skip
+    """108: `start` moved inside `left`-`right` x `top`-`bottom` to keep `margin` off every
+    obstacle: unchanged ("in place") when it already does; else the free spot nearest it
+    ("clear"); else the region's corner covering the least obstacle area ("corner", the
+    top-left first on a tie)."""
+    if not any(_covered(start, o, margin) for o in obstacles):
+        return start, "in place"
+    w, h = start.width, start.height
+    x_max, y_max = max(left, right - w), max(top, bottom - h)
+    best: tuple[float, Box] | None = None
+    for y in _steps(top, y_max):
+        for x in _steps(left, x_max):
+            box = Box(x, y, w, h)
+            if any(_covered(box, o, margin) for o in obstacles):
+                continue
+            distance = (x - start.left) ** 2 + (y - start.top) ** 2
+            if best is None or distance < best[0]:
+                best = (distance, box)
+    if best is not None:
+        return best[1], "clear"
+    corners = [Box(x, y, w, h) for y in (top, y_max) for x in (left, x_max)]
+    return min(corners, key=lambda c: sum(_covered(c, o, margin) for o in obstacles)), "corner"
+
+
+def _stamp_limit(numbers: StyleNumbers) -> float:
+    return numbers.broll.stamp_max_y_fraction * HEIGHT
+
+
+def stamp_off_map[S: StampSpec](stamp: S, layout: MapLayout, *,
+                                numbers: StyleNumbers) -> tuple[S, str]:  # fmt: skip
+    """108: the stamp (or counter) moved off the map's content (`clear_spot` in the stamp
+    band, the tilted box) and how: "in place", "clear" or "corner"."""
+    box = stamp_box(stamp)
+    placed, how = clear_spot(box, map_content(layout), margin=numbers.info.map.stamp_margin_px,
+                             top=SAFE_TOP_PX, bottom=_stamp_limit(numbers))  # fmt: skip
+    moved = stamp.model_copy(update={"left": stamp.left + placed.left - box.left,
+                                     "top": stamp.top + placed.top - box.top})  # fmt: skip
+    return moved, how
+
+
+def calendar_box(cal: CalendarSpec) -> Box:
+    return Box(cal.left, cal.top, cal.width, cal.height)
+
+
+def _calendar_at(cal: CalendarSpec, box: Box) -> CalendarSpec:
+    return cal.model_copy(update={"left": box.left, "top": box.top})
+
+
+def calendar_off_map(cal: CalendarSpec, layout: MapLayout, *,
+                     numbers: StyleNumbers) -> tuple[CalendarSpec, str]:  # fmt: skip
+    """108: the calendar page kept off the map's content as a stamp is."""
+    placed, how = clear_spot(calendar_box(cal), map_content(layout),
+                             margin=numbers.info.map.stamp_margin_px, top=SAFE_TOP_PX,
+                             bottom=_stamp_limit(numbers))  # fmt: skip
+    return _calendar_at(cal, placed), how
+
+
+def calendar_clear_of(cal: CalendarSpec, face: Box, *,
+                      numbers: StyleNumbers) -> tuple[CalendarSpec, str | None]:  # fmt: skip
+    """108 (056 (4)): the page moved off a face on the picture to the nearest free spot in
+    the stamp band, and how; unchanged and None when it does not touch the face."""
+    if not calendar_box(cal).overlaps(face):
+        return cal, None
+    edges = (face.left, face.top, face.right, face.bottom)
+    placed, how = clear_spot(calendar_box(cal), [edges], margin=STAMP_BELOW_GAP_PX,
+                             top=SAFE_TOP_PX, bottom=_stamp_limit(numbers))  # fmt: skip
+    return _calendar_at(cal, placed), how
+
+
+CALENDAR_PAD_X = 24.0
+
+
+def calendar_spec(cal: CalendarPlan, *, beat_start_s: float, beat_end_s: float,
+                  numbers: StyleNumbers) -> CalendarSpec:  # fmt: skip
+    """108: the page in the stamp's spot (centred, `STAMP_CENTER_Y`, inside the band), the
+    texts fitted, and timed so the peel ends on the spoken word (`at_s`; the beat's start
+    for an unvalidated plan): it starts `flip_s` before, the page appears `lead_s` before
+    that (neither before the beat), and it holds `hold_max_s` or to the beat's end."""
+    row = numbers.calendar
+    if row is None:
+        raise RenderError(f"calendar {cal.to_text!r}: the style offers no calendar (108)")
+    style = numbers.captions
+    room = row.width_px - 2 * CALENDAR_PAD_X
+    longest = max((cal.from_text, cal.to_text),
+                  key=lambda s: _measured(s, font_px=row.size_px, style=style))  # fmt: skip
+    font_px = _fitted(longest, font_px=row.size_px, min_font_px=row.min_size_px, style=style,
+                      room=room)  # fmt: skip
+    if _measured(longest, font_px=font_px, style=style) > room + EPS:
+        raise RenderError(f"calendar {longest!r} does not fit the page ({room:g} px) at "
+                          f"broll.calendar.min_size_px {row.min_size_px} (108)")  # fmt: skip
+    width, height = float(row.width_px), float(row.height_px)
+    left = min(max(SAFE_LEFT, (WIDTH - width) / 2), WIDTH - SAFE_RIGHT_PX - width)
+    centre = min(max(STAMP_CENTER_Y, SAFE_TOP_PX + height / 2),
+                 _stamp_limit(numbers) - height / 2)  # fmt: skip
+    length = max(0.0, beat_end_s - beat_start_s)
+    land = min(max(0.0, (cal.at_s if cal.at_s is not None else beat_start_s) - beat_start_s),
+               length)  # fmt: skip
+    flip_start = max(0.0, land - row.flip_s)
+    appear = max(0.0, flip_start - row.lead_s)
+    return CalendarSpec(
+        from_text=cal.from_text, to_text=cal.to_text, left=left, top=centre - height / 2,
+        width=width, height=height, header_px=float(row.header_px), font_px=font_px,
+        font_weight=style.font_weight, page=row.page, ink=row.ink, header=row.header,
+        header_ink=row.header_ink, appear_s=round(appear, 3), flip_start_s=round(flip_start, 3),
+        land_s=round(land, 3), until_s=round(min(length, land + row.hold_max_s), 3),
+    )  # fmt: skip
 
 
 # --- text pops (061; 4.1 as amended) ----------------------------------------------------
@@ -2691,7 +2855,8 @@ def infographic(
 
 
 def map_layout(
-    beat: Beat, *, numbers: StyleNumbers, geocoder: geo.Geocoder, stamp: StampSpec | None = None
+    beat: Beat, *, numbers: StyleNumbers, geocoder: geo.Geocoder, stamp: StampSpec | None = None,
+    calendar: CalendarSpec | None = None,
 ) -> MapLayout | None:
     """The `map` drawn from the bundled geodata with its markers at the geocoder's
     points (020, 9.3). A name the geocoder does not know is a build failure naming it,
@@ -2702,8 +2867,9 @@ def map_layout(
     if beat.kind != "map":
         return None
     avoid: list[tuple[float, float, float, float]] = []
-    if stamp is not None:
-        box = stamp_box(stamp)
+    boxes = [stamp_box(stamp)] if stamp is not None else []
+    boxes += [calendar_box(calendar)] if calendar is not None else []  # 108
+    for box in boxes:
         avoid.append((box.left, box.top, box.left + box.width, box.top + box.height))
     try:
         return infographics.resolve_map(
@@ -3052,6 +3218,34 @@ def build_spec(
             except RenderError as exc:
                 raise RenderError(f"{b.id}: {exc}") from None
         beat_banner[:] = [box] if (box := banner_box(placed_banner)) is not None else []
+        # 108: the calendar page in the stamp's spot, off a face on the picture
+        placed_calendar: CalendarSpec | None = None
+        if b.calendar is not None:
+            try:
+                placed_calendar = calendar_spec(b.calendar, beat_start_s=b.start,
+                                                beat_end_s=b.end, numbers=numbers)  # fmt: skip
+            except RenderError as exc:
+                raise RenderError(f"{b.id}: {exc}") from None
+            face = face_on(visual)
+            if face is not None:
+                placed_calendar, how = calendar_clear_of(placed_calendar, face, numbers=numbers)
+                if how is not None and log is not None:
+                    log(f"calendar: {b.id}: {placed_calendar.to_text!r} moved off the face "
+                        f"({how}) (108)")  # fmt: skip
+        # 108 (run05 b07): on a map the stamp and the page keep off the map's content, then
+        # the map is laid round them
+        if b.kind == "map" and (placed_stamp is not None or placed_calendar is not None):
+            bare = map_layout(b, numbers=numbers, geocoder=geocoder)
+            if bare is not None and placed_stamp is not None:
+                placed_stamp, how = stamp_off_map(placed_stamp, bare, numbers=numbers)
+                if how != "in place" and log is not None:
+                    log(f"stamp: {b.id}: {placed_stamp.text!r} moved off the map's content "
+                        f"({how}) to ({placed_stamp.left:.0f}, {placed_stamp.top:.0f}) (108)")
+            if bare is not None and placed_calendar is not None:
+                placed_calendar, how = calendar_off_map(placed_calendar, bare, numbers=numbers)
+                if how != "in place" and log is not None:
+                    log(f"calendar: {b.id}: {placed_calendar.to_text!r} moved off the map's "
+                        f"content ({how}) (108)")  # fmt: skip
         placed_pops = text_pops(b, mode, visual, split)
         placed_bubbles = bubbles(b, mode, visual, placed_stamp)
         beats.append(
@@ -3084,7 +3278,9 @@ def build_spec(
                 list=rows,
                 chart=chart,
                 infographic=diagram,
-                map=map_layout(b, numbers=numbers, geocoder=geocoder, stamp=placed_stamp),
+                map=map_layout(b, numbers=numbers, geocoder=geocoder, stamp=placed_stamp,
+                               calendar=placed_calendar),  # fmt: skip
+                calendar=placed_calendar,
                 counter=(
                     off_face(
                         b.id,

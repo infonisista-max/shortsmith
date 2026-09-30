@@ -1,5 +1,5 @@
 ---
-version: "16"
+version: "17"
 status: shipped
 aliases: [vishva, vishvagyan, vishva gyan, desi, history]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -7,7 +7,7 @@ requires_components: [captions, pip, photo, card, clip, stamp, lower_third, fina
                       pin_drop, route_arrow, object_path,
                       crop_fill, backdrop, polaroid,
                       cut, fade, whip, zoom, spring, wipe, flash,
-                      text_pop, bubble, sticker, banner]
+                      text_pop, bubble, sticker, banner, calendar]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -81,7 +81,7 @@ broll:
           # 0.3 s); up to names_max countries in view named at name_font_px.
           min_span_deg: 12, names_max: 6, name_font_px: 30, circle_px: 10,
           circle_size: 0.6, circle_draw_s: 0.3, tag_font_px: 48, tag_tilt_deg: -8,
-          tag_slide_s: 0.3,
+          tag_slide_s: 0.3, stamp_margin_px: 24,  # 108: a stamp or calendar keeps this far off the map's content
           highlight: "#1F9E89", name_color: "#0B1D3A",
           circle_color: "#E53935", tag_fill: "#FFD60A", tag_ink: "#111111"}
     # 061: 1-4 bold words pinned on the picture, landing on the spoken word; `fill` is
@@ -143,6 +143,15 @@ broll:
   # size 0.85-0.9 of the width: the safe band (0.81) is the widest a banner may be. The
   # bar's height, type sizes and top_y are no card number: the 059 title strip's (the
   # Q2pquJ2FlzA header banner), gap_px the text pop's clearance.
+  # 108: the calendar page a year or date beat may take in place of a stamp. On screen
+  # 1.4-1.5 s in the references (QjwDTLPLJ6c calendar_flip 1.4 s, M78CO3Ybr7U
+  # calendar_page_peel 1.5 s): lead_s + flip_s + hold_max_s = 1.5. Two a minute: no vishva card has one; the ticket's run05 carried 12 year stamps, so twice the explainer's (derived). No card gives
+  # the flip's own length, the page size or its colours: flip_s 0.4 is the slowest card
+  # entrance (0.2-0.4 s); the page is sized for "29 FEB 2024" at 64 px in the stamp's band,
+  # white with the red header of the reference's calendar (M78 "calendar page").
+  calendar: {max_per_60s: 2, chars_max: 12, lead_s: 0.25, flip_s: 0.4, hold_max_s: 0.85,
+             width_px: 440, height_px: 340, header_px: 80, size_px: 120, min_size_px: 64,
+             page: "#FFFFFF", ink: "#111111", header: "#E53935", header_ink: "#FFFFFF"}
   banner: {max_per_60s: 2, words_max: 5, slide_s: 0.3, hold_max_s: 2.0, top_y: 262,
            height_px: 104, gap_px: 24, size_px: 60, min_size_px: 36, fill: "#FFD60A",
            ink: "#111111", bar: "#E53935", bar_px: 10}

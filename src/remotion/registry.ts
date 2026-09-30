@@ -12,11 +12,13 @@
 // per still beside `photo` and `card`: `backdrop` (sharp over its own blurred copy),
 // `crop_fill` (full screen round the face) and `polaroid` (a dropped print). 107 adds
 // `banner`, a bar of the recording's words sliding in at the top or low, and
-// `light_flare`, the warm light burst over a cut.
+// `light_flare`, the warm light burst over a cut. 108 adds `calendar`, a year beat's page
+// peeling to the spoken year in place of a stamp.
 import type React from "react";
 import { Backdrop } from "./components/backdrop";
 import { Banner } from "./components/banner";
 import { Bubble } from "./components/bubble";
+import { Calendar } from "./components/calendar";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
@@ -57,6 +59,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   backdrop: Backdrop,
   banner: Banner,
   bubble: Bubble,
+  calendar: Calendar,
   captions: Captions,
   card: Card,
   chart: Chart,

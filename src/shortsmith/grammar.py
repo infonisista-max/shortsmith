@@ -249,6 +249,8 @@ def validate_picture(
     found += highlight_found
     banner_found, beats = _banners(beats, runtime, spec, words, spans)
     found += banner_found
+    calendar_found, beats = _calendars(beats, runtime, spec, words, spans)
+    found += calendar_found
     found += density(beats, spec)  # 066: after the passes that resolve each `at_s`
     found += _subjects(beats, runtime, brief)
     asset_found, asset_warnings = _assets(beats, runtime, spec)
@@ -546,6 +548,8 @@ def change_times(beat: Beat) -> list[float]:
     # on its word.
     lit = [beat.highlight] if beat.highlight is not None else []
     slid = [beat.banner] if beat.banner is not None else []
+    # 108: a calendar page lands on its word
+    slid += [beat.calendar] if beat.calendar is not None else []
     for item in (*beat.text_pops, *beat.bubbles, *beat.stickers, *lit, *slid):
         if item.at_s is not None:
             times.append(min(max(item.at_s, beat.start), beat.end))
@@ -1489,6 +1493,91 @@ def _banners(
             )
         resolved = banner.model_copy(update={"at_s": max(at, b.start)})
         out.append(b.model_copy(update={"banner": resolved}))
+    return found, out
+
+
+CALENDAR_KINDS = TEXT_POP_KINDS | {MAP_KIND}  # 108: over a picture or a map, as a stamp
+
+
+def calendar_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """108: `broll.calendar.max_per_60s` scaled to the runtime, rounded up like the other
+    per-60 s maxima (4.3); a style without the row offers none."""
+    row = spec.broll.calendar
+    return 0 if row is None else math.ceil(row.max_per_60s * runtime / 60 - EPS)
+
+
+def _calendars(
+    beats: Sequence[Beat],
+    runtime: float,
+    spec: StyleSpec,
+    words: Sequence[Word],
+    spans: Sequence[Span],
+) -> tuple[list[Violation], list[Beat]]:
+    """108 (083): a calendar needs a style that offers one (`broll.calendar`), sits on a
+    picture or map beat (`CALENDAR_KINDS`) in place of a stamp (never with one), flips to
+    a different text, each text at most `chars_max` characters, lands on a transcript word
+    the beat covers, and there are at most `calendar_cap` over the runtime. `at_s` is
+    rewritten as the word's start on the output timeline."""
+    found: list[Violation] = []
+    out: list[Beat] = []
+    row = spec.broll.calendar
+    cap = calendar_cap(spec, runtime=runtime)
+    total = 0
+    for b in beats:
+        cal = b.calendar
+        if cal is None:
+            out.append(b)
+            continue
+        label = f"calendar {cal.from_text!r} -> {cal.to_text!r}"
+        if row is None:
+            found.append(_v("4.1", b.id, f"{label}: the style {spec.name!r} offers no calendar "
+                                         "(no broll.calendar row; 108)"))  # fmt: skip
+            out.append(b)
+            continue
+        total += 1
+        if total > cap:
+            found.append(
+                _v("4.1", b.id, f"{label}: calendar {total} over {runtime:g} s; "
+                                f"broll.calendar.max_per_60s {row.max_per_60s} allows {cap} "
+                                "(108)")  # fmt: skip
+            )
+        kind = "presenter_full" if b.mode == "full" else b.kind
+        if kind not in CALENDAR_KINDS:
+            found.append(
+                _v("4.1", b.id, f"{label} sits on a picture or map beat "
+                                f"({', '.join(sorted(CALENDAR_KINDS))}); this beat is a "
+                                f"{b.kind!r}")  # fmt: skip
+            )
+        if b.event.kind == "stamp":
+            found.append(
+                _v("3.1", b.id, f"{label} lands instead of a stamp; this beat also stamps "
+                                f"{b.event.text!r} (one landed event per beat)")  # fmt: skip
+            )
+        if cal.from_text.strip().lower() == cal.to_text.strip().lower():
+            found.append(_v("4.1", b.id, f"{label} flips to what it shows; from_text and "
+                                         "to_text must differ"))  # fmt: skip
+        longest = max(len(cal.from_text), len(cal.to_text))
+        if longest > row.chars_max:
+            found.append(
+                _v("4.1", b.id, f"{label} has {longest} characters; broll.calendar.chars_max "
+                                f"allows {row.chars_max}")  # fmt: skip
+            )
+        if not cal.word < len(words):
+            found.append(
+                _v("4.1", b.id, f"{label} lands on word {cal.word}; the transcript has "
+                                f"{len(words)} words (0-{len(words) - 1})")  # fmt: skip
+            )
+            out.append(b)
+            continue
+        at = round(presenter.output_time(spans, words[cal.word].start), 3)
+        if not b.start - CONTIGUITY_TOL_S <= at < b.end:
+            found.append(
+                _v("4.1", b.id, f"{label} lands on word {cal.word} ({words[cal.word].text!r} "
+                                f"at {at:g} s on the cut), which this beat ({b.start:g}-"
+                                f"{b.end:g} s) does not cover")  # fmt: skip
+            )
+        resolved = cal.model_copy(update={"at_s": max(at, b.start)})
+        out.append(b.model_copy(update={"calendar": resolved}))
     return found, out
 
 

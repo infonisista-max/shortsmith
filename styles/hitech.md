@@ -1,5 +1,5 @@
 ---
-version: "24"
+version: "25"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -108,7 +108,7 @@ broll:
           # 0.3 s); up to names_max countries in view named at name_font_px.
           min_span_deg: 12, names_max: 6, name_font_px: 30, circle_px: 10,
           circle_size: 0.6, circle_draw_s: 0.3, tag_font_px: 48, tag_tilt_deg: -8,
-          tag_slide_s: 0.3,
+          tag_slide_s: 0.3, stamp_margin_px: 24,  # 108: a stamp or calendar keeps this far off the map's content
           highlight: "#A3E635", name_color: "#FFFFFF",
           circle_color: "#F43F5E", tag_fill: "#22D3EE", tag_ink: "#020617"}
   enter_transitions: [cut, fade, wipe, zoom]

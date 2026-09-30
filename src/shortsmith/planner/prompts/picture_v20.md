@@ -325,6 +325,15 @@ Banners (a bar of the speaker's words)
   in on, `position` `top` or `bottom`. At most `broll.banner.max_per_60s` per 60 s; a
   style without the row gets none. Never write `at_s`: code fills it from the word.
 
+Calendar pages (a year or date flipping to the spoken one)
+- Where section 1 carries a `broll.calendar` row, a year or date beat (a `photo`, `card`,
+  `clip`, presenter-full or `map` beat) may carry a `calendar` instead of a stamp:
+  `from_text` the page it shows first (the year before, or the date the story leaves),
+  `to_text` the spoken year or date, each at most `broll.calendar.chars_max` characters,
+  `word` the transcript index that says it. The beat then has no stamp. At most
+  `broll.calendar.max_per_60s` per 60 s; vary it with stamps rather than using it for
+  every year. Never write `at_s`.
+
 The cut
 - `cut.keep` lists the kept spans of the recording in recording order, from the first
   word to the end; `cut.drop` the dropped ones, which hold only silence, breaths and

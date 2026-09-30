@@ -56,7 +56,7 @@ def test_the_effects_bench_draws_one_beat_per_new_effect() -> None:
                                pip=render.fixed_pip((1080, 1920), numbers))  # fmt: skip
     names = [shot.name for shot in shots]
     assert names[:3] == ["107_banner_top", "107_banner_bottom", "107_light_flare"]
-    beats = [shot.beat for shot in shots]
+    beats = list({shot.beat.id: shot.beat for shot in shots}.values())
     assert [b.start_frame for b in beats] == [i * bench.EFFECT_FRAMES for i in range(len(beats))]
     top, bottom, flare = shots[:3]
     assert top.beat.banner is not None and top.beat.banner.from_top
@@ -65,3 +65,24 @@ def test_the_effects_bench_draws_one_beat_per_new_effect() -> None:
     assert top.frame == top.beat.end_frame - 2
     assert bench.parse_effects(["--effects", "out"]) == Path("out")
     assert bench.parse_effects(["--treatments", "out"]) is None
+
+
+def test_the_effects_bench_draws_the_calendar_and_a_saudi_map_stamp() -> None:
+    """108: the page mid-peel and landed, and the run05 b07 map (Saudi Arabia, Riyadh)
+    with its stamp kept off the country, the circle, the tag and the pill."""
+    numbers = render.style_numbers("explainer")
+    shots = {shot.name: shot for shot in bench.effect_beats(
+        "image.jpg", (870, 614), numbers=numbers, pip=render.fixed_pip((1080, 1920), numbers))}
+    flip, landed = shots["108_calendar_flip"], shots["108_calendar_landed"]
+    cal = flip.beat.calendar
+    assert cal is not None and flip.beat is landed.beat
+    since = (flip.frame - flip.beat.start_frame) / render.FPS
+    assert cal.flip_start_s < since < cal.land_s
+    assert (landed.frame - landed.beat.start_frame) / render.FPS > cal.land_s
+    stamped = shots["108_map_stamp"].beat
+    assert stamped.map is not None and stamped.stamp is not None
+    assert stamped.map.region == "Saudi Arabia" and stamped.map.target is not None
+    box = render.stamp_box(stamped.stamp)
+    for content in render.map_content(stamped.map):
+        assert not (box.left < content[2] and content[0] < box.right
+                    and box.top < content[3] and content[1] < box.bottom), content

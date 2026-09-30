@@ -263,7 +263,7 @@ test("Short.tsx draws every registered component", () => {
                   pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath",
                   text_pop: "TextPop", bubble: "Bubble", sticker: "Sticker",
                   title_strip: "TitleStrip", backdrop: "Backdrop", crop_fill: "CropFill",
-                  polaroid: "Polaroid", banner: "Banner" };
+                  polaroid: "Polaroid", banner: "Banner", calendar: "Calendar" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   // 078: the highlight is drawn inside the screenshot's card, which Short.tsx draws.
@@ -491,4 +491,22 @@ test("the light flare is an enter drawn like the flash, over the pictures only (
   assert.ok(flare > short.indexOf("<Transition"), "the flare is drawn under the picture");
   assert.ok(flare < short.indexOf("<Pip "), "the flare is drawn over the PIP circle");
   assert.ok(flare < short.indexOf("<Captions "), "the flare is drawn over the captions");
+});
+
+test("the calendar peels from one date to the next on the spoken word (108)", () => {
+  assert.ok(registry.components.includes("calendar"), "calendar is not registered");
+  const source = readFileSync(join(root, "components", "calendar.tsx"), "utf-8");
+  for (const field of ["from_text", "to_text", "left", "top", "width", "height", "header_px",
+                       "font_px", "page", "ink", "header", "header_ink", "appear_s",
+                       "flip_start_s", "land_s", "until_s"]) {
+    assert.ok(source.includes(`.${field}`), `calendar.tsx never reads ${field}`);
+  }
+  assert.match(source, /rotateX\(/, "the page never peels");
+  assert.match(source, /transformOrigin: "50% 0"/, "the page does not peel about its binding");
+  // the peel is 1 from the landing on: the new date is flat on the spoken word
+  assert.match(source, /t >= spec\.land_s/, "the peel does not end on the landing");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const calendar = short.indexOf("<Calendar ");
+  assert.ok(calendar > short.indexOf("<Pip "), "the calendar is drawn under the PIP circle");
+  assert.ok(calendar < short.indexOf("<Captions "), "the calendar is drawn over the captions");
 });

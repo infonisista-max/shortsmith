@@ -46,6 +46,7 @@
 // the flash (`lightFlareAt`, over both beats' picture layers, under the circle, the
 // overlays and the captions). A beat's `banner` sits with the landed overlays, after the
 // lower-third and before the text pops; it is placed clear of the circle and the captions.
+// Ticket 108: a year beat's `calendar` page lands in the stamp's layer, after the counter.
 //
 // Ticket 059: a recipe style's fixed title strip (`title_strip`) sits above the beat
 // overlays and under the captions from the first frame to the finale's first frame.
@@ -54,6 +55,7 @@ import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { Backdrop } from "./components/backdrop";
 import { Banner } from "./components/banner";
 import { Bubble } from "./components/bubble";
+import { Calendar } from "./components/calendar";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
@@ -226,6 +228,9 @@ export const Short: React.FC<RenderSpec> = (spec) => {
       ) : null}
       {beat?.counter ? (
         <Counter spec={beat.counter} style={spec.caption_style} frame={since} fps={spec.fps} />
+      ) : null}
+      {beat?.calendar ? (
+        <Calendar spec={beat.calendar} style={spec.caption_style} frame={since} fps={spec.fps} />
       ) : null}
       {beat?.lower_third ? (
         <LowerThird

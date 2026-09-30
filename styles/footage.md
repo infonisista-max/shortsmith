@@ -1,5 +1,5 @@
 ---
-version: "15"
+version: "16"
 status: shipped
 aliases: [footage, documentary, dhruv, cinematic]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -80,7 +80,7 @@ broll:
           # 0.3 s); up to names_max countries in view named at name_font_px.
           min_span_deg: 12, names_max: 6, name_font_px: 30, circle_px: 10,
           circle_size: 0.6, circle_draw_s: 0.3, tag_font_px: 48, tag_tilt_deg: -8,
-          tag_slide_s: 0.3,
+          tag_slide_s: 0.3, stamp_margin_px: 24,  # 108: a stamp or calendar keeps this far off the map's content
           highlight: "#1F9E89", name_color: "#0B1D3A",
           circle_color: "#E53935", tag_fill: "#FFD60A", tag_ink: "#111111"}
     # 061: 1-4 bold words pinned on the picture, landing on the spoken word; `fill` is
