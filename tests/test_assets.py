@@ -715,7 +715,7 @@ def test_an_opening_beat_with_no_image_and_no_generator_falls_to_the_gradient(
 
 def test_a_named_opening_subject_still_skips_the_stock_libraries(tmp_path: Path) -> None:
     """053's rule holds inside the opening: a named person is never a stock stranger,
-    so with only Pexels answering the opening beat is illustrated, not found."""
+    and (100) never AI, so with only Pexels answering the opening beat is the gradient."""
     pexels = assets.FakeImageSource("pexels")
     web = assets.FakeImageSource("web", nothing_found=True)
     generating = _generating()
@@ -724,9 +724,8 @@ def test_a_named_opening_subject_still_skips_the_stock_libraries(tmp_path: Path)
     manifest = _run(tmp_path, beats, sources={"web": web, "pexels": pexels},
                     generating=generating, spec=EXPLAINER)  # fmt: skip
     assert pexels.searches == 1  # b02, a scene, may use it; b01 never did
-    first = manifest.asset(manifest.beats[0].asset_id or "")
-    assert first is not None and first.origin == "generated" and first.generated is not None
-    assert first.generated.render == "illustration"
+    first = manifest.beats[0]
+    assert (first.treatment, first.asset_id, generating.images) == ("gradient", None, 0)
 
 
 def test_planned_reuse_of_an_asset_id_fetches_once(tmp_path: Path) -> None:
@@ -1414,8 +1413,9 @@ def test_run04_b05_with_every_saud_search_failing_never_shows_trump(tmp_path: Pa
     generated = _run04(tmp_path / "gen", Asked(nothing_for=SAUD_QUERIES),
                        generating=_generating())  # fmt: skip
     b05 = next(b for b in generated.beats if b.beat_id == "b05")
-    record = generated.asset(b05.asset_id or "")
-    assert record is not None and (record.origin, b05.fallback_rung) == ("generated", 2)
+    # 100: King Saud is a named person, never generated; with the owner portrait capped
+    # and no other real photo of him, the gradient
+    assert (b05.asset_id, b05.fallback_rung) == (None, 4)
 
 
 def test_a_number_beat_after_trump_still_carries_trump_on(tmp_path: Path) -> None:

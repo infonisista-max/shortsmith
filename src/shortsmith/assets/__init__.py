@@ -26,6 +26,12 @@ an `AssetManifest` (`work/assets.json`):
   Anything else takes a stock clip from the clip sources (`query`, then
   `query_fallback`), else an image generated for the line past the cap (rung 2), else
   the gradient.
+- Never AI for a named person (100): `Generating.make` is the single door and refuses
+  any beat `names_a_person` (099's `named_person`, or `named_entity` on a non-concept
+  beat) with a job-log note, whatever the caller - the opening (which then falls to the
+  gradient), a concept beat's `generate` intent, the still ladder's rung 2, a replaced
+  beat. The caller carries on: a real photo of that person already shown (rung 3), else
+  the gradient. A named place, era or object on a `concept` beat may still be generated.
 - No beat fails the step (096): an exception while sourcing one beat (a missing
   reference file, an unreadable download, a source bug) is a
   `sourcing: bNN: <error>; shown over the gradient (plain fallback)` line and that beat

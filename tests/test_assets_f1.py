@@ -79,11 +79,11 @@ def test_a_named_entity_beat_never_takes_a_stock_library_picture(tmp_path: Path)
     assert any("b01" in line and "pexels" in line and "not searched" in line for line in log)
 
 
-def test_a_named_entity_nobody_has_a_picture_of_is_illustrated_never_a_stranger(
+def test_a_named_entity_nobody_has_a_picture_of_is_the_gradient_never_a_stranger_or_ai(
     tmp_path: Path,
 ) -> None:
-    """Web 403s, Commons and Openverse empty, both queries -> rung 2 (the 5.5 stylised
-    illustration), never the stock libraries."""
+    """Web 403s, Commons and Openverse empty, both queries -> never the stock libraries
+    and (100) never generated: a named person is shown over the gradient."""
     web = [c for c in _f1("web", BABA) if "worthpoint" in c.url]
     sources = _f1_sources(web=web)
     judge = Scoring({}, default=3)
@@ -91,10 +91,8 @@ def test_a_named_entity_nobody_has_a_picture_of_is_illustrated_never_a_stranger(
     manifest = _run(tmp_path, [_named()], sources=dict(sources), judging=assets.Judging(judge, 40),
                     generating=generating)  # fmt: skip
     (beat,) = manifest.beats
-    assert beat.fallback_rung == 2
-    record = manifest.assets[0]
-    assert record.origin == "generated" and record.generated is not None
-    assert (record.generated.depicts, record.generated.render) == ("named_entity", "illustration")
+    assert (beat.fallback_rung, beat.treatment) == (4, "gradient")
+    assert manifest.assets == [] and generating.images == 0
     assert sources["pexels"].searches == 0
     assert sources["web"].searches == 2
 

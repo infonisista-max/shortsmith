@@ -298,7 +298,8 @@ def _generating(cap: int = 8, **overrides: Any) -> Generating:
 
 
 def test_a_generated_beat_carries_its_prompt_model_render_and_depicts(tmp_path: Path) -> None:
-    made = _generating().make(_beat("entity"), tmp_path)
+    # 100: a named place, era or object (a concept) may be generated; a person never
+    made = _generating().make(_beat("concept", depicts="named_entity"), tmp_path)
     assert made is not None
     assert made.path.is_file()
     assert (made.generated.model, made.generated.render) == ("fake", "illustration")

@@ -152,6 +152,20 @@ def depicts_of(beat: Beat) -> Depicts:
     return "named_entity" if beat.subject_kind == "entity" else "scene"
 
 
+# 100: the `depicts` values that name a real person. 099 adds `named_person` to the
+# contract; the old `named_entity` counts as a person on any beat that is not a `concept`
+# (the prompt's `entity` beat is "a named person, place, product ..." and cannot tell
+# them apart, so it is read the safe way).
+PERSON_DEPICTS: frozenset[str] = frozenset({"named_person"})
+
+
+def names_a_person(beat: Beat) -> bool:
+    """100: whether the beat depicts a named real person, who is never generated."""
+    if beat.depicts is not None and beat.depicts in PERSON_DEPICTS:
+        return True
+    return depicts_of(beat) == "named_entity" and beat.subject_kind != "concept"
+
+
 def is_diagram_base(beat: Beat) -> bool:
     """Whether the beat's asset is the base of a labelled diagram (9.3, ticket 021):
     generated label-free, shown only under the code-rendered labels."""
@@ -343,8 +357,9 @@ class Generating:
     """The generator as the step uses it: the file cache, the cap and the one retry.
 
     `make` returns the beat's generated asset, or None when nothing was generated -
-    no generator configured (`IMAGE_GEN=none`), the style's `gen_max_per_short` spent,
-    or the generator could not answer. The step then carries on down the ladder to
+    no generator configured (`IMAGE_GEN=none`), a beat depicting a named person (100,
+    `names_a_person`: never AI, whatever the caller), the style's `gen_max_per_short`
+    spent, or the generator could not answer. The step then carries on down the ladder to
     rung 3; a beat is never left blank and the job never fails for a generator."""
 
     generator: ImageGenerator | None = None
@@ -363,6 +378,12 @@ class Generating:
         11.3 says cost never degrades quality; the cap note is still written."""
         generator, spec = self.generator, self.spec
         if generator is None or spec is None:
+            return None
+        if names_a_person(beat):  # 100: the single door; the caller takes its ladder on
+            self.notes.append(
+                f"generation: {beat.id} depicts a named person, who is never generated "
+                "(100); the beat takes its ladder on"
+            )
             return None
         prompt = build_prompt(beat, spec)
         record = Generated(
