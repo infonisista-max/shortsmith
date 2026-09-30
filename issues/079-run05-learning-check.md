@@ -119,6 +119,21 @@ added (081) only after this run shows the worked examples help.
   Then the operator re-runs the links and `gaps` (092), approves Trap Hamza by ear (088),
   does the facts-default pass (087 step 2), and continues with step 4.
 
+## Progress (30 Sep 2026, run05 King Saud re-render)
+
+- **Step 4** done: job `20260930-042239-302dc9` (King Saud, vishva) delivered after the
+  094-098 recovery work; the editor rescued the b09 map and a T5 warn.
+- **Step 7 (this short): phone rating 6.5/10** (operator, 30 Sep 2026). `job.json.rating`
+  stores 6 because the score is whole numbers; the note carries 6.5. Below the floor of 7.
+  Complaints: b08/b09 map framed too tight on Kuwait-Riyadh (land and sea unreadable, no
+  names or borders, a lone unlabeled dot at 0:13); b16 split-card text strip across the
+  man's face; the reel looks like every vishva reel (same image pop-ups, zero clips; 6
+  Pexels clips for "airplane flying above clouds" were sourced and none landed).
+  → the creative-editor tickets 099 onward.
+- **Step 5** needs the planner (network and keys), so it is the operator's command:
+  `uv run python -m shortsmith.compare_plan data/jobs/20260930-042239-302dc9`.
+  Output: _(pending)_.
+
 ## Blocked by
 
 - 088, 089, 092 (for step 4 onward; 090, 091 and 093 are wanted before the phone verdict

@@ -32,12 +32,19 @@ Candidates in `docs/reference/inventory/GAPS.md`, grouped:
 
 ## Acceptance criteria
 
-- [ ] After the v2 re-run and any 081 additions, re-run `reference gaps` and rank the
+- [x] After the v2 re-run and any 081 additions, re-run `reference gaps` and rank the
       groups by reference count.
-- [ ] The operator picks 1–3. Each becomes its own AFK ticket, built from the cards'
+- [x] The operator picks 1–3. Each becomes its own AFK ticket, built from the cards'
       `motion` numbers.
 
 ## Blocked by
 
 - `issues/073-reference-card-v2.md`
 - `issues/079-run05-learning-check.md`
+
+## Done note (30 Sep 2026)
+
+Unparked by the operator after run05 (6.5/10). Picked: all four groups plus the null fill:
+**106** (nulls to existing components), **107** (banners + light flare), **108** (calendar
+flip), **109** (cash/particle overlays). The map target circle is in **104**. Props in hands
+and cut-out reaction pops stay open in GAPS.md (they need background removal).
