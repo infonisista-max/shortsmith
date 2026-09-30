@@ -805,9 +805,36 @@ class Violation(StrictModel):
     rule: str
     beat_id: str | None = None
     message: str
+    # 094: a hard truth (every spoken word kept in order, no invented asset ids or
+    # coordinates, no named entity on a clip, ...) that the editor may never keep.
+    hard: bool = False
 
     def __str__(self) -> str:
         return f"{self.beat_id or 'plan'} ({self.rule}): {self.message}"
+
+
+class EditorDecision(StrictModel):
+    """094: one choice the editor (or its code fallback, or the operator) made on a snag:
+    the step it came up at, the beat (None for the plan), what was wrong, the option
+    label picked and why."""
+
+    at: datetime
+    step: str
+    beat_id: str | None = None
+    problem: str
+    choice: str
+    reason: str
+    by: Literal["editor", "fallback", "operator"]
+
+
+class ChangeRequest(StrictModel):
+    """094: one change-box request on the job page: the operator's words, what was done
+    about it, and where it stands."""
+
+    at: datetime
+    text: str
+    summary: str = ""
+    status: Literal["applied", "refused", "running"]
 
 
 class ValidatedPlan(StrictModel):
@@ -2024,11 +2051,11 @@ class CriticSummary(StrictModel):
 
 
 class TechnicalResult(StrictModel):
-    """One T1-T13 line as `out/qa.json` recorded it: `pass`, `fail`, or the pre-032
-    `not_implemented` placeholder."""
+    """One T1-T13 line as `out/qa.json` recorded it: `pass`, `fail`, `warn` (094: a
+    failing check the editor waived), or the pre-032 `not_implemented` placeholder."""
 
     name: str
-    status: Literal["pass", "fail", "not_implemented"]
+    status: Literal["pass", "fail", "warn", "not_implemented"]
     detail: str
 
 

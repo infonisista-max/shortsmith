@@ -8,6 +8,10 @@ Layout per decision 2.2: `<data_dir>/jobs/<job_id>/{job.json, input/, work/, out
     any non-terminal -> failed, carrying error {step, message, detail}; its job.log
         line ends with the detail's first line (065)
     failed -> uploaded, by `requeue` only (043: the retry), carrying `retry_from`
+    in-flight step -> the status before an earlier (or the same) step, by `rewind`
+        only (094: the editor's rescue re-runs from that step)
+    delivered | passed | rejected -> uploaded, by `rework` only (094: a change),
+        carrying `retry_from`
 
 Every transition rewrites `job.json` and appends one timestamped line to `job.log`.
 Illegal transitions raise `IllegalTransition` and touch nothing on disk. A requeued
@@ -49,8 +53,10 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from shortsmith.contracts import RATING_MAX as RATING_MAX
 from shortsmith.contracts import RATING_MIN as RATING_MIN
 from shortsmith.contracts import (
+    ChangeRequest,
     CostRow,
     CriticSummary,
+    EditorDecision,
     Performance,
     PresenterMeasurement,
     Rating,
@@ -204,6 +210,12 @@ class JobRecord(BaseModel):
     performance: Performance | None = None
     music_level: MusicLevel | None = None  # 090: set at mux (default), moved by the slider
     bed_pick: BedPick | None = None  # 093: the last bed picked on the page
+    # 094: the editor's decisions (`decide`), the beats sourcing re-sources with the
+    # replacement ladder, the QA checks delivered as `warn`, and the change-box requests.
+    decisions: list[EditorDecision] = []
+    replaced: list[str] = []
+    waived_checks: list[str] = []
+    changes: list[ChangeRequest] = []
 
     @model_validator(mode="before")
     @classmethod
@@ -432,6 +444,69 @@ def requeue(job: Job, *, now: Clock = _utc_now) -> Job:
         job, status="uploaded", updated_at=stamp, error=None, progress=None, retry_from=start
     )
     _append_log(updated, stamp, f"failed -> uploaded retry_from={start}")
+    return updated
+
+
+def decide(job: Job, decision: EditorDecision, *, now: Clock = _utc_now) -> Job:
+    """Append the editor's `decision` to job.json (094) and log
+    `editor: <step> <beat|plan>: <problem> -> <choice> (<by>: <reason>)`. No status
+    changes."""
+    stamp = now()
+    current = load(job.path).record
+    updated = amend(job, decisions=[*current.decisions, decision], updated_at=stamp)
+    where = decision.beat_id or "plan"
+    _append_log(
+        updated,
+        stamp,
+        f"editor: {decision.step} {where}: {decision.problem} -> {decision.choice} "
+        f"({decision.by}: {decision.reason})",
+    )
+    return updated
+
+
+def rewind(job: Job, to_step: Status, reason: str, *, now: Clock = _utc_now) -> Job:
+    """Move an in-flight job back so `to_step` runs again (094: the editor patched the
+    plan and the job goes on from there). `to_step` is a step (`STEPS`) at or before
+    the job's current one.
+
+    The job is set to the status just BEFORE `to_step` (`planning` for `sourcing`,
+    `uploaded` for `transcribing`), so the pipeline re-enters with the ordinary
+    one-step-forward `transition(job, to_step)` and walks on from there step by step:
+
+        job = jobs.rewind(job, "sourcing", why)   # status is now `planning`
+        job = jobs.transition(job, "sourcing")
+
+    The log line is `<current> -> <to_step> rewind: <reason>`. Progress is cleared;
+    nothing else on the record changes."""
+    current = load(job.path)
+    if current.status not in STEPS:
+        raise IllegalTransition(job.id, current.status, to_step)
+    if to_step not in STEPS or STEPS.index(to_step) > STEPS.index(current.status):
+        raise IllegalTransition(job.id, current.status, to_step)
+    before = STATUS_ORDER[STATUS_ORDER.index(to_step) - 1]
+    stamp = now()
+    updated = amend(job, status=before, updated_at=stamp, progress=None)
+    _append_log(updated, stamp, f"{current.status} -> {to_step} rewind: {reason}")
+    return updated
+
+
+def rework(job: Job, from_step: Status, reason: str, *, now: Clock = _utc_now) -> Job:
+    """Send a settled short (`delivered`, `passed`, `rejected`) back to `uploaded` to be
+    run again from `from_step` (094: the change box), like `requeue`: `retry_from` makes
+    the one jump out of `uploaded` legal. The error is cleared; the rating and the
+    critic's summary stay on the record. Logs `<status> -> uploaded retry_from=<step>
+    rework: <reason>`."""
+    current = load(job.path)
+    if current.status not in VERDICTS or from_step not in STEPS:
+        raise IllegalTransition(job.id, current.status, "uploaded")
+    stamp = now()
+    updated = amend(
+        job, status="uploaded", updated_at=stamp, error=None, progress=None,
+        retry_from=from_step,
+    )  # fmt: skip
+    _append_log(
+        updated, stamp, f"{current.status} -> uploaded retry_from={from_step} rework: {reason}"
+    )
     return updated
 
 

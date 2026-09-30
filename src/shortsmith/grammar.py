@@ -141,6 +141,7 @@ class PictureCheck(StrictModel):
 class SoundCheck(StrictModel):
     sound: SoundStory
     clamps: list[Clamp] = []
+    warnings: list[str] = []  # 094: soft violations kept (keep_soft)
 
 
 def validate(
@@ -153,16 +154,18 @@ def validate(
     must_use: Sequence[str] = (),
     references: Sequence[str] = (),
     timeline: Timeline = "recording",
+    keep_soft: bool = False,
 ) -> ValidatedPlan | Violations:
     """Both halves at once; the sound story is checked against the snapped picture
     when the picture passes, against the raw one otherwise so every violation is
-    listed."""
+    listed. 094: with `keep_soft`, both halves keep their soft violations as warnings
+    (picture first, then sound) and only hard ones reject."""
     pic = validate_picture(
         plan, transcript, spec, brief=brief, must_use=must_use, references=references,
-        timeline=timeline,
+        timeline=timeline, keep_soft=keep_soft,
     )  # fmt: skip
     picture = pic.picture if isinstance(pic, PictureCheck) else plan
-    snd = validate_sound(story, picture, spec)
+    snd = validate_sound(story, picture, spec, keep_soft=keep_soft)
     items: list[Violation] = []
     if isinstance(pic, Violations):
         items += pic.items
@@ -175,7 +178,7 @@ def validate(
         picture=pic.picture,
         sound=snd.sound,
         clamps=pic.clamps + snd.clamps,
-        warnings=pic.warnings,
+        warnings=pic.warnings + snd.warnings,
     )
 
 
@@ -191,12 +194,18 @@ def validate_picture(
     must_use: Sequence[str] = (),
     references: Sequence[str] = (),
     timeline: Timeline = "recording",
+    keep_soft: bool = False,
 ) -> PictureCheck | Violations:
     """`references` are the owner's reference ids (the opening shows one first, 055);
     `timeline` says whether the beats are the planner's recording seconds or an
-    already validated plan's output seconds (see the module docstring)."""
+    already validated plan's output seconds (see the module docstring).
+
+    094: with `keep_soft`, every violation that is not `hard` becomes the warning
+    `kept by the editor: <violation>` and the plan passes when no hard one remains.
+    The two early exits (a cut that is not the speech, a beat with no length on the
+    cut) are hard and still stop the check at once."""
     if not plan.beats:
-        return Violations(items=[Violation(rule="3.1", message="the plan has no beats")])
+        return Violations(items=[_hard("3.1", None, "the plan has no beats")])
     found: list[Violation] = []
     clamps: list[Clamp] = []
     warnings: list[str] = []
@@ -247,6 +256,9 @@ def validate_picture(
     found += _category(plan)
     found += _title_strip(plan, spec)
 
+    if keep_soft:
+        found, kept = _split_soft(found)
+        warnings += kept
     if found:
         return Violations(items=found)
     picture, field_clamps = _clamp_fields(plan.model_copy(update={"beats": beats}), words, spec)
@@ -255,6 +267,22 @@ def validate_picture(
 
 def _v(rule: str, beat_id: str | None, message: str) -> Violation:
     return Violation(rule=rule, beat_id=beat_id, message=message)
+
+
+def _hard(rule: str, beat_id: str | None, message: str) -> Violation:
+    """094: a hard truth the editor may never keep (see `Violation.hard`)."""
+    return Violation(rule=rule, beat_id=beat_id, message=message, hard=True)
+
+
+def kept_note(v: Violation) -> str:
+    """094: the warning a soft violation becomes when the editor keeps it."""
+    return f"kept by the editor: {v}"
+
+
+def _split_soft(found: Sequence[Violation]) -> tuple[list[Violation], list[str]]:
+    """094 (keep_soft): the hard violations, and every soft one as a kept-note warning."""
+    hard = [v for v in found if v.hard]
+    return hard, [kept_note(v) for v in found if not v.hard]
 
 
 def _len(beat: Beat) -> float:
@@ -285,7 +313,7 @@ def _speech(cut: CutPlan, words: Sequence[Word]) -> list[Violation]:
     for a, b in zip(cut.keep, cut.keep[1:], strict=False):
         if b.start < a.end - EPS:
             found.append(
-                _v(
+                _hard(
                     "3.4",
                     None,
                     f"cut.keep is out of the speaker's order: {_span_text(b)} is listed after "
@@ -302,7 +330,7 @@ def _speech(cut: CutPlan, words: Sequence[Word]) -> list[Violation]:
         text = " ".join(w.text for w in run)
         span = Span(start=run[0].start, end=run[-1].end)
         found.append(
-            _v(
+            _hard(
                 "3.4",
                 None,
                 f"the cut removes or cuts into spoken words {text!r} ({_span_text(span)}); "
@@ -367,7 +395,7 @@ def _on_output(
         end = presenter.output_time(spans, b.end)
         if end - start <= EPS:
             found.append(
-                _v(
+                _hard(
                     "3.1",
                     b.id,
                     f"beat {b.start:g}-{b.end:g} s on the recording lies inside removed audio "
@@ -725,7 +753,7 @@ def _clips(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Viola
         if b.kind == CLIP_KIND:
             if depicts_of(b) == "named_entity":
                 found.append(
-                    _v("4.1", b.id, "a clip never shows a named entity (a person, place, "
+                    _hard("4.1", b.id, "a clip never shows a named entity (a person, place, "
                                     "product or event keeps the still ladder); this clip "
                                     f"beat's subject is {b.subject_kind!r} depicting a named "
                                     "entity (058)")  # fmt: skip
@@ -815,7 +843,7 @@ def _items(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
                     )
             elif item.asset_id not in planned:
                 found.append(
-                    _v("4.3", b.id, f"item {i} asset id {item.asset_id!r} is not a plan asset")
+                    _hard("4.3", b.id, f"item {i} asset id {item.asset_id!r} is not a plan asset")
                 )
             if b.kind != "wall" and not item.text.strip():
                 found.append(_v("4.1", b.id, f"item {i} of this {b.kind} has no text"))
@@ -868,24 +896,24 @@ def _chart_beat(b: Beat, marks_max: int) -> list[Violation]:
     found: list[Violation] = []
     if b.chart_form is None:
         found.append(
-            _v("9.2", b.id, "a chart beat needs a chart_form (bar | line | comparison)")
+            _hard("9.2", b.id, "a chart beat needs a chart_form (bar | line | comparison)")
         )
     if b.chart_form == "comparison":
         low, high, key = 2, 2, "a comparison draws exactly two values"
     else:
         low, high, key = 2, marks_max, f"broll.motion.chart.marks_max allows 2-{marks_max}"
     if not low <= len(b.series) <= high:
-        found.append(_v("9.2", b.id, f"this chart has {len(b.series)} series values; {key}"))
+        found.append(_hard("9.2", b.id, f"this chart has {len(b.series)} series values; {key}"))
     for i, point in enumerate(b.series):
         if not point.label.strip():
-            found.append(_v("9.2", b.id, f"series value {i} ({point.value:g}) has no label"))
+            found.append(_hard("9.2", b.id, f"series value {i} ({point.value:g}) has no label"))
         if point.value < 0:
             found.append(
-                _v("9.2", b.id, f"series value {point.label!r} is {point.value:g}; chart "
+                _hard("9.2", b.id, f"series value {point.label!r} is {point.value:g}; chart "
                                 "values are non-negative in v1")  # fmt: skip
             )
     if b.series and max(p.value for p in b.series) <= 0:
-        found.append(_v("9.2", b.id, "every series value is zero: there is no scale to draw"))
+        found.append(_hard("9.2", b.id, "every series value is zero: there is no scale to draw"))
     return found
 
 
@@ -918,7 +946,7 @@ def _maps(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
             lat_ok = -MAX_MAP_LAT <= south < north <= MAX_MAP_LAT
             if not (lon_ok and lat_ok):
                 found.append(
-                    _v("9.3", b.id, f"bbox {list(recipe.bbox)} is not west < east within "
+                    _hard("9.3", b.id, f"bbox {list(recipe.bbox)} is not west < east within "
                                     f"+-180 and south < north within +-{MAX_MAP_LAT:g}")
                 )
         if not 1 <= len(recipe.markers) <= markers_max:
@@ -1307,7 +1335,7 @@ def _highlights(
             )
         if lit.asset_id not in references:
             found.append(
-                _v("4.1", b.id, f"{label} marks {lit.asset_id!r}, which is not one of the "
+                _hard("4.1", b.id, f"{label} marks {lit.asset_id!r}, which is not one of the "
                                 "owner's uploaded references; a highlight marks only the "
                                 "owner's article or document screenshot, never a made-up "
                                 "page (078)")  # fmt: skip
@@ -1486,7 +1514,7 @@ def _must_use(beats: Sequence[Beat], must_use: Sequence[str]) -> list[Violation]
     used = {b.asset_id for b in beats if b.asset_id}
     used |= {i.asset_id for b in beats for i in b.items if i.asset_id}
     return [
-        _v("2.3", None, f"must-use reference {ref!r} is not used by any beat or set-piece item")
+        _hard("2.3", None, f"must-use reference {ref!r} is not used by any beat or set-piece item")
         for ref in must_use
         if ref not in used
     ]
@@ -1690,10 +1718,17 @@ def _bed_problems(
 
 
 def validate_sound(
-    story: SoundStory, picture: PicturePlan, spec: StyleSpec, *, moods: vocab.Moods | None = None
+    story: SoundStory,
+    picture: PicturePlan,
+    spec: StyleSpec,
+    *,
+    moods: vocab.Moods | None = None,
+    keep_soft: bool = False,
 ) -> SoundCheck | Violations:
     """7.3 / 8.2 / 9.4 on the SoundStory against the (snapped) picture plan; 076 the bed
-    per story part against the closed mood list (`moods`, the shipped file unless given)."""
+    per story part against the closed mood list (`moods`, the shipped file unless given).
+    094: with `keep_soft`, soft violations become `SoundCheck.warnings` (see
+    `validate_picture`)."""
     nums = spec.sound
     beats = {b.id: b for b in picture.beats}
     runtime = picture.beats[-1].end if picture.beats else 0.0
@@ -1849,10 +1884,13 @@ def validate_sound(
                 + ("" if dl > 0 else "; a drop must step down at a beat boundary"),
             )
         )
+    warnings: list[str] = []
+    if keep_soft:
+        found, warnings = _split_soft(found)
     if found:
         return Violations(items=found)
     clamped = story.model_copy(update={"cues": cues, "mood_curve": points})
-    return SoundCheck(sound=clamped, clamps=clamps)
+    return SoundCheck(sound=clamped, clamps=clamps, warnings=warnings)
 
 
 # --- brief parsing (2.3, 4.2) -----------------------------------------------------------

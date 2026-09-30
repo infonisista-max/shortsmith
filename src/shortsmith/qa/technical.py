@@ -27,7 +27,8 @@ every listed check is present and `pass`: a report that stopped short never deli
         longer than 0.5 s before the finale (`ffmpeg.frame_stats`: signalstats + framehash)
     T8  plan clean: rescued beats (ladder rung 3-4) <= the style limit scaled to the
         runtime (4.4), work/plan.validated.json re-validates under the job's style with
-        zero violations (the grammar, 8.2), and work/render.log has no NetworkError
+        zero violations (the grammar, 8.2; 094: soft rules kept by the editor are not
+        violations here), and work/render.log has no NetworkError
     T9  rights log complete: every beat's asset has a row, every row a source URL or an
         owner/generated origin, every generated row a prompt, no photoreal named entity
     T10 no cut boundary (work/cut.json, source timeline) lands mid-word: none sits more
@@ -111,7 +112,10 @@ TARGET_LUFS, LUFS_TOLERANCE = -14.0, 0.5
 MAX_TRUE_PEAK_DBTP = -1.5
 
 # `not_implemented` is legacy: reports written before 032 (see the module note).
-CheckStatus = Literal["pass", "fail", "not_implemented"]
+# 094: `warn` is a failing check the editor waived (`record.waived_checks`): it passes,
+# with its detail kept for the page.
+CheckStatus = Literal["pass", "fail", "warn", "not_implemented"]
+WAIVED_PREFIX = "kept by the editor: "
 
 CHECK_ORDER: tuple[str, ...] = (
     "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12", "T13",
@@ -122,7 +126,8 @@ _REFS = TypeAdapter(list[ReferenceRecord])
 
 class QaCheck(StrictModel):
     """One check's result. `status` is `pass` or `fail` from `passed`; a legacy
-    `not_implemented` row (pre-032 qa.json) is never `passed`."""
+    `not_implemented` row (pre-032 qa.json) is never `passed`; a `warn` row (094, a
+    waived check) always is."""
 
     name: str
     passed: bool
@@ -134,6 +139,10 @@ class QaCheck(StrictModel):
         if self.status == "not_implemented":
             if self.passed:
                 raise ValueError(f"{self.name}: a not_implemented check cannot be passed")
+            return self
+        if self.status == "warn":
+            if not self.passed:
+                raise ValueError(f"{self.name}: a warn check is passed")
             return self
         self.status = "pass" if self.passed else "fail"
         return self
@@ -154,10 +163,11 @@ class QaReport(StrictModel):
 
 def report(checks: Sequence[QaCheck]) -> QaReport:
     """The report over `checks`: passed only when every check in `CHECK_ORDER` is
-    present and `pass` - the `delivered` rule (10.4). A report that stopped at a FAIL,
-    or one from before 032 with rows held back, never delivers."""
+    present and `pass` or `warn` (094: waived by the editor) - the `delivered` rule
+    (10.4). A report that stopped at a FAIL, or one from before 032 with rows held
+    back, never delivers."""
     statuses = {c.name: c.status for c in checks}
-    passed = all(statuses.get(name) == "pass" for name in CHECK_ORDER)
+    passed = all(statuses.get(name) in ("pass", "warn") for name in CHECK_ORDER)
     return QaReport(checks=list(checks), passed=passed)
 
 
@@ -997,7 +1007,7 @@ def revalidate(job: Job, specs: Mapping[str, StyleSpec]) -> list[str] | None:
     out = grammar.validate(
         validated.picture, validated.sound, transcript, spec,
         brief=brief, must_use=grammar.must_use_ids(brief, references),
-        references=[r.id for r in references], timeline="output",
+        references=[r.id for r in references], timeline="output", keep_soft=True,
     )  # fmt: skip
     return out.lines() if isinstance(out, grammar.Violations) else []
 
@@ -1026,9 +1036,10 @@ def run(job: Job, *, specs: Mapping[str, StyleSpec] | None = None) -> QaReport:
     `work/captions.json`, `work/cut.json`, `work/cut.mp4`, `work/stems/`,
     `work/assets.json`, `out/rights.json`, `work/plan.validated.json`, `work/render.log`,
     `job.json` (the measurement, the ledger) and `work/render_spec.json`; stops at the
-    first FAIL and writes `out/qa.json` either way. `specs` are the loaded styles the
-    grammar judged the plan by (the worker's set: the smoke's is fixture-shaped); None
-    loads the shipped ones."""
+    first FAIL and writes `out/qa.json` either way. A failing check named in
+    `job.json` `waived_checks` (094) is delivered as `warn` and the run goes on.
+    `specs` are the loaded styles the grammar judged the plan by (the worker's set: the
+    smoke's is fixture-shaped); None loads the shipped ones."""
     specs = specs if specs is not None else render.loaded_styles()
     short = job.out_dir / "short.mp4"
     info = ffmpeg.probe(short)
@@ -1061,6 +1072,11 @@ def run(job: Job, *, specs: Mapping[str, StyleSpec] | None = None) -> QaReport:
         lambda: t13(record, assets.load_manifest(job.path), spec.budget if spec else None),
     ):
         result = check()
+        if result.status == "fail" and result.name in record.waived_checks:
+            result = QaCheck(
+                name=result.name, passed=True, status="warn",
+                detail=WAIVED_PREFIX + result.detail,
+            )  # fmt: skip
         checks.append(result)
         if result.status == "fail":
             break

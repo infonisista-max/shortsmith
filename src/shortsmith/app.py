@@ -1272,8 +1272,9 @@ def render_job_page(
 
 
 # `not_implemented` only appears in a qa.json written before 032: neither a pass nor a FAIL.
+# `warn` (094) is a failing check the editor waived: it delivered, with its detail shown.
 CHECK_LABELS: dict[str, str] = {
-    "pass": "pass", "fail": "FAIL", "not_implemented": "not implemented",
+    "pass": "pass", "fail": "FAIL", "warn": "warn", "not_implemented": "not implemented",
 }  # fmt: skip
 
 

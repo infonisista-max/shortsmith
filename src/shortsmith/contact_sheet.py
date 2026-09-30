@@ -95,6 +95,7 @@ SAFE_COLOUR = (255, 80, 80)
 PASS_COLOUR = (46, 204, 113)
 FAIL_COLOUR = (231, 76, 60)
 PENDING_COLOUR = (120, 120, 120)
+WARN_COLOUR = (241, 196, 15)  # 094: a check the editor waived (delivered with a note)
 MARK_COLOUR = (231, 76, 60)
 MARK_PX = 22
 CIRCLE_COLOUR = (255, 255, 255)  # the PIP circle's edge on the strip row
@@ -450,8 +451,8 @@ def _draw_summary(
     for name in TECHNICAL_CHECKS:
         # A check that did not run (the gate stopped before it) is grey: never green.
         status = results.get(name)
-        colour = (
-            PASS_COLOUR if status == "pass" else FAIL_COLOUR if status == "fail" else PENDING_COLOUR
+        colour = {"pass": PASS_COLOUR, "fail": FAIL_COLOUR, "warn": WARN_COLOUR}.get(
+            status or "", PENDING_COLOUR
         )
         draw.ellipse((x, cy - 8, x + 16, cy + 8), fill=colour)
         draw.text((x + 22, cy - 9), name, fill=TEXT_COLOUR, font=font)

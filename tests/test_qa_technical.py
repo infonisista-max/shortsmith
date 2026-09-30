@@ -1533,22 +1533,25 @@ def test_run_writes_qa_json_with_every_check_passing(tmp_path: Path, gated_job: 
 
 
 def test_run_re_validates_against_the_specs_it_is_given(tmp_path: Path, gated_job: Path) -> None:
-    """The fixture plan passes the fixture-shaped spec, not the shipped one: with no
-    specs the gate loads the shipped styles, and T8 fails on the real counts."""
+    """The gate judges the plan by the specs it is given: a job whose style is not among
+    them fails T8 naming it. 094: T8 re-validates with `keep_soft`, so the fixture plan's
+    breaks of the shipped style's counts (soft rules) no longer fail it."""
     job = _gated(tmp_path, gated_job)
-    report = technical.run(job)
+    report = technical.run(job, specs={})
     assert report.failed is not None and report.failed.name == "T8"
     assert "plan re-validation:" in report.failed.detail
+    assert "'explainer' is not a loaded spec" in report.failed.detail
+    assert _named(technical.run(job), "T8").status == "pass"
 
 
 def test_run_fails_t8_on_a_plan_that_no_longer_validates(tmp_path: Path, gated_job: Path) -> None:
     job = _gated(tmp_path, gated_job)
     path = job.work_dir / "plan.validated.json"
     validated = ValidatedPlan.model_validate_json(path.read_text(encoding="utf-8"))
-    first, *rest = validated.picture.beats
+    first = validated.picture.beats[0]
     broken = validated.model_copy(update={"picture": validated.picture.model_copy(
-        update={"beats": [first.model_copy(update={"mode": "off"}), *rest]}
-    )})  # fmt: skip  # 055: an opening beat that is not pip over an image
+        update={"cut": CutPlan(keep=[Span(start=0.0, end=first.end / 2)])}
+    )})  # fmt: skip  # 3.4 (055, hard since 094): a cut that drops spoken words
     path.write_text(broken.model_dump_json(indent=2), encoding="utf-8")
     report = technical.run(job, specs=SPECS)
     assert [c.name for c in report.checks] == ALL_CHECKS[:8]
