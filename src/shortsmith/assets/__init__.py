@@ -162,8 +162,10 @@ from shortsmith.assets.clips import (
     FakeClipSource,
     PexelsClipSource,
     PixabayClipSource,
+    best_window,
     choose_file,
     is_portrait,
+    motion_profile,
     reject_clip,
 )
 from shortsmith.assets.commons import CommonsImageSource
@@ -452,6 +454,7 @@ class _Fetched:
     generated: Generated | None = None
     verdict: JudgeVerdict | None = None
     judge_skipped: bool = False
+    start_s: float = 0.0  # 102: a clip's most moving stretch starts here
 
     def sha256(self) -> str:
         return hashlib.sha256(self.path.read_bytes()).hexdigest()
@@ -726,6 +729,46 @@ def _clip_probe_reject(path: Path, need_s: float, max_upscale: float) -> str | N
     return None
 
 
+@dataclass(frozen=True)
+class ClipMotion:
+    """102: the style's clip motion bar - frames sampled `fps` a second, a clip whose
+    most moving window moves less than `minimum` passed over. `fps` 0: no check."""
+
+    fps: float = 0.0
+    minimum: float = 0.0
+
+
+NO_MOTION_CHECK = ClipMotion()
+
+
+def clip_motion(spec: StyleSpec) -> ClipMotion:
+    """`broll.motion.clip.motion_fps` / `motion_min` (102); no check when absent."""
+    row = spec.broll.motion.get("clip", {})
+    return ClipMotion(fps=float(row.get("motion_fps", 0.0)),
+                      minimum=float(row.get("motion_min", 0.0)))  # fmt: skip
+
+
+def _clip_window(
+    path: Path, have: dict[str, object], need_s: float, motion: ClipMotion
+) -> tuple[float, float]:
+    """102: (start second, movement) of the fetched clip's most moving `need_s` stretch;
+    the measured profile is kept on the cache record (`have["motion"]`), so a later beat
+    asking the same clip is not measured again."""
+    if motion.fps <= 0:
+        return 0.0, 0.0
+    key = f"motion@{motion.fps:g}"
+    profile = have.get(key)
+    try:
+        if not isinstance(profile, list):
+            profile = motion_profile(path, fps=motion.fps)
+            have[key] = profile
+        values = [float(v) for v in cast("list[float]", profile)]
+        return best_window(values, fps=motion.fps, need_s=need_s,
+                           duration_s=ffmpeg.duration_s(path))  # fmt: skip
+    except ffmpeg.FFmpegError:
+        return 0.0, motion.minimum  # unmeasurable: played from its start, never refused
+
+
 def rank_clips(
     candidates: Sequence[Candidate], verdicts: Sequence[Verdict] | None
 ) -> list[_Ranked]:
@@ -758,6 +801,7 @@ def _clip_cached(
     era: bool = False,
     period_only: bool = False,
     beat_id: str = "",
+    motion: ClipMotion = NO_MOTION_CHECK,
 ) -> _Fetched | None:
     """The clip `query` from `source` gives a beat needing `need_s` seconds (058), fetched
     once per job. The search is cached like an image search (`result.json` under
@@ -769,7 +813,11 @@ def _clip_cached(
     099: on an era beat (`era`) the judge is asked each clip's era; with `period_only`
     only a clip it judged `period` is taken (the first pass), and on the last pass every
     clip it refused as a modern stand-in is logged with its reason (`beat_id` names the
-    beat in that line)."""
+    beat in that line).
+
+    102: each usable file is measured locally (`motion`): the beat plays its most moving
+    stretch, and a clip whose best stretch moves less than the style's `motion_min` is
+    passed over for the next hit (logged)."""
     name = source.name
 
     def note(line: str) -> None:
@@ -864,6 +912,13 @@ def _clip_cached(
         if why is not None:
             note(f"{candidate.url} skipped: {why}")
             continue
+        start, moves = _clip_window(got.path, have, need_s, motion)
+        if motion.fps > 0 and moves < motion.minimum:
+            note(f"{candidate.url} skipped: its most moving {need_s:g} s moves {moves:.4f}, "
+                 f"under the style's clip.motion_min {motion.minimum:g}; read as a still "
+                 "(102)")  # fmt: skip
+            continue
+        got.start_s = start
         fetched = got
         break
     record["fetched"] = fetched_all
@@ -1151,7 +1206,8 @@ class _Walk:
                         fetched_at=self.clock().isoformat())  # fmt: skip
 
     def show(self, beat: Beat, record: AssetRecord, rung: int, *,
-             redressed: bool = False, judge_skipped: bool = False) -> None:  # fmt: skip
+             redressed: bool = False, judge_skipped: bool = False,
+             clip_start_s: float = 0.0) -> None:  # fmt: skip
         if record.kind == CLIP_KIND:
             # 058: a clip is drawn full-screen whatever its aspect (its 9:16 crop covers
             # the frame, `choose_file` saw to that); never a card, never downgraded.
@@ -1182,6 +1238,7 @@ class _Walk:
                 stamp=stamp_word(beat) if rung >= 3 else None,
                 judge_skipped=judge_skipped,
                 diagram_base=is_diagram_base(beat),
+                clip_start_s=clip_start_s if record.kind == CLIP_KIND else 0.0,
             )
         )
         self.subjects[beat.id] = beat.subject_kind or ""
@@ -1281,6 +1338,7 @@ def source_assets(
     generating = generating if generating is not None else Generating()
     border = card_border(spec)
     speed = clip_speed(spec)
+    motion = clip_motion(spec)
 
     def sources_for(beat: Beat) -> list[tuple[str, ImageSource]]:
         """053 rule 1: a named person (or the old `named_entity`) never comes from the
@@ -1365,7 +1423,8 @@ def source_assets(
         log(
             f"sourcing: {beat.id}: no usable clip for {beat.query!r} (need "
             f"{clip_need_s(beat, picture.beats, speed=speed):g} s, cover 1080x1920 at <= "
-            f"{spec.broll.full_bleed_max_upscale:g}x); the still ladder is used instead (058)"
+            f"{spec.broll.full_bleed_max_upscale:g}x, move at least clip.motion_min "
+            f"{motion.minimum:g}); the still ladder is used instead (058, 102)"
         )
         return False
 
@@ -1387,7 +1446,7 @@ def source_assets(
                         max_upscale=spec.broll.full_bleed_max_upscale,
                         subject_kind=beat.subject_kind or "", topic=topic, log=log,
                         saturated=lambda digest: walk.blocked_sha(beat, digest),
-                        era=era, period_only=period_only, beat_id=beat.id,
+                        era=era, period_only=period_only, beat_id=beat.id, motion=motion,
                     )  # fmt: skip
                     if found is None:
                         continue
@@ -1396,7 +1455,8 @@ def source_assets(
                         fetched_at=found.fetched_at, candidate=found.candidate,
                         judge=found.verdict,
                     )  # fmt: skip
-                    walk.show(beat, record, rung, judge_skipped=found.judge_skipped)
+                    walk.show(beat, record, rung, judge_skipped=found.judge_skipped,
+                              clip_start_s=found.start_s)  # fmt: skip
                     return record
         return None
 

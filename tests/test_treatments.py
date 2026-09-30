@@ -188,10 +188,22 @@ def test_the_planners_treatments_are_drawn(tmp_path: Path) -> None:
 
 
 def test_crop_to_fill_frames_the_face_and_moves_slowly(tmp_path: Path) -> None:
-    visual = _drawn(tmp_path, [_beat(0, treatment="crop_fill")], FACE_LANDSCAPE, face=FACE)["b00"]
+    # 102: a scene beat - no subject known, so the (largest) face found is framed; a named
+    # person's beat aims at the ring's point instead (tests/test_motion_alive.py)
+    scene = _beat(0, treatment="crop_fill").model_copy(update={"depicts": "scene"})
+    visual = _drawn(tmp_path, [scene], FACE_LANDSCAPE, face=FACE)["b00"]
     cf = EXPLAINER.broll.crop_fill
     assert cf is not None and visual.card is None
-    assert (visual.scale_from, visual.scale_to) == (cf.scale_from, cf.scale_to)
+    # 102: the beat's `ken_burns_in` is the style's move; a motion with no move row keeps
+    # crop_fill's own slow push
+    move = EXPLAINER.broll.moves["ken_burns_in"]
+    assert (visual.scale_from, visual.scale_to) == (move.scale_from, move.scale_to)
+    own = render._visuals(  # pyright: ignore[reportPrivateUsage]
+        _plan([_beat(0, treatment="crop_fill").model_copy(update={"motion": "reveal"})]),
+        _manifest([_beat(0)], FACE_LANDSCAPE, fits=False), tmp_path, EXPLAINER, pip_top=960,
+        face_of=lambda _src: FACE,
+    )["b00"][1]  # fmt: skip
+    assert own is not None and (own.scale_from, own.scale_to) == (cf.scale_from, cf.scale_to)
     face = render.face_box_on(visual, FACE)
     centre = face.left + face.width / 2
     assert abs(centre - render.WIDTH / 2) < render.WIDTH * 0.1  # the face across the middle

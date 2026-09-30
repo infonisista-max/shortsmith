@@ -71,7 +71,11 @@ Visual kinds (tiers)
 - Tier 1 (allowed): photo, card, stamp, map
 - Tier 2 (not allowed on this style): parallax, vector_illustration. Naming one is rejected; use the nearest tier-1 kind instead.
 - `kind` is one allowed kind. The presenter pseudo-kinds `presenter_full` and `presenter_pip` go with `full` and `pip` beats that show only the presenter.
-- Every non-presenter beat has exactly one `motion`: never a static still.
+- Every non-presenter beat has exactly one `motion`: never a static still. On a
+  full-screen still pick the camera move an editor would: `push_in` (closes in on the
+  subject), `pull_out` (a reveal), `ken_burns_in` / `ken_burns_out` (a push or pull with
+  a drift), `pan_left` / `pan_right` / `pan_up` / `pan_down` (travel across a wide or tall
+  picture), `hold` (a near-still breath); vary them beat to beat.
 - `overlays` animate on a base kind: `pin_drop`, `route_arrow` and `object_path` on a
   `map`, `label_flyin` on an `infographic` (its labels fly in), `counter` on a `chart`
   or a `number` beat.
@@ -680,7 +684,11 @@ Top shorts of this style show, shot by shot, how a spoken line became a picture,
                 "draw_on",
                 "count_up",
                 "fly_in",
-                "travel"
+                "travel",
+                "pull_out",
+                "pan_up",
+                "pan_down",
+                "hold"
               ],
               "type": "string"
             },

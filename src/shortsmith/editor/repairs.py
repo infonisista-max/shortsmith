@@ -26,6 +26,7 @@ from typing import Literal, get_args
 
 from shortsmith import geo
 from shortsmith.contracts import (
+    CAMERA_MOVES,
     PICTURE_TREATMENTS,
     Beat,
     CutPlan,
@@ -41,9 +42,7 @@ from shortsmith.infographics import CITY_SPAN_DEG
 Layer = Literal["text_pops", "bubbles", "stickers", "highlight", "event", "counter", "route"]
 LAYERS: tuple[Layer, ...] = get_args(Layer)
 ROUTE_OVERLAYS = frozenset({"route_arrow", "object_path"})
-PHOTO_MOTIONS: frozenset[Motion] = frozenset(
-    {"ken_burns_in", "ken_burns_out", "pan_left", "pan_right", "push_in"}
-)
+PHOTO_MOTIONS: frozenset[Motion] = frozenset(CAMERA_MOVES)  # 102: every camera move
 PRESENTER_KINDS = frozenset({"presenter_full", "presenter_pip"})
 MAX_LAT = 85.0  # the grammar's map edge (grammar.MAX_MAP_LAT)
 EPS = 1e-6

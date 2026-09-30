@@ -1,5 +1,5 @@
 ---
-version: "14"
+version: "15"
 status: shipped
 aliases: [footage, documentary, dhruv, cinematic]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -51,7 +51,12 @@ broll:
            ring_color: "#E53935"}
     # 058: a full-screen stock clip; no push and real speed (4 of the 119 reference clips
     # were pushed, 5 were slowed: the clip's own movement is the motion).
-    clip: {kind: push, scale_from: 1.0, scale_to: 1.0, speed: 1.0}
+    # 102: the local motion measure - frames sampled motion_fps a second at 64 px, the
+    # mean grey change per step (0-1). A clip whose best window moves less than
+    # motion_min is passed over (a still colour clip measures 0; the synthetic
+    # testsrc2 1080x1920 0.0044-0.006; run05 b18, which read as a still, 0.009-0.035).
+    clip: {kind: push, scale_from: 1.0, scale_to: 1.0, speed: 1.0, motion_fps: 4,
+           motion_min: 0.004}
     stamp: {kind: land, duration_s: 0.16, shake: true, palette: yellow_green_red}
     lower_third: {kind: fade, duration_s: 0.35, top_y: 1150, bottom_y: 1240}
     finale: {kind: fade, duration_s: 0.35, cards: 3}
@@ -95,6 +100,11 @@ broll:
     # 078: the marker over an owner's article screenshot - the accent at about 45 %,
     # padded round each text line; the screenshot card pushes to push_to about the lines.
     highlight: {kind: sweep, color: "#FFD60A", opacity: 0.45, pad_px: 8, push_to: 1.12}
+    # 102: the light film grade on a clip or still the era judge found `timeless` (099): a
+    # modern-looking shot made to sit in the period. The references' archival stills are
+    # fully black and white (NKB b06, b12, b21 `bw`); a stand-in goes 60 % of the way
+    # (saturate 0.4) with a warm cast and a touch of contrast.
+    era_grade: {sepia: 0.3, saturate: 0.4, contrast: 1.05}
     # 103: the picture treatments beside the full-bleed photo and the card. `backdrop`: the
     # image sharp across the frame (at most width_px wide, never over max_upscale) between
     # the safe top and the card line, over its own blurred, darkened, enlarged copy (the
@@ -136,6 +146,29 @@ broll:
   unique_assets_max_per_60s: 27
   reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
   rescued_max_per_60s: 4
+  # 102: the camera move each planner `motion` names on a full-screen still (photo,
+  # crop_fill), from the beat tables of the two approved shorts (work/beat-tables.md,
+  # `s0->s1` scale and `x`/`y` drift in % of the frame): push_in = the origin-pinned
+  # pushes (Dyson b05 1.0->1.22, b10 1.28, b20 1.16, NKB b23 1.10: median ~1.2); pull_out =
+  # the reveals (NKB b03 1.35->1.12, b06 1.25->1.10, b21 1.30->1.12, Dyson b03 1.32->1.08,
+  # b11 1.38->1.06, b16 1.16->1.0, b19 1.15->1.02: medians 1.30 -> 1.08); ken_burns_in =
+  # the drifting pushes (12 beats, median +0.14, y 2 -> -2 %), started at 1.04 so the 4 %
+  # drift never shows an edge; ken_burns_out = the drifting pull-backs (NKB b05 1.12->1.0 x
+  # 3->-3, b24 1.14->1.0, Dyson b09 1.12->1.0 x -2->2: -0.13); the pans = the largest
+  # drift in the tables (6 %: NKB b05 x, Dyson b17 y) at a 1.12 hold; hold = no move in
+  # the tables (every reference still moves), so the gentlest breath, +0.03. pan_x / pan_y
+  # are the picture's travel (+ right / down): pan_left slides it right. `aim: subject`
+  # centres the push on the beat's subject face (the one the card's ring circles).
+  motion_moves:
+    push_in: {scale_from: 1.0, scale_to: 1.2, pan_x: 0.0, pan_y: 0.0, aim: subject}
+    pull_out: {scale_from: 1.3, scale_to: 1.08, pan_x: 0.0, pan_y: 0.0, aim: subject}
+    ken_burns_in: {scale_from: 1.04, scale_to: 1.18, pan_x: 0.0, pan_y: -0.04, aim: frame}
+    ken_burns_out: {scale_from: 1.17, scale_to: 1.04, pan_x: 0.04, pan_y: 0.0, aim: frame}
+    pan_left: {scale_from: 1.12, scale_to: 1.12, pan_x: 0.06, pan_y: 0.0, aim: frame}
+    pan_right: {scale_from: 1.12, scale_to: 1.12, pan_x: -0.06, pan_y: 0.0, aim: frame}
+    pan_up: {scale_from: 1.12, scale_to: 1.12, pan_x: 0.0, pan_y: 0.06, aim: frame}
+    pan_down: {scale_from: 1.12, scale_to: 1.12, pan_x: 0.0, pan_y: -0.06, aim: frame}
+    hold: {scale_from: 1.02, scale_to: 1.05, pan_x: 0.0, pan_y: 0.0, aim: frame}
   full_bleed_max_upscale: 2.0  # 057: a portrait covering the frame at <= this is full-screen, any origin
   card_max_bottom_y: 1240
   stamp_max_y_fraction: 0.6

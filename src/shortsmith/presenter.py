@@ -147,6 +147,13 @@ class FaceDetector(ABC):
     def detect(self, still: Path) -> FaceBox | None:
         """The largest face on the still, in its pixels, or None."""
 
+    def detect_all(self, still: Path) -> list[FaceBox]:
+        """102: every face on the still, in its pixels (the render aims a crop at the
+        beat's subject among them, not at the largest). A detector that finds only one
+        answers that one."""
+        found = self.detect(still)
+        return [found] if found is not None else []
+
 
 class HaarDetector(FaceDetector):
     """OpenCV's bundled frontal-face Haar cascade at its documented defaults."""
@@ -157,6 +164,12 @@ class HaarDetector(FaceDetector):
             raise RuntimeError(f"OpenCV did not load {CASCADE} from cv2.data.haarcascades")
 
     def detect(self, still: Path) -> FaceBox | None:
+        boxes = self.detect_all(still)
+        if not boxes:
+            return None
+        return max(boxes, key=lambda b: b.width * b.height)
+
+    def detect_all(self, still: Path) -> list[FaceBox]:
         image = cv2.imread(str(still))
         if image is None:
             raise RuntimeError(f"OpenCV could not read {still}")
@@ -167,12 +180,9 @@ class HaarDetector(FaceDetector):
             minNeighbors=MIN_NEIGHBOURS,
             minSize=(MIN_FACE_PX, MIN_FACE_PX),
         )
-        boxes = [
+        return [
             FaceBox(left=int(x), top=int(y), width=int(w), height=int(h)) for x, y, w, h in found
         ]
-        if not boxes:
-            return None
-        return max(boxes, key=lambda b: b.width * b.height)
 
 
 class FakeFaceDetector(FaceDetector):

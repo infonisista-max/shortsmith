@@ -94,6 +94,19 @@ export type VisualSpec = {
   // broll.motion.clip.speed); both 1.0 / 0.0 on a still.
   speed: number;
   start_s: number;
+  // 102: the vertical drift over the beat (pan_px's twin), the point the push is centred
+  // on (fractions of the drawn box; null: the focus) and the era grade (null: none).
+  pan_y_px: number;
+  origin_x: number | null;
+  origin_y: number | null;
+  grade: GradeSpec | null;
+};
+
+// 102: the light film grade from the style's broll.motion.era_grade (CSS filter strengths).
+export type GradeSpec = {
+  sepia: number;
+  saturate: number;
+  contrast: number;
 };
 
 // Set pieces and overlays (ticket 026): everything is already placed and measured in

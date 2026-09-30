@@ -2,11 +2,13 @@
 // cropped round its detected face - `focus_x` / `focus_y` are the objectPosition that put
 // the face across the middle at the style's `crop_fill.face_y` (render.crop_fill_visual,
 // the split pane's framing) - pushing slowly toward it (`scale_from` -> `scale_to`, the
-// transform origin at the same point). Nothing is measured here.
+// transform origin at the same point). Ticket 102: the push is centred on the face as
+// drawn (`origin_x` / `origin_y`) and the planner's camera move arrives as the scales and
+// both drifts. Nothing is measured here.
 import React from "react";
 import { AbsoluteFill, interpolate } from "remotion";
 import type { BeatSpec } from "../types";
-import { Framed, beatProgress } from "./photo";
+import { Framed, beatProgress, drift } from "./photo";
 
 export const CropFill: React.FC<{
   beat: BeatSpec;
@@ -22,7 +24,14 @@ export const CropFill: React.FC<{
   const scale = interpolate(p, [0, 1], [visual.scale_from, visual.scale_to]);
   return (
     <AbsoluteFill>
-      <Framed visual={visual} width={width} height={height} scale={scale} />
+      <Framed
+        visual={visual}
+        width={width}
+        height={height}
+        scale={scale}
+        shiftX={drift(p, visual.pan_px)}
+        shiftY={drift(p, visual.pan_y_px)}
+      />
     </AbsoluteFill>
   );
 };

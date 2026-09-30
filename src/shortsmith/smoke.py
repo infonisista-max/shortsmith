@@ -642,10 +642,12 @@ def check_clip(
     check(visual is not None and visual.treatment == "clip", f"b04 is drawn as {visual}")
     assert visual is not None
     numbers = render.style_numbers(style).broll
+    # 102: the clip plays from its most moving stretch, the second the asset step measured
+    start = decided.clip_start_s
     check(
         (visual.speed, visual.start_s, visual.scale_from, visual.scale_to)
-        == (numbers.clip_speed, 0.0, numbers.clip_scale_from, numbers.clip_scale_to),
-        f"the clip visual is not {style}'s clip row: {visual}",
+        == (numbers.clip_speed, start, numbers.clip_scale_from, numbers.clip_scale_to),
+        f"the clip visual is not {style}'s clip row from its measured start: {visual}",
     )
     check(Path(visual.src) == clip_file.resolve(), "the render spec does not draw the clip file")
     check(drawn.stamp is not None and drawn.mode == "pip", "the clip beat lost its stamp or circle")

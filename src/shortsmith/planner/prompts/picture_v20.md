@@ -69,7 +69,11 @@ The opening (the first sentence)
 
 Visual kinds (tiers)
 $tiers
-- Every non-presenter beat has exactly one `motion`: never a static still.
+- Every non-presenter beat has exactly one `motion`: never a static still. On a
+  full-screen still pick the camera move an editor would: `push_in` (closes in on the
+  subject), `pull_out` (a reveal), `ken_burns_in` / `ken_burns_out` (a push or pull with
+  a drift), `pan_left` / `pan_right` / `pan_up` / `pan_down` (travel across a wide or tall
+  picture), `hold` (a near-still breath); vary them beat to beat.
 - `overlays` animate on a base kind: `pin_drop`, `route_arrow` and `object_path` on a
   `map`, `label_flyin` on an `infographic` (its labels fly in), `counter` on a `chart`
   or a `number` beat.

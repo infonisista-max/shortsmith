@@ -6,12 +6,13 @@
 // second of the clip the beat starts at (`start_s`; a number beat carrying the clip on
 // starts where the last beat stopped), and the slow push `scale_from` -> `scale_to`
 // (1.0 -> 1.0 in every existing style: the clip's own movement is the motion). Nothing
-// is measured here.
+// is measured here. Ticket 102: `start_s` is the clip's most moving stretch (measured by
+// the asset step), and a clip the era judge found `timeless` carries the style's film grade.
 import { Video } from "@remotion/media";
 import React from "react";
 import { AbsoluteFill, interpolate } from "remotion";
 import type { BeatSpec } from "../types";
-import { beatProgress } from "./photo";
+import { beatProgress, gradeFilter } from "./photo";
 
 export const Clip: React.FC<{ beat: BeatSpec; frame: number; fps: number; width: number; height: number }> = ({
   beat,
@@ -45,6 +46,7 @@ export const Clip: React.FC<{ beat: BeatSpec; frame: number; fps: number; width:
             objectPosition: `${visual.focus_x * 100}% ${visual.focus_y * 100}%`,
             transformOrigin: `${visual.focus_x * 100}% ${visual.focus_y * 100}%`,
             transform: `scale(${scale * visual.zoom})`,
+            filter: gradeFilter(visual) || undefined,
           }}
         />
       </div>

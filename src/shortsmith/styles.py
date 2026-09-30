@@ -34,9 +34,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, field_validator
 
 from shortsmith.contracts import (
+    CAMERA_MOVES,
     CaptionStyle,
     Palette,
     PictureTreatment,
@@ -143,6 +144,20 @@ class TitleStrip(StrictModel):
     duration_s: float = Field(ge=0.0)
 
 
+class MoveRow(StrictModel):
+    """102: one camera move on a full-screen still - the push `scale_from` -> `scale_to`
+    over the beat, the picture's travel over it as a fraction of the frame (`pan_x` of the
+    width, + right; `pan_y` of the height, + down; the renderer keeps it inside the margin
+    the smaller scale leaves), and what the push is centred on: `subject` (the beat's
+    subject face - the one the card's ring circles) or `frame` (the framing's focus)."""
+
+    scale_from: float = Field(gt=0.0)
+    scale_to: float = Field(gt=0.0)
+    pan_x: float = 0.0
+    pan_y: float = 0.0
+    aim: Literal["subject", "frame"] = "frame"
+
+
 class Broll(StrictModel):
     """4.1 / 9.2 kinds and per-kind motion numbers, 9.4 transitions, 4.3 asset counts."""
 
@@ -208,6 +223,19 @@ class Broll(StrictModel):
     no_repeat_treatments: list[PictureTreatment] = Field(default_factory=lambda: [])
     # 103: at most this many red cards per 60 s of runtime, rounded up; None: no cap.
     card_max_per_60s: int | None = Field(default=None, ge=0)
+    # 102: the camera move each planner `motion` names on a full-screen still (photo,
+    # crop_fill); a motion with no row keeps the `motion.photo` Ken Burns. Only the
+    # `contracts.CAMERA_MOVES` names may have a row.
+    motion_moves: dict[str, MoveRow] = Field(default_factory=lambda: {})
+
+    @field_validator("motion_moves")
+    @classmethod
+    def _known_moves(cls, rows: dict[str, MoveRow]) -> dict[str, MoveRow]:
+        unknown = sorted(set(rows) - set(CAMERA_MOVES))
+        if unknown:
+            raise ValueError(f"broll.motion_moves names {unknown}, not camera moves "
+                             f"{list(CAMERA_MOVES)} (102)")  # fmt: skip
+        return rows
 
 
 class Captions(CaptionStyle):

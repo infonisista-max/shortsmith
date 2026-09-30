@@ -426,3 +426,35 @@ test("the treatments read every number from the spec, never a literal (103)", ()
   const crop = readFileSync(join(root, "components", "crop_fill.tsx"), "utf-8");
   assert.match(crop, /<Framed/, "crop_fill.tsx does not draw the framed image");
 });
+
+test("the full-screen stills draw the move's drift both ways and its origin (102)", () => {
+  const photo = readFileSync(join(root, "components", "photo.tsx"), "utf-8");
+  for (const field of ["pan_px", "pan_y_px", "origin_x", "origin_y", "scale_from", "scale_to"]) {
+    assert.ok(photo.includes(`.${field}`), `photo.tsx never reads ${field}`);
+  }
+  assert.match(photo, /translateY\(/, "photo.tsx never drifts the picture up or down");
+  // crop_fill takes the planner's move too: its push, both drifts, its face-centred origin
+  const cropFill = readFileSync(join(root, "components", "crop_fill.tsx"), "utf-8");
+  for (const field of ["scale_from", "scale_to", "pan_px", "pan_y_px"]) {
+    assert.ok(cropFill.includes(`.${field}`), `crop_fill.tsx never reads ${field}`);
+  }
+  const types = readFileSync(join(root, "types.ts"), "utf-8");
+  for (const field of ["pan_y_px", "origin_x", "origin_y", "grade"]) {
+    assert.ok(types.includes(`  ${field}: `), `VisualSpec has no ${field}`);
+  }
+});
+
+test("the era grade is a filter from the spec on every picture and clip (102)", () => {
+  const photo = readFileSync(join(root, "components", "photo.tsx"), "utf-8");
+  assert.match(photo, /export function gradeFilter/, "photo.tsx has no gradeFilter");
+  for (const field of ["sepia", "saturate", "contrast"]) {
+    assert.ok(photo.includes(`grade.${field}`), `gradeFilter never reads grade.${field}`);
+  }
+  // Framed draws every still (photo, crop_fill, the card's image and cover), so the grade
+  // is applied there; the clip applies it to its video
+  assert.match(photo, /gradeFilter\(visual\)/, "Framed never applies the grade");
+  const clip = readFileSync(join(root, "components", "clip.tsx"), "utf-8");
+  assert.match(clip, /gradeFilter\(visual\)/, "clip.tsx never applies the grade");
+  // no strength is written in the component: every number comes from the spec
+  assert.doesNotMatch(photo, /sepia\(0\.\d/, "a literal sepia strength in photo.tsx");
+});

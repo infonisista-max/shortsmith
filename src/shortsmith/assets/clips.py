@@ -26,13 +26,15 @@ found" modes as the fake image source.
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from abc import ABC
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from io import BytesIO
 from pathlib import Path
 
 import httpx
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import SecretStr
 
@@ -57,6 +59,10 @@ _SUFFIX: Mapping[str, str] = {
 }  # fmt: skip
 CHUNK = 1 << 16
 EPS = 1e-9
+# 102: the clip file choice prefers a file at least the composition's width.
+FULL_WIDTH_PX = 1080
+# 102: the motion measure's frame size - small grey frames, enough to see movement.
+MOTION_W, MOTION_H = 64, 114
 
 
 class ClipFile(StrictModel):
@@ -94,11 +100,13 @@ def is_portrait(candidate: Candidate) -> bool:
 def choose_file(
     candidate: ClipCandidate, *, max_upscale: float, max_bytes: int = CLIP_MAX_BYTES
 ) -> Candidate | None:
-    """The file the step downloads (058 (3)): the smallest variant whose 9:16 crop
-    covers 1080x1920 at no more than `max_upscale` and that weighs at most `max_bytes`
-    (a file of unknown weight sorts after every known one, then by pixel area). None
-    when no variant meets the bar. The result is a plain `Candidate` at that file's URL
-    and size, carrying the hit's page, preview, author, licence and duration."""
+    """The file the step downloads (058 (3), 102): among the variants whose 9:16 crop
+    covers 1080x1920 at no more than `max_upscale` and that weigh at most `max_bytes`,
+    the smallest at least `FULL_WIDTH_PX` wide (a file of unknown weight sorts after every
+    known one, then by pixel area); when none is that wide, the largest (run05 b18 took
+    Pexels' 540x960, a 2x upscale, beside a 1080x1920). None when no variant meets the
+    bar. The result is a plain `Candidate` at that file's URL and size, carrying the
+    hit's page, preview, author, licence and duration."""
     fits = [
         f
         for f in candidate.files
@@ -109,7 +117,11 @@ def choose_file(
     ]
     if not fits:
         return None
-    best = min(fits, key=lambda f: (f.size_bytes == 0, f.size_bytes, f.width * f.height))
+    wide = [f for f in fits if f.width >= FULL_WIDTH_PX]
+    if wide:  # 102: never a soft upscale when a full-width file is served
+        best = min(wide, key=lambda f: (f.size_bytes == 0, f.size_bytes, f.width * f.height))
+    else:
+        best = max(fits, key=lambda f: (f.width * f.height, -f.size_bytes))
     return Candidate(
         url=best.url,
         page_url=candidate.page_url,
@@ -120,6 +132,47 @@ def choose_file(
         licence=candidate.licence,
         duration_s=candidate.duration_s,
     )
+
+
+def motion_profile(path: Path, *, fps: float) -> list[float]:
+    """102: how much the clip moves, measured locally with ffmpeg: frames sampled `fps`
+    times a second (the style's `broll.motion.clip.motion_fps`), scaled to small grey
+    frames; entry i is the mean absolute difference (0-1) between sample i and i+1, the
+    movement over the i-th step (seconds i/fps to (i+1)/fps). Empty when the file gives
+    fewer than two samples."""
+    proc = run([
+        FFMPEG, "-v", "error", "-i", str(path), "-an", "-vf",
+        f"fps={fps:g},scale={MOTION_W}:{MOTION_H},format=gray", "-f", "rawvideo", "-",
+    ])  # fmt: skip
+    size = MOTION_W * MOTION_H
+    data = np.frombuffer(proc.stdout, dtype=np.uint8)
+    count = data.size // size
+    if count < 2:
+        return []
+    frames = data[: count * size].reshape(count, size).astype(np.int16)
+    diffs = np.abs(np.diff(frames, axis=0)).mean(axis=1) / 255.0
+    return [round(float(d), 5) for d in diffs]
+
+
+def best_window(
+    profile: Sequence[float], *, fps: float, need_s: float, duration_s: float
+) -> tuple[float, float]:
+    """102: (start second, mean movement) of the clip's most moving `need_s` stretch
+    that still ends inside the file: the window of `need_s * fps` steps with the highest
+    mean, the earliest on a tie. A window longer than the measure starts at 0 and scores
+    the whole profile; an empty profile is (0, 0)."""
+    if not profile:
+        return 0.0, 0.0
+    steps = max(1, round(need_s * fps))
+    if steps >= len(profile):
+        return 0.0, round(sum(profile) / len(profile), 5)
+    last = min(len(profile) - steps, math.floor((duration_s - need_s) * fps + EPS))
+    best, best_at = -1.0, 0
+    for at in range(max(last, 0) + 1):
+        mean = sum(profile[at : at + steps]) / steps
+        if mean > best + EPS:
+            best, best_at = mean, at
+    return round(best_at / fps, 3), round(best, 5)
 
 
 def reject_clip(candidate: ClipCandidate, *, max_upscale: float) -> str | None:
@@ -400,14 +453,19 @@ def _slug(value: str) -> str:
 
 
 def make_test_clip(
-    path: Path, *, width: int, height: int, duration_s: float, mark: str = "0x000000"
-) -> Path:
+    path: Path, *, width: int, height: int, duration_s: float, mark: str = "0x000000",
+    still_s: float = 0.0,
+) -> Path:  # fmt: skip
     """A synthetic moving clip: ffmpeg's `testsrc2` pattern (it moves everywhere in the
     frame) with a 440 Hz tone track, so a render that carried the clip's sound would be
     heard, and a corner block in the `mark` colour so two clips of the same size are two
-    files. H.264 at `ultrafast`: about half a second to write."""
+    files. 102: the first `still_s` seconds hold the first frame (the whole clip when it is
+    at least `duration_s`), for the motion check. H.264 at `ultrafast`: about half a
+    second to write."""
     path.parent.mkdir(parents=True, exist_ok=True)
     block = f"drawbox=x=0:y=0:w={max(2, width // 6)}:h={max(2, height // 12)}:color={mark}:t=fill"
+    if still_s > 0:
+        block = f"loop=loop={round(min(still_s, duration_s) * 30)}:size=1:start=0,{block}"
     run(
         [
             FFMPEG, "-v", "error", "-y",
@@ -425,7 +483,9 @@ def make_test_clip(
 class FakeClipSource(ClipSource):
     """Synthetic clips behind `https://fake.invalid/<origin>-video/` URLs: `size` and
     `duration_s` (or per-query `sizes` / `durations`) describe every hit; `nothing_found`
-    and `nothing_for` are the empty modes. `searches` and `fetches` count the calls."""
+    and `nothing_for` are the empty modes. 102: the hits numbered in `still` (1-based)
+    never move, and every clip holds its first frame for `still_s` seconds. `searches`
+    and `fetches` count the calls."""
 
     def __init__(
         self,
@@ -437,9 +497,13 @@ class FakeClipSource(ClipSource):
         durations: Mapping[str, float] | None = None,
         nothing_for: Iterable[str] = (),
         nothing_found: bool = False,
+        still: Iterable[int] = (),
+        still_s: float = 0.0,
     ) -> None:
         super().__init__()
         self.origin = origin
+        self.still = frozenset(still)
+        self.still_s = still_s
         self.size = size
         self.duration_s = duration_s
         self.sizes = dict(sizes or {})
@@ -487,9 +551,12 @@ class FakeClipSource(ClipSource):
     def fetch(self, candidate: Candidate, dest: Path) -> Path:
         self.fetches += 1
         digest = hashlib.sha256(candidate.url.encode("utf-8")).hexdigest()
+        duration = candidate.duration_s or self.duration_s
+        number = candidate.url.rsplit("/", 1)[-1].removesuffix(".mp4")
+        still_s = duration if number.isdigit() and int(number) in self.still else self.still_s
         return make_test_clip(
             dest.with_suffix(".mp4"), width=candidate.width, height=candidate.height,
-            duration_s=candidate.duration_s or self.duration_s, mark=f"0x{digest[:6]}",
+            duration_s=duration, mark=f"0x{digest[:6]}", still_s=still_s,
         )  # fmt: skip
 
     def thumbnail(self, candidate: Candidate) -> bytes | None:

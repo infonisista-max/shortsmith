@@ -131,7 +131,7 @@ import shutil
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
@@ -149,6 +149,7 @@ from shortsmith import (
     styles,
     subproc,
 )
+from shortsmith.assets.generate import never_stock
 from shortsmith.captions import measure
 from shortsmith.contracts import (
     AssetManifest,
@@ -171,6 +172,7 @@ from shortsmith.contracts import (
     DiagramLayout,
     FaceBox,
     FinaleCardSpec,
+    GradeSpec,
     Highlight,
     HighlightRecord,
     HighlightSpec,
@@ -393,6 +395,10 @@ class BrollNumbers:
     backdrop: BackdropNumbers | None = None
     crop_fill: CropFillNumbers | None = None
     polaroid: PolaroidNumbers | None = None
+    # 102: the camera move per planner `motion` (`broll.motion_moves`) and the light film
+    # grade a `timeless` era pick is drawn with (`broll.motion.era_grade`; None: none).
+    moves: Mapping[str, styles.MoveRow] = field(default_factory=lambda: {})
+    era_grade: GradeSpec | None = None
 
 
 @dataclass(frozen=True)
@@ -504,6 +510,10 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             backdrop=backdrop,
             crop_fill=crop_fill,
             polaroid=polaroid,
+            moves=dict(spec.broll.motion_moves),
+            era_grade=(
+                GradeSpec.model_validate(motion["era_grade"]) if "era_grade" in motion else None
+            ),
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
@@ -929,10 +939,73 @@ def crop_fill_visual(src: str, width: int, height: int, *, face: FaceBox,
     cf = numbers.broll.crop_fill
     assert cf is not None, "the style does not offer crop_fill"
     fx, fy = pane_focus(face, width, height, float(WIDTH), float(HEIGHT), face_y=cf.face_y)
+    # 102: the push is centred on the face as drawn, so it closes in on it, never past it
+    scale, left, top = _cover_offsets(float(WIDTH), float(HEIGHT), width, height, 1.0, fx, fy)
+    ox = (left + (face.left + face.width / 2) * scale) / WIDTH
+    oy = (top + (face.top + face.height / 2) * scale) / HEIGHT
     return VisualSpec(
         treatment="crop_fill", src=src, width=width, height=height, zoom=1.0, focus_x=fx,
         focus_y=fy, scale_from=cf.scale_from, scale_to=cf.scale_to, pan_px=0.0,
+        origin_x=round(min(max(ox, 0.0), 1.0), 4), origin_y=round(min(max(oy, 0.0), 1.0), 4),
     )  # fmt: skip
+
+
+# --- the moves an editor makes and the subject they aim at (ticket 102) -----------------------
+
+
+def subject_face(
+    faces: Sequence[FaceBox], subject: tuple[float, float] | None, width: int, height: int
+) -> FaceBox | None:
+    """102 (fold-in): the face a crop or a push aims at. With no `subject` known, the
+    largest face. With one - the point the card's ring circles, as image fractions - the
+    face whose centre lies inside that ring (its radius `RING_FRACTION / 2` of the image's
+    shorter side), the nearest if several; when no found face is there, a face-sized box
+    at the point itself, so a named person is never swapped for a larger stranger (run05:
+    Haar found only the foreground officer on ref4, never King Saud under the ring).
+    None when no face was found at all."""
+    if not faces:
+        return None
+    if subject is None:
+        return max(faces, key=lambda f: f.width * f.height)
+    px, py = subject[0] * width, subject[1] * height
+    reach = RING_FRACTION * min(width, height) / 2
+
+    def off(face: FaceBox) -> float:
+        return math.hypot(face.left + face.width / 2 - px, face.top + face.height / 2 - py)
+
+    inside = [f for f in faces if off(f) <= reach]
+    if inside:
+        return min(inside, key=off)
+    side = max(2, round(reach))
+    return FaceBox(left=round(px - side / 2), top=round(py - side / 2), width=side, height=side)
+
+
+def subject_point(beat: Beat, crop: Crop) -> tuple[float, float] | None:
+    """102: where the beat's subject is on its image - the framing's focus, the point the
+    card's ring circles - when the beat names a person (`never_stock`) or carries a ring;
+    else None (no subject known: the largest face stands in)."""
+    if never_stock(beat) or beat.event.kind == "ring":
+        return crop.focus_x, crop.focus_y
+    return None
+
+
+def moved(visual: VisualSpec, move: styles.MoveRow, *,
+          face: FaceBox | None = None) -> VisualSpec:  # fmt: skip
+    """102: `visual` (a full-screen still) with the style's camera `move`: its push and its
+    drift, the drift kept inside the margin the smaller scale leaves so no frame edge ever
+    shows; an `aim: subject` push on a `photo` is centred on `face` (the subject face)."""
+    low = min(move.scale_from, move.scale_to)
+    room_x, room_y = max(low - 1.0, 0.0) * WIDTH, max(low - 1.0, 0.0) * HEIGHT
+    pan_x = max(-room_x, min(room_x, move.pan_x * WIDTH))
+    pan_y = max(-room_y, min(room_y, move.pan_y * HEIGHT))
+    updates: dict[str, object] = {
+        "scale_from": move.scale_from, "scale_to": move.scale_to,
+        "pan_px": round(pan_x, 3), "pan_y_px": round(pan_y, 3),
+    }  # fmt: skip
+    if move.aim == "subject" and face is not None and visual.treatment == "photo":
+        updates["focus_x"] = (face.left + face.width / 2) / visual.width
+        updates["focus_y"] = (face.top + face.height / 2) / visual.height
+    return visual.model_copy(update=updates)
 
 
 # 4.2: a number or quote beat stamps over the asset already on screen, so its motion
@@ -942,6 +1015,8 @@ CONTINUING_SUBJECTS = frozenset({"number", "quote"})
 # clip (058), and (027) the dimmed base still of a `list` or a `wall`. A `split` fills its
 # card instead.
 BASE_STILL_KINDS = frozenset({"photo", "card", "clip", "list", "wall"})
+# 102: the treatments a planner's camera move is drawn on (the framed ones keep their push).
+FULL_SCREEN_STILLS = frozenset({"photo", "crop_fill"})
 
 
 def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSpec:
@@ -954,6 +1029,7 @@ def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSp
         "scale_from": previous.scale_to,
         "scale_to": max(1.0, previous.scale_to + step),
         "pan_px": previous.pan_px * own_s / span,
+        "pan_y_px": previous.pan_y_px * own_s / span,
     }
     if previous.treatment == "clip":
         updates["start_s"] = round(previous.start_s + previous_s * previous.speed, 3)
@@ -972,12 +1048,23 @@ def _visuals(
     plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None,
     numbers: StyleNumbers, *, pip_top: int, fps: int = FPS,
     face_of: Callable[[str], FaceBox | None] | None = None,
+    faces_of: Callable[[str], list[FaceBox]] | None = None,
 ) -> dict[str, tuple[Mode, VisualSpec | None]]:  # fmt: skip
     """Per beat id: the mode to draw (a rung-4 rescue becomes `pip`) and its visual;
     `pip_top` is the top of the circle the spec draws, the cards' placement line.
     103: a still's treatment is the planner's pick among what the image allows
-    (`face_of` finds its face, for `crop_fill`), never a framed one twice in a row and
-    never more cards than the style's cap (`pick_treatment`)."""
+    (`faces_of` finds its faces, `face_of` its largest when only that is given, for
+    `crop_fill`), never a framed one twice in a row and never more cards than the style's
+    cap (`pick_treatment`). 102: a full-screen still takes the camera move its `motion`
+    names (`moved`), every crop and push aimed at the subject face (`subject_face`), and
+    a pick the era judge found `timeless` takes the style's era grade."""
+
+    def faces_in(src: str) -> list[FaceBox]:
+        if faces_of is not None:
+            return faces_of(src)
+        found = face_of(src) if face_of is not None else None
+        return [found] if found is not None else []
+
     out: dict[str, tuple[Mode, VisualSpec | None]] = {}
     if manifest is None:
         return out
@@ -1046,9 +1133,10 @@ def _visuals(
             # 058: the moving clip, whatever kind the beat was planned as (a number beat
             # showing an earlier clip afresh plays it from its start).
             visual = clip_visual(src, record.width, record.height, crop=decided.crop,
-                                 numbers=numbers)  # fmt: skip
+                                 numbers=numbers, start_s=decided.clip_start_s)  # fmt: skip
         else:
-            face = face_of(src) if face_of is not None else None
+            face = subject_face(faces_in(src), subject_point(beat, decided.crop),
+                                record.width, record.height)  # fmt: skip
             allowed = assets.allowed_treatments(
                 record.width, record.height, fits=decided.treatment == "photo",
                 has_face=face is not None, offered=b.treatments,
@@ -1080,6 +1168,14 @@ def _visuals(
                                      ring=ring, index=index, crop=decided.crop,
                                      numbers=numbers, pip_top=pip_top)  # fmt: skip
                 cards_left -= 1
+            move = b.moves.get(beat.motion or "")
+            if move is not None and visual.treatment in FULL_SCREEN_STILLS:
+                visual = moved(visual, move, face=face)
+        if (
+            not carries_on and b.era_grade is not None and record.judge is not None
+            and record.judge.era == "timeless"
+        ):  # fmt: skip
+            visual = visual.model_copy(update={"grade": b.era_grade})
         drawn = visual.treatment if beat.highlight is None or visual.treatment != "card" else None
         out[beat.id] = (beat.mode, visual)
         if not carries_on:
@@ -1355,11 +1451,13 @@ def face_box_on(visual: VisualSpec, face: FaceBox) -> Box:
     )  # fmt: skip
     card = visual.card
     if card is None:
-        ox, oy = visual.focus_x * WIDTH, visual.focus_y * HEIGHT
+        ox = (visual.focus_x if visual.origin_x is None else visual.origin_x) * WIDTH
+        oy = (visual.focus_y if visual.origin_y is None else visual.origin_y) * HEIGHT
         boxes = [_scaled_about(at_rest, ox, oy, s) for s in (visual.scale_from, visual.scale_to)]
-        # the drift across the margin, either way
-        pan = abs(visual.pan_px) / 2
-        boxes = [Box(b.left - pan, b.top, b.width + 2 * pan, b.height) for b in boxes]
+        # the drift across the margin, either way (102: and up or down)
+        pan, rise = abs(visual.pan_px) / 2, abs(visual.pan_y_px) / 2
+        boxes = [Box(b.left - pan, b.top - rise, b.width + 2 * pan, b.height + 2 * rise)
+                 for b in boxes]  # fmt: skip
     else:
         ox, oy = card.left + card.width / 2, card.top + card.height / 2
         boxes = [_scaled_about(at_rest, ox, oy, s) for s in (visual.scale_from, visual.scale_to)]
@@ -2641,8 +2739,24 @@ def build_spec(
                     log(f"faces: face detection skipped on {Path(src).name}: {exc}")
         return faces[src]
 
+    every_face: dict[str, list[FaceBox]] = {}
+
+    def faces_all(src: str) -> list[FaceBox]:
+        """102: every face on a still's file, detected once per file: `crop_fill` and a
+        subject push aim at the beat's subject among them (`subject_face`)."""
+        if detector is None:
+            return []
+        if src not in every_face:
+            try:
+                every_face[src] = detector.detect_all(Path(src))
+            except RuntimeError as exc:
+                every_face[src] = []
+                if log is not None:
+                    log(f"faces: face detection skipped on {Path(src).name}: {exc}")
+        return every_face[src]
+
     visuals = _visuals(plan, manifest, job_dir, numbers, pip_top=geometry.top, fps=fps,
-                       face_of=face_in)
+                       faces_of=faces_all)
     geocoder = geocoder or geo.GazetteerGeocoder()
     if job_dir is not None:
         geocoder = geocoder.for_job(job_dir)

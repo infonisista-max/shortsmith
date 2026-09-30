@@ -220,7 +220,18 @@ Motion = Literal[
     "count_up",
     "fly_in",
     "travel",
+    # 102: the camera moves an editor makes on a still, beside the four above.
+    "pull_out",
+    "pan_up",
+    "pan_down",
+    "hold",
 ]
+# 102: the motions that are a camera move on a full-screen still, each a
+# `broll.motion_moves` row in the style's front matter (the renderer draws them).
+CAMERA_MOVES: tuple[Motion, ...] = (
+    "push_in", "pull_out", "ken_burns_in", "ken_burns_out", "pan_left", "pan_right",
+    "pan_up", "pan_down", "hold",
+)  # fmt: skip
 SubjectKind = Literal["entity", "concept", "number", "quote"]
 # 099: a named person is not a named place. `named_person` (a real, named human) keeps
 # the no-stock rule (never a stock stranger, never AI); `named_place`, `named_era`,
@@ -1062,6 +1073,9 @@ class BeatAsset(StrictModel):
     # 021 / 9.3: the base of a labelled diagram, asked for with "no text, no labels" and
     # shown only under the code-rendered labels, never as a bare photo.
     diagram_base: bool = False
+    # 102: the second of a clip the beat starts at - its most moving stretch the beat's
+    # length long (`clips.best_window`); 0 on a still.
+    clip_start_s: float = Field(default=0.0, ge=0.0)
 
     @property
     def rescued(self) -> bool:
@@ -1295,6 +1309,16 @@ class CardSpec(StrictModel):
     shadow_px: float = 0.0
 
 
+class GradeSpec(StrictModel):
+    """102: the light film / sepia grade (CSS filter strengths) from the style's
+    `broll.motion.era_grade` row, drawn on a clip or still the era judge found `timeless`
+    (099): a modern-looking shot made to sit in the period."""
+
+    sepia: float = Field(ge=0.0, le=1.0)
+    saturate: float = Field(ge=0.0)
+    contrast: float = Field(ge=0.0)
+
+
 class VisualSpec(StrictModel):
     """A beat's asset as drawn (016): `src` is the file (the driver serves it), `width`
     and `height` its real size. `scale_from` -> `scale_to` is the Ken Burns over the
@@ -1322,6 +1346,14 @@ class VisualSpec(StrictModel):
     card: CardSpec | None = None
     speed: float = 1.0
     start_s: float = 0.0
+    # 102: the vertical drift (`pan_px`'s twin, composition px over the beat) and the
+    # light film grade a `timeless` pick on an era beat is drawn with.
+    pan_y_px: float = 0.0
+    grade: GradeSpec | None = None
+    # 102: the point the push is centred on, as fractions of the drawn box (a crop_fill's
+    # face on screen, so the push closes in on it); None: the framing's focus.
+    origin_x: float | None = None
+    origin_y: float | None = None
 
 
 class CardBox(StrictModel):

@@ -83,6 +83,10 @@ def run_bench(root: Path, *, concurrency: int = render.CONCURRENCY) -> DriverRes
     )
 
 
+# 102: where the bench card's ring lands - the subject every crop and push aims at.
+RING_SUBJECT = Crop(focus_x=0.5, focus_y=0.45)
+
+
 def treatment_visual(name: str, src: str, size: tuple[int, int], *, face: FaceBox,
                      numbers: render.StyleNumbers, pip_top: int) -> VisualSpec:  # fmt: skip
     """103: `src` drawn as the treatment `name`, whatever the image allows."""
@@ -101,7 +105,7 @@ def treatment_visual(name: str, src: str, size: tuple[int, int], *, face: FaceBo
                                           crop=crop, numbers=numbers, pip_top=pip_top)  # fmt: skip
         case _:
             return render.card_visual(src, w, h, strip_text="card 103", ring=True, index=0,
-                                      crop=Crop(focus_x=0.5, focus_y=0.45), numbers=numbers,
+                                      crop=RING_SUBJECT, numbers=numbers,
                                       pip_top=pip_top)  # fmt: skip
 
 
@@ -145,9 +149,11 @@ def run_treatments(root: Path, out: Path, *, image: Path | None = None,
     else:
         src = _pattern(root / "pattern.png", TEST_PATTERN).resolve()
     size = ffmpeg.video_size(src)
-    face = presenter.HaarDetector().detect(src) or FaceBox(
-        left=size[0] // 3, top=size[1] // 6, width=size[0] // 3, height=size[1] // 3
-    )
+    # 102: the crop aims at the face the card's ring circles, never the largest stranger
+    face = render.subject_face(
+        presenter.HaarDetector().detect_all(src),
+        (RING_SUBJECT.focus_x, RING_SUBJECT.focus_y), *size,
+    ) or FaceBox(left=size[0] // 3, top=size[1] // 6, width=size[0] // 3, height=size[1] // 3)
     numbers = render.style_numbers("explainer")
     base = render.build_spec(
         _base_plan(), Captions(pages=[]), presenter=clip, source_size=ffmpeg.video_size(clip),

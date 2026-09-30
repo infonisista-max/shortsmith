@@ -194,7 +194,9 @@ def test_only_the_kinds_with_a_base_still_carry_their_asset(tmp_path: Path) -> N
 def test_photo_ken_burns_numbers_come_from_the_style(tmp_path: Path) -> None:
     photo = _visual_spec(tmp_path).beats[0].visual
     assert photo is not None
-    assert (photo.scale_from, photo.scale_to) == (1.10, 1.16)  # explainer broll.motion.photo
+    # 102: the fake plan's b01 names `ken_burns_in`, the style's move row for it
+    move = SPECS["explainer"].broll.motion_moves["ken_burns_in"]
+    assert (photo.scale_from, photo.scale_to) == (move.scale_from, move.scale_to)
 
 
 def _photo_beat(i: int) -> Beat:
@@ -208,7 +210,10 @@ def _photo_beat(i: int) -> Beat:
 def test_ken_burns_alternates_in_out_and_pan_direction_per_consecutive_beat(
     tmp_path: Path,
 ) -> None:
-    plan = _plan().model_copy(update={"beats": [_photo_beat(i) for i in range(1, 4)]})
+    # 102: a motion with no `broll.motion_moves` row keeps the alternating Ken Burns of
+    # `broll.motion.photo` (1.10 <-> 1.16)
+    no_move = [_photo_beat(i).model_copy(update={"motion": "reveal"}) for i in range(1, 4)]
+    plan = _plan().model_copy(update={"beats": no_move})
     beats = _visual_spec(tmp_path, plan).beats
     scales = [(b.visual.scale_from, b.visual.scale_to) for b in beats if b.visual]
     assert scales == [(1.10, 1.16), (1.16, 1.10), (1.10, 1.16)]
@@ -2427,7 +2432,10 @@ def test_a_clip_beat_draws_the_video_full_screen_at_the_styles_speed(tmp_path: P
     assert Path(visual.src).is_absolute() and Path(visual.src).is_file()
     assert visual.src.endswith(".mp4") and (visual.width, visual.height) == (1080, 1920)
     row = EXPLAINER.broll
-    assert (visual.speed, visual.start_s) == (row.clip_speed, 0.0) == (1.0, 0.0)
+    # 102: from the clip's most moving stretch the asset step measured, not always 0 s
+    decided = manifest.beat("b1")
+    assert decided is not None and visual.start_s == decided.clip_start_s
+    assert visual.speed == row.clip_speed == 1.0
     assert (visual.scale_from, visual.scale_to) == (row.clip_scale_from, row.clip_scale_to)
     assert (visual.pan_px, visual.dim, visual.card, visual.zoom) == (0.0, 0.0, None, 1.0)
     assert beat.stamp is not None  # the stamp still lands over the clip
@@ -2443,7 +2451,8 @@ def test_a_number_beat_carries_the_clip_on_from_where_it_stopped(tmp_path: Path)
     first, second = (b.visual for b in _visual_spec(tmp_path, plan, manifest).beats)
     assert first is not None and second is not None and first.src == second.src
     assert (first.treatment, second.treatment) == ("clip", "clip")
-    assert second.start_s == pytest.approx(1.0 * first.speed) and second.speed == first.speed
+    assert second.start_s == pytest.approx(first.start_s + 1.0 * first.speed)
+    assert second.speed == first.speed
 
 
 def test_the_finale_cards_and_set_pieces_never_show_a_clip(tmp_path: Path) -> None:
