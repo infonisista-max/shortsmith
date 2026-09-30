@@ -165,7 +165,8 @@ The changes you may use (JSON objects):
 re-sourced for its line (stock clip or generated image; a named person only their own \
 photo). Not on the finale beat.
 - {"op":"drop_layer","beat":"b03","layer":"<layer>"}: remove one layer the beat has; \
-layer is one of text_pops, bubbles, stickers, highlight, banner, calendar, event, counter, route.
+layer is one of text_pops, bubbles, stickers, highlight, banner, calendar, particles, \
+event, counter, route.
 - {"op":"show_reference","beat":"b03","ref":"ref1"}: the beat shows one of the owner's \
 reference images listed below (only those ids).
 - {"op":"new_image","beat":"b03","query":"<image search words>","depicts":"scene"}: a new \

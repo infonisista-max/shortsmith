@@ -481,6 +481,20 @@ class CalendarPlan(StrictModel):
     at_s: float | None = None
 
 
+ParticleKind = Literal["cash", "brain"]
+
+
+class ParticlesPlan(StrictModel):
+    """109 (083; currency_shower, cash_cascade, brain_particles_overlay): a light overlay
+    drawn in code on a money line (`cash`: banknotes falling) or a thinking line (`brain`:
+    glowing particles drifting), starting on the spoken `word`. `at_s` is written by the
+    grammar, never the planner."""
+
+    kind: ParticleKind
+    word: int = Field(ge=0)
+    at_s: float | None = None
+
+
 class CounterPlan(StrictModel):
     """The numbers of a `counter` overlay (029; 4.2, 9.2): the digits count from `start`
     to `target` over the beat and land on it. `unit` is written as a chart's is ("%",
@@ -534,6 +548,9 @@ class Beat(StrictModel):
     # 108: a year or date beat's calendar page, in place of a stamp, under
     # `broll.calendar.max_per_60s` (a style without the row offers none).
     calendar: CalendarPlan | None = None
+    # 109: a cash or particle overlay, under `broll.particles.max_per_60s` (a style without
+    # the row offers none).
+    particles: ParticlesPlan | None = None
     motion: Motion | None = None
     # 103: the picture treatment of a still (`photo` / `card`) beat, one of the style's
     # `broll.treatments`; None leaves it to code. Code draws another allowed one when the
@@ -1533,6 +1550,28 @@ class CalendarSpec(StrictModel):
     until_s: float
 
 
+class ParticlesSpec(StrictModel):
+    """109: a cash or particle overlay placed and timed: `count` pieces `size_px` across,
+    in `colors`, each crossing its `left, top, width, height` box (composition pixels) in
+    `fall_s`, from `at_s` to `until_s` seconds into the beat, fading in and out over
+    `fade_s` at `opacity`. The box is clear of the PIP circle, the captions and any face
+    (`render.particles_spec`); the pieces never leave it."""
+
+    kind: ParticleKind
+    left: float
+    top: float
+    width: float
+    height: float
+    count: int
+    size_px: float
+    fall_s: float
+    fade_s: float
+    opacity: float
+    colors: list[str]
+    at_s: float
+    until_s: float
+
+
 class BubbleDot(StrictModel):
     """One dot of a thought bubble's trail (063), in composition pixels."""
 
@@ -2037,6 +2076,8 @@ class BeatSpec(StrictModel):
     banner: BannerSpec | None = None
     # 108: the beat's calendar page, placed and timed.
     calendar: CalendarSpec | None = None
+    # 109: the beat's cash or particle overlay, placed and timed.
+    particles: ParticlesSpec | None = None
     finale: FinaleCardSpec | None = None
     split: SplitSpec | None = None
     wall: WallSpec | None = None

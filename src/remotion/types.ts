@@ -604,6 +604,26 @@ export type BeatSpec = {
   stickers?: StickerSpec[];
   banner?: BannerSpec | null;
   calendar?: CalendarSpec | null;
+  particles?: ParticlesSpec | null;
+};
+
+// 109: a cash or particle overlay, placed and timed by `render.particles_spec`: `count`
+// pieces `size_px` across in `colors`, each crossing the box in `fall_s`, from `at_s` to
+// `until_s`, fading over `fade_s` at `opacity`.
+export type ParticlesSpec = {
+  kind: "cash" | "brain";
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  count: number;
+  size_px: number;
+  fall_s: number;
+  fade_s: number;
+  opacity: number;
+  colors: string[];
+  at_s: number;
+  until_s: number;
 };
 
 // 108: a calendar page, placed and timed by `render.calendar_spec`: it appears at

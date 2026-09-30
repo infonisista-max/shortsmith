@@ -37,6 +37,7 @@ from shortsmith.contracts import (
     Constraints,
     Crop,
     FaceBox,
+    ParticlesPlan,
     PicturePlan,
     PipGeometry,
     PlanRequest,
@@ -216,6 +217,14 @@ def effect_beats(src: str, size: tuple[int, int], *, numbers: render.StyleNumber
         return render.banner_spec(planned, mode="pip", beat_start_s=0.0, beat_end_s=length_s,
                                   numbers=numbers, pip=pip)  # fmt: skip
 
+    def particles(kind: str, style: render.StyleNumbers) -> object:
+        """109: the overlay from 0.05 s, `kind` in the numbers of the style offering it."""
+        planned = ParticlesPlan.model_validate({"kind": kind, "word": 0, "at_s": 0.05})
+        return render.particles_spec(
+            planned, mode="pip", beat_start_s=0.0, beat_end_s=length_s, numbers=style,
+            pip=pip, face=None,
+        )  # fmt: skip
+
     # 108: the page lands 0.4 s into its beat; run05 b07's map with its stamp off the map
     calendar = render.calendar_spec(
         CalendarPlan(from_text="1937", to_text="1938", word=0, at_s=0.4), beat_start_s=0.0,
@@ -238,6 +247,8 @@ def effect_beats(src: str, size: tuple[int, int], *, numbers: render.StyleNumber
         beat(3, calendar=calendar),
         beat(4, mode="off", kind="map", visual=None, stamp=stamp,
              map=render.map_layout(b07, numbers=numbers, geocoder=gazetteer, stamp=stamp)),
+        beat(5, particles=particles("cash", numbers)),
+        beat(6, particles=particles("brain", render.style_numbers("fastfacts"))),
     ]
     return [
         EffectShot("107_banner_top", shots[0], shots[0].end_frame - 2),
@@ -246,6 +257,8 @@ def effect_beats(src: str, size: tuple[int, int], *, numbers: render.StyleNumber
         EffectShot("108_calendar_flip", shots[3], shots[3].start_frame + 6),
         EffectShot("108_calendar_landed", shots[3], shots[3].end_frame - 2),
         EffectShot("108_map_stamp", shots[4], shots[4].end_frame - 2),
+        EffectShot("109_cash", shots[5], shots[5].end_frame - 3),
+        EffectShot("109_brain", shots[6], shots[6].end_frame - 3),
     ]
 
 

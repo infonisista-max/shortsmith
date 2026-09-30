@@ -13,7 +13,8 @@
 // `crop_fill` (full screen round the face) and `polaroid` (a dropped print). 107 adds
 // `banner`, a bar of the recording's words sliding in at the top or low, and
 // `light_flare`, the warm light burst over a cut. 108 adds `calendar`, a year beat's page
-// peeling to the spoken year in place of a stamp.
+// peeling to the spoken year in place of a stamp. 109 adds `particles`, the cash and brain
+// overlays drawn in code.
 import type React from "react";
 import { Backdrop } from "./components/backdrop";
 import { Banner } from "./components/banner";
@@ -38,6 +39,7 @@ import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { MapBase } from "./components/map";
 import { ObjectPath } from "./components/object_path";
+import { Particles } from "./components/particles";
 import { Photo } from "./components/photo";
 import { PinDrop } from "./components/pin_drop";
 import { Polaroid } from "./components/polaroid";
@@ -79,6 +81,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   lower_third: LowerThird,
   map: MapBase,
   object_path: ObjectPath,
+  particles: Particles,
   photo: Photo,
   pin_drop: PinDrop,
   polaroid: Polaroid,

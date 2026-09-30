@@ -1,5 +1,5 @@
 ---
-version: "16"
+version: "17"
 status: shipped
 aliases: [fastfacts, fast facts, facts, fact, quick]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -7,7 +7,7 @@ requires_components: [captions, pip, photo, card, clip, stamp, lower_third, fina
                       pin_drop, route_arrow, object_path,
                       crop_fill, backdrop, polaroid,
                       cut, fade, whip, zoom, spring, wipe, flash,
-                      text_pop, title_strip]
+                      text_pop, title_strip, particles]
 beats:
   min_s: 0.5
   max_s: 3.0
@@ -135,6 +135,18 @@ broll:
   treatments: [photo, crop_fill, backdrop, polaroid, card]
   no_repeat_treatments: [backdrop, polaroid, card]
   card_max_per_60s: 3
+  # 109: cash and particle overlays drawn in code, one a minute (the refs: zXK42RMPKUY brain_particles_overlay 1.7 s at 1.0 s, one in 58 s). The
+  # hold is the card's on-screen length; the look (count, size, fall time, fade, opacity,
+  # colours) is no card number: derived from the descriptions ("particle visualization of brain halves"). The area keeps
+  # gap_px (the text pop's clearance) off the circle, the captions and any face, and is
+  # dropped under min_height_px (a note's width and a half).
+  particles:
+    max_per_60s: 1
+    min_height_px: 240
+    gap_px: 24
+    kinds:
+      brain: {count: 70, size_px: 10, fall_s: 2.0, hold_max_s: 1.7, fade_s: 0.3,
+              opacity: 0.85, colors: ["#7FDBFF", "#FFFFFF"]}
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}

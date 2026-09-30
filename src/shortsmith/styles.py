@@ -192,6 +192,32 @@ class CalendarRow(StrictModel):
     header_ink: str
 
 
+class ParticleKindRow(StrictModel):
+    """109: one overlay kind's look - `count` pieces `size_px` across in `colors`, each
+    crossing the area in `fall_s`, on screen at most `hold_max_s` (or to the beat's end),
+    fading over `fade_s` at `opacity`."""
+
+    count: int = Field(ge=1)
+    size_px: float = Field(gt=0.0)
+    fall_s: float = Field(gt=0.0)
+    hold_max_s: float = Field(gt=0.0)
+    fade_s: float = Field(ge=0.0)
+    opacity: float = Field(gt=0.0, le=1.0)
+    colors: list[str] = Field(min_length=1)
+
+
+class ParticlesRow(StrictModel):
+    """109 (083): the cash / particle overlays a style offers - at most `max_per_60s` per
+    60 s of runtime (rounded up), only the `kinds` it carries, each drawn in an area at
+    least `min_height_px` tall clear of the PIP circle, the captions and any face, `gap_px`
+    off them. A style without the row offers none."""
+
+    max_per_60s: int = Field(ge=0)
+    min_height_px: float = Field(gt=0.0)
+    gap_px: float = Field(ge=0.0)
+    kinds: dict[Literal["cash", "brain"], ParticleKindRow] = Field(min_length=1)
+
+
 class MoveRow(StrictModel):
     """102: one camera move on a full-screen still - the push `scale_from` -> `scale_to`
     over the beat, the picture's travel over it as a fraction of the frame (`pan_x` of the
@@ -265,6 +291,8 @@ class Broll(StrictModel):
     banner: BannerRow | None = None
     # 108: the calendar page; only a style whose references use one carries the row.
     calendar: CalendarRow | None = None
+    # 109: the cash / particle overlays; only a style whose references use one carries it.
+    particles: ParticlesRow | None = None
     # 103: the picture treatments the planner may pick per still, in the renderer's
     # fallback order (a pick the image cannot take becomes the first allowed one); every
     # one but `photo` and `card` has its `motion.<name>` row. A spec from before 103 offers
@@ -573,6 +601,8 @@ def offered_components(spec: StyleSpec) -> list[str]:
     offered = ["banner"] if b.banner is not None else []
     if b.calendar is not None:
         offered.append("calendar")
+    if b.particles is not None:
+        offered.append("particles")
     if "light_flare" in b.enter_transitions:
         offered.append("light_flare")
     return offered

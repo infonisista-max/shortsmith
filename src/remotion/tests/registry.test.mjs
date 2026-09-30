@@ -263,7 +263,8 @@ test("Short.tsx draws every registered component", () => {
                   pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath",
                   text_pop: "TextPop", bubble: "Bubble", sticker: "Sticker",
                   title_strip: "TitleStrip", backdrop: "Backdrop", crop_fill: "CropFill",
-                  polaroid: "Polaroid", banner: "Banner", calendar: "Calendar" };
+                  polaroid: "Polaroid", banner: "Banner", calendar: "Calendar",
+                  particles: "Particles" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   // 078: the highlight is drawn inside the screenshot's card, which Short.tsx draws.
@@ -509,4 +510,21 @@ test("the calendar peels from one date to the next on the spoken word (108)", ()
   const calendar = short.indexOf("<Calendar ");
   assert.ok(calendar > short.indexOf("<Pip "), "the calendar is drawn under the PIP circle");
   assert.ok(calendar < short.indexOf("<Captions "), "the calendar is drawn over the captions");
+});
+
+test("the cash and brain particles are drawn in code inside their box (109)", () => {
+  assert.ok(registry.components.includes("particles"), "particles is not registered");
+  const source = readFileSync(join(root, "components", "particles.tsx"), "utf-8");
+  for (const field of ["kind", "left", "top", "width", "height", "count", "size_px", "fall_s",
+                       "fade_s", "opacity", "colors", "at_s", "until_s"]) {
+    assert.ok(source.includes(`.${field}`), `particles.tsx never reads ${field}`);
+  }
+  assert.match(source, /overflow: "hidden"/, "the pieces may leave their box");
+  assert.doesNotMatch(source, /staticFile|<Img/, "the overlay uses a stock asset");
+  assert.doesNotMatch(source, /Math\.random/, "the pieces are not repeatable frame to frame");
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  const particles = short.indexOf("<Particles ");
+  assert.ok(particles > short.indexOf("<Transition"), "the particles are under the picture");
+  assert.ok(particles < short.indexOf("<Pip "), "the particles are drawn over the PIP circle");
+  assert.ok(particles < short.indexOf("<Captions "), "the particles are drawn over the captions");
 });

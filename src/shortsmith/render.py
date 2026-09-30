@@ -188,6 +188,8 @@ from shortsmith.contracts import (
     MarkerLine,
     Mode,
     Palette,
+    ParticlesPlan,
+    ParticlesSpec,
     PicturePlan,
     PipGeometry,
     PunchIn,
@@ -430,6 +432,8 @@ class StyleNumbers:
     banner: styles.BannerRow | None = None
     # 108: the calendar page's row, where the style offers one.
     calendar: styles.CalendarRow | None = None
+    # 109: the cash / particle overlays' row, where the style offers them.
+    particles: styles.ParticlesRow | None = None
 
 
 def broll_numbers(spec: StyleSpec) -> BrollNumbers:
@@ -595,6 +599,7 @@ def numbers_for(spec: StyleSpec) -> StyleNumbers:
         title_strip=spec.broll.title_strip,
         banner=spec.broll.banner,
         calendar=spec.broll.calendar,
+        particles=spec.broll.particles,
     )
 
 
@@ -1679,6 +1684,43 @@ def calendar_spec(cal: CalendarPlan, *, beat_start_s: float, beat_end_s: float,
         font_weight=style.font_weight, page=row.page, ink=row.ink, header=row.header,
         header_ink=row.header_ink, appear_s=round(appear, 3), flip_start_s=round(flip_start, 3),
         land_s=round(land, 3), until_s=round(min(length, land + row.hold_max_s), 3),
+    )  # fmt: skip
+
+
+# --- cash and particle overlays (109; 083) ------------------------------------------------
+#
+# A light overlay drawn in code over the picture: the safe band from the top zone down to
+# the PIP circle (a `pip` beat) or the caption block, `gap_px` off either; with a face in
+# it, the larger face-free band above or below the face. A band under `min_height_px`
+# drops the overlay (logged by the build): it never sits over a face, the circle or the
+# captions.
+
+
+def particles_spec(
+    fx: ParticlesPlan, *, mode: Mode, beat_start_s: float, beat_end_s: float,
+    numbers: StyleNumbers, pip: PipGeometry, face: Box | None,
+) -> ParticlesSpec | None:  # fmt: skip
+    """109: the overlay's area and timing, or None when no band is tall enough."""
+    row = numbers.particles
+    if row is None or fx.kind not in row.kinds:
+        raise RenderError(f"{fx.kind} particles: the style offers none (109)")
+    kind = row.kinds[fx.kind]
+    top = SAFE_TOP_PX
+    floor = float(pip.top) if mode == "pip" else styles.caption_block_top(numbers.captions)
+    bottom = floor - row.gap_px
+    if face is not None and face.top < bottom and face.bottom > top:
+        above = (top, face.top - row.gap_px)
+        below = (face.bottom + row.gap_px, bottom)
+        top, bottom = max(above, below, key=lambda band: band[1] - band[0])
+    if bottom - top < row.min_height_px:
+        return None
+    length = max(0.0, beat_end_s - beat_start_s)
+    at = min(max(0.0, (fx.at_s if fx.at_s is not None else beat_start_s) - beat_start_s), length)
+    return ParticlesSpec(
+        kind=fx.kind, left=SAFE_LEFT, top=top, width=WIDTH - SAFE_RIGHT_PX - SAFE_LEFT,
+        height=bottom - top, count=kind.count, size_px=kind.size_px, fall_s=kind.fall_s,
+        fade_s=kind.fade_s, opacity=kind.opacity, colors=list(kind.colors), at_s=round(at, 3),
+        until_s=round(min(length, at + kind.hold_max_s), 3),
     )  # fmt: skip
 
 
@@ -3247,6 +3289,21 @@ def build_spec(
                     log(f"calendar: {b.id}: {placed_calendar.to_text!r} moved off the map's "
                         f"content ({how}) (108)")  # fmt: skip
         placed_pops = text_pops(b, mode, visual, split)
+        # 109: the cash / particle overlay, off the circle, the captions and any face
+        placed_particles: ParticlesSpec | None = None
+        if b.particles is not None:
+            face = presenter_face_box(presenter_face) if mode == "full" and presenter_face else None
+            face = face if face is not None else face_on(visual)
+            try:
+                placed_particles = particles_spec(
+                    b.particles, mode=mode, beat_start_s=b.start, beat_end_s=b.end,
+                    numbers=numbers, pip=geometry, face=face,
+                )  # fmt: skip
+            except RenderError as exc:
+                raise RenderError(f"{b.id}: {exc}") from None
+            if placed_particles is None and log is not None:
+                log(f"particles: {b.id}: {b.particles.kind} dropped, no band clear of the face, "
+                    "the circle and the captions (109)")  # fmt: skip
         placed_bubbles = bubbles(b, mode, visual, placed_stamp)
         beats.append(
             BeatSpec(
@@ -3281,6 +3338,7 @@ def build_spec(
                 map=map_layout(b, numbers=numbers, geocoder=geocoder, stamp=placed_stamp,
                                calendar=placed_calendar),  # fmt: skip
                 calendar=placed_calendar,
+                particles=placed_particles,
                 counter=(
                     off_face(
                         b.id,

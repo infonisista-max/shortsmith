@@ -86,3 +86,16 @@ def test_the_effects_bench_draws_the_calendar_and_a_saudi_map_stamp() -> None:
     for content in render.map_content(stamped.map):
         assert not (box.left < content[2] and content[0] < box.right
                     and box.top < content[3] and content[1] < box.bottom), content
+
+
+def test_the_effects_bench_draws_the_cash_and_the_brain_particles() -> None:
+    """109: the explainer's cash shower and fastfacts' brain particles, each mid-flight."""
+    numbers = render.style_numbers("explainer")
+    shots = {shot.name: shot for shot in bench.effect_beats(
+        "image.jpg", (870, 614), numbers=numbers, pip=render.fixed_pip((1080, 1920), numbers))}
+    for name, kind in (("109_cash", "cash"), ("109_brain", "brain")):
+        shot = shots[name]
+        fx = shot.beat.particles
+        assert fx is not None and fx.kind == kind, name
+        since = (shot.frame - shot.beat.start_frame) / render.FPS
+        assert fx.at_s < since < fx.until_s, name

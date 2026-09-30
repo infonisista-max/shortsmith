@@ -15,17 +15,17 @@ effects:
   bloodstain_stamp: stamp
   bold_title_card: card
   bold_title_pop: text_pop
-  brain_particles_overlay: null
+  brain_particles_overlay: particles  # 109
   brand_hub_reveal: null
   calendar_flip: calendar  # 108
   calendar_page_peel: calendar  # 108
   cartoon_scientist_slide: sticker
-  cash_cascade: null
+  cash_cascade: particles  # 109
   cern_skull_drop: sticker
   clock_face_overlay: null
   coin_toss_animation: null
   color_flash: flash
-  currency_shower: null
+  currency_shower: particles  # 109
   date_banner_slide: banner  # 107
   dialogue_bubble_sequence: bubble
   emoji_pop_in: sticker

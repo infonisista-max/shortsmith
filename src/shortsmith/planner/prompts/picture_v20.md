@@ -334,6 +334,14 @@ Calendar pages (a year or date flipping to the spoken one)
   `broll.calendar.max_per_60s` per 60 s; vary it with stamps rather than using it for
   every year. Never write `at_s`.
 
+Cash and particle overlays (`particles`)
+- Where section 1 carries a `broll.particles` row, a `photo`, `card`, `clip` or
+  presenter-full beat may carry `particles`: `kind` one of `broll.particles.kinds`
+  (`cash`: banknotes raining on a money line - oil wealth, a budget, a fortune; `brain`:
+  glowing particles on a thinking line), `word` the transcript index it starts on. Code
+  draws it in code, off the speaker's circle, the captions and any face. At most
+  `broll.particles.max_per_60s` per 60 s. Never write `at_s`.
+
 The cut
 - `cut.keep` lists the kept spans of the recording in recording order, from the first
   word to the end; `cut.drop` the dropped ones, which hold only silence, breaths and

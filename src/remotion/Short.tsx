@@ -47,6 +47,8 @@
 // overlays and the captions). A beat's `banner` sits with the landed overlays, after the
 // lower-third and before the text pops; it is placed clear of the circle and the captions.
 // Ticket 108: a year beat's `calendar` page lands in the stamp's layer, after the counter.
+// Ticket 109: a beat's cash or brain `particles` sit over the picture and under the PIP
+// circle, in a box kept off the circle, the captions and any face.
 //
 // Ticket 059: a recipe style's fixed title strip (`title_strip`) sits above the beat
 // overlays and under the captions from the first frame to the finale's first frame.
@@ -72,6 +74,7 @@ import { List } from "./components/list";
 import { LowerThird } from "./components/lower_third";
 import { MapBase } from "./components/map";
 import { ObjectPath } from "./components/object_path";
+import { Particles } from "./components/particles";
 import { Photo } from "./components/photo";
 import { PinDrop } from "./components/pin_drop";
 import { Polaroid } from "./components/polaroid";
@@ -222,6 +225,9 @@ export const Short: React.FC<RenderSpec> = (spec) => {
         width={spec.width}
         height={spec.height}
       />
+      {beat?.particles ? (
+        <Particles spec={beat.particles} frame={since} fps={spec.fps} />
+      ) : null}
       {beat?.mode === "pip" ? <Pip spec={spec} /> : null}
       {beat?.stamp ? (
         <Stamp spec={beat.stamp} style={spec.caption_style} frame={since} fps={spec.fps} />

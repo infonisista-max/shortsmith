@@ -1,5 +1,5 @@
 ---
-version: "27"
+version: "28"
 status: shipped
 # 059 (1.1 as amended): `fact`, `facts` and `dhruv` moved to the fastfacts and footage recipes
 aliases: [explainer, explain, explained, explanation, story, news]
@@ -8,7 +8,7 @@ requires_components: [captions, pip, photo, card, clip, stamp, lower_third, fina
                       pin_drop, route_arrow, object_path,
                       crop_fill, backdrop, polaroid,
                       cut, fade, whip, zoom, spring, wipe,
-                      banner, light_flare, calendar]
+                      banner, light_flare, calendar, particles]
 beats:
   min_s: 0.7
   max_s: 6.0
@@ -137,6 +137,18 @@ broll:
   treatments: [photo, crop_fill, backdrop, polaroid, card]
   no_repeat_treatments: [backdrop, polaroid, card]
   card_max_per_60s: 3
+  # 109: cash and particle overlays drawn in code, one a minute (the refs: QjwDTLPLJ6c currency_shower 3.8 s at 2.8 s and cash_cascade at 140.4 s, two in 179 s). The
+  # hold is the card's on-screen length; the look (count, size, fall time, fade, opacity,
+  # colours) is no card number: derived from the descriptions ("500 rupee banknotes falling"). The area keeps
+  # gap_px (the text pop's clearance) off the circle, the captions and any face, and is
+  # dropped under min_height_px (a note's width and a half).
+  particles:
+    max_per_60s: 1
+    min_height_px: 240
+    gap_px: 24
+    kinds:
+      cash: {count: 14, size_px: 160, fall_s: 1.6, hold_max_s: 3.8, fade_s: 0.3,
+             opacity: 0.95, colors: ["#C9C3A6", "#B7C29A", "#D6CFB2"]}
   # 107: the banner of the recording's words. M78CO3Ybr7U 1 s ("black and red lower banner") and id00R-3OmJ0: one a minute. slide_s = M78CO3Ybr7U date_stamp
   # and ePTZVwipoAM indus_war_tag (slide 0.3 s); hold_max_s = the longest reference banner
   # (bL3rUtUPYsc barabar_banner 2.0 s; the rest 0.8-1.7 s); words_max = the longest ones
