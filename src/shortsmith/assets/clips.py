@@ -194,7 +194,7 @@ class HttpClipSource(HttpImageSource, ClipSource):
                 return self._stream(client, candidate, dest)
             with httpx.Client(timeout=self._timeout_s, follow_redirects=True) as owned:
                 return self._stream(owned, candidate, dest)
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, httpx.InvalidURL) as exc:
             raise SourceError(f"{candidate.url} could not be downloaded: {exc}") from None
 
     def _stream(self, client: httpx.Client, candidate: Candidate, dest: Path) -> Path:

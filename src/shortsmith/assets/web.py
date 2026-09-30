@@ -6,7 +6,8 @@ JSON blob per hit (the `m` attribute of each result link) with the image URL, th
 it sits on and its thumbnail, and the printed `W x H` beside it is the reported size
 the 5.2 hard rejects read before anything is paid for. A hit that names only a page is
 followed to that page and its `og:image` (or `twitter:image`) is the image URL, which
-is the "page follow" the old engine's scrape step did.
+is the "page follow" the old engine's scrape step did. A page that cannot be reached,
+or whose URL httpx cannot parse (096), is a hit with no image, never a failed search.
 
 Nothing is scraped for free that the step does not need: `thumbnail` downloads the
 search engine's own small preview for the relevance judge, and `fetch` downloads the
@@ -140,6 +141,6 @@ class WebImageSource(HttpImageSource):
         try:
             response = self._get(page_url)
             response.raise_for_status()
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpx.InvalidURL):
             return ""
         return og_image(response.text, page_url)

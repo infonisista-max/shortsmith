@@ -700,16 +700,17 @@ def test_an_opening_beat_is_generated_past_the_cap_and_never_rescued(tmp_path: P
                and a.generated.depicts == "scene" for a in made)  # fmt: skip
 
 
-def test_an_opening_beat_with_no_image_and_no_generator_fails_the_step_visibly(
+def test_an_opening_beat_with_no_image_and_no_generator_falls_to_the_gradient(
     tmp_path: Path,
 ) -> None:
-    """055: never a rung-3/4 opening. With nothing found and no generator the step
-    raises naming the beat, rather than opening on a re-dress or the gradient."""
+    """055 as amended by the editor rule (096): a small problem never fails the job.
+    With nothing found and no generator the opening beat is shown over the gradient,
+    as the very last step, rather than failing the step."""
     empty = assets.FakeImageSource("web", nothing_found=True)
     beats = [_beat(1, "concept"), _beat(2, "concept")]
-    with pytest.raises(assets.AssetError, match="opening beat b01") as caught:
-        _run(tmp_path, beats, sources={"web": empty}, spec=EXPLAINER)
-    assert "055" in str(caught.value) and "query 1" in str(caught.value)
+    manifest = _run(tmp_path, beats, sources={"web": empty}, spec=EXPLAINER)
+    first = manifest.beats[0]
+    assert first.beat_id == "b01" and first.asset_id is None and first.fallback_rung == 4
 
 
 def test_a_named_opening_subject_still_skips_the_stock_libraries(tmp_path: Path) -> None:

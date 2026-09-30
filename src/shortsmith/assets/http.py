@@ -24,6 +24,11 @@ unreachable host, unreadable JSON or a 200 with no candidates each leave one not
 (`ImageSource.note`) naming the source, the status and the query, which the step
 writes to the job log. The free libraries that ask for it (Commons, per Wikimedia's
 User-Agent policy; Openverse) send `USER_AGENT`: the project, its version, the repo.
+
+096: a URL httpx cannot even parse (`httpx.InvalidURL`, which is not an `HTTPError`)
+is treated like an unreachable one everywhere a GET is caught - a search with no hits,
+a thumbnail the judge sees without, a candidate refused with a `SourceError` - and
+`domain` answers None for it.
 """
 
 from __future__ import annotations
@@ -112,7 +117,7 @@ class HttpImageSource(ImageSource):
         """One search GET, or None with a note when the source refused or was down."""
         try:
             response = self._get(url, params=params)
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, httpx.InvalidURL) as exc:
             self.note(f"{self.origin} could not be reached for {query!r}: {type(exc).__name__}")
             return None
         self._status = response.status_code
@@ -138,7 +143,7 @@ class HttpImageSource(ImageSource):
         try:
             response = self._get(url)
             response.raise_for_status()
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpx.InvalidURL):
             return None
         body = response.content
         if len(body) > THUMB_MAX_BYTES or media_type(body) is None:
@@ -150,7 +155,7 @@ class HttpImageSource(ImageSource):
         try:
             response = self._get(candidate.url)
             response.raise_for_status()
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, httpx.InvalidURL) as exc:
             raise SourceError(f"{candidate.url} could not be downloaded: {exc}") from None
         declared = response.headers.get("content-length", "")
         if declared.isdigit() and int(declared) > self._max_bytes:
@@ -192,5 +197,10 @@ def items(value: object, name: str) -> list[object]:
 
 
 def domain(url: str) -> str | None:
-    host = httpx.URL(url).host
+    """The URL's host without `www.`; None for a URL with no host or one httpx cannot
+    parse (096: a malformed hit URL is a hit with no author, never a failed search)."""
+    try:
+        host = httpx.URL(url).host
+    except httpx.InvalidURL:
+        return None
     return host.removeprefix("www.") or None

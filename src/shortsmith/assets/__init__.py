@@ -13,9 +13,24 @@ an `AssetManifest` (`work/assets.json`):
   best-scored sourced image - every source in the order is searched and the highest
   judge score wins, ties by source order (`best_search`) - then a generated image
   past the `gen_max_per_short` cap (11.3: cost never degrades the opening). They never
-  fall to rung 3 or 4: with nothing found and nothing generated the step raises
-  `AssetError` naming the beat, so the job fails visibly rather than opening on a
-  re-dressed reuse or the gradient.
+  fall to a rung-3 re-dress: with nothing found and nothing generated the beat is shown
+  over the gradient with a job-log line (096: a small problem never fails the job; it
+  used to raise `AssetError`).
+- Replaced beats (096, operator answer 1): a beat the editor or the change box stripped
+  of its visual (`replaced`, from `JobRecord.replaced`) runs the replacement ladder
+  before any planned reuse, reference or opening rule, every step a
+  `sourcing: bNN: replacement ladder: ...` line. A named entity (`depicts_of`) is
+  NEVER generated: its owner reference (the planned id, else `matching_reference`)
+  while it has a showing left, else a real image already shown for that entity
+  (`nearest(entity=...)`, stills only) re-dressed at rung 3, else the gradient.
+  Anything else takes a stock clip from the clip sources (`query`, then
+  `query_fallback`), else an image generated for the line past the cap (rung 2), else
+  the gradient.
+- No beat fails the step (096): an exception while sourcing one beat (a missing
+  reference file, an unreadable download, a source bug) is a
+  `sourcing: bNN: <error>; shown over the gradient (plain fallback)` line and that beat
+  takes the gradient; the other beats are sourced as usual. `BudgetExceeded` and
+  `LedgerError` still stop the job.
 - A planned asset id that an earlier beat already sourced is reused as planned
   (4.3). A beat naming a reference id, or whose `query` shares a significant word
   with a reference caption, takes the owner reference first (1.3, 5.1).
@@ -190,7 +205,7 @@ from shortsmith.contracts import (
     ValidatedPlan,
 )
 from shortsmith.jobs import Job
-from shortsmith.ledger import Ledger
+from shortsmith.ledger import BudgetExceeded, Ledger, LedgerError
 from shortsmith.stickers import StickerShelf, live_shelf
 from shortsmith.styles import StyleSpec
 
@@ -1187,10 +1202,12 @@ def source_assets(
     topic: str = "",
     log: Callable[[str], None] = lambda _: None,
     clock: Clock = _utc_now,
+    replaced: frozenset[str] = frozenset(),
 ) -> AssetManifest:
     """Decide every sourced beat's asset per the rules in the module docstring. `clips`
     are the stock video sources by name (058), tried in `clip_order`; None or empty
-    means every clip beat takes the still ladder."""
+    means every clip beat takes the still ladder. `replaced` names the beats whose
+    visual was removed (096, `JobRecord.replaced`): they take the replacement ladder."""
     picture = validated.picture
     cache = job_dir / "work" / CACHE_DIR
     cache.mkdir(parents=True, exist_ok=True)
@@ -1282,6 +1299,18 @@ def source_assets(
             log(f"sourcing: {beat.id}: no clip source is configured; the still ladder is used "
                 "instead (058)")  # fmt: skip
             return False
+        if clip_found(beat) is not None:
+            return True
+        log(
+            f"sourcing: {beat.id}: no usable clip for {beat.query!r} (need "
+            f"{clip_need_s(beat, picture.beats, speed=speed):g} s, cover 1080x1920 at <= "
+            f"{spec.broll.full_bleed_max_upscale:g}x); the still ladder is used instead (058)"
+        )
+        return False
+
+    def clip_found(beat: Beat) -> AssetRecord | None:
+        """Every clip source with `query` (rung 0) then `query_fallback` (rung 1) (058):
+        the first usable clip, shown on the beat, or None."""
         need = clip_need_s(beat, picture.beats, speed=speed)
         for rung, query in ((0, beat.query), (1, beat.query_fallback)):
             if not query:
@@ -1300,19 +1329,63 @@ def source_assets(
                     fetched_at=found.fetched_at, candidate=found.candidate, judge=found.verdict,
                 )  # fmt: skip
                 walk.show(beat, record, rung, judge_skipped=found.judge_skipped)
-                return True
-        log(
-            f"sourcing: {beat.id}: no usable clip for {beat.query!r} (need {need:g} s, cover "
-            f"1080x1920 at <= {spec.broll.full_bleed_max_upscale:g}x); the still ladder is "
-            "used instead (058)"
-        )
-        return False
+                return record
+        return None
+
+    def ladder(beat: Beat, step: str) -> None:
+        log(f"sourcing: {beat.id}: replacement ladder: {step}")
+
+    def source_replaced(beat: Beat) -> None:
+        """Operator answer 1 (096): a beat whose visual was removed is never empty. A
+        named entity is never generated: its owner reference, else a real image of it
+        already in the reel re-dressed (rung 3), else the gradient. Anything else takes
+        a stock clip, else an image generated for the line past the cap (rung 2), else
+        the gradient. Every step is a job-log line."""
+        if depicts_of(beat) == "named_entity":
+            planned = beat.asset_id
+            if planned is not None and planned in by_id:
+                ref, asset_id = by_id[planned], planned
+            else:
+                ref = matching_reference(beat, references)
+                asset_id = walk.new_id(beat)
+            if ref is None:
+                ladder(beat, "no owner reference names this entity")
+            elif (why := walk.blocked_ref(beat, ref)) is not None:
+                ladder(beat, f"owner reference {ref.id!r} is capped: {why}")
+            else:
+                ladder(beat, f"owner reference {ref.id!r} of the named entity")
+                walk.show(beat, walk.owner(asset_id, ref), 0)
+                return
+            earlier = walk.nearest(free_for=beat, stills_only=True, entity=beat)
+            if earlier is not None:
+                ladder(beat, f"{earlier.id!r}, a real image of this entity already in the "
+                       "reel, re-dressed")  # fmt: skip
+                walk.show(beat, earlier, 3, redressed=True)
+                return
+            ladder(beat, "no real image of this entity is in the reel and a named entity is "
+                   "never generated; shown over the gradient")  # fmt: skip
+            walk.gradient(beat)
+            return
+        if not clip_sources:
+            ladder(beat, "no clip source is configured")
+        elif (clip := clip_found(beat)) is not None:
+            ladder(beat, f"stock clip {clip.id!r} from {clip.origin}")
+            return
+        else:
+            ladder(beat, f"no usable stock clip for {beat.query!r} or {beat.query_fallback!r}")
+        record = generated(beat, force=True)
+        if record is not None:
+            ladder(beat, f"generated image {record.id!r} for the line")
+            walk.show(beat, record, 2)
+            return
+        ladder(beat, "nothing could be generated; shown over the gradient")
+        walk.gradient(beat)
 
     opening = {b.id for b in picture.beats[: spec.beats.opening_beats_min]}
 
     def source_opening(beat: Beat) -> None:
         """The opening's ladder (055): the best-scored sourced image, then a generated
-        one past the cap; never a rung-3/4 rescue."""
+        one past the cap; never a rung-3 re-dress. With neither, the gradient (096)."""
         for rung, query in ((0, beat.query), (1, beat.query_fallback)):
             hit = best_search(beat, query)
             if hit is None:
@@ -1329,19 +1402,23 @@ def source_assets(
         if record is not None:
             walk.show(beat, record, 2)
             return
-        raise AssetError(
-            f"opening beat {beat.id} has no image of {beat.query!r}: nothing was found and "
-            "nothing could be generated; the short opens on its subject's image, never on a "
-            "rescue (055)"
+        log(
+            f"sourcing: {beat.id}: opening beat has no image of {beat.query!r}: nothing was "
+            "found and nothing could be generated; shown over the gradient (055, 096)"
         )
+        walk.gradient(beat)
 
-    for beat in picture.beats:
-        if beat.kind in NOT_SOURCED or beat.subject_kind is None:
-            continue
+    def source_beat(beat: Beat) -> None:
+        """One sourced beat's ladder, per the module docstring: a replaced beat's (096)
+        first, then a clip beat's, then planned reuse, owner references, the opening's
+        and the still ladder."""
+        if beat.id in replaced:
+            source_replaced(beat)
+            return
         # 058: a clip beat runs the clip ladder first; a beat that finds no clip (or may
         # not have one) is sourced as a still below.
         if beat.kind == CLIP_KIND and source_clip(beat):
-            continue
+            return
         planned = beat.asset_id
         capped: list[str] = []  # 071: the planned or matched images this beat may not show
         # 056 (3): a planned reuse, an owner reference or a caption match is taken only
@@ -1360,14 +1437,14 @@ def source_assets(
                 why = walk.blocked(beat, record)
             if why is None:
                 walk.show(beat, record, 0)
-                continue
+                return
             skipped(beat, why)
             capped.append(repr(planned))
         elif planned is not None and planned in by_id:
             why = walk.blocked_ref(beat, by_id[planned])
             if why is None:
                 walk.show(beat, walk.owner(planned, by_id[planned]), 0)
-                continue
+                return
             skipped(beat, why)
             capped.append(repr(planned))
         ref = matching_reference(beat, references)
@@ -1375,19 +1452,19 @@ def source_assets(
             why = walk.blocked_ref(beat, ref)
             if why is None:
                 walk.show(beat, walk.owner(walk.new_id(beat), ref), 0)
-                continue
+                return
             skipped(beat, why)
             capped.append(f"owner reference {ref.id!r}")
         if beat.id in opening:
             source_opening(beat)
-            continue
+            return
         if beat.subject_kind in REUSING_KINDS:
             previous = walk.nearest()
             if previous is not None and walk.blocked(beat, previous) is None:
                 walk.show(beat, previous, 0)
             else:
                 walk.gradient(beat)
-            continue
+            return
         # 071: only number and quote beats carry on the previous picture. A planned
         # reuse whose image is capped is sourced afresh (056 (3)); an open one takes the
         # nearest earlier image, of the same entity on a named-entity beat.
@@ -1400,14 +1477,14 @@ def source_assets(
             previous = walk.nearest(entity=beat)
             if previous is not None and walk.blocked(beat, previous) is None:
                 walk.show(beat, previous, 0)
-                continue
+                return
         tried_generation = False
         if beat.subject_kind == "concept" and beat.source_intent == "generate":
             tried_generation = generating.generator is not None
             record = generated(beat)
             if record is not None:
                 walk.show(beat, record, 2)
-                continue
+                return
         found = None
         for rung, query in ((0, beat.query), (1, beat.query_fallback)):
             hit = search(beat, query)
@@ -1422,16 +1499,29 @@ def source_assets(
                 judge=fetched.verdict,
             )  # fmt: skip
             walk.show(beat, record, rung, judge_skipped=fetched.judge_skipped)
-            continue
+            return
         record = None if tried_generation else generated(beat)
         if record is not None:
             walk.show(beat, record, 2)
-            continue
+            return
         earlier = walk.nearest(beat.subject_kind, free_for=beat, stills_only=True, entity=beat)
         if earlier is not None:
             walk.show(beat, earlier, 3, redressed=True)
-            continue
+            return
         walk.gradient(beat)
+
+    for beat in picture.beats:
+        if beat.kind in NOT_SOURCED or (beat.subject_kind is None and beat.id not in replaced):
+            continue
+        try:
+            source_beat(beat)
+        except (BudgetExceeded, LedgerError):
+            raise  # the hard cap and a missing price stop the job (11.3)
+        except Exception as exc:  # 096: one beat's failure never fails the step
+            log(f"sourcing: {beat.id}: {str(exc) or type(exc).__name__}; shown over the "
+                "gradient (plain fallback)")  # fmt: skip
+            if all(shown.beat_id != beat.id for shown in walk.beats):
+                walk.gradient(beat)
 
     for note in (*judging.notes, *searching.notes, *generating.notes):
         log(note)
@@ -1503,7 +1593,8 @@ class Sourcing:
     def run(self, job: Job, spec: StyleSpec, *, clock: Clock = _utc_now) -> AssetManifest:
         """Source every beat of `work/plan.validated.json`, write `work/assets.json`,
         `out/rights.json` and `out/credits.md`. Every candidate rejected, every judge
-        note and the spent judge budget are `job.log` lines."""
+        note and the spent judge budget are `job.log` lines. The beats the job record
+        lists as `replaced` (096) take the replacement ladder."""
         job_dir = job.path
         validated = ValidatedPlan.model_validate_json(
             (job_dir / "work" / "plan.validated.json").read_text(encoding="utf-8")
@@ -1540,6 +1631,8 @@ class Sourcing:
             topic=topic_line(job_dir),
             log=lambda line: jobs.note(job, line, now=clock),
             clock=clock,
+            # 096: read afresh, the editor may have marked beats since `job` was loaded
+            replaced=frozenset(jobs.load(job_dir).record.replaced),
         )
         manifest.stickers = self._stickers(job, validated.picture, clock=clock)
         manifest.highlights = find_highlights(

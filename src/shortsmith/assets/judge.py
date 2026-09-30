@@ -6,7 +6,8 @@ score per candidate, 0-3, with reasons drawn from a fixed list. Best >= 2 wins, 
 by the source's own order, everything under 2 means the next source and then the 4.4
 ladder. The judge is a FILTER, not the quality bar: the branch-10 vision critic is the
 real gate above it, so a judge that cannot answer never fails the job - the step just
-carries on unjudged, as it did before this ticket.
+carries on unjudged, as it did before this ticket. A reply scoring any candidate NaN or
+infinity is such a failed answer (096): the beat is recorded `judge_skipped`.
 
 `VisionJudge` is one Anthropic Messages call, model from `RELEVANCE_JUDGE_MODEL`
 (5.2's default is Haiku 4.5, swappable without code when accepted images rate weak on
@@ -202,7 +203,8 @@ def request_text(query: str, subject_kind: str, topic: str, thumbs: Sequence[Thu
 
 def parse_reply(reply: str, n: int) -> list[Verdict]:
     """`n` verdicts from the model's JSON, scores clamped to 0-3 and reasons filtered
-    to `REASONS`; a candidate the model skipped scores 0."""
+    to `REASONS`; a candidate the model skipped scores 0. A NaN or infinite score (which
+    `json.loads` accepts) is a `JudgeError` (096), so the beat records `judge_skipped`."""
     match = _JSON.search(reply)
     if match is None:
         raise JudgeError("the judge did not answer with JSON")
@@ -220,6 +222,9 @@ def parse_reply(reply: str, n: int) -> list[Verdict]:
         reasons = _field(item, "reasons")
         if score is None and reasons is None:
             continue
+        if isinstance(score, float) and not math.isfinite(score):
+            # 096: NaN or infinity is no score at all; the beat is sourced unjudged
+            raise JudgeError(f"the judge scored candidate {i} {score!r}, not a number")
         listed_reasons = cast("list[object]", reasons) if isinstance(reasons, list) else []
         by_index[index if isinstance(index, int) else i] = Verdict(
             score=min(max(int(score), 0), MAX_SCORE) if isinstance(score, int | float) else 0,
