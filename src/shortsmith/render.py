@@ -152,6 +152,7 @@ from shortsmith import (
 from shortsmith.captions import measure
 from shortsmith.contracts import (
     AssetManifest,
+    AudioEntry,
     BadgeSpec,
     Beat,
     BeatSpec,
@@ -2815,7 +2816,11 @@ def sound_mix(
     the bed's target from the style's starting level (091's remembered level).
 
     054 (1, 5): every search and every sound decision is a `sound:` line in `job.log`,
-    and a short that goes out voice-only says why in one line on the job page."""
+    and a short that goes out voice-only says why in one line on the job page.
+
+    101: with `job.record.bed_pick` set (093), that bed plays under the whole reel on
+    every re-render - change box, rework, rewind - and its rights row is kept; a pick
+    no longer in the library is one `sound:` line and the director picks as usual."""
     library = library if library is not None else sound.load_catalogue()
     story = _load_story(job)
     if story is None:
@@ -2825,6 +2830,7 @@ def sound_mix(
         return None
     plan = _load_plan(job)
     result = sound.build_mix(
+        picked=_picked_bed(job, library),
         stems=_stems_dir(job),
         voice=_stems_dir(job) / "voice.wav",
         plan=plan,
@@ -2853,6 +2859,19 @@ def sound_mix(
     elif result.bed is None and not result.cues:
         _voice_only(job, sound.NO_SEARCH_LINE if search is None else sound.SEARCH_EMPTY_LINE)
     return result
+
+
+def _picked_bed(job: Job, library: sound.Library) -> AudioEntry | None:
+    """101: the operator's bed pick (093) as a library entry, or None when there is no
+    pick or it is not in the library any more (one `sound:` line)."""
+    chosen = job.record.bed_pick
+    if chosen is None:
+        return None
+    entry = library.entry(chosen.entry_id)
+    if entry is None:
+        jobs.note(job, f"sound: the picked bed {chosen.entry_id} is not in the audio library "
+                  "any more; the sound director picks the bed (101)")  # fmt: skip
+    return entry
 
 
 def _voice_only(job: Job, why: str) -> None:
@@ -2885,8 +2904,15 @@ def counter_land_s(spec: StyleSpec) -> float | None:
 def _audio_rights(job: Job, result: sound.MixResult | None) -> None:
     """5.4 / 016: the music and SFX rows are written where `rights.write` will pick them
     up, then the log is regenerated, so they sit beside the asset rows and survive a
-    re-run of the asset step."""
+    re-run of the asset step. 101: a picked bed (093) keeps the row it already has."""
     rows = sound.rights_rows(result) if result is not None else []
+    if job.record.bed_pick is not None:
+        kept = {r.id: r for r in rights.audio_rows(job.path) if r.kind == "music"}
+        rows = [
+            kept[r.id] if r.kind == "music" and r.id in kept and kept[r.id].sha256 == r.sha256
+            else r
+            for r in rows
+        ]
     rights.write_audio(job.path, rows)
     manifest = assets.load_manifest(job.path)
     if manifest is not None:

@@ -210,7 +210,7 @@ class JobRecord(BaseModel):
     critic: CriticSummary | None = None
     performance: Performance | None = None
     music_level: MusicLevel | None = None  # 090: set at mux (default), moved by the slider
-    bed_pick: BedPick | None = None  # 093: the last bed picked on the page
+    bed_pick: BedPick | None = None  # 093: the last bed picked; 101: every re-mix plays it
     # 094: the editor's decisions (`decide`), the beats sourcing re-sources with the
     # replacement ladder, the QA checks delivered as `warn`, and the change-box requests.
     decisions: list[EditorDecision] = []

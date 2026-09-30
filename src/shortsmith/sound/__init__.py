@@ -1561,13 +1561,16 @@ def build_mix(
     search: AudioSearch | None = None,
     counter_land_s: float | None = None,
     log: Callable[[str], None] | None = None,
+    picked: AudioEntry | None = None,
 ) -> MixResult:
     """Build the music and SFX stems beside `voice` and the premix the master is cut
     from, and write `balance.json`. A mix that misses the 7.3 band is repaired, never
     failed (056 (1)): the dip, the lower bed, the next bed, and last the voice and the
     hits alone with `VOICE_AND_HITS_LINE` in the notes and `bed_dropped` in the report.
     `log` gets every note as it is made (054 (1): the searches, the decisions and
-    every repair reach `job.log`)."""
+    every repair reach `job.log`). `picked` (101) is the operator's bed pick (093): it
+    alone plays under the whole reel with the story's envelope, as `repick` does - no
+    candidate is scored and it is never repaired or dropped (the ear wins)."""
     stems.mkdir(parents=True, exist_ok=True)
     voice_db = ffmpeg.mean_volume_db(voice)
     if voice_db is None:
@@ -1599,7 +1602,18 @@ def build_mix(
     tried: set[tuple[object, ...]] = set()
     # 088: the beds the operator heard - the approved library before any search adds one.
     heard = {e.id for e in approved_beds(library)}
-    for candidate, lines, fallen in score_candidates(library, story, plan, nums, search=search):
+    if picked is not None:
+        score = Score.single(picked)
+        note((f"bed pick: {picked.id} plays under the whole reel, the operator's pick (101)",))
+        mixed = _mix_bed(
+            stems, score=score, library=library, story=story, nums=nums, voice=voice,
+            voice_db=voice_db, runtime_s=runtime_s, cues=len(placed.cues), dip_db=0.0,
+            under_db=None, heard=True,
+        )  # fmt: skip
+    candidates = () if picked is not None else score_candidates(
+        library, story, plan, nums, search=search
+    )  # fmt: skip
+    for candidate, lines, fallen in candidates:
         note(lines)
         if candidate is None or candidate.key in tried:
             continue
