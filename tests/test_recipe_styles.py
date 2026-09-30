@@ -94,7 +94,7 @@ def test_footage_is_moving_clips_under_the_pip_with_the_dhruv_flash(
     spec = specs["footage"]
     assert spec.beats.target_mean_s == 2.2
     assert spec.beats.mean_min_s <= 2.2 <= spec.beats.mean_max_s
-    assert spec.broll.clip_max_fraction == 0.75
+    assert spec.broll.clip_share_target == (0.35, 0.75)  # 110b
     assert spec.presenter.full_max_fraction == 0.25
     assert "argument_turn" in spec.presenter.full_reasons
     assert spec.broll.text_pops_max_per_60s == 6
@@ -109,7 +109,7 @@ def test_vishva_is_full_screen_stills_dense_overlays_and_stacked_panels(
     across pops, bubbles and stickers; the split drawn as two stacked panels."""
     spec = specs["vishva"]
     assert spec.beats.target_mean_s == 2.6
-    assert spec.broll.clip_max_fraction == 0.15
+    assert spec.broll.clip_share_target == (0.2, 0.4)  # 110b
     b = spec.broll
     assert b.text_pops_max_per_60s > 0 and b.bubbles_max_per_60s > 0 and b.stickers_max_per_60s > 0
     assert b.text_pops_max_per_60s + b.bubbles_max_per_60s + b.stickers_max_per_60s == 15
@@ -124,7 +124,7 @@ def test_fastfacts_is_fast_cuts_under_a_fixed_title_strip(specs: dict[str, Style
     assert spec.beats.min_s == 0.5
     assert spec.beats.target_mean_s == 1.2
     assert spec.beats.mean_max_s <= 1.5
-    assert spec.broll.clip_max_fraction == 0.7
+    assert spec.broll.clip_share_target == (0.35, 0.7)  # 110b
     strip = spec.broll.title_strip
     assert strip is not None and strip.words_max == 5
     assert strip.top_y >= render.SAFE_TOP_PX

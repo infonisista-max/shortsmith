@@ -161,13 +161,14 @@ def test_plans_carry_the_prompt_version(request_: PlanRequest) -> None:
 def test_fake_enters_are_the_explainer_five_when_the_style_carries_no_numbers(
     request_: PlanRequest,
 ) -> None:
-    """The canned enters (030, 055): whip, fade, fade, spring, zoom on b02, b03, b05,
-    b08, b09; 107: the light flare on b10."""
+    """The canned enters (030, 055): whip, fade, fade, fade, spring, zoom on b02, b03,
+    b05, b07, b08, b09; 107: the light flare on b10."""
     plan = FakePlanner().plan_picture(request_)
     enters = {b.id: b.enter for b in plan.beats}
     assert (enters["b02"], enters["b03"], enters["b05"]) == ("whip", "fade", "fade")
     assert (enters["b08"], enters["b09"], enters["b10"]) == ("spring", "zoom", "light_flare")
-    assert {enters[b] for b in ("b01", "b04", "b06", "b07", "b11")} == {"cut"}
+    assert {enters[b] for b in ("b01", "b04", "b06", "b11")} == {"cut"}
+    assert enters["b07"] == "fade"  # 110b: seven of the ten enters after b01 are not a cut
 
 
 def test_fake_enters_stay_inside_the_requested_style_and_cover_it(

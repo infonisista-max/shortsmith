@@ -25,6 +25,7 @@ from collections.abc import Callable, Sequence
 from typing import Literal, get_args
 
 from shortsmith import geo
+from shortsmith.assets import REUSING_KINDS
 from shortsmith.contracts import (
     CAMERA_MOVES,
     PICTURE_TREATMENTS,
@@ -36,6 +37,7 @@ from shortsmith.contracts import (
     PicturePlan,
     Span,
     Transcript,
+    Transition,
 )
 from shortsmith.infographics import CITY_SPAN_DEG
 
@@ -298,3 +300,37 @@ def set_treatment(plan: PicturePlan, beat_id: str, treatment: str) -> PicturePla
     if treatment not in PICTURE_TREATMENTS:
         raise RepairError(f"{beat_id}: {treatment!r} is not a picture treatment")
     return _with_beat(plan, beat_id, lambda b: b.model_copy(update={"treatment": treatment}))
+
+
+def set_enter(plan: PicturePlan, beat_id: str, enter: str) -> PicturePlan:
+    """110b: the beat enters on `enter` instead (a variety swap); nothing else changes."""
+    if enter not in get_args(Transition):
+        raise RepairError(f"{beat_id}: {enter!r} is not an enter transition")
+    return _with_beat(plan, beat_id, lambda b: b.model_copy(update={"enter": enter}))
+
+
+def shown_before(plan: PicturePlan, beat: Beat) -> bool:
+    """110b: an earlier beat shows this beat's asset (so clearing it here loses nothing)."""
+    if beat.asset_id is None:
+        return False
+    for b in plan.beats:
+        if b.id == beat.id:
+            return False
+        if b.asset_id == beat.asset_id:
+            return True
+    return False
+
+
+def new_picture(plan: PicturePlan, beat_id: str) -> PicturePlan:
+    """110b: the beat stops showing an asset an earlier beat shows and is searched afresh
+    with its own query: its planned asset id cleared, `source_intent` search and a carry-on
+    `number` / `quote` subject a `concept` (so it no longer carries the previous picture
+    on); its kind, stamp, overlays and enter stay."""
+    beat = beat_of(plan, beat_id)
+    if not shown_before(plan, beat):
+        raise RepairError(f"{beat_id}: no earlier beat shows {beat.asset_id!r}")
+    if not (beat.query.strip() or beat.query_fallback.strip()):
+        raise RepairError(f"{beat_id}: no query to search a new picture with")
+    subject = "concept" if beat.subject_kind in REUSING_KINDS else beat.subject_kind
+    return _with_beat(plan, beat_id, lambda b: b.model_copy(update={
+        "asset_id": None, "source_intent": "search", "subject_kind": subject}))  # fmt: skip

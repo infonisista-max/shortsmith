@@ -146,8 +146,12 @@ def test_run_job_transcribes_plans_renders_gates_and_delivers(
     # 058: with no clip source configured the fake plan's clip beat says so in one
     # `sourcing:` line inside the sourcing step and takes the still ladder.
     sourcing = [line for line in log if line.startswith("sourcing: ")]
+    # 110b: the share under the target's low end is a logged reason, never a failure.
     assert sourcing == ["sourcing: b04: no clip source is configured; the still ladder is used "
-                        "instead (058)"]  # fmt: skip
+                        "instead (058)",
+                        "sourcing: clip share 0.00 is below the low end of "
+                        "broll.clip_share_target [0.05, 0.35]: b04 found no usable clip and "
+                        "took a still; delivered (a target, never a gate; 110b)"]  # fmt: skip
     assert log.index(sourcing[0]) > log.index("planning -> sourcing")
     log = [line for line in log if not line.startswith("sourcing: ")]
     # 077: planning names the topic and the worked examples in one line.
@@ -1584,3 +1588,27 @@ def test_the_worker_runs_a_requeued_job_from_its_step(tmp_path: Path, fixture_cl
     assert worker.run_next() is True
     assert jobs.load(job.path).status == "delivered"
     assert "uploaded -> qa" in _trail(job)
+
+
+# --- 110b: variety breaks never fail the job ------------------------------------------------------
+
+
+def test_a_plan_of_nothing_but_cuts_is_repaired_by_the_editor_and_delivered(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """The planner sends every beat on a cut twice; the editor swaps enters (its
+    fallback, no model behind the fake) and the job is delivered."""
+    class AllCuts(FakePlanner):
+        def plan_picture(
+            self, request: PlanRequest, *, feedback: PlanFeedback | None = None
+        ) -> PicturePlan:
+            plan = super().plan_picture(request)
+            return plan.model_copy(update={"beats": [b.model_copy(update={"enter": "cut"})
+                                                     for b in plan.beats]})  # fmt: skip
+
+    job = _uploaded(tmp_path, fixture_clip)
+    done = _run(job, planner=AllCuts())
+    assert done.status == "delivered"
+    plan = PicturePlan.model_validate_json((job.work_dir / "plan.json").read_text("utf-8"))
+    assert any(b.enter != "cut" for b in plan.beats[1:])
+    assert any(d.choice.startswith("enter this beat on") for d in done.record.decisions)

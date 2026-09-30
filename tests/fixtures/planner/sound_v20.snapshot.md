@@ -479,7 +479,7 @@ Boundaries are snapped and events are final; cue against these beats.
       "query_fallback": "sound wave diagram",
       "source_intent": "generate",
       "asset_id": "a6",
-      "enter": "cut",
+      "enter": "fade",
       "event": {
         "kind": "none",
         "text": null
@@ -673,7 +673,7 @@ Boundaries are snapped and events are final; cue against these beats.
       "query": "",
       "query_fallback": "",
       "source_intent": null,
-      "asset_id": "a1",
+      "asset_id": "a2",
       "enter": "cut",
       "event": {
         "kind": "none",

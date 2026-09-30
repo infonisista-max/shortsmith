@@ -74,7 +74,11 @@ broll:
   bubbles_max_per_60s: 0  # 063: off here
   stickers_max_per_60s: 0  # 062: off here
   highlights_max_per_60s: 0  # 078: off here
-  clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
+  # 110b: the variety numbers (soft rules the editor repairs). clip_share_target: draft: the explainer's.
+  clip_share_target: [0.05, 0.35]
+  stamps_max_per_60s: 6  # draft: the explainer's
+  non_cut_min_share: 0.7  # draft: the explainer's
+  enter_run_max: 2  # the operator's rule (110): never the same enter three beats running
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -84,7 +88,7 @@ broll:
     flash: {duration_s: 0.3, color: "#FFFFFF"}  # 060: not enabled here
   unique_assets_min_per_60s: 8
   unique_assets_max_per_60s: 16
-  reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces aside
+  reuse_max: 2  # 056: per image (one file, however many ids), carry-on beats and set pieces counted too (110b)
   rescued_max_per_60s: 4
   # 102: the camera move each planner `motion` names on a full-screen still (photo,
   # crop_fill), from the beat tables of the two approved shorts (work/beat-tables.md,
@@ -210,9 +214,9 @@ Calm, clear teaching. DRAFT (grill decision 1.4): aliases resolve to `explainer`
 ## B-roll
 - Diagrams, labelled images, step cards and simple process animations dominate; photos are calm Ken Burns, cards sit flat with no rotation.
 - Sources and rights as in explainer (5.1); generated illustration is the flat diagram look in `illustration_look`.
-- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat (a process, a phenomenon, a kind of place) or a named place, era, event or object, never a named person (099; on an era beat, period-looking footage comes first; a timeless shot (desert, sea, sky, sand dunes) is fine and may take a light film or sepia grade; never modern cars, skylines, phones or present-day clothes standing in for the old era, then a still (099)); at most `clip_max_fraction` of the runtime, drawn at `motion.clip.speed` with no push.
+- Moving footage as in explainer (058): a `clip` beat is a muted full-screen stock clip on a concept beat (a process, a phenomenon, a kind of place) or a named place, era, event or object, never a named person (099; on an era beat, period-looking footage comes first; a timeless shot (desert, sea, sky, sand dunes) is fine and may take a light film or sepia grade; never modern cars, skylines, phones or present-day clothes standing in for the old era, then a still (099)); within `clip_share_target` of the runtime (the top the ceiling), drawn at `motion.clip.speed` with no push.
 - Fewer unique assets than explainer (`unique_assets_min_per_60s`–`unique_assets_max_per_60s`); reuse a diagram across the steps it explains.
-- Transitions are `cut` and `fade` only (9.4); no whips, no flash (060).
+- Transitions are `cut` and `fade` only (9.4); no whips, no flash (060). Variety (110b; soft, the editor repairs): at least `non_cut_min_share` of the beats after the first enter on something other than a cut, the same enter on at most `enter_run_max` beats running, and at most `stamps_max_per_60s` stamps a minute.
 - Article highlights (4.1 as amended by 078; off here: `highlights_max_per_60s` is 0): where a style allows them, a `photo` or `card` beat that shows the owner's uploaded article or document screenshot (an owner reference; never a searched or generated page, never a made-up article) may carry one `highlight`: the `sentence` to mark as it reads on the screenshot and the transcript `words` that say it. A marker in `motion.highlight.color` at `motion.highlight.opacity` sweeps the sentence's lines left to right from the first word to the last while the screenshot, a straight card, pushes in toward them. Code finds the lines on the image; a sentence it cannot find is dropped and the beat stays.
 
 ## Captions

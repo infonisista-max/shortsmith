@@ -485,3 +485,26 @@ def test_from_settings_builds_the_clip_sources_on_the_image_keys() -> None:
         ledger=_no_ledger,
     )  # fmt: skip
     assert list(only.clips) == ["pixabay"]
+
+
+# --- 110b: below the clip share target with no usable clip ------------------
+
+
+def test_no_usable_clip_delivers_below_the_target_with_a_logged_reason(tmp_path: Path) -> None:
+    """The low end is a target, never a gate: every clip beat that finds no usable clip
+    takes a still, sourcing returns the manifest (no failure) and job.log says why."""
+    small = clips.FakeClipSource("pexels", size=(1280, 720))  # never covers 1080x1920
+    log: list[str] = []
+    manifest = _run_clips(tmp_path, [_clip_beat()], clips_by_name={"pexels": small}, log=log)
+    (shown,) = manifest.beats
+    assert shown.treatment != "clip"
+    below = [line for line in log if "clip_share_target" in line]
+    assert len(below) == 1 and "below" in below[0] and "b01" in below[0]
+    assert "never a gate" in below[0]
+
+
+def test_a_clip_share_inside_the_target_logs_nothing(tmp_path: Path) -> None:
+    log: list[str] = []
+    manifest = _run_clips(tmp_path, [_clip_beat()], log=log)
+    assert manifest.asset("a1") is not None
+    assert not [line for line in log if "clip_share_target" in line]

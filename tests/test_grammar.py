@@ -76,7 +76,18 @@ AS_LIST: dict[str, Any] = {
 
 @pytest.fixture(scope="module")
 def spec() -> StyleSpec:
-    return styles.load_all(render.registry())["explainer"]
+    return no_variety(styles.load_all(render.registry())["explainer"])
+
+
+def no_variety(spec: StyleSpec) -> StyleSpec:
+    """110b's variety numbers lifted: the base plan is the old engine's shape (a stamp on
+    every body beat for density, every beat on a cut); tests/test_variety.py judges the
+    variety rules on their own."""
+    broll = spec.broll.model_copy(update={
+        "stamps_max_per_60s": 600, "non_cut_min_share": 0.0, "enter_run_max": 999,
+        "clip_share_target": (0.0, spec.broll.clip_share_target[1]),
+    })  # fmt: skip
+    return spec.model_copy(update={"broll": broll})
 
 
 # --- plan builders --------------------------------------------------------------------
@@ -145,7 +156,7 @@ def make_plan(
     finale_id = f"b{len(beats) + 1:02d}"
     beats.append(
         Beat(id=finale_id, start=t, end=round(t + finale_s, 3), mode="off", kind="finale",
-             asset_id="a01")
+             asset_id="o1")  # 110b: a set piece's asset counts; a callback to the opening
     )  # fmt: skip
     return PicturePlan(
         prompt_version="test-1",
@@ -871,7 +882,7 @@ def test_a_clip_is_never_a_named_entity(spec: StyleSpec) -> None:
 
 
 def test_clip_beats_take_at_most_the_styles_share_of_the_runtime(spec: StyleSpec) -> None:
-    """058 (6): `broll.clip_max_fraction` (0.35) caps the runtime clip beats cover:
+    """058 (6), 110b: the top of `broll.clip_share_target` (0.35) caps the runtime clip beats cover:
     seven 2.5 s clips on the 56 s plan (17.5 s, 0.31) pass, eight (20 s, 0.36) fail
     naming the plan; a style with the share at 0 takes none."""
     concept = [f"b{n + 3:02d}" for n in range(0, 20, 2)]  # the ten photo beats
@@ -879,9 +890,9 @@ def test_clip_beats_take_at_most_the_styles_share_of_the_runtime(spec: StyleSpec
     result = picture(as_clip(make_plan(), *concept[:8]), spec)
     assert (None, "4.1") in rules(result)
     assert isinstance(result, grammar.Violations)
-    assert any("clip_max_fraction" in v.message for v in result.items)
+    assert any("clip_share_target" in v.message for v in result.items)
     off = spec.model_copy(deep=True)
-    off.broll.clip_max_fraction = 0.0
+    off.broll.clip_share_target = (0.0, 0.0)
     assert (None, "4.1") in rules(picture(as_clip(make_plan(), "b05"), off))
     assert grammar.clip_share(as_clip(make_plan(), *concept[:7]).beats) == pytest.approx(17.5)
 
@@ -1520,31 +1531,27 @@ def test_unique_asset_count_scales_with_runtime(spec: StyleSpec) -> None:
 
 
 def test_reuse_over_reuse_max_is_rejected(spec: StyleSpec) -> None:
-    """4.3 as amended by 056 (3): `reuse_max` (2) showings per asset; the finale's cards
-    are a set piece and do not count, so a01 on b03, b15 and the finale passes."""
+    """4.3 as amended by 056 (3) and 110b: `reuse_max` (2) showings per asset, the showing
+    past it flagged on its beat (soft; the latest plain beat, never the first)."""
     assert spec.broll.reuse_max == 2
-    plan = make_plan(assets=12)  # a01: b03, b15, finale
+    plan = make_plan(assets=12)  # a01: b03, b15
     checked(plan, spec)
     three = replace(plan, "b04", asset_id="a01")
     result = picture(three, spec)
-    assert (None, "4.3") in rules(result)
+    assert ("b15", "4.3") in rules(result)
     assert isinstance(result, grammar.Violations)
-    assert any("a01" in v.message and "3 times" in v.message for v in result.items)
+    assert any("a01" in v.message and "3 beats" in v.message for v in result.items)
 
 
-def test_a_carry_on_beat_and_the_set_pieces_are_not_showings(spec: StyleSpec) -> None:
-    """056 (3): a `number` or `quote` beat over the previous beat's asset carries that
-    showing on, and a wall's base is a set piece; neither spends `reuse_max`."""
+def test_a_carry_on_beat_and_the_set_pieces_are_showings(spec: StyleSpec) -> None:
+    """110b (was 056 (3)): a `number` or `quote` beat carrying the previous beat's asset
+    on, and a wall's base, spend `reuse_max` like any showing (run05: img_saud_young on
+    b12, b13 and b16); the carry-on is flagged first, a set piece last."""
     plan = make_plan(assets=12)
     carried = replace(plan, "b04", subject_kind="number", asset_id="a01")  # b03 is a01
-    checked(carried, spec)
-    quoted = replace(carried, "b05", subject_kind="quote", asset_id="a01")
-    checked(quoted, spec)
+    assert ("b04", "4.3") in rules(picture(carried, spec))
     walled = _piece(replace(plan, "b06", asset_id="a01"), "b06", "wall", _items(4, asset="a02"))
-    checked(walled, spec)
-    # A number beat over a *different* asset than the previous beat's is a showing.
-    fresh = replace(plan, "b05", subject_kind="number", asset_id="a01")  # b04 is a02
-    assert (None, "4.3") in rules(picture(fresh, spec))
+    assert ("b15", "4.3") in rules(picture(walled, spec))
 
 
 def test_no_reuse_is_a_warning_not_a_rejection(spec: StyleSpec) -> None:

@@ -58,7 +58,8 @@ def _plan(spec: styles.StyleSpec | None = None) -> PicturePlan:
     )  # fmt: skip
     plan = FakePlanner().plan_picture(request)
     # the fake's wall (b10) flares where the style offers it; these tests place their own
-    return _with(plan, "b10", enter="cut")
+    # (a spring, not a cut: 110b's non_cut_min_share)
+    return _with(plan, "b10", enter="spring")
 
 
 def _with(plan: PicturePlan, beat_id: str, **update: Any) -> PicturePlan:

@@ -462,15 +462,15 @@ def test_the_test_style_helper_turns_text_pops_on(specs: dict[str, StyleSpec]) -
 def test_every_spec_carries_the_clip_row_and_the_clip_share(existing: dict[str, StyleSpec]) -> None:
     """058 (6): the clip's numbers are a `broll.motion.clip` row in every spec (no push:
     the clip's own movement is the motion, so 1.0 -> 1.0; speed 1.0) and
-    `broll.clip_max_fraction` is 0.35 in the four existing styles (the reference median
-    moving-footage share is 31 %); `clip` is a kind every style may plan, and the
+    the top of `broll.clip_share_target` is 0.35 in the four existing styles (the reference
+    median moving-footage share is 31 %; 110b); `clip` is a kind every style may plan, and the
     renderer exports it."""
     for spec in existing.values():
         row = spec.broll.motion["clip"]
         assert row["kind"] == "push", spec.name
         assert (float(row["scale_from"]), float(row["scale_to"])) == (1.0, 1.0), spec.name
         assert float(row["speed"]) == 1.0, spec.name
-        assert spec.broll.clip_max_fraction == 0.35, spec.name
+        assert spec.broll.clip_share_target[1] == 0.35, spec.name
         assert "clip" in spec.broll.kinds, spec.name
         assert spec.version == VERSIONS[spec.name], spec.name
     assert "clip" in REGISTRY
@@ -490,15 +490,15 @@ def test_the_clip_row_or_share_missing_fails_the_loader_naming_the_spec(tmp_path
         )
 
     def drop_share(fm: dict[str, Any]) -> None:
-        del fm["broll"]["clip_max_fraction"]
+        del fm["broll"]["clip_share_target"]
 
-    with pytest.raises(StyleError, match=r"hitech.*clip_max_fraction"):
+    with pytest.raises(StyleError, match=r"hitech.*clip_share_target"):
         styles.load_all(REGISTRY, _variant_dir(tmp_path / "b", "hitech", drop_share))
 
     def over_one(fm: dict[str, Any]) -> None:
-        fm["broll"]["clip_max_fraction"] = 1.5
+        fm["broll"]["clip_share_target"] = [0.1, 1.5]
 
-    with pytest.raises(StyleError, match=r"hitech.*clip_max_fraction"):
+    with pytest.raises(StyleError, match=r"hitech.*clip_share_target"):
         styles.load_all(REGISTRY, _variant_dir(tmp_path / "c", "hitech", over_one))
 
 

@@ -1654,6 +1654,8 @@ def source_assets(
     for note in (*judging.notes, *searching.notes, *generating.notes):
         log(note)
     runtime = picture.beats[-1].end if picture.beats else 0.0
+    if (note := _clip_share_note(picture.beats, walk, spec, runtime)) is not None:
+        log(note)
     return AssetManifest(
         assets=list(walk.records.values()),
         beats=walk.beats,
@@ -1668,6 +1670,32 @@ def source_assets(
         generated_images=generating.images,
         gen_max=generating.max_images,
     )
+
+
+def _clip_share_note(
+    beats: Sequence[Beat], walk: _Walk, spec: StyleSpec, runtime: float
+) -> str | None:
+    """110b: the sourced clip share under the low end of `broll.clip_share_target` is a
+    logged reason, never a failure (never a forced bad clip): which clip beats found no
+    usable clip and took a still. None when the share reaches the low end or no clip
+    beat fell (the grammar notes a plan that asked for fewer)."""
+    low = spec.broll.clip_share_target[0]
+    shown = {b.beat_id: b.asset_id for b in walk.beats}
+    clip_s = 0.0
+    fell: list[str] = []
+    for beat in beats:
+        record = walk.records.get(shown.get(beat.id) or "")
+        if record is not None and record.kind == CLIP_KIND:
+            clip_s += beat.end - beat.start
+        elif beat.kind == CLIP_KIND:
+            fell.append(beat.id)
+    share = clip_s / runtime if runtime else 0.0
+    if not fell or share + EPS >= low:
+        return None  # a plan that asked for fewer clips was noted by the grammar
+    return (f"sourcing: clip share {share:.2f} is below the low end of "
+            f"broll.clip_share_target {list(spec.broll.clip_share_target)}: "
+            f"{', '.join(fell)} found no usable clip and took a still; delivered "
+            "(a target, never a gate; 110b)")  # fmt: skip
 
 
 # --- the step as the pipeline runs it ----------------------------------------------------------

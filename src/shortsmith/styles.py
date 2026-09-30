@@ -262,10 +262,19 @@ class Broll(StrictModel):
     # them off. The marker's numbers (colour, opacity, padding, the card's push toward the
     # lines) are the `motion.highlight` row, required of every spec too.
     highlights_max_per_60s: int = Field(ge=0)
-    # 058 (4.1 as amended): the share of the runtime `clip` beats (full-screen moving
-    # stock footage) may take, 0-1; 0 turns clips off. The clip's own numbers (the slow
-    # push, the playback speed) are the `motion.clip` row, required of every spec too.
-    clip_max_fraction: float = Field(ge=0.0, le=1.0)
+    # 058 / 110b: the share of the runtime `clip` beats (full-screen moving stock footage)
+    # aim for, [low, high] in 0-1. The top is the ceiling (a soft rule); the low end is a
+    # target, never a gate (short of good clips: stills, a logged reason, delivered).
+    # [0, 0] turns clips off. The clip's own numbers (the slow push, the playback speed)
+    # are the `motion.clip` row, required of every spec too.
+    clip_share_target: tuple[float, float]
+    # 110b: the variety numbers, each a grammar soft rule the editor repairs: at most this
+    # many stamps per 60 s of runtime, rounded up; at least this share of the beats after
+    # the first entering on something other than a cut; the same enter on at most this
+    # many beats running.
+    stamps_max_per_60s: int = Field(ge=0)
+    non_cut_min_share: float = Field(ge=0.0, le=1.0)
+    enter_run_max: int = Field(ge=1)
     # 030: the 9.4 vocabulary's numbers. Every spec carries all six rows, enabled or
     # not, so the renderer reads one shape; `enter_transitions` is the subset it may use.
     transitions: Transitions
@@ -307,6 +316,15 @@ class Broll(StrictModel):
     # crop_fill); a motion with no row keeps the `motion.photo` Ken Burns. Only the
     # `contracts.CAMERA_MOVES` names may have a row.
     motion_moves: dict[str, MoveRow] = Field(default_factory=lambda: {})
+
+    @field_validator("clip_share_target")
+    @classmethod
+    def _share_range(cls, target: tuple[float, float]) -> tuple[float, float]:
+        low, high = target
+        if not 0.0 <= low <= high <= 1.0:
+            raise ValueError(f"broll.clip_share_target {list(target)} must be [low, high] with "
+                             "0 <= low <= high <= 1 (110b)")  # fmt: skip
+        return target
 
     @field_validator("motion_moves")
     @classmethod

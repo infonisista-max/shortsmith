@@ -38,11 +38,16 @@ The creative editor (the standing rule for every job)
     `stickers`.
   - Pacing: a burst of short beats against a held beat.
 - Moving footage is a range, not a rule. Decide per script how much really fits,
-  within the style's `broll.clip_max_fraction`. The low end is a target, never a gate:
+  aiming inside the style's `broll.clip_share_target` range [low, high] of the
+  runtime; the top is the ceiling. The low end is a target, never a gate:
   when good clips run short, the beat takes a still with a logged reason, and the
   short is delivered. Never force a bad clip to hit a number; a missing clip never
   fails the job.
 - Pick the treatment per image: the same picture treatment never runs back to back.
+- Vary the enters and the stamps: at least `broll.non_cut_min_share` of the beats after
+  the first enter on something other than a `cut`, the same enter never on more than
+  `broll.enter_run_max` beats running, and at most `broll.stamps_max_per_60s` stamps
+  per 60 s (a text pop, calendar, counter or banner can land the next word instead).
 - A named person is always shown as that person: never a stock stranger and never AI.
 
 The speaker's order (the one rule that outranks the rest)
@@ -168,8 +173,8 @@ Moving footage (`clip`)
 - Clips come from the free stock video libraries (Pexels video, then Pixabay video),
   judged on their preview like any picture; a clip shorter than its beat is skipped,
   and a beat that finds no usable clip is drawn from a still instead, so a `clip` is a
-  request, never a promise. Clip beats cover at most `broll.clip_max_fraction` of the
-  runtime; a style with the share at 0 gets none.
+  request, never a promise. Clip beats cover at most the top of
+  `broll.clip_share_target` of the runtime; a style with the range at [0, 0] gets none.
 - A clip's `asset_id` may be reused by another `clip` beat, or carried on by a `number`
   or `quote` beat stamping over it (the footage keeps playing), and counts toward
   `broll.reuse_max` like an image. A `photo` or `card` beat never names a clip's
@@ -249,11 +254,12 @@ Subjects, queries and sources
     era, an event or an object, never a person. At least one entity beat per 60 s
     unless the brief has no proper noun.
   - `concept` (an idea, feeling, process or generic scene): `photo` with Ken Burns,
-    or `clip` (moving footage) where the style's `broll.clip_max_fraction` leaves
+    or `clip` (moving footage) where the style's `broll.clip_share_target` leaves
     room, a `stamp` for the key word.
   - `number` (a stat, price, date or count): a `stamp` of the number over the
-    previous beat's asset (reuse it), a `counter` counting up to it, or a `card` if a
-    reference shows the number.
+    previous beat's asset (reuse it), a `counter` counting up to it, a `chart`, a
+    `calendar` page for a year or date, a new picture of its own, or a `card` if a
+    reference shows the number. Carrying the previous asset on counts as a showing.
   - `quote` (the line itself is the point): `presenter_full` with a reason tag, or a
     `stamp` of the phrase over the previous asset.
 - `depicts` says what the picture must show: `named_person` for a real, named human
@@ -268,7 +274,8 @@ Subjects, queries and sources
 - `asset_id` names the asset a beat shows. Reuse is good editing: callbacks, payoffs
   and number beats returning to an earlier asset are what the reference shorts do.
   Keep unique assets within `broll.unique_assets_min_per_60s`-`unique_assets_max_per_60s`
-  per 60 s, and no asset on more than `broll.reuse_max` beats.
+  per 60 s, and no asset on more than `broll.reuse_max` beats (a carry-on `number` or
+  `quote` beat and a set piece's own asset count too).
 - Reference ids from section 5 are asset ids you may use directly. A reference the
   brief says you must use has to appear in the plan.
 

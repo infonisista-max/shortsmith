@@ -639,7 +639,7 @@ def _plan(
             raise  # 097: no plan parsed twice - nothing for the editor to work on
         checked = _rescue_picture(
             job, exc, check_picture, editor, transcript, request.references,
-            spec.broll.treatments,
+            spec.broll.treatments, spec.broll.enter_transitions,
         )
     picture = checked.picture
     # 8.3 / 035: the prompt and the spec the plan was judged by, for `meta.json`.
@@ -731,6 +731,7 @@ def _planning_snags(
     references: Sequence[PlanReference],
     geocoder: geo.Geocoder,
     treatments: Sequence[str] = PICTURE_TREATMENTS,
+    enters: Sequence[str] = (),
 ) -> list[Snag]:
     """One snag per beat the violations name (its options from `beat_options`), one per
     plan-level hard truth (the cut -> keep the whole recording; an unused must-use
@@ -750,8 +751,9 @@ def _planning_snags(
 
     for beat_id, items in by_beat.items():
         hard = any(v.hard for v in items)
+        varies = any(grammar.VARY_ENTER in v.message for v in items)  # 110b: enter swaps
         options = beat_options(plan, beat_id, hard=hard, geocoder=geocoder,
-                               treatments=treatments)  # fmt: skip
+                               treatments=treatments, enters=enters if varies else ())  # fmt: skip
         if options:
             snags.append(make_snag(sid(), "planning", beat_id, _problem(items), hard=hard,
                                    options=options, lines=[str(v) for v in items]))  # fmt: skip
@@ -799,6 +801,7 @@ def _rescue_picture(
     transcript: Transcript,
     references: Sequence[PlanReference],
     treatments: Sequence[str] = PICTURE_TREATMENTS,
+    enters: Sequence[str] = (),
 ) -> grammar.PictureCheck:
     """097: the picture plan the planner sent twice, repaired: tiling re-tiled by code,
     up to `MAX_EDITOR_ROUNDS` editor rounds, the soft rules kept, the hard survivors
@@ -825,7 +828,7 @@ def _rescue_picture(
     for _ in range(MAX_EDITOR_ROUNDS):
         open_items = [v for v in items if str(v) not in kept]
         snags = _planning_snags(plan, open_items, transcript, references, geocoder,
-                                treatments)  # fmt: skip
+                                treatments, enters)  # fmt: skip
         if not snags:
             break
         changed = False

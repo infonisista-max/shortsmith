@@ -259,6 +259,9 @@ def validate_picture(
     found += asset_found
     warnings += asset_warnings
     found += _transitions(beats, runtime, spec)
+    found += variety(beats, runtime=runtime, spec=spec)
+    if (note := clip_share_note(beats, runtime, spec)) is not None:
+        warnings.append(note)
     found += _must_use(beats, must_use)
     found += _category(plan)
     found += _title_strip(plan, spec)
@@ -792,7 +795,8 @@ def _clips(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Viola
     stranger is never King Saud; those beats keep the still ladder; 099: `named_person`,
     or the old `named_entity` read as before - a named place, era, event or object may
     take a clip); clip
-    beats cover at most `broll.clip_max_fraction` of the runtime (6); and a clip's asset
+    beats cover at most the top of `broll.clip_share_target` of the runtime (6, 110b); and
+    a clip's asset
     is moving footage (7): another clip beat or a carry-on `number` / `quote` beat may
     name it, a still beat or a set-piece item (stills only) may not, and a clip beat
     never names a still beat's asset."""
@@ -833,15 +837,28 @@ def _clips(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Viola
                                     "set piece shows stills (058)")  # fmt: skip
                 )
     share = clip_share(beats)
-    cap = spec.broll.clip_max_fraction * runtime
+    top = spec.broll.clip_share_target[1]
+    cap = top * runtime
     if share > cap + EPS:
         fraction = share / runtime if runtime else 0.0
         found.append(
             _v("4.1", None, f"clip beats cover {share:g} s of {runtime:g} s ({fraction:.2f}); "
-                            f"broll.clip_max_fraction {spec.broll.clip_max_fraction:g} allows "
-                            f"{cap:.1f} s (058)")  # fmt: skip
+                            f"the top of broll.clip_share_target {top:g} allows {cap:.1f} s "
+                            "(058, 110b)")  # fmt: skip
         )
     return found
+
+
+def clip_share_note(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> str | None:
+    """110b: the low end of `broll.clip_share_target` is a target, never a gate - a plan
+    (or a sourced short) under it is only noted; None when it reaches the low end."""
+    low = spec.broll.clip_share_target[0]
+    fraction = clip_share(beats) / runtime if runtime else 0.0
+    if fraction + EPS >= low:
+        return None
+    return (f"plan (4.1): clip share {fraction:.2f} is below the low end of "
+            f"broll.clip_share_target {list(spec.broll.clip_share_target)}; stills carry the "
+            "rest (a target, never a gate; 110b)")  # fmt: skip
 
 
 def _item_count(spec: StyleSpec, kind: str) -> tuple[int, int, str]:
@@ -1687,18 +1704,13 @@ def _assets(
 ) -> tuple[list[Violation], list[str]]:
     """4.3: unique assets inside the per-60 s range, `reuse_max` showings per asset,
     a warning when nothing is reused. Set-piece items are a montage of plan assets and
-    are not showings; nor (056 (3)) is a `number` / `quote` beat carrying on the previous
-    beat's asset, or the wall's base and the finale's cards (`assets.is_showing`)."""
+    are not showings; since 110b a carry-on beat and a set piece's own asset are
+    (`reuse`)."""
     nums = spec.broll
     found: list[Violation] = []
     warnings: list[str] = []
     unique = {b.asset_id for b in beats if b.asset_id}
-    uses: Counter[str] = Counter()
-    previous: str | None = None
-    for b in beats:
-        if b.asset_id and assets.is_showing(b, b.asset_id, previous):
-            uses[b.asset_id] += 1
-        previous = b.asset_id
+    uses = Counter(b.asset_id for b in beats if b.asset_id)
     scale = runtime / 60
     lo = math.floor(nums.unique_assets_min_per_60s * scale + EPS)
     hi = math.ceil(nums.unique_assets_max_per_60s * scale - EPS)
@@ -1722,21 +1734,84 @@ def _assets(
                 f"allows at most {hi}",
             )
         )
-    for asset, count in sorted(uses.items()):
-        if count > nums.reuse_max:
-            found.append(
-                _v(
-                    "4.3",
-                    None,
-                    f"asset {asset!r} is shown {count} times, over broll.reuse_max "
-                    f"{nums.reuse_max}",
-                )
-            )
+    found += reuse(beats, spec=spec)
     if uses and max(uses.values()) < 2:
         warnings.append(
             "plan (4.3): no asset is reused; callbacks and payoffs return to an earlier asset"
         )
     return found, warnings
+
+
+def reuse(beats: Sequence[Beat], *, spec: StyleSpec) -> list[Violation]:
+    """4.3 as amended by 110b: no asset on more than `broll.reuse_max` beats, a carry-on
+    `number` / `quote` beat and a set piece's own asset (the wall's base; 056 left them
+    out) counted like any showing (run05: img_saud_young on b12, b13 and b16). Soft: the
+    showings past the cap are flagged, never the first - carry-ons first (a number beat
+    may take a counter, chart, calendar or a new picture instead), then the latest plain
+    beats, set pieces last - and the editor gives each a new picture (`new_picture`). A
+    set piece's items are a montage and still spend nothing."""
+    cap = spec.broll.reuse_max
+    shown: dict[str, list[Beat]] = {}
+    for b in beats:
+        if b.asset_id:
+            shown.setdefault(b.asset_id, []).append(b)
+    found: list[Violation] = []
+    for asset, on in shown.items():
+        if len(on) <= cap:
+            continue
+        ids = ", ".join(b.id for b in on)
+        order = sorted(range(1, len(on)), key=lambda i: (
+            on[i].subject_kind not in assets.REUSING_KINDS, on[i].kind in SET_PIECE_KINDS, -i))
+        for i in sorted(order[: len(on) - cap]):
+            found.append(_v("4.3", on[i].id, f"asset {asset!r} is shown on {len(on)} "
+                            f"beats ({ids}), over broll.reuse_max {cap}; carry-on beats and "
+                            "set pieces count too, so this beat takes a new picture "
+                            "(110b)"))  # fmt: skip
+    return found
+
+
+def stamps_cap(spec: StyleSpec, *, runtime: float) -> int:
+    """110b: `broll.stamps_max_per_60s` scaled to the runtime, rounded up (4.3)."""
+    return math.ceil(spec.broll.stamps_max_per_60s * runtime / 60 - EPS)
+
+
+VARY_ENTER = "vary the transition here"  # 110b: the editor offers enter swaps on this
+
+
+def variety(beats: Sequence[Beat], *, runtime: float, spec: StyleSpec) -> list[Violation]:
+    """110b: the style's variety numbers, every one soft (094: never a failure; the
+    editor repairs): at most `stamps_cap` stamps (each one past it flagged; the editor
+    drops it), at least `broll.non_cut_min_share` of the beats after the first entering
+    on something other than a cut (the cuts that break a run of cuts first; the editor
+    swaps the enter), and the same enter on at most `broll.enter_run_max` beats running
+    (the beat that makes the run too long; the editor swaps its enter)."""
+    b = spec.broll
+    found: list[Violation] = []
+    cap = stamps_cap(spec, runtime=runtime)
+    stamped = [beat.id for beat in beats if beat.event.kind == "stamp"]
+    for n, beat_id in enumerate(stamped[cap:], start=cap + 1):
+        found.append(_v("4.1", beat_id, f"stamp {n} of {len(stamped)} over {runtime:g} s; "
+                        f"broll.stamps_max_per_60s {b.stamps_max_per_60s} allows {cap}; "
+                        "drop this stamp (110b)"))  # fmt: skip
+    after = list(beats[1:])
+    non_cut = sum(1 for beat in after if beat.enter != "cut")
+    need = math.ceil(b.non_cut_min_share * len(after) - EPS)
+    if non_cut < need:
+        cuts = [i for i, beat in enumerate(beats) if i > 0 and beat.enter == "cut"]
+        cuts.sort(key=lambda i: beats[i - 1].enter != "cut")  # a run of cuts breaks first
+        for i in sorted(cuts[: need - non_cut]):
+            found.append(_v("9.4", beats[i].id, f"enter 'cut': {non_cut} of {len(after)} "
+                            "beats after the first enter on something other than a cut; "
+                            f"broll.non_cut_min_share {b.non_cut_min_share:g} needs {need}; "
+                            f"{VARY_ENTER} (110b)"))  # fmt: skip
+    run = b.enter_run_max
+    for i in range(run, len(beats)):
+        window = beats[i - run : i + 1]
+        if len({beat.enter for beat in window}) == 1:
+            found.append(_v("9.4", beats[i].id, f"enter {beats[i].enter!r} on {run + 1} beats "
+                            f"running ({', '.join(beat.id for beat in window)}); "
+                            f"broll.enter_run_max {run}; {VARY_ENTER} (110b)"))  # fmt: skip
+    return found
 
 
 def flash_cap(spec: StyleSpec, *, runtime: float) -> int:

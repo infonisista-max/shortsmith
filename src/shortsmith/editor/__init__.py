@@ -13,10 +13,14 @@ per layer the beat carries, `plain_cut` when it enters on anything else, the map
 on a map beat (`frame_markers` only when every marker and route point resolves in the
 geocoder the renderer uses; `drop_route` when it has a route), one `treatment:<name>` swap
 per other picture treatment on a beat the planner gave one (103; never its own, never a
-neighbour's), and `replace_visual` last (never on the finale). `fallback_for` picks, in
-order: a layer word in the problem -> drop that layer; an `enter` problem -> `plain_cut`;
-a `treatment` problem -> the first swap; a map problem -> `frame_markers` when offered,
-else `replace_visual`; hard -> `replace_visual`; soft -> `keep`.
+neighbour's), one `enter:<name>` swap per style enter when the caller passes them (110b;
+never its own, never a neighbour's), and `replace_visual` last (never on the finale).
+`fallback_for` picks, in order: a layer word in the problem -> drop that layer; a
+variety problem ("vary the transition here", 110b) -> the first enter swap; an `enter`
+problem -> `plain_cut`; a `treatment` problem -> the first swap; a map problem ->
+`frame_markers` when offered, else `replace_visual`; a `reuse_max` problem ->
+`new_picture` (offered on a beat, not a set piece, showing an asset an earlier beat
+shows), else `replace_visual` (110b); hard -> `replace_visual`; soft -> `keep`.
 """
 
 from __future__ import annotations
@@ -40,12 +44,14 @@ from shortsmith.contracts import (
 )
 from shortsmith.editor import repairs
 from shortsmith.editor.repairs import LAYERS, Layer, RepairError
+from shortsmith.grammar import SET_PIECE_KINDS, VARY_ENTER
 from shortsmith.jobs import Clock, Job
 from shortsmith.planner import Planner
 
 __all__ = [
     "DELIVER",
     "KEEP",
+    "NEW_PICTURE",
     "REPLACE",
     "Choice",
     "Editor",
@@ -61,6 +67,11 @@ __all__ = [
 KEEP = "keep"
 REPLACE = "replace_visual"
 TREATMENT_PREFIX = "treatment:"  # 103: a picture-treatment swap
+ENTER_PREFIX = "enter:"  # 110b: an enter-transition swap
+NEW_PICTURE = "new_picture"  # 110b: a showing past reuse_max sourced afresh
+# 110b: the enters the grammar caps (9.4 whips per three beats, 060 flashes and 107 light
+# flares per minute), offered after the uncapped ones so a swap rarely breaks a cap.
+CAPPED_ENTERS = frozenset({"whip", "flash", "light_flare"})
 DELIVER = "deliver_with_note"
 Patch = Callable[[PicturePlan], PicturePlan]
 
@@ -169,10 +180,12 @@ def beat_options(
     geocoder: geo.Geocoder | None = None,
     keep: bool = True,
     treatments: Sequence[str] = PICTURE_TREATMENTS,
+    enters: Sequence[str] = (),
 ) -> list[Option]:
     """The real options for one beat (see the module docstring); `keep` False leaves the
     keep option out even when the problem is soft (a render failure cannot be kept).
-    `treatments` are the style's `broll.treatments`, the swaps offered in their order."""
+    `treatments` are the style's `broll.treatments`, the swaps offered in their order;
+    `enters` the style's `broll.enter_transitions` when the beat's enter is to vary (110b)."""
     beat = repairs.beat_of(plan, beat_id)
     options: list[Option] = []
     if keep and not hard:
@@ -197,6 +210,11 @@ def beat_options(
         )
     if beat.treatment is not None:
         options += _treatment_swaps(plan, beat, treatments)
+    options += _enter_swaps(plan, beat, enters)
+    if repairs.shown_before(plan, beat) and beat.kind not in SET_PIECE_KINDS:
+        options.append(Option(NEW_PICTURE, "give this beat a new picture of its own instead "
+                              f"of showing {beat.asset_id!r} again (the stamp and the rest "
+                              "stay)", lambda p: repairs.new_picture(p, beat_id)))  # fmt: skip
     if beat.kind == "map" and beat.map is not None:
         coder = geocoder or geo.GazetteerGeocoder()
         box = repairs.marker_bbox(beat, coder)
@@ -235,6 +253,24 @@ def _treatment_swaps(plan: PicturePlan, beat: Beat, treatments: Sequence[str]) -
     ]
 
 
+def _enter_swaps(plan: PicturePlan, beat: Beat, enters: Sequence[str]) -> list[Option]:
+    """110b: one swap per style enter that is neither the beat's own nor a neighbour's;
+    the uncapped ones first, then the capped (`CAPPED_ENTERS`), a plain cut last."""
+    ids = [b.id for b in plan.beats]
+    i = ids.index(beat.id)
+    taken = {plan.beats[j].enter for j in (i - 1, i + 1) if 0 <= j < len(ids)} | {beat.enter}
+    ordered = sorted((e for e in enters if e not in taken),
+                     key=lambda e: (e == "cut", e in CAPPED_ENTERS))  # fmt: skip
+    return [
+        Option(
+            f"{ENTER_PREFIX}{name}",
+            f"enter this beat on {name!r} instead of {beat.enter!r}",
+            lambda p, name=name: repairs.set_enter(p, beat.id, name),
+        )  # fmt: skip
+        for name in ordered
+    ]
+
+
 def fallback_for(problem: str, options: Sequence[Option], *, hard: bool) -> str:
     """The most targeted fix code can infer from `problem` among `options` (module doc)."""
     ids = {o.id for o in options}
@@ -246,6 +282,9 @@ def fallback_for(problem: str, options: Sequence[Option], *, hard: bool) -> str:
     for word, layer in LAYER_WORDS:
         if f"drop_{layer}" in ids and re.search(rf"\b{re.escape(word)}\b", text):
             return f"drop_{layer}"
+    enter_swaps = [o.id for o in options if o.id.startswith(ENTER_PREFIX)]
+    if VARY_ENTER in text and enter_swaps:
+        return enter_swaps[0]
     if says("enter") and "plain_cut" in ids:
         return "plain_cut"
     swaps = [o.id for o in options if o.id.startswith(TREATMENT_PREFIX)]
@@ -256,6 +295,8 @@ def fallback_for(problem: str, options: Sequence[Option], *, hard: bool) -> str:
             return "frame_markers"
         if REPLACE in ids:
             return REPLACE
+    if says("reuse_max") and (NEW_PICTURE in ids or REPLACE in ids):
+        return NEW_PICTURE if NEW_PICTURE in ids else REPLACE  # 110b: a new picture
     if not hard and KEEP in ids:
         return KEEP
     if REPLACE in ids:

@@ -322,7 +322,7 @@ def test_the_v13_prompts_say_when_to_stick_an_emoji_and_list_the_catalogue_by_ta
 
 def test_the_v12_prompts_say_when_to_ask_a_clip_and_never_for_a_named_entity() -> None:
     """058: the picture file's clip rule (moving stock footage on a concept beat and a
-    concept opening, never a named entity, under `broll.clip_max_fraction`, a request the
+    concept opening, never a named entity, under `broll.clip_share_target`, a request the
     still ladder answers when no clip fits, its asset never a set piece's still) and the
     sound file's line (a clip is muted, an ordinary picture beat for cues)."""
     picture = prompt.build_prompt(_request(), "picture")
@@ -331,7 +331,7 @@ def test_the_v12_prompts_say_when_to_ask_a_clip_and_never_for_a_named_entity() -
         "always muted",
         "Never for a named person",  # 099 (v20): was "Never for a named entity"
         "a stock stranger is never the person named",
-        "`broll.clip_max_fraction`",
+        "`broll.clip_share_target`",  # 110b: was `broll.clip_max_fraction`
         "Pexels video, then Pixabay video",
         "a clip shorter than its beat is skipped",
         "request, never a promise",

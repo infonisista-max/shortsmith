@@ -150,7 +150,9 @@ ENTER_FALLBACKS: Mapping[Transition, tuple[Transition, ...]] = {
     "wipe": ("fade",),
     "zoom": ("fade",),
     "flash": ("fade",),  # 060: the turn back to the presenter fades where no style flashes
-    "light_flare": (),  # 107: the wall cuts where the style has no flare
+    # 107, 110b: the wall springs where the style has no flare (not a cut: the variety
+    # numbers' non-cut share and enter runs)
+    "light_flare": ("spring", "wipe", "fade", "zoom"),
     "fade": (),
 }
 WHOOSH = "whoosh"
@@ -383,7 +385,9 @@ class FakePlanner(Planner):
               chart_form="bar",
               series=[Point(label="Words", value=12), Point(label="Bursts", value=6),
                       Point(label="Seconds", value=6)]),
-            B(id="b07", start=3.0, end=3.5, mode="pip", kind="infographic",
+            # 110b: b07 fades in so seven of the ten enters after the first are not a cut
+            # (explainer `non_cut_min_share` 0.7) and no enter runs three beats.
+            B(id="b07", start=3.0, end=3.5, mode="pip", kind="infographic", enter=enter("fade"),
               overlays=["label_flyin"], motion="fly_in", subject_kind="concept",
               depicts="scene", query="labelled diagram of a tone burst",
               query_fallback="sound wave diagram", source_intent="generate", asset_id="a6",
@@ -413,7 +417,9 @@ class FakePlanner(Planner):
                      Item(asset_id="a6")]),
             # 006: the finale is one 1.0 s beat so T3 (finale 0.8-1.2 s) holds on the
             # fixture; the former b11 (photo, ken_burns_out, stamp "6 s") folded into it.
-            B(id="b11", start=5.0, end=6.0, mode="off", kind="finale", asset_id="a1"),
+            # 110b: the finale calls back the card's picture (a set piece's own asset
+            # counts toward reuse_max; a1 is already on b01 and the b06 number beat).
+            B(id="b11", start=5.0, end=6.0, mode="off", kind="finale", asset_id="a2"),
         ]  # fmt: skip
         beats = [b.model_copy(update={"why": FAKE_WHY[b.id]}) for b in beats]
         return PicturePlan(

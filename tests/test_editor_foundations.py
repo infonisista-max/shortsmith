@@ -20,6 +20,7 @@ from tests.test_grammar import (
     _piece,  # pyright: ignore[reportPrivateUsage]
     as_clip,
     make_plan,
+    no_variety,
     picture,
     story_for,
     transcript_for,
@@ -35,7 +36,7 @@ from tests.test_qa_technical import (
 def spec() -> StyleSpec:
     from shortsmith import render
 
-    return styles.load_all(render.registry())["explainer"]
+    return no_variety(styles.load_all(render.registry())["explainer"])  # 110b: test_variety
 
 
 @pytest.fixture
