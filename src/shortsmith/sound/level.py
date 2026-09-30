@@ -167,9 +167,16 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def remix(job: Job, *, offset_db: float, now: Clock = _utc_now) -> Remixed:
-    """The audio-only remix at `offset_db` (see the module note). Raises `LevelError`
-    with the old short and stems untouched when it cannot deliver."""
+Mixer = Callable[[Path, Path], tuple[Path, BalanceReport]]
+
+
+def deliver(job: Job, mix: Mixer) -> BalanceReport:
+    """The audio-only delivery 090's slider and 093's pick share: `mix(stems, scratch)`
+    writes the new bed stems, the premix and `balance.json` into the scratch folder, then
+    the master and the remux with the picture copied go beside the short. Only once the
+    new file passes T4 do the stems move in and the short get renamed over; a mix that
+    brings its own `START_DIR` (a new bed) replaces the old bed's, and the old bed's
+    segment stems go. Raises `LevelError` with the old short and stems untouched."""
     why = refusal(job)
     if why:
         raise LevelError(why)
@@ -178,13 +185,12 @@ def remix(job: Job, *, offset_db: float, now: Clock = _utc_now) -> Remixed:
     for needed in (stems / "voice.wav", picture):
         if not needed.is_file():
             raise LevelError(f"{needed.relative_to(job.path).as_posix()} is missing")
-    nums = render.loaded_styles()[job.record.style].sound
     scratch = stems / SCRATCH_DIR
     shutil.rmtree(scratch, ignore_errors=True)
     staged = job.out_dir / REMIX_NAME
     try:
         try:
-            premix, balance = sound.relevel(stems, scratch, nums=nums, offset_db=offset_db)
+            premix, balance = mix(stems, scratch)
         except sound.SoundError as exc:
             raise LevelError(str(exc)) from exc
         render.master(premix, scratch / "mix.wav")
@@ -194,6 +200,11 @@ def remix(job: Job, *, offset_db: float, now: Clock = _utc_now) -> Remixed:
             raise LevelError(
                 f"the remixed master missed T4 ({check.detail}); the short is unchanged"
             )
+        if (scratch / sound.START_DIR).is_dir():
+            shutil.rmtree(stems / sound.START_DIR, ignore_errors=True)
+            for path in stems.glob("music.[0-9].wav"):
+                path.unlink()
+            os.replace(scratch / sound.START_DIR, stems / sound.START_DIR)
         for name in REMIX_STEMS:
             if (scratch / name).is_file():
                 os.replace(scratch / name, stems / name)
@@ -203,6 +214,16 @@ def remix(job: Job, *, offset_db: float, now: Clock = _utc_now) -> Remixed:
     finally:
         staged.unlink(missing_ok=True)
         shutil.rmtree(scratch, ignore_errors=True)
+    return balance
+
+
+def remix(job: Job, *, offset_db: float, now: Clock = _utc_now) -> Remixed:
+    """The audio-only remix at `offset_db` (see the module note). Raises `LevelError`
+    with the old short and stems untouched when it cannot deliver."""
+    nums = render.loaded_styles()[job.record.style].sound
+    balance = deliver(
+        job, lambda stems, scratch: sound.relevel(stems, scratch, nums=nums, offset_db=offset_db)
+    )
     notes = ear_notes(balance, nums)
     started = job.record.music_level
     stamp = now()

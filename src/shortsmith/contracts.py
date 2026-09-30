@@ -764,6 +764,9 @@ class BalanceReport(StrictModel):
     # 088: what was measured and not held against the bed - 069's ceiling on a bed the
     # operator approved by ear. Shown on the job page as a note, never a problem.
     notes: list[str] = []
+    # 093: the catalogue ids of the beds the stem plays (two across a change); empty on a
+    # voice-only mix or one measured before 093.
+    beds: list[str] = []
 
 
 class CueRecord(StrictModel):

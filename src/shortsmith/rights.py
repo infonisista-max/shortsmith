@@ -219,6 +219,27 @@ def write(job_dir: Path, manifest: AssetManifest, plan: PicturePlan) -> list[Rig
     return logged
 
 
+def replace_music(job_dir: Path, music: Sequence[RightsRow]) -> list[RightsRow]:
+    """093: the music rows swapped for `music` - in `work/audio_rights.json`, so a later
+    asset run carries the new bed, and in `out/rights.json` and `out/credits.md` in place,
+    every other row kept as it is. Returns the log's rows."""
+    audio = [r for r in audio_rows(job_dir) if r.kind != "music"]
+    write_audio(job_dir, [*music, *audio])
+    logged = load(job_dir)
+    if logged is None:
+        return []
+    kept = [r for r in logged if r.kind != "music"]
+    first = next((i for i, r in enumerate(logged) if r.kind in AUDIO_KINDS), len(logged))
+    at = sum(1 for r in logged[:first] if r.kind != "music")
+    rows = [*kept[:at], *music, *kept[at:]]
+    out = job_dir / "out"
+    (out / RIGHTS_NAME).write_text(
+        _ROWS.dump_json(rows, indent=2).decode("utf-8"), encoding="utf-8"
+    )
+    (out / CREDITS_NAME).write_text(credits(rows), encoding="utf-8")
+    return rows
+
+
 def load(job_dir: Path) -> list[RightsRow] | None:
     path = job_dir / "out" / RIGHTS_NAME
     if not path.is_file():

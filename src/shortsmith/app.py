@@ -75,6 +75,12 @@ starting level. `POST /jobs/<id>/music-level` remixes the audio only (`sound.lev
 422 off the scale, 500 with the error when the remix could not deliver, the old short
 kept. The last remix's ear notes sit under the slider.
 
+Bed pick (093): beside the slider, the approved beds that fit the reel's planned moods
+and the facts default, each with a player (`GET /audio/beds/<id>`, approved beds only),
+the playing one marked. `POST /jobs/<id>/bed-pick` puts one under the whole reel through
+the same audio-only delivery (`sound.pick`): 409 and 500 as the slider's, 422 for a bed
+not on the list.
+
 `create_app` is the factory tests use with their own settings and fake adapters;
 the module-level `app` is what `uvicorn shortsmith.app:app` serves.
 """
@@ -145,7 +151,7 @@ from shortsmith.qa.critic import Critic
 from shortsmith.qa.gate import Gate
 from shortsmith.reference import own
 from shortsmith.render import Renderer
-from shortsmith.sound import facts_default, freesound, kinds, level, shortlist
+from shortsmith.sound import facts_default, freesound, kinds, level, pick, shortlist
 from shortsmith.styles import StyleSpec
 from shortsmith.transcriber import Transcriber
 
@@ -299,6 +305,12 @@ def create_app(
     # naming the key.
     scale = level.load_scale(music_levels or level.LEVEL_PATH)
     shortlist_root = shortlist_dir or shortlist.SHORTLIST_DIR
+    bed_catalogue = audio_catalogue or library_root / sound.CATALOGUE_NAME
+
+    def bed_library() -> sound.Library:
+        """093: the library as it stands now, so a bed approved since startup is offered."""
+        return sound.load_catalogue(bed_catalogue)
+
     effect_kinds = audio_kind_list.sfx_kinds()
     chips = styles.shipped(specs)
     # The ledger loads the prices file at startup (5.6), in the lifespan like the
@@ -588,9 +600,11 @@ def create_app(
             return HTMLResponse("<h1>No such job</h1>", status_code=404)
         average = await run_in_threadpool(ledger.running_average, data_dir)
         agreed = await run_in_threadpool(agreed_line)
+        library = await run_in_threadpool(bed_library)
         return HTMLResponse(
             render_job_page(
-                job, position=_queue_position(job, worker), average=average, agreed=agreed
+                job, position=_queue_position(job, worker), average=average, agreed=agreed,
+                library=library,
             )
         )
 
@@ -688,6 +702,41 @@ def create_app(
         except level.LevelError as exc:
             return HTMLResponse(render_refusal(job, str(exc)), status_code=500)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
+    @app.post("/jobs/{job_id}/bed-pick")
+    async def bed_pick(job_id: str, request: Request) -> Response:
+        """093: one approved bed that fits the reel under the whole of it, remixed
+        audio-only at the reel's slider offset; a failure keeps the old short."""
+        job = jobs.find(data_dir, job_id)
+        if job is None:
+            return JSONResponse({"error": "no such job"}, status_code=404)
+        if job.status not in SHOWS_SHORT:
+            return HTMLResponse(render_refusal(job, NO_SHORT_TO_LEVEL_SENTENCE), status_code=409)
+        why = pick.refusal(job)
+        if why:
+            return HTMLResponse(render_refusal(job, why), status_code=409)
+        form = await request.form()
+        entry_id = _text(form.get("entry"))
+        library = await run_in_threadpool(bed_library)
+        if entry_id not in {c.entry.id for c in pick.choices(job, library)}:
+            return HTMLResponse(render_refusal(job, pick.NOT_OFFERED), status_code=422)
+        try:
+            await run_in_threadpool(
+                lambda: pick.pick(job, entry_id, library=library, now=clock)
+            )
+        except level.LevelError as exc:
+            return HTMLResponse(render_refusal(job, str(exc)), status_code=500)
+        return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
+    @app.get("/audio/beds/{entry_id}")
+    async def bed_file(entry_id: str) -> Response:
+        """093: an approved bed's file for its player on the job page; nothing else."""
+        library = await run_in_threadpool(bed_library)
+        entry = next((e for e in sound.approved_beds(library) if e.id == entry_id), None)
+        path = library.file(entry) if entry is not None else None
+        if path is None or not path.is_file():
+            return JSONResponse({"error": "no such bed"}, status_code=404)
+        return FileResponse(path)
 
     @app.post("/jobs/{job_id}/retry")
     async def retry(job_id: str) -> Response:
@@ -1151,8 +1200,10 @@ def render_job_page(
     position: int | None = None,
     average: ledger.RunningAverage | None = None,
     agreed: str = "",
+    library: sound.Library | None = None,
 ) -> str:
-    """`agreed` is the calibration's "critic agreed N of last 5" line (034)."""
+    """`agreed` is the calibration's "critic agreed N of last 5" line (034); `library`
+    the audio library the bed pick offers from (093; the shipped catalogue when None)."""
     now = now or datetime.now(UTC)
     record = job.record
     brief_path = job.input_dir / "brief.md"
@@ -1209,7 +1260,7 @@ def render_job_page(
         brief=html.escape(brief),
         result=_examples_block(job) + _result_block(job, agreed) + _inventory_block(job),
         publishing=_publishing_block(job),
-        feedback=_music_level_block(job) + _feedback_block(job),
+        feedback=_music_level_block(job) + _bed_pick_block(job, library) + _feedback_block(job),
         ledger=_ledger_block(job, average),
         json_url=f"/jobs/{html.escape(job.id)}.json",
         created_at=record.created_at.isoformat(),
@@ -1388,6 +1439,46 @@ def _music_level_block(job: Job) -> str:
         parts.append(f'<p class="music-level-reason">{html.escape(why)}</p>\n')
     for note in recorded.notes if recorded is not None else []:
         parts.append(f'<p class="warning music-level-note">{html.escape(note)}</p>\n')
+    return "".join(parts)
+
+
+def _bed_pick_block(job: Job, library: sound.Library | None) -> str:
+    """093: beside the slider, the approved beds that fit the reel's planned moods and the
+    facts default, each with a small player, its title, source and mood/flavour, the one
+    playing marked. Disabled with its reason for the slider's reasons; a planned bed
+    change is named as what a pick replaces."""
+    if job.status not in SHOWS_SHORT:
+        return ""
+    library = library if library is not None else sound.load_catalogue()
+    why = pick.refusal(job)
+    off = " disabled" if why else ""
+    rows: list[str] = []
+    for choice in pick.choices(job, library):
+        e = choice.entry
+        tags = ", ".join([*e.tags.mood, *e.tags.flavour, *e.tags.role])
+        who = f" · {e.author}" if e.author else ""
+        mark = ' <strong class="now-playing">now playing</strong>' if choice.playing else ""
+        checked = " checked" if choice.playing else ""
+        rows.append(
+            f'  <li><label><input type="radio" name="entry" value="{html.escape(e.id)}"'
+            f"{checked}{off}> {html.escape(e.source_name or e.id)}</label>{mark} "
+            f'<span class="bed-meta">{html.escape(e.source)}{html.escape(who)} · '
+            f"{html.escape(e.licence)} · {html.escape(tags)}</span> "
+            f'<audio controls preload="none" src="/audio/beds/{html.escape(e.id)}"></audio></li>'
+        )
+    if not rows:
+        return ""
+    parts = [
+        "<h3>Music bed</h3>\n",
+        f'<form class="bed-pick" method="post" action="/jobs/{html.escape(job.id)}/bed-pick">\n'
+        f'<ul class="bed-choices">\n' + "\n".join(rows) + "\n</ul>\n"
+        f'  <button type="submit"{off}>Use this bed</button>\n'
+        "</form>\n",
+    ]
+    if pick.replaces_change(job):
+        parts.append(f'<p class="bed-pick-change">{html.escape(pick.REPLACES_CHANGE)}</p>\n')
+    if why:
+        parts.append(f'<p class="bed-pick-reason">{html.escape(why)}</p>\n')
     return "".join(parts)
 
 

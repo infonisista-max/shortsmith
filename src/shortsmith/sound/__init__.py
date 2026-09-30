@@ -1633,12 +1633,13 @@ def build_mix(
         mixed = _BedMix(music=None, ducked=None, balance=balance)
         if dropped is not None:
             note((f"{VOICE_AND_HITS_LINE} (last bed {dropped})",))
-    balance = mixed.balance.model_copy(
-        update={"repairs": repairs, "dip_db": mixed.dip_db or None, "bed_dropped": dropped}
-    )
+    beds = score.beds if score is not None and mixed.music is not None else ()
+    balance = mixed.balance.model_copy(update={
+        "repairs": repairs, "dip_db": mixed.dip_db or None, "bed_dropped": dropped,
+        "beds": [e.id for e in beds],
+    })  # fmt: skip
     premix = _premix(stems, voice=voice, ducked=mixed.ducked, sfx=sfx)
     (stems / BALANCE_NAME).write_text(balance.model_dump_json(indent=2), encoding="utf-8")
-    beds = score.beds if score is not None and mixed.music is not None else ()
     return MixResult(
         premix=premix, music=mixed.music, sfx=sfx, bed=beds[0] if beds else None,
         cues=placed.cues, balance=balance, notes=tuple(notes), library=library, beds=beds,
@@ -1661,15 +1662,83 @@ def relevel(
     `balance.json` are written into `out`; nothing in `stems` changes but the first
     remix's copy of the delivered bed under `START_DIR`. Never repaired: the balance is
     measured and returned, problems and all (the ear wins)."""
-    voice = stems / "voice.wav"
-    voice_db = ffmpeg.mean_volume_db(voice)
-    if voice_db is None:
-        raise SoundError(f"{voice.name} is silent: the mix has nothing to sit under")
+    voice_db = _voice_db(stems)
     start = stems / START_DIR
     if not (start / "music.wav").is_file():
         start.mkdir(parents=True, exist_ok=True)
         for path in (stems / "music.wav", *sorted(stems.glob("music.[0-9].wav"))):
             shutil.copyfile(path, start / path.name)
+    old = balance_report(stems)
+    music = out / "music.wav"
+    windows: list[tuple[Window, Path]] = []
+    span = 0
+    for w in old.windows if old is not None else ():
+        crossfade = w.name.startswith("crossfade ")
+        windows.append((Window(w.name, w.start_s, w.end_s, None if crossfade else span),
+                        music if crossfade else out / f"music.{span + 1}.wav"))  # fmt: skip
+        span += 0 if crossfade else 1
+    return _from_start(
+        stems, start, out, nums=nums, offset_db=offset_db, voice_db=voice_db, windows=windows,
+        carried={"repairs": old.repairs if old is not None else [],
+                 "dip_db": old.dip_db if old is not None else None,
+                 "beds": old.beds if old is not None else []},
+    )  # fmt: skip
+
+
+def repick(
+    stems: Path,
+    out: Path,
+    *,
+    entry: AudioEntry,
+    library: Library,
+    story: SoundStory,
+    nums: styles.Sound,
+    runtime_s: float,
+    offset_db: float,
+) -> tuple[Path, BalanceReport]:
+    """093: `entry` alone under the whole reel, from the stems: its stem at the style's
+    starting level with the story's envelope (swells and drops as before) goes into
+    `out/START_DIR` - the level a later slider offset is taken from - and the bed plays
+    at that level plus `offset_db`, ducked and premixed with the existing cues. A 076
+    change is gone with its windows, and so is any dip the old bed needed. Never
+    repaired: an approved bed's balance is measured, problems and all (the ear wins)."""
+    voice_db = _voice_db(stems)
+    start = out / START_DIR
+    start.mkdir(parents=True, exist_ok=True)
+    _bed_stem(
+        start / "music.wav", bed=entry, library=library, nums=nums,
+        points=envelope(story, nums, runtime_s=runtime_s),
+        target=voice_db + nums.bed_db_under_voice, runtime_s=runtime_s,
+    )  # fmt: skip
+    return _from_start(
+        stems, start, out, nums=nums, offset_db=offset_db, voice_db=voice_db, heard=True,
+        carried={"beds": [entry.id]},
+    )  # fmt: skip
+
+
+def _voice_db(stems: Path) -> float:
+    voice = stems / "voice.wav"
+    voice_db = ffmpeg.mean_volume_db(voice)
+    if voice_db is None:
+        raise SoundError(f"{voice.name} is silent: the mix has nothing to sit under")
+    return voice_db
+
+
+def _from_start(
+    stems: Path,
+    start: Path,
+    out: Path,
+    *,
+    nums: styles.Sound,
+    offset_db: float,
+    voice_db: float,
+    windows: Sequence[tuple[Window, Path]] = (),
+    heard: bool = False,
+    carried: Mapping[str, object],
+) -> tuple[Path, BalanceReport]:
+    """090: every bed stem under `start` takes one gain - the starting level plus
+    `offset_db` - into `out`, then the duck, the balance (with `carried` over it), the
+    premix with the stems' cues and `balance.json`, all in `out`."""
     start_median = _median_db(start / "music.wav")
     if start_median is None:
         raise SoundError("the delivered music stem is silent")
@@ -1682,21 +1751,14 @@ def relevel(
                 "-af", f"volume={gain_db:.3f}dB", "-c:a", "pcm_f32le", str(out / path.name),
             ]  # fmt: skip
         )
+    voice = stems / "voice.wav"
     music = out / "music.wav"
     ducked = _ducked(out, voice=voice, music=music)
     old = balance_report(stems)
-    windows: list[tuple[Window, Path]] = []
-    span = 0
-    for w in old.windows if old is not None else ():
-        crossfade = w.name.startswith("crossfade ")
-        windows.append((Window(w.name, w.start_s, w.end_s, None if crossfade else span),
-                        music if crossfade else out / f"music.{span + 1}.wav"))  # fmt: skip
-        span += 0 if crossfade else 1
     balance = _balance(
         out, voice=voice, music=music, ducked=ducked, nums=nums, voice_db=voice_db,
-        cues=old.cues if old is not None else 0, windows=windows,
-    ).model_copy(update={"repairs": old.repairs if old is not None else [],
-                         "dip_db": old.dip_db if old is not None else None})  # fmt: skip
+        cues=old.cues if old is not None else 0, windows=windows, heard=heard,
+    ).model_copy(update=dict(carried))
     sfx = stems / "sfx.wav"
     premix = _premix(out, voice=voice, ducked=ducked, sfx=sfx if sfx.is_file() else None)
     (out / BALANCE_NAME).write_text(balance.model_dump_json(indent=2), encoding="utf-8")
@@ -2246,6 +2308,11 @@ def _audio_row(
         height=0,
         fetched_at=datetime.now(UTC).isoformat(timespec="seconds"),
     )
+
+
+def bed_row(entry: AudioEntry, library: Library) -> RightsRow:
+    """093: a bed's rights row, as the mix writes it (its beats are the whole short)."""
+    return _audio_row(entry, library, kind="music", beat_ids=[])
 
 
 def rights_rows(result: MixResult) -> list[RightsRow]:

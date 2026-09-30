@@ -152,6 +152,15 @@ class MusicLevel(BaseModel):
     start_db: float = 0.0
 
 
+class BedPick(BaseModel):
+    """093: the bed the operator picked for the whole reel on the job page, and when."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_id: str
+    set_at: datetime
+
+
 class JobRecord(BaseModel):
     """Contents of job.json."""
 
@@ -194,6 +203,7 @@ class JobRecord(BaseModel):
     critic: CriticSummary | None = None
     performance: Performance | None = None
     music_level: MusicLevel | None = None  # 090: set at mux (default), moved by the slider
+    bed_pick: BedPick | None = None  # 093: the last bed picked on the page
 
     @model_validator(mode="before")
     @classmethod
