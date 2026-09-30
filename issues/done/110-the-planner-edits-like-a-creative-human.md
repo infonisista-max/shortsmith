@@ -93,3 +93,9 @@ Operator, 30 Sep 2026 (run05 King Saud, phone 6.5/10), finding 3: "the planner w
 a creative human editor. For each script it chooses from the full vocabulary my reference
 URLs taught ... so no two reels feel like one template ... Build it into the standing
 rules."
+
+## Split note (1 Oct 2026)
+
+Split under the context-budget rule (CLAUDE.md) into **110a** (prompt section + cross-style
+examples), **110b** (variety numbers + soft rules) and **110c** (vishva re-derived, variety
+line, where the rule lives). This file keeps the causes and the operator's words.
