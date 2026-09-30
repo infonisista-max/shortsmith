@@ -42,7 +42,7 @@ effects:
   lightbulb_idea_pop: sticker
   lower_third_text: lower_third
   map_highlight_and_text: map
-  map_target_circle: pin_drop
+  map_target_circle: map  # 104: the target circle is drawn by the map itself
   marker_highlighter: null  # 078
   medical_term_label: label_flyin
   money_fan_and_crown: sticker
@@ -98,4 +98,4 @@ effects:
   text_banner: lower_third  # 107: banner once it lands
   volkswagen_central_reveal: null
   magical_horse_entry: null
-  red_circle_india: pin_drop  # 104: the map target circle once it lands
+  red_circle_india: map  # 104: the map's target circle round the named country

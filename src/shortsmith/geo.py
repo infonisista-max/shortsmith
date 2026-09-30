@@ -157,6 +157,18 @@ def default_gazetteer() -> Gazetteer:
     return load_gazetteer()
 
 
+@cache
+def country_points() -> dict[str, tuple[float, float, int]]:
+    """104: every country's label point (Natural Earth's LABEL_X / LABEL_Y, as the bundled
+    gazetteer holds it) and population, by its Natural Earth NAME - the name its land
+    rings carry, so a country in view is named with no lookup and no network."""
+    return {
+        str(e["name"]): (float(e["lon"]), float(e["lat"]), int(e.get("pop", 0)))
+        for e in default_gazetteer().entries
+        if e["kind"] == "country"
+    }
+
+
 # --- the geocoders (12.1) -----------------------------------------------------------------
 
 
@@ -588,6 +600,8 @@ class BasePaths:
     coast: list[str] = field(default_factory=lambda: [])
     borders: list[str] = field(default_factory=lambda: [])
     land_names: set[str] = field(default_factory=lambda: set())
+    # 104: the land paths again, by the country their ring belongs to (Natural Earth NAME)
+    land_by_name: dict[str, list[str]] = field(default_factory=lambda: {})
 
 
 def _overlaps(a: BBox, b: BBox) -> bool:
@@ -607,6 +621,7 @@ def base_paths(layers: Layers, projection: Mercator, rect: Rect) -> BasePaths:
         if path:
             out.land.append(path)
             out.land_names.add(shape.name)
+            out.land_by_name.setdefault(shape.name, []).append(path)
     for shapes, target in ((layers.coast, out.coast), (layers.borders, out.borders)):
         for shape in shapes:
             if not _overlaps(shape.bbox, window):

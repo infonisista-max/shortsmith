@@ -175,7 +175,7 @@ GAPS_PICKS = {
     "persistent_header_banner": "title_strip",
     "label_slide": "label_flyin",
     "countdown_number_one": "counter", "countdown_number_two": "counter",
-    "red_circle_india": "pin_drop",  # -> 104's map target circle once it lands
+    "red_circle_india": "map",  # 104: the map draws the target circle
     "cartoon_scientist": "sticker",
 }  # fmt: skip
 

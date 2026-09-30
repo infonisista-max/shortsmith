@@ -1724,6 +1724,48 @@ class RouteSegment(StrictModel):
     heading_deg: float
 
 
+class MapNameLayout(StrictModel):
+    """104: one country named on the map, in composition pixels: the Natural Earth name
+    of a country with land in view, centred on its label point (the gazetteer's), clear
+    of every marker, the target tag and the other names, inside the map band."""
+
+    name: str
+    left: float
+    top: float
+    width: float
+    height: float
+    font_px: int
+
+
+class MapTargetLayout(StrictModel):
+    """104 (083; ePTZVwipoAM 26 s and 48 s): the target circle drawn round the map's named
+    place over `draw_s`, `radius` px about its point, and the angled tag naming it,
+    sliding in over `slide_s` once the circle is drawn. `tag_left/top/width/height` is
+    the tag unrotated (it turns `rotate_deg` about its centre); `tag_box_*` the rotated
+    tag's bounding box, the one kept clear of the markers and the names."""
+
+    x: float
+    y: float
+    radius: float
+    color: str
+    stroke_px: float
+    draw_s: float
+    tag: str
+    tag_left: float
+    tag_top: float
+    tag_width: float
+    tag_height: float
+    tag_font_px: int
+    tag_fill: str
+    tag_ink: str
+    rotate_deg: float
+    slide_s: float
+    tag_box_left: float
+    tag_box_top: float
+    tag_box_right: float
+    tag_box_bottom: float
+
+
 class MapLayout(StrictModel):
     """The `map` set piece (9.3, ticket 020): the base drawn from the bundled Natural
     Earth layers as SVG paths in composition pixels (land fill, coast and border
@@ -1790,6 +1832,17 @@ class MapLayout(StrictModel):
     object_travel_s: float = 0.0
     object_px: float = 0.0
     landed_s: float = 0.0
+    # 104: where the object stops on the route (a fraction of its length), short of the
+    # endpoint dot so it sits beside it, never over it.
+    object_end_t: float = 1.0
+    # 104: the named country filled (`highlight` paths in `highlight_color`), the
+    # countries in view named in `name_color` with a halo of the land colour, and the
+    # target circle with its angled tag round the named place (None without one).
+    highlight: list[str] = []
+    highlight_color: str = ""
+    names: list[MapNameLayout] = []
+    name_color: str = ""
+    target: MapTargetLayout | None = None
 
 
 class PunchIn(StrictModel):

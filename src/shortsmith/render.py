@@ -2090,19 +2090,24 @@ def infographic(
 
 
 def map_layout(
-    beat: Beat, *, numbers: StyleNumbers, geocoder: geo.Geocoder
+    beat: Beat, *, numbers: StyleNumbers, geocoder: geo.Geocoder, stamp: StampSpec | None = None
 ) -> MapLayout | None:
     """The `map` drawn from the bundled geodata with its markers at the geocoder's
     points (020, 9.3). A name the geocoder does not know is a build failure naming it,
     as a diagram label outside the safe area is (021): never a guessed point. The
     beat's `pin_drop`, `route_arrow` and `object_path` overlays switch the three map
-    animations on, timed from the beat's length (028)."""
+    animations on, timed from the beat's length (028). The beat's `stamp` is kept clear
+    of by the target tag and the country names (104; run05 b07)."""
     if beat.kind != "map":
         return None
+    avoid: list[tuple[float, float, float, float]] = []
+    if stamp is not None:
+        box = stamp_box(stamp)
+        avoid.append((box.left, box.top, box.left + box.width, box.top + box.height))
     try:
         return infographics.resolve_map(
             infographics.map_recipe(beat), numbers=numbers.info, geocoder=geocoder,
-            overlays=beat.overlays, length_s=beat.end - beat.start,
+            overlays=beat.overlays, length_s=beat.end - beat.start, avoid=avoid,
         )  # fmt: skip
     except (infographics.InfographicError, geo.GeocodeError, ValueError, KeyError) as exc:
         # 097: any geocoding or recipe failure names the beat, so the editor can rescue it
@@ -2420,7 +2425,7 @@ def build_spec(
                 list=rows,
                 chart=chart,
                 infographic=diagram,
-                map=map_layout(b, numbers=numbers, geocoder=geocoder),
+                map=map_layout(b, numbers=numbers, geocoder=geocoder, stamp=placed_stamp),
                 counter=(
                     off_face(
                         b.id,

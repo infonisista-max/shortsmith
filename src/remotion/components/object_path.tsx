@@ -34,7 +34,8 @@ export const ObjectPath: React.FC<{
   const p = interpolate(
     t,
     [spec.object_start_s, spec.object_start_s + Math.max(spec.object_travel_s, 1e-6)],
-    [0, 1],
+    // 104: it stops short of the endpoint dot, beside it, never over it
+    [0, spec.object_end_t ?? 1],
     { ...clamp, easing: Easing.inOut(Easing.cubic) },
   );
   const at = pointAlong(spec.segments, p);

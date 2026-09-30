@@ -1,5 +1,5 @@
 ---
-version: "20"
+version: "21"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -70,10 +70,19 @@ broll:
     # 078: the marker over an owner's article screenshot - the accent at about 45 %,
     # padded round each text line; the screenshot card pushes to push_to about the lines.
     highlight: {kind: sweep, color: "#22D3EE", opacity: 0.45, pad_px: 8, push_to: 1.12}
-    map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#0F2A44",
+    map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#3E6E96",
           coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2,
           # 072: a pill over another pill or dot flips sides, then steps up or down
-          label_step_px: 24, label_steps_max: 3}
+          label_step_px: 24, label_steps_max: 3,
+          # 104: every map at least min_span_deg across; the named country filled in
+          # `highlight` and circled (red_circle_india, ePTZVwipoAM 48 s: drawn in 0.3 s,
+          # 0.6 of the frame) with its tag at a tilt (indus_war_tag, 26 s: slides in
+          # 0.3 s); up to names_max countries in view named at name_font_px.
+          min_span_deg: 12, names_max: 6, name_font_px: 30, circle_px: 10,
+          circle_size: 0.6, circle_draw_s: 0.3, tag_font_px: 48, tag_tilt_deg: -8,
+          tag_slide_s: 0.3,
+          highlight: "#A3E635", name_color: "#FFFFFF",
+          circle_color: "#F43F5E", tag_fill: "#22D3EE", tag_ink: "#020617"}
   enter_transitions: [cut, fade, wipe, zoom]
   whip_max_per_3_beats: 0
   flash_max_per_60s: 5  # 060: the cap where a style enables `flash`; never two in a row

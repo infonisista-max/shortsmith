@@ -343,3 +343,26 @@ test("the driver serves the labelled diagram's base picture (021)", () => {
     "the diagram base src is never rewritten",
   );
 });
+
+test("the map fills the named country, names the countries and draws the target circle (104)", () => {
+  const source = readFileSync(join(root, "components", "map.tsx"), "utf-8");
+  // every number and colour is the layout's: the fill, the names, the circle and its tag
+  for (const field of ["highlight", "highlight_color", "names", "name_color", "font_px",
+                       "target", "radius", "stroke_px", "draw_s", "tag", "tag_left", "tag_top",
+                       "tag_width", "tag_height", "tag_font_px", "tag_fill", "tag_ink",
+                       "rotate_deg", "slide_s"]) {
+    assert.ok(source.includes(`.${field}`), `map.tsx never reads ${field}`);
+  }
+  assert.match(source, /<circle/, "the target circle is never drawn");
+  assert.match(source, /strokeDashoffset/, "the target circle is never drawn on");
+  assert.match(source, /rotate\(\$\{/, "the tag is never turned");
+  // the fill sits on the land and under the borders; the markers are drawn over it all
+  const fill = source.indexOf("(spec.highlight ?? []).map");
+  assert.ok(fill > source.indexOf("spec.land.map"), "the fill is drawn under the land");
+  assert.ok(fill < source.indexOf("spec.borders.map"), "the fill hides the borders");
+  assert.ok(source.indexOf("<TargetCircle") < source.indexOf("<MarkerPill"),
+            "the target circle is drawn over the markers");  // prettier-ignore
+  // 104: the object stops beside the endpoint dot, never on it
+  const object = readFileSync(join(root, "components", "object_path.tsx"), "utf-8");
+  assert.ok(object.includes(".object_end_t"), "object_path.tsx never stops short of the dot");
+});

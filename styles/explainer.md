@@ -1,5 +1,5 @@
 ---
-version: "21"
+version: "22"
 status: shipped
 # 059 (1.1 as amended): `fact`, `facts` and `dhruv` moved to the fastfacts and footage recipes
 aliases: [explainer, explain, explained, explanation, story, news]
@@ -63,10 +63,19 @@ broll:
     infographic: {kind: fly_in, labels_max: 5, duration_s: 0.35, scale_from: 1.06,
                   scale_to: 1.12, dim: 0.3}
     counter: {kind: count_up, grouping: indian}
-    map: {kind: travel, markers_max: 6, duration_s: 0.5, padding: 0.15, land: "#2F5597",
+    map: {kind: travel, markers_max: 6, duration_s: 0.5, padding: 0.15, land: "#E3D9C0",
           coast: "#9DBBF5", border: "#0B1D3A", coast_px: 3, border_px: 2,
           # 072: a pill over another pill or dot flips sides, then steps up or down
-          label_step_px: 24, label_steps_max: 3}
+          label_step_px: 24, label_steps_max: 3,
+          # 104: every map at least min_span_deg across; the named country filled in
+          # `highlight` and circled (red_circle_india, ePTZVwipoAM 48 s: drawn in 0.3 s,
+          # 0.6 of the frame) with its tag at a tilt (indus_war_tag, 26 s: slides in
+          # 0.3 s); up to names_max countries in view named at name_font_px.
+          min_span_deg: 12, names_max: 6, name_font_px: 30, circle_px: 10,
+          circle_size: 0.6, circle_draw_s: 0.3, tag_font_px: 48, tag_tilt_deg: -8,
+          tag_slide_s: 0.3,
+          highlight: "#1F9E89", name_color: "#0B1D3A",
+          circle_color: "#E53935", tag_fill: "#FFD60A", tag_ink: "#111111"}
     # 061: 1-4 bold words pinned on the picture, landing on the spoken word; `fill` is
     # the pop yellow, white is white, and the accent (years, numbers) is `palette.accent`.
     text_pop: {kind: pop, duration_s: 0.2, hold_max_s: 2.5, max_per_beat: 2, tilt_deg: 6,

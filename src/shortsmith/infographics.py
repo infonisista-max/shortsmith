@@ -51,7 +51,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from shortsmith import geo, styles
 from shortsmith.captions import measure
@@ -66,7 +66,9 @@ from shortsmith.contracts import (
     DiagramLayout,
     MapLayout,
     MapMarkerLayout,
+    MapNameLayout,
     MapObject,
+    MapTargetLayout,
     OverlayKind,
     Palette,
     PlanLabel,
@@ -120,7 +122,9 @@ MAP_LABEL_GAP_PX = 12.0
 MAP_DOT_PX, MAP_RING_PX = 22, 4
 MAP_CLIP_MARGIN_PX = 60.0
 CITY_SPAN_DEG = 3.0  # a region that is a point (a city) shows this many degrees across
-MIN_SPAN_DEG = 1.0  # a crop is never narrower than this in either axis
+# 104: the least span of a crop is the style's `map.min_span_deg`; the country names are
+# pills without a fill, padded this much, and the target tag is padded as a diagram label.
+MAP_NAME_PAD_X, MAP_NAME_PAD_Y = 6.0, 2.0
 
 # 028: the map's three animations share the first `MOTIONS_IN_FRACTION` of the beat in
 # order - the pins drop, the route draws on, the object travels - so the last one has
@@ -194,6 +198,24 @@ class MapNumbers:
     # 072: how far a pill that covers another pill or dot steps up or down, how many times
     label_step_px: float
     label_steps_max: int
+    # 104: the least span in degrees any map shows, the named country's fill, the names
+    # of the countries in view (count, size, ink), the target circle (ink, stroke, size
+    # as a fraction of the band's width, draw-on time) and its angled tag (size, tilt,
+    # slide-in time, fill, ink)
+    min_span_deg: float
+    highlight: str
+    names_max: int
+    name_font_px: int
+    name_color: str
+    circle_color: str
+    circle_px: float
+    circle_size: float
+    circle_draw_s: float
+    tag_font_px: int
+    tag_tilt_deg: float
+    tag_slide_s: float
+    tag_fill: str
+    tag_ink: str
 
 
 @dataclass(frozen=True)
@@ -240,6 +262,20 @@ def numbers_for(spec: StyleSpec) -> InfographicNumbers:
                 max_bottom_y=spec.broll.card_max_bottom_y,
                 label_step_px=float(map_row["label_step_px"]),
                 label_steps_max=int(map_row["label_steps_max"]),
+                min_span_deg=float(map_row["min_span_deg"]),
+                highlight=str(map_row["highlight"]),
+                names_max=int(map_row["names_max"]),
+                name_font_px=int(map_row["name_font_px"]),
+                name_color=str(map_row["name_color"]),
+                circle_color=str(map_row["circle_color"]),
+                circle_px=float(map_row["circle_px"]),
+                circle_size=float(map_row["circle_size"]),
+                circle_draw_s=float(map_row["circle_draw_s"]),
+                tag_font_px=int(map_row["tag_font_px"]),
+                tag_tilt_deg=float(map_row["tag_tilt_deg"]),
+                tag_slide_s=float(map_row["tag_slide_s"]),
+                tag_fill=str(map_row["tag_fill"]),
+                tag_ink=str(map_row["tag_ink"]),
             ),
             palette=spec.palette,
             captions=spec.caption_style(),
@@ -634,7 +670,10 @@ def map_recipe(beat: Beat) -> MapRecipe:
     return MapRecipe(
         region=plan.region.strip(),
         bbox=plan.bbox,
-        markers=tuple(MapMarkerRecipe(m.name.strip(), m.lat, m.lon) for m in plan.markers),
+        # 104: a dot is never unlabelled - a marker with no name is dropped, not drawn
+        markers=tuple(
+            MapMarkerRecipe(m.name.strip(), m.lat, m.lon) for m in plan.markers if m.name.strip()
+        ),
         route=tuple(n.strip() for n in plan.route),
         object=plan.object,
     )
@@ -654,17 +693,19 @@ def _locate(geocoder: Geocoder, name: str, what: str) -> Place:
     return found
 
 
-def _widened(bbox: geo.BBox, places: Sequence[Place]) -> geo.BBox:
+def _widened(bbox: geo.BBox, places: Sequence[Place], min_span: float) -> geo.BBox:
+    """The bbox grown to hold every place, then to `min_span` degrees in each axis about
+    its middle (104: run05's 3 x 5 degree repair left Riyadh on empty blue)."""
     west, south, east, north = bbox
     for p in places:
         west, east = min(west, p.lon), max(east, p.lon)
         south, north = min(south, p.lat), max(north, p.lat)
-    if east - west < MIN_SPAN_DEG:
+    if east - west < min_span:
         mid = (west + east) / 2
-        west, east = mid - MIN_SPAN_DEG / 2, mid + MIN_SPAN_DEG / 2
-    if north - south < MIN_SPAN_DEG:
+        west, east = mid - min_span / 2, mid + min_span / 2
+    if north - south < min_span:
         mid = (south + north) / 2
-        south, north = mid - MIN_SPAN_DEG / 2, mid + MIN_SPAN_DEG / 2
+        south, north = mid - min_span / 2, mid + min_span / 2
     return west, south, east, north
 
 
@@ -802,6 +843,87 @@ def _marker_layouts(
     ]
 
 
+def _rotated_box(cx: float, cy: float, width: float, height: float, deg: float) -> Edges:
+    """The axis-aligned box of a `width` x `height` rectangle turned `deg` about its
+    centre (cx, cy)."""
+    rad = math.radians(deg)
+    w = width * abs(math.cos(rad)) + height * abs(math.sin(rad))
+    h = width * abs(math.sin(rad)) + height * abs(math.cos(rad))
+    return (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+
+
+def _target(
+    text: str, point: tuple[float, float], band: geo.Rect, taken: Sequence[Edges], *,
+    style: CaptionStyle, numbers: MapNumbers,
+) -> MapTargetLayout:  # fmt: skip
+    """104 (083; ePTZVwipoAM 48 s and 26 s): the circle round the named place, `circle_size`
+    of the band's width across (smaller where the band's edge is nearer), and the angled
+    tag naming it, straddling the circle's top rim, else its bottom rim, else across its
+    middle - slid along the rim to stay inside the safe band, clear of every marker
+    pill and dot. With no room the tag is empty and the place is named flat instead."""
+    x, y = point
+    left, top, width, height = band
+    radius = min(numbers.circle_size * width / 2, x - left, left + width - x, y - top,
+                 top + height - y)  # fmt: skip
+    radius = max(radius, float(MAP_DOT_PX))
+    font_px = _fitted(text, font_px=numbers.tag_font_px, min_font_px=numbers.name_font_px,
+                      style=style, room=width)  # fmt: skip
+    tag_w = _measured(text, font_px=font_px, style=style) + 2 * DIAGRAM_LABEL_PAD_X
+    tag_h = font_px * style.line_height + 2 * DIAGRAM_LABEL_PAD_Y
+    probe = _rotated_box(0.0, 0.0, tag_w, tag_h, numbers.tag_tilt_deg)
+    half_w = (probe[2] - probe[0]) / 2
+    chosen: tuple[float, float, Edges] | None = None
+    for cy in (y - radius, y + radius, y):
+        cx = min(max(x, left + half_w), left + width - half_w)
+        box = _rotated_box(cx, cy, tag_w, tag_h, numbers.tag_tilt_deg)
+        if _inside_map_band(box, numbers) and not any(_meets(box, b) for b in taken):
+            chosen = (cx, cy, box)
+            break
+    cx, cy, box = chosen if chosen else (x, y, (x, y, x, y))
+    return MapTargetLayout(
+        x=x, y=y, radius=radius, color=numbers.circle_color, stroke_px=numbers.circle_px,
+        draw_s=numbers.circle_draw_s, tag=text if chosen else "", tag_left=cx - tag_w / 2,
+        tag_top=cy - tag_h / 2, tag_width=tag_w, tag_height=tag_h, tag_font_px=font_px,
+        tag_fill=numbers.tag_fill, tag_ink=numbers.tag_ink, rotate_deg=numbers.tag_tilt_deg,
+        slide_s=numbers.tag_slide_s, tag_box_left=box[0], tag_box_top=box[1],
+        tag_box_right=box[2], tag_box_bottom=box[3],
+    )  # fmt: skip
+
+
+def _country_names(
+    candidates: Sequence[str], projection: geo.Mercator, taken: Sequence[Edges], *,
+    style: CaptionStyle, numbers: MapNumbers,
+) -> list[MapNameLayout]:  # fmt: skip
+    """104: the countries in view named at their label point (the bundled gazetteer's,
+    no network), the most populous first, up to `names_max`; each centred on its point
+    or stepped up or down by `label_step_px` (072's steps) until it sits inside the
+    safe band clear of the markers, the tag and the names already placed. A name with
+    no such place is left off: a neighbour's name is context, never worth a collision."""
+    points = geo.country_points()
+    ranked = sorted((n for n in candidates if n in points), key=lambda n: (-points[n][2], n))
+    placed: list[MapNameLayout] = []
+    boxes = list(taken)
+    offsets = [0.0]
+    for k in range(1, numbers.label_steps_max + 1):
+        offsets += [-k * numbers.label_step_px, k * numbers.label_step_px]
+    for name in ranked:
+        if len(placed) >= numbers.names_max:
+            break
+        lon, lat, _ = points[name]
+        x, y = projection.project(lon, lat)
+        font_px = numbers.name_font_px
+        width = _measured(name, font_px=font_px, style=style) + 2 * MAP_NAME_PAD_X
+        height = font_px * style.line_height + 2 * MAP_NAME_PAD_Y
+        for dy in offsets:
+            box = (x - width / 2, y - height / 2 + dy, x + width / 2, y + height / 2 + dy)
+            if _inside_map_band(box, numbers) and not any(_meets(box, b) for b in boxes):
+                placed.append(MapNameLayout(name=name, left=box[0], top=box[1], width=width,
+                                            height=height, font_px=font_px))  # fmt: skip
+                boxes.append(box)
+                break
+    return placed
+
+
 @dataclass(frozen=True)
 class MapTimeline:
     """When each of the map's motions runs, in seconds from the beat's start (028): one
@@ -893,15 +1015,18 @@ def route_path(points: Sequence[tuple[float, float]]) -> str:
 def resolve_map(
     recipe: MapRecipe, *, numbers: InfographicNumbers, geocoder: Geocoder,
     layers: geo.Layers | None = None, overlays: Sequence[OverlayKind] = (),
-    length_s: float = 0.0,
+    length_s: float = 0.0, avoid: Sequence[Edges] = (),
 ) -> MapLayout:  # fmt: skip
     """The map laid out in composition pixels (9.3): the crop fitted into the band
     inside the safe box and above the style's `broll.card_max_bottom_y`, the base as
     SVG paths, the markers at their geocoded points, the route as pixels. `overlays`
     are the beat's (028): `pin_drop`, `route_arrow` and `object_path` switch the three
     motions on, timed from the beat's `length_s`; with none the map is static and the
-    length is not read."""
+    length is not read. `avoid` (104) are boxes already on the beat (its stamp) that the
+    target tag and the country names keep clear of, as they keep clear of the markers."""
     m, style = numbers.map, numbers.captions
+    # 104: a dot is never unlabelled - a marker with no name is dropped, not drawn
+    recipe = replace(recipe, markers=tuple(mk for mk in recipe.markers if mk.name.strip()))
     if not recipe.markers:
         raise InfographicError("a map has no markers (9.3)")
     if len(recipe.markers) > m.markers_max:
@@ -923,17 +1048,20 @@ def resolve_map(
         )
     places = [_locate(geocoder, marker.name, "marker") for marker in recipe.markers]
     route_places = [_locate(geocoder, name, "route point") for name in recipe.route]
+    region_place: Place | None = None
     if recipe.bbox is not None:
         base = recipe.bbox
+        if recipe.region:
+            region_place = _locate(geocoder, recipe.region, "region")
     else:
         if not recipe.region:
             raise InfographicError("a map names no region and no bbox (9.3)")
-        region = _locate(geocoder, recipe.region, "region")
+        region = region_place = _locate(geocoder, recipe.region, "region")
         base = region.bbox or (
             region.lon - CITY_SPAN_DEG / 2, region.lat - CITY_SPAN_DEG / 2,
             region.lon + CITY_SPAN_DEG / 2, region.lat + CITY_SPAN_DEG / 2,
         )  # fmt: skip
-    crop = _padded(_widened(base, [*places, *route_places]), m.padding)
+    crop = _padded(_widened(base, [*places, *route_places], m.min_span_deg), m.padding)
     band: geo.Rect = (
         SAFE_LEFT, DIAGRAM_BAND_TOP, WIDTH - SAFE_RIGHT_PX - SAFE_LEFT,
         m.max_bottom_y - DIAGRAM_BAND_TOP,
@@ -953,6 +1081,38 @@ def resolve_map(
     ]
     route = [projection.project(p.lon, p.lat) for p in route_places]
     segments = route_segments(route) if (arrow or moving) else []
+    route_length = sum(math.dist((s.x0, s.y0), (s.x1, s.y1)) for s in segments)
+    # 104: the object stops beside the endpoint dot, its box clear of the dot's ring
+    clear = MAP_DOT_PX / 2 + MAP_RING_PX + OBJECT_PX / 2
+    object_end_t = max(0.0, 1.0 - clear / route_length) if moving and route_length > 0 else 1.0
+    # 104: the named country filled, the circle and tag round the named place, and the
+    # countries in view named - each clear of the markers, which always win
+    ring = MAP_DOT_PX / 2 + MAP_RING_PX
+    taken: list[Edges] = [
+        edge for mk in markers for edge in (
+            (mk.label_left, mk.label_top, mk.label_left + mk.label_width,
+             mk.label_top + mk.label_height),
+            (mk.x - ring, mk.y - ring, mk.x + ring, mk.y + ring),
+        )
+    ] + list(avoid)  # fmt: skip
+    highlight: list[str] = []
+    target: MapTargetLayout | None = None
+    skip = {geo.normalise(mk.name) for mk in markers}
+    if region_place is not None:
+        if region_place.kind == "country":
+            highlight = paths.land_by_name.get(region_place.country or region_place.name, [])
+        x, y = projection.project(region_place.lon, region_place.lat)
+        if _inside_map_band((x, y, x, y), m):
+            target = _target(recipe.region, (x, y), band, taken, style=style, numbers=m)
+            if target.tag:
+                taken.append((target.tag_box_left, target.tag_box_top, target.tag_box_right,
+                              target.tag_box_bottom))  # fmt: skip
+                # the tag names the place; without one its country is named flat below
+                skip |= {geo.normalise(recipe.region), geo.normalise(region_place.name)}
+                if region_place.kind == "country":
+                    skip.add(geo.normalise(region_place.country))
+    in_view = sorted(n for n in paths.land_names if n and geo.normalise(n) not in skip)
+    names = _country_names(in_view, projection, taken, style=style, numbers=m)
     return MapLayout(
         region=recipe.region, bbox=crop, left=band[0], top=band[1], width=band[2],
         height=band[3], scale=projection.scale, center_lon=projection.center_lon,
@@ -969,10 +1129,12 @@ def resolve_map(
         pin_drop_s=timeline.pin_drop_s, pin_drop_px=PIN_DROP_PX if pins else 0.0,
         label_pop_s=timeline.label_pop_s,
         route_path=route_path(route) if segments else "",
-        route_length_px=sum(math.dist((s.x0, s.y0), (s.x1, s.y1)) for s in segments),
+        route_length_px=route_length,
         segments=segments, route_start_s=timeline.route_start_s,
         route_draw_s=timeline.route_draw_s, route_px=ROUTE_PX if arrow else 0.0,
         arrow_px=ARROW_PX if arrow else 0.0, object_start_s=timeline.object_start_s,
         object_travel_s=timeline.object_travel_s, object_px=OBJECT_PX if moving else 0.0,
-        landed_s=timeline.landed_s,
+        landed_s=timeline.landed_s, object_end_t=object_end_t,
+        highlight=highlight, highlight_color=m.highlight, names=names, name_color=m.name_color,
+        target=target,
     )  # fmt: skip

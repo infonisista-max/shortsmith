@@ -451,6 +451,41 @@ export type RouteSegment = {
   heading_deg: number;
 };
 
+// 104: one country named on the map, its box placed clear of the markers and the tag.
+export type MapNameLayout = {
+  name: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  font_px: number;
+};
+
+// 104 (083): the target circle round the named place and its angled tag; `tag` is ""
+// when the tag found no room (the place is then named flat).
+export type MapTargetLayout = {
+  x: number;
+  y: number;
+  radius: number;
+  color: string;
+  stroke_px: number;
+  draw_s: number;
+  tag: string;
+  tag_left: number;
+  tag_top: number;
+  tag_width: number;
+  tag_height: number;
+  tag_font_px: number;
+  tag_fill: string;
+  tag_ink: string;
+  rotate_deg: number;
+  slide_s: number;
+  tag_box_left: number;
+  tag_box_top: number;
+  tag_box_right: number;
+  tag_box_bottom: number;
+};
+
 export type MapLayout = {
   region: string;
   bbox: [number, number, number, number];
@@ -501,6 +536,14 @@ export type MapLayout = {
   object_travel_s: number;
   object_px: number;
   landed_s: number;
+  // 104: where the object stops (a fraction of the route), the named country's fill,
+  // the countries named, and the target circle with its tag.
+  object_end_t: number;
+  highlight: string[];
+  highlight_color: string;
+  names: MapNameLayout[];
+  name_color: string;
+  target: MapTargetLayout | null;
 };
 
 export type PunchIn = {

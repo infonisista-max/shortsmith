@@ -18,8 +18,8 @@ from shortsmith.sound import (
 
 ALL = ("explainer", "educational", "animated", "hitech", "footage", "vishva", "fastfacts")
 VERSIONS = {
-    "explainer": "21", "educational": "19", "animated": "19", "hitech": "20",
-    "footage": "11", "vishva": "11", "fastfacts": "11",
+    "explainer": "22", "educational": "19", "animated": "19", "hitech": "21",
+    "footage": "12", "vishva": "12", "fastfacts": "12",
 }  # fmt: skip  (067 bumped each once more, 069 once more, 072 map styles, 070/076/087/088/099 each)
 
 
