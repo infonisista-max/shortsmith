@@ -1546,6 +1546,12 @@ class SplitPane(StrictModel):
     pane_height: float
     label: str = ""
     from_x: float = 0.0
+    # 105: the picture's `objectPosition` (fractions), framed round the detected face so
+    # it sits at the style's `split.face_y`; 0.5, 0.5 (the centre) without one. `face_box`
+    # is that face in card pixels (left, top, right, bottom), not clipped to the pane.
+    focus_x: float = 0.5
+    focus_y: float = 0.5
+    face_box: tuple[float, float, float, float] | None = None
 
 
 class BadgeSpec(StrictModel):

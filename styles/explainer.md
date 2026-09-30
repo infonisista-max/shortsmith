@@ -1,5 +1,5 @@
 ---
-version: "22"
+version: "23"
 status: shipped
 # 059 (1.1 as amended): `fact`, `facts` and `dhruv` moved to the fastfacts and footage recipes
 aliases: [explainer, explain, explained, explanation, story, news]
@@ -56,7 +56,8 @@ broll:
     finale: {kind: fade, duration_s: 0.35, cards: 3}
     list: {kind: reveal, items_max: 6, duration_s: 0.35, scale_from: 1.15, scale_to: 1.25,
            dim: 0.45}
-    split: {kind: slide, panes: 2, duration_s: 0.30}
+    split: {kind: slide, panes: 2, duration_s: 0.30, face_y: 0.3,
+           faceless_y: 0.1}  # 105: a face centred 0.3 down its pane; no face: the top
     wall: {kind: spring, cells_min: 4, cells_max: 9, duration_s: 0.30, scale_from: 1.2,
            scale_to: 1.3, dim: 0.65}
     chart: {kind: draw_on, marks_max: 6, duration_s: 0.6, decimals: 0, grouping: indian}

@@ -5,7 +5,8 @@
 // slides in over the style's `broll.motion.split.duration_s` (nkb_08). Ticket 059 adds the
 // stacked layout (two pictures top and bottom): the panes' boxes say where each sits and
 // `title_top` puts the title band between them. Every box comes from `render.split_spec`;
-// this file measures nothing.
+// this file measures nothing. Ticket 105 frames each pane round its detected face
+// (`focus_x/y` as `objectPosition`) and moves the title band off the faces in Python.
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate } from "remotion";
 import type { CaptionStyle, SplitSpec } from "../types";
@@ -61,6 +62,8 @@ export const Split: React.FC<{
                 width: "100%",
                 height: spec.label_px > 0 ? pane.pane_height - spec.label_px : "100%",
                 objectFit: "cover",
+                // 105: framed round the pane's face (render.pane_focus), the centre without one
+                objectPosition: `${(pane.focus_x ?? 0.5) * 100}% ${(pane.focus_y ?? 0.5) * 100}%`,
               }}
             />
             {spec.label_px > 0 ? (

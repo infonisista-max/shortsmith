@@ -1,5 +1,5 @@
 ---
-version: "21"
+version: "22"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -53,7 +53,8 @@ broll:
     finale: {kind: fade, duration_s: 0.35, cards: 3}
     list: {kind: reveal, items_max: 6, duration_s: 0.30, scale_from: 1.08, scale_to: 1.14,
            dim: 0.55}
-    split: {kind: slide, panes: 2, duration_s: 0.25}
+    split: {kind: slide, panes: 2, duration_s: 0.25, face_y: 0.3,
+           faceless_y: 0.1}  # 105: a face centred 0.3 down its pane; no face: the top
     wall: {kind: zoom, cells_min: 4, cells_max: 9, duration_s: 0.25, scale_from: 1.12,
            scale_to: 1.2, dim: 0.7}
     chart: {kind: draw_on, marks_max: 6, duration_s: 0.5, decimals: 0, grouping: indian}

@@ -1,5 +1,5 @@
 ---
-version: "12"
+version: "13"
 status: shipped
 aliases: [vishva, vishvagyan, vishva gyan, desi, history]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
@@ -57,7 +57,8 @@ broll:
     list: {kind: reveal, items_max: 6, duration_s: 0.35, scale_from: 1.15, scale_to: 1.25,
            dim: 0.45}
     # 059: two pictures top and bottom, the Vishva Gyan panels (refs 18-39 % of the runtime)
-    split: {kind: slide, panes: 2, duration_s: 0.30, layout: stacked}
+    split: {kind: slide, panes: 2, duration_s: 0.30, layout: stacked,
+           face_y: 0.3, faceless_y: 0.1}  # 105: a face centred 0.3 down its pane; no face: the top
     wall: {kind: spring, cells_min: 4, cells_max: 9, duration_s: 0.30, scale_from: 1.2,
            scale_to: 1.3, dim: 0.65}
     chart: {kind: draw_on, marks_max: 6, duration_s: 0.6, decimals: 0, grouping: indian}

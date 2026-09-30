@@ -30,8 +30,8 @@ from shortsmith.sound import (
 
 ALL = ("explainer", "educational", "animated", "hitech", "footage", "vishva", "fastfacts")
 VERSIONS = {
-    "explainer": "22", "educational": "19", "animated": "19", "hitech": "21",
-    "footage": "12", "vishva": "12", "fastfacts": "12",
+    "explainer": "23", "educational": "19", "animated": "19", "hitech": "22",
+    "footage": "13", "vishva": "13", "fastfacts": "13",
 }  # fmt: skip  (069 bumped each once more, 072 every map style, 070/076/087/088/099 each)
 # Run04's sound call (job 20260928-140620-f774e1, vishva): the bed query as written.
 RUN04 = BedQuery(theme="history documentary", mood="regal intriguing eastern oud", energy=3)

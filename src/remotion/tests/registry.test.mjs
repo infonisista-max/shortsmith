@@ -366,3 +366,13 @@ test("the map fills the named country, names the countries and draws the target 
   const object = readFileSync(join(root, "components", "object_path.tsx"), "utf-8");
   assert.ok(object.includes(".object_end_t"), "object_path.tsx never stops short of the dot");
 });
+
+test("the split frames each pane round its face with objectPosition (105)", () => {
+  const source = readFileSync(join(root, "components", "split.tsx"), "utf-8");
+  assert.match(source, /objectPosition:/, "split.tsx never sets objectPosition");
+  for (const field of ["focus_x", "focus_y"]) {
+    assert.ok(source.includes(`pane.${field}`), `split.tsx never reads ${field}`);
+  }
+  // the badge keeps its own centre crop; only the panes move
+  assert.equal(source.match(/objectPosition:/g)?.length, 1);
+});

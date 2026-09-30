@@ -299,6 +299,10 @@ export type SplitPane = {
   pane_height: number;
   label: string;
   from_x: number;
+  // 105: the picture's objectPosition round the pane's face; the face in card pixels.
+  focus_x: number;
+  focus_y: number;
+  face_box: [number, number, number, number] | null;
 };
 
 export type BadgeSpec = {

@@ -286,6 +286,12 @@ class BrollNumbers:
     # 059: `side` (the 5.2 news card, the panes side by side) or `stacked` (two pictures,
     # top and bottom: the Vishva Gyan panels); a row without `layout` is side by side.
     split_layout: str
+    # 105: where a pane's detected face sits, as a fraction of the pane picture's height
+    # (its centre); the pane is framed round it (`objectPosition`), never cut at the centre.
+    split_face_y: float
+    # 105: where a pane with no face found is framed (`objectPosition` y): a split pane is
+    # a portrait (5.2), so the top, where a head the detector missed most likely is.
+    split_faceless_y: float
     wall_cells_min: int
     wall_cells_max: int
     wall_spring_s: float
@@ -400,6 +406,8 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             split_panes=int(split["panes"]),
             split_slide_s=float(split["duration_s"]),
             split_layout=_split_layout(spec.name, split),
+            split_face_y=float(split["face_y"]),
+            split_faceless_y=float(split["faceless_y"]),
             wall_cells_min=int(wall["cells_min"]),
             wall_cells_max=int(wall["cells_max"]),
             wall_spring_s=float(wall["duration_s"]),
@@ -1809,81 +1817,209 @@ def split_bottom(piece: SplitSpec) -> float:
     return piece.top + piece.height / 2 + _tilt_extent(piece.width, piece.height, piece.rotate_deg)
 
 
+# 105: where the title strip may sit, in the order tried: a stacked card's strip between
+# its pictures (059), under them, above them; a side-by-side card's under the panes (5.2),
+# above them. A strip that would cross a face moves; if none fits it shrinks, down to the
+# band the least title font needs; still none, it is left off - never across a face.
+SPLIT_STRIPS: Mapping[str, tuple[str, ...]] = {
+    "stacked": ("seam", "bottom", "top"),
+    "side": ("bottom", "top"),
+}
+SPLIT_TITLE_LINE = 1.4  # the title's line height in `split.tsx`, a multiple of its font
+SPLIT_TITLE_STEP_PX = 8
+
+
+def _title_bands() -> list[int]:
+    """The title band heights tried, the full band first, down to the least that still
+    holds `SPLIT_TITLE_MIN_FONT_PX` with its highlight padding."""
+    least = math.ceil(SPLIT_TITLE_MIN_FONT_PX * SPLIT_TITLE_LINE + 2 * SPLIT_HIGHLIGHT_PAD_PX)
+    return [*range(SPLIT_TITLE_PX, least, -SPLIT_TITLE_STEP_PX), least]
+
+
+def pane_focus(
+    face: FaceBox, img_w: int, img_h: int, box_w: float, box_h: float, *, face_y: float
+) -> tuple[float, float]:
+    """105: the `objectPosition` (fractions) that puts the face's centre across the
+    middle of a `box_w` x `box_h` pane picture drawn with `object-fit: cover`, at `face_y`
+    of its height - moved in just enough to keep the whole face inside where it fits.
+    An axis the picture already fills exactly keeps its centre."""
+    scale = max(box_w / img_w, box_h / img_h)
+    drawn_w, drawn_h = img_w * scale, img_h * scale
+    fw, fh = face.width * scale, face.height * scale
+
+    def axis(free: float, want: float, centre: float, size: float, span: float) -> float:
+        if free > -EPS:
+            return 0.5
+        if size <= span:
+            want = min(max(want, size / 2), span - size / 2)
+        return min(1.0, max(0.0, (want - centre) / free))
+
+    fx = axis(box_w - drawn_w, box_w / 2, (face.left + face.width / 2) * scale, fw, box_w)
+    fy = axis(box_h - drawn_h, face_y * box_h, (face.top + face.height / 2) * scale, fh, box_h)
+    return fx, fy
+
+
+def _face_in_pane(
+    face: FaceBox, pane: SplitPane, image_h: float
+) -> tuple[float, float, float, float]:
+    """The face in card pixels (left, top, right, bottom) as the pane draws its picture
+    at its focus - not clipped to the pane, so a face the pane cuts reaches past it."""
+    scale = max(pane.pane_width / pane.width, image_h / pane.height)
+    left = pane.left + (pane.pane_width - pane.width * scale) * pane.focus_x
+    top = pane.top + (image_h - pane.height * scale) * pane.focus_y
+    right, bottom = face.left + face.width, face.top + face.height
+    return (left + face.left * scale, top + face.top * scale,
+            left + right * scale, top + bottom * scale)  # fmt: skip
+
+
+def _crosses(
+    strip: tuple[float, float], faces: Sequence[tuple[float, float, float, float]]
+) -> bool:
+    """105: the title band (top, bottom in card pixels) shares rows with a face."""
+    top, bottom = strip
+    return any(top < f[3] - EPS and f[1] < bottom - EPS for f in faces)
+
+
 def _stacked(wanted: Sequence[ItemSource], panes: list[SplitPane], *, border: int,
-             numbers: StyleNumbers) -> tuple[float, float, float]:  # fmt: skip
+             numbers: StyleNumbers, strip: str = "seam",
+             title_px: int = SPLIT_TITLE_PX) -> tuple[float, float, float]:  # fmt: skip
     """059: the stacked split's panes appended to `panes` - the first picture on top, the
-    title band under it, the second picture under the band, each the card's full inner
-    width - and the card's top, height and title band top. The card fills the band from
-    the badge's overhang under the 6.3 top zone down to the style's
-    `broll.card_max_bottom_y` (tilt included): the lower picture runs under the PIP
-    circle, as a full-screen still does, so each picture is wider than tall rather than a
-    letterbox strip above the circle."""
+    second under it, each the card's full inner width, the title band between them
+    (`seam`), under both (`bottom`) or over both (`top`; 105) - and the card's top,
+    height and title band top. The card fills the band from the badge's overhang under
+    the 6.3 top zone down to the style's `broll.card_max_bottom_y` (tilt included): the
+    lower picture runs under the PIP circle, as a full-screen still does, so each picture
+    is wider than tall rather than a letterbox strip above the circle."""
     b = numbers.broll
     ceiling = SAFE_TOP_PX + SPLIT_BADGE_DIAMETER * SPLIT_BADGE_DROP
     floor = float(b.card_max_bottom_y)
     theta = math.radians(b.card_rotate_deg)
     height = ((floor - ceiling) - SPLIT_CARD_W * abs(math.sin(theta))) / math.cos(theta)
     top = (ceiling + floor) / 2 - height / 2
-    pane_h = (height - 2 * border - SPLIT_TITLE_PX) / 2
+    seam = 0 if strip == "seam" else SPLIT_SEAM_PX
+    pane_h = (height - 2 * border - title_px - seam) / 2
     inner = SPLIT_CARD_W - 2 * border
-    title_top = border + pane_h
+    if strip == "seam":
+        title_top = border + pane_h
+        tops = (float(border), title_top + title_px)
+    elif strip == "bottom":
+        tops = (float(border), border + pane_h + seam)
+        title_top = tops[1] + pane_h
+    else:
+        title_top = float(border)
+        tops = (border + title_px, border + title_px + pane_h + seam)
     for i, p in enumerate(wanted):
         assert p.card is not None
         panes.append(
             SplitPane(
                 src=p.card.src, width=p.card.width, height=p.card.height, left=float(border),
-                top=float(border) if i == 0 else title_top + SPLIT_TITLE_PX,
-                pane_width=inner, pane_height=pane_h, label=p.text,
+                top=tops[min(i, 1)], pane_width=inner, pane_height=pane_h, label=p.text,
                 from_x=0.0 if i == 0 else SPLIT_CARD_W,
             )  # fmt: skip
         )
     return top, height, title_top
 
 
+def _side(wanted: Sequence[ItemSource], panes: list[SplitPane], *, border: int,
+          label_px: int, numbers: StyleNumbers, pip_top: int | None, strip: str = "bottom",
+          title_px: int = SPLIT_TITLE_PX) -> tuple[float, float, float]:  # fmt: skip
+    """5.2: the panes side by side, head plus collar, the title band under them (or, 105,
+    over them), the card ending `PIP_GAP_PX` above the circle top (051)."""
+    b = numbers.broll
+    inner = SPLIT_CARD_W - 2 * border
+    pane_w = (inner - SPLIT_SEAM_PX * (len(wanted) - 1)) / max(1, len(wanted))
+    pane_h = pane_w * SPLIT_PANE_ASPECT
+    height = pane_h + label_px + 2 * border + title_px
+    half = _tilt_extent(SPLIT_CARD_W, height, b.card_rotate_deg)
+    top = _card_limit(b, pip_top) - half - height / 2
+    title_top, pane_top = (height - title_px, float(border)) if strip == "bottom" else (
+        0.0, float(title_px + border))  # fmt: skip
+    for i, p in enumerate(wanted):
+        assert p.card is not None
+        panes.append(
+            SplitPane(
+                src=p.card.src, width=p.card.width, height=p.card.height,
+                left=border + i * (pane_w + SPLIT_SEAM_PX), top=pane_top,
+                pane_width=pane_w, pane_height=pane_h + label_px, label=p.text,
+                from_x=0.0 if i == 0 else SPLIT_CARD_W,
+            )  # fmt: skip
+        )
+    return top, height, title_top
+
+
+FaceOf = Callable[[str], FaceBox | None]
+
+
 def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None, *,
-               numbers: StyleNumbers, pip_top: int | None = None) -> SplitSpec:  # fmt: skip
+               numbers: StyleNumbers, pip_top: int | None = None,
+               face_of: FaceOf | None = None) -> SplitSpec:  # fmt: skip
     """The `split` news-card composite (5.2): the style's `broll.motion.split.panes`
     panes side by side in one framed card `PIP_GAP_PX` above the circle top it is given
     (051), the badge overlapping its top-left corner inside the safe box, and the title
-    strip under them."""
+    strip under them. 105: `face_of` is the 3.3 detector on a pane's file; each pane
+    with a face is framed so it sits at the style's `split.face_y` (`pane_focus`), one
+    with none at `split.faceless_y` (the top, where a missed head most likely is), and
+    the strip takes the first place in `SPLIT_STRIPS` that crosses no face, shrinking
+    band by band when none does, left off when even the least band crosses one."""
     b, style = numbers.broll, numbers.captions
     # A pane the asset step rescued has no picture; it is left out, never drawn blank.
     panes_wanted = [p for p in items[: b.split_panes] if p.card is not None]
     border = b.card_border_px
-    inner = SPLIT_CARD_W - 2 * border
     labelled = any(p.text for p in panes_wanted)
     label_px = SPLIT_LABEL_PX if labelled else 0
     left = (WIDTH - SPLIT_CARD_W) / 2
-    panes: list[SplitPane] = []
-    if b.split_layout == "stacked":
-        # the label strip sits inside each pane's height, as on the side-by-side card
-        top, height, title_top = _stacked(panes_wanted, panes, border=border, numbers=numbers)
-    else:
-        pane_w = (inner - SPLIT_SEAM_PX * (len(panes_wanted) - 1)) / max(1, len(panes_wanted))
-        pane_h = pane_w * SPLIT_PANE_ASPECT
-        height = pane_h + label_px + 2 * border + SPLIT_TITLE_PX
-        half = _tilt_extent(SPLIT_CARD_W, height, b.card_rotate_deg)
-        top = _card_limit(b, pip_top) - half - height / 2
-        title_top = height - SPLIT_TITLE_PX
-        for i, p in enumerate(panes_wanted):
-            assert p.card is not None
-            panes.append(
-                SplitPane(
-                    src=p.card.src, width=p.card.width, height=p.card.height,
-                    left=border + i * (pane_w + SPLIT_SEAM_PX), top=float(border),
-                    pane_width=pane_w, pane_height=pane_h + label_px, label=p.text,
-                    from_x=0.0 if i == 0 else SPLIT_CARD_W,
-                )  # fmt: skip
-            )
+    faces = [face_of(p.card.src) if face_of and p.card else None for p in panes_wanted]
+
+    def laid(strip: str, title_px: int) -> tuple[float, float, float, list[SplitPane]]:
+        panes: list[SplitPane] = []
+        if b.split_layout == "stacked":
+            # the label strip sits inside each pane's height, as on the side-by-side card
+            top, height, title_top = _stacked(
+                panes_wanted, panes, border=border, numbers=numbers, strip=strip,
+                title_px=title_px,
+            )  # fmt: skip
+        else:
+            top, height, title_top = _side(panes_wanted, panes, border=border,
+                                           label_px=label_px, numbers=numbers, pip_top=pip_top,
+                                           strip=strip, title_px=title_px)  # fmt: skip
+        framed: list[SplitPane] = []
+        for pane, face in zip(panes, faces, strict=True):
+            if face is None:
+                # no detector: the centre; a detector that found no face: the top
+                faceless = {"focus_y": b.split_faceless_y} if face_of is not None else {}
+                framed.append(pane.model_copy(update=faceless))
+                continue
+            image_h = pane.pane_height - label_px
+            fx, fy = pane_focus(face, pane.width, pane.height, pane.pane_width, image_h,
+                                face_y=b.split_face_y)  # fmt: skip
+            pane = pane.model_copy(update={"focus_x": fx, "focus_y": fy})
+            framed.append(pane.model_copy(update={"face_box": _face_in_pane(face, pane, image_h)}))
+        return top, height, title_top, framed
+
+    strips = SPLIT_STRIPS[b.split_layout]
+    chosen: tuple[int, tuple[float, float, float, list[SplitPane]]] | None = None
+    for title_px in _title_bands():
+        for strip in strips:
+            layout = laid(strip, title_px)
+            boxes = [p.face_box for p in layout[3] if p.face_box is not None]
+            if not _crosses((layout[2], layout[2] + title_px), boxes):
+                chosen = (title_px, layout)
+                break
+        if chosen is not None:
+            break
+    title_px, (top, height, title_top, panes) = chosen or (0, laid(strips[0], 0))
     font_px = _fitted(title, font_px=SPLIT_TITLE_FONT_PX, min_font_px=SPLIT_TITLE_MIN_FONT_PX,
                       style=style, room=WIDTH - 2 * SAFE_LEFT)  # fmt: skip
+    # a shrunk band holds a smaller title: the font its line height fits, never below the floor
+    band_font = int((title_px - 2 * SPLIT_HIGHLIGHT_PAD_PX) / SPLIT_TITLE_LINE)
+    font_px = max(SPLIT_TITLE_MIN_FONT_PX, min(font_px, band_font))
     return SplitSpec(
         left=left, top=top, width=SPLIT_CARD_W, height=height, border_px=border,
         rotate_deg=b.card_rotate_deg, seam_px=SPLIT_SEAM_PX, panes=panes,
-        label_px=label_px, label_font_px=SPLIT_LABEL_FONT_PX, title_px=SPLIT_TITLE_PX,
+        label_px=label_px, label_font_px=SPLIT_LABEL_FONT_PX, title_px=title_px,
         title_font_px=font_px, title_color="#FFFFFF",
         title_words=title_words(title, [p.text for p in panes_wanted], font_px=font_px,
-                                style=style),  # fmt: skip
+                                style=style) if title_px > 0 else [],  # fmt: skip
         title_top=title_top,
         highlight_fg=style.keyword_fg, highlight_bg=numbers.palette.accent,
         highlight_pad_px=SPLIT_HIGHLIGHT_PAD_PX, highlight_radius_px=SPLIT_HIGHLIGHT_RADIUS_PX,
@@ -1900,6 +2036,55 @@ def split_spec(title: str, items: Sequence[ItemSource], badge: CardSource | None
         ),
         slide_s=b.split_slide_s,
     )
+
+
+def split_face_boxes(piece: SplitSpec) -> list[tuple[Box, Box]]:
+    """105: each pane's face and the pane's picture in composition pixels (the card's
+    tilt, a degree or two, left out as `face_box_on` leaves it), the face clipped to the
+    picture it is seen in."""
+    out: list[tuple[Box, Box]] = []
+    for pane in piece.panes:
+        if pane.face_box is None:
+            continue
+        image = Box(piece.left + pane.left, piece.top + pane.top, pane.pane_width,
+                    pane.pane_height - piece.label_px)  # fmt: skip
+        left, top, right, bottom = pane.face_box
+        left, right = max(left + piece.left, image.left), min(right + piece.left, image.right)
+        top, bottom = max(top + piece.top, image.top), min(bottom + piece.top, image.bottom)
+        if right > left and bottom > top:
+            out.append((Box(left, top, right - left, bottom - top), image))
+    return out
+
+
+def stamp_off_split(
+    stamp: StampSpec, piece: SplitSpec, *, numbers: StyleNumbers
+) -> tuple[StampSpec, bool]:
+    """105 (056 (4) on a split): a stamp over a pane's face moves to the face-free band
+    - a pane picture's upper or lower third, between two faces, or under the card -
+    farthest from every face, and True; unchanged and False when it touches no face or
+    no band is free."""
+    faces = split_face_boxes(piece)
+    if not any(stamp_box(stamp).overlaps(face) for face, _ in faces):
+        return stamp, False
+    half = _tilt_extent(stamp.width, stamp.height, stamp.rotate_deg)
+    sixth = [(image, image.height / 6) for _, image in faces]
+    centres = [c for image, h in sixth for c in (image.top + h, image.bottom - h)]
+    # between two faces one above the other (a stacked card's two portraits)
+    ordered = sorted((face for face, _ in faces), key=lambda f: f.top)
+    centres += [(a.bottom + b.top) / 2 for a, b in zip(ordered, ordered[1:], strict=False)]
+    centres.append(split_bottom(piece) + STAMP_BELOW_GAP_PX + half)
+    best: tuple[float, StampSpec] | None = None
+    for centre in centres:
+        moved = _stamp_at(stamp, centre, numbers=numbers)
+        if moved is None:
+            continue
+        box = stamp_box(moved)
+        if any(box.overlaps(face) for face, _ in faces):
+            continue
+        clearance = min(box.clearance(face) for face, _ in faces)
+        if best is None or clearance > best[0]:
+            best = (clearance, moved)
+    return (best[1], True) if best is not None else (stamp, False)
 
 
 # 059: the title strip's text stays this far inside the bar's ends.
@@ -2025,10 +2210,11 @@ def badge_source(
 
 def set_piece(
     beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *,
-    numbers: StyleNumbers, pip_top: int | None = None,
+    numbers: StyleNumbers, pip_top: int | None = None, face_of: FaceOf | None = None,
 ) -> tuple[ListSpec | None, SplitSpec | None, WallSpec | None]:  # fmt: skip
     """The `list`, `split` or `wall` this beat draws, already measured and placed; the
-    split ends above `pip_top`, the top of the circle the spec draws (051)."""
+    split ends above `pip_top`, the top of the circle the spec draws (051), its panes
+    framed round the faces `face_of` finds (105)."""
     if beat.kind not in ("list", "split", "wall"):
         return None, None, None
     items = item_sources(beat, manifest, job_dir)
@@ -2036,7 +2222,8 @@ def set_piece(
         return list_spec(beat.set_piece_title, items, numbers=numbers), None, None
     if beat.kind == "split":
         badge = badge_source(beat, manifest, job_dir)
-        split = split_spec(beat.set_piece_title, items, badge, numbers=numbers, pip_top=pip_top)
+        split = split_spec(beat.set_piece_title, items, badge, numbers=numbers, pip_top=pip_top,
+                           face_of=face_of)
         return None, split, None
     return None, None, wall_spec(items, numbers=numbers)
 
@@ -2215,6 +2402,19 @@ def build_spec(
         face = faces[visual.src]
         return face_box_on(visual, face) if face is not None else None
 
+    def face_in(src: str) -> FaceBox | None:
+        """105: the face on a split pane's file, detected once per file like `face_on`."""
+        if detector is None:
+            return None
+        if src not in faces:
+            try:
+                faces[src] = detector.detect(Path(src))
+            except RuntimeError as exc:
+                faces[src] = None
+                if log is not None:
+                    log(f"split: face detection skipped on {Path(src).name}: {exc}")
+        return faces[src]
+
     def off_face[S: StampSpec](beat_id: str, placed: S, visual: VisualSpec | None) -> S:
         face = face_on(visual)
         if face is None or visual is None:
@@ -2229,7 +2429,9 @@ def build_spec(
                     "the image (056)")  # fmt: skip
         return cast("S", moved)
 
-    def text_pops(b: Beat, mode: Mode, visual: VisualSpec | None) -> tuple[TextPopSpec, ...]:
+    def text_pops(
+        b: Beat, mode: Mode, visual: VisualSpec | None, split: SplitSpec | None = None
+    ) -> tuple[TextPopSpec, ...]:
         """061: the beat's pops placed off the circle (a `pip` beat), the caption band
         and the face - the image's (detected) or the presenter's own (a `full` beat)."""
         if not b.text_pops:
@@ -2246,6 +2448,10 @@ def build_spec(
         face = face if face is not None else face_on(visual)
         if face is not None:
             blocked["the face"] = face
+        # 105: the faces on a split's panes, as the face on a card
+        for i, (pane_face, _) in enumerate(split_face_boxes(split) if split else []):
+            blocked[f"the face on pane {i + 1}"] = pane_face
+            face = face or pane_face
         blocked = clear_of_strip(blocked)
         placed: list[TextPopSpec] = []
         for i, pop in enumerate(b.text_pops):
@@ -2390,11 +2596,16 @@ def build_spec(
         labelled = visual is not None and visual.card is not None and visual.card.strip_px > 0
         label = b.event.text if b.event.kind == "lower_third" and b.event.text else None
         rows, split, wall = set_piece(b, manifest, job_dir, numbers=numbers,
-                                      pip_top=geometry.top)  # fmt: skip
+                                      pip_top=geometry.top, face_of=face_in)  # fmt: skip
         chart, diagram = infographic(b, manifest, job_dir, numbers=numbers)
         start_frame, end_frame = round(b.start * fps), round(b.end * fps)
         placed_stamp = off_face(b.id, stamp_spec(stamp, numbers=numbers), visual) if stamp else None
-        placed_pops = text_pops(b, mode, visual)
+        if placed_stamp is not None and split is not None:
+            # 105: a stamp on a split keeps off the panes' faces
+            placed_stamp, moved = stamp_off_split(placed_stamp, split, numbers=numbers)
+            if moved and log is not None:
+                log(f"stamp: {b.id}: {placed_stamp.text!r} moved off a split pane's face (105)")
+        placed_pops = text_pops(b, mode, visual, split)
         placed_bubbles = bubbles(b, mode, visual, placed_stamp)
         beats.append(
             BeatSpec(
