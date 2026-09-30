@@ -14,7 +14,8 @@ quick".
 - **The ear wins** (`ear_notes`): a setting is never repaired and never refused. A
   re-measured margin under the floor or over the ceiling is a plain note on the page.
 - **Recorded**: `job.json` `music_level` (offset, measure, `slider`, time, notes) and one
-  `music level:` line in `job.log` per remix.
+  `music level:` line in `job.log` per remix. 091: every delivered remix is also the
+  operator's remembered level (`sound.remembered`) the next job starts at.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from shortsmith import ffmpeg, jobs, render, sound, styles
 from shortsmith.contracts import BalanceReport
 from shortsmith.jobs import Job
 from shortsmith.qa import technical
+from shortsmith.sound import remembered
 
 LEVEL_PATH = Path(__file__).resolve().parents[3] / "assets" / "audio" / "level.yaml"
 MEASURE = render.LEVEL_MEASURE
@@ -202,8 +204,16 @@ def remix(job: Job, *, offset_db: float, now: Clock = _utc_now) -> Remixed:
         staged.unlink(missing_ok=True)
         shutil.rmtree(scratch, ignore_errors=True)
     notes = ear_notes(balance, nums)
+    started = job.record.music_level
+    stamp = now()
     jobs.amend(job, music_level=jobs.MusicLevel(
-        offset_db=offset_db, measure=MEASURE, set_by="slider", set_at=now(), notes=notes,
+        offset_db=offset_db, measure=MEASURE, set_by="slider", set_at=stamp, notes=notes,
+        from_job=started.from_job if started is not None else None,
+        start_db=started.start_db if started is not None else 0.0,
+    ))  # fmt: skip
+    # 091: the next job starts here, whatever its style.
+    remembered.save(jobs.data_dir_of(job), remembered.Remembered(
+        offset_db=offset_db, measure=MEASURE, job_id=job.id, set_at=stamp,
     ))  # fmt: skip
     margin = balance.speech_band_margin_db
     jobs.note(

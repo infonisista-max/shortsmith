@@ -1361,6 +1361,12 @@ def _music_level_block(job: Job) -> str:
     scale = level.load_scale()
     recorded = job.record.music_level
     current = recorded.offset_db if recorded is not None else 0.0
+    # 091: a job that started at the operator's last setting marks that, not the style's.
+    if recorded is not None and recorded.from_job is not None:
+        mark = recorded.start_db
+        mark_label = f"your last setting (from job {recorded.from_job})"
+    else:
+        mark, mark_label = 0.0, "starting level"
     why = level.refusal(job)
     off = " disabled" if why else ""
     parts = [
@@ -1371,11 +1377,13 @@ def _music_level_block(job: Job) -> str:
         f'<input type="range" name="offset" min="{scale.min_db:g}" max="{scale.max_db:g}" '
         f'step="{scale.step_db:g}" value="{current:g}" list="music-level-start"{off}> '
         f"{html.escape(scale.loud_label)}</label>\n"
-        '  <datalist id="music-level-start"><option value="0" label="starting level">'
-        "</option></datalist>\n"
+        f'  <datalist id="music-level-start"><option value="{mark:g}" '
+        f'label="{html.escape(mark_label)}"></option></datalist>\n'
         f'  <button type="submit"{off}>Remix audio</button>\n'
         "</form>\n",
     ]
+    if mark_label != "starting level":
+        parts.append(f'<p class="music-level-mark">Mark: {html.escape(mark_label)}</p>\n')
     if why:
         parts.append(f'<p class="music-level-reason">{html.escape(why)}</p>\n')
     for note in recorded.notes if recorded is not None else []:

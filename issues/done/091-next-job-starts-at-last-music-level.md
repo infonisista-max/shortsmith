@@ -40,16 +40,36 @@ repeat), and **one setting for all styles** ("my ear is the same across styles")
 
 ## Acceptance criteria
 
-- [ ] Two fixture jobs in a row: the slider set on the first changes the second's starting
+- [x] Two fixture jobs in a row: the slider set on the first changes the second's starting
       level by exactly that offset, and the second's `job.json` names the first job.
-- [ ] A slider move on a vishva job carries to an explainer job (one setting for all).
-- [ ] No file gives offset 0. A remembered level that crowds the voice is repaired, with
+- [x] A slider move on a vishva job carries to an explainer job (one setting for all).
+- [x] No file gives offset 0. A remembered level that crowds the voice is repaired, with
       the usual lines.
-- [ ] A retry keeps its recorded level after the file changes.
-- [ ] A remembered offset under another measure name is ignored, with its line.
-- [ ] The smoke is unaffected by a `data/music_level.json` on disk (test).
-- [ ] Ruff, pyright and every test file are green in foreground chunks. The smoke passes
+- [x] A retry keeps its recorded level after the file changes.
+- [x] A remembered offset under another measure name is ignored, with its line.
+- [x] The smoke is unaffected by a `data/music_level.json` on disk (test).
+- [x] Ruff, pyright and every test file are green in foreground chunks. The smoke passes
       T1–T13.
+
+## Done (afk, 30 Sep 2026)
+
+- `sound/remembered.py`: `<data_dir>/music_level.json` (offset, measure, job id, time).
+  Like `calibration.json`, it sits in the job's own data directory, so the path comes from
+  `SHORTSMITH_DATA_DIR` and the smoke (temp data dir) never reads the operator's file.
+  An unreadable file counts as no file.
+- Written by `level.remix` only after a slider remix is delivered. A failed remix writes
+  nothing. A bed pick (093) must not write it.
+- `render.starting_level(job)` at mux: a recorded level on the job is kept (retry). Otherwise
+  the file is used, with the line `music level: remembered offset +x dB from job <id>`. A
+  file on another measure is ignored with its line, and the job starts at 0.
+- Decision: `sound.at_offset` moves `bed_db_under_voice` **and** `bed_accept_db` by the
+  offset. The band is only 3 dB wide ([-15, -12] around -14), so without the shift any
+  offset past -1/+2 would be "outside the band" and repaired back toward the style's
+  level. The speech-band floor and ceiling stay put, so a bed that crowds the voice is
+  still dipped or lowered (test: +8 is repaired with the usual lines).
+- `jobs.MusicLevel`: `set_by` gains `remembered`, plus `from_job` and `start_db`, which a
+  later slider remix carries over. The page mark (datalist label plus a visible line)
+  reads "your last setting (from job <id>)".
 
 ## Blocked by
 

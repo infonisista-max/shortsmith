@@ -209,6 +209,7 @@ from shortsmith.safe_area import (  # 067: the one 6.2/6.3 definition
     SAFE_TOP_PX,
     WIDTH,
 )
+from shortsmith.sound import remembered
 from shortsmith.styles import StyleSpec
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -2801,6 +2802,7 @@ def sound_mix(
     *,
     library: sound.Library | None = None,
     search: sound.AudioSearch | None = None,
+    offset_db: float = 0.0,
 ) -> sound.MixResult | None:
     """The 022 sound director over the job's plan and sound story: the music and SFX
     stems beside the voice, and the premix the master is cut from. None when there is
@@ -2808,7 +2810,8 @@ def sound_mix(
     an empty catalogue with no search to fill it - and the short is then the voice
     alone, as it was before 022. `search` is the 7.2 audio search the director asks
     under the bed-score threshold (024, 054; 070: never for an effect, which comes only
-    from the approved library); None means no search is configured.
+    from the approved library); None means no search is configured. `offset_db` moves
+    the bed's target from the style's starting level (091's remembered level).
 
     054 (1, 5): every search and every sound decision is a `sound:` line in `job.log`,
     and a short that goes out voice-only says why in one line on the job page."""
@@ -2825,7 +2828,7 @@ def sound_mix(
         voice=_stems_dir(job) / "voice.wav",
         plan=plan,
         story=story,
-        nums=loaded_styles()[job.record.style].sound,
+        nums=sound.at_offset(loaded_styles()[job.record.style].sound, offset_db),
         library=library,
         runtime_s=presenter.total_duration(presenter.cut_list(plan)),
         search=search,
@@ -2904,15 +2907,14 @@ def mux(
         if not needed.is_file():
             raise RenderError(f"{needed.relative_to(job.path).as_posix()} is missing before mux")
     library = library if library is not None else sound.load_catalogue()
-    result = sound_mix(job, library=library, search=search)
+    start = starting_level(job)
+    result = sound_mix(job, library=library, search=search, offset_db=start.offset_db)
     mix = stems / "mix.wav"
     master(result.premix if result is not None else voice, mix)
     _audio_rights(job, result)
     if result is not None and result.music is not None:
-        # 090: the slider's starting point - the style's level, offset 0.
-        jobs.amend(job, music_level=jobs.MusicLevel(
-            offset_db=0.0, measure=LEVEL_MEASURE, set_by="default", set_at=datetime.now(UTC),
-        ))  # fmt: skip
+        # 090: the slider's starting point; 091: the operator's last setting when there is one.
+        jobs.amend(job, music_level=start)
     job.out_dir.mkdir(parents=True, exist_ok=True)
     return remux(picture, mix, job.out_dir / "short.mp4")
 
@@ -2920,6 +2922,35 @@ def mux(
 # 090: the level measure `bed_db_under_voice` is held on - the median of the full-band
 # RMS windows under the voice. A slider offset carries its name (089 may add another).
 LEVEL_MEASURE = "full_band"
+
+
+def starting_level(job: Job) -> jobs.MusicLevel:
+    """The level a mix starts the bed at (091): a retry (043) keeps the job's recorded
+    level; a new job takes the operator's last slider setting from
+    `<data_dir>/music_level.json`, whatever style it was set on; with no file, or one
+    set on another level measure (ignored with its line), the style's level, offset 0.
+    The pipeline's choice: `sound_mix` still repairs a bed that crowds the voice."""
+    recorded = job.record.music_level
+    if recorded is not None and recorded.measure == LEVEL_MEASURE:
+        return recorded
+    default = jobs.MusicLevel(
+        offset_db=0.0, measure=LEVEL_MEASURE, set_by="default", set_at=datetime.now(UTC)
+    )
+    last = remembered.load(jobs.data_dir_of(job))
+    if last is None:
+        return default
+    said = f"music level: remembered offset {last.offset_db:+g} dB from job {last.job_id}"
+    if last.measure != LEVEL_MEASURE:
+        jobs.note(
+            job, f"{said} is on measure {last.measure}, not {LEVEL_MEASURE}; ignored, "
+            "starting at the style's level",
+        )  # fmt: skip
+        return default
+    jobs.note(job, said)
+    return default.model_copy(update={
+        "offset_db": last.offset_db, "set_by": "remembered", "from_job": last.job_id,
+        "start_db": last.offset_db,
+    })  # fmt: skip
 
 
 def remux(picture: Path, mix: Path, out: Path) -> Path:

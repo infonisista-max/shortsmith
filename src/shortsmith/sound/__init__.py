@@ -1703,6 +1703,20 @@ def relevel(
     return premix, balance
 
 
+def at_offset(nums: styles.Sound, offset_db: float) -> styles.Sound:
+    """091: the style's 7.3 numbers with the bed target moved by the operator's
+    remembered offset, and `bed_accept_db` moved with it, so the band holds the bed
+    around the chosen level instead of pulling it back to the style's. The speech-band
+    lines stay put: a bed that crowds the voice there is repaired as always."""
+    if offset_db == 0:
+        return nums
+    low, high = nums.bed_accept_db
+    return nums.model_copy(update={
+        "bed_db_under_voice": nums.bed_db_under_voice + offset_db,
+        "bed_accept_db": (low + offset_db, high + offset_db),
+    })  # fmt: skip
+
+
 def speech_margins(balance: BalanceReport) -> tuple[float | None, float | None]:
     """The lowest and the highest speech-band margin the balance measured (090's notes)."""
     return _margins(balance)

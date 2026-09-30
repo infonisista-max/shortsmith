@@ -137,15 +137,19 @@ class InputSummary(BaseModel):
 class MusicLevel(BaseModel):
     """090: the bed level of the whole reel, as an offset in dB from the style's starting
     level on the named level `measure` (so a later measure never misreads it), who set
-    it and when, and the ear notes the last slider remix measured."""
+    it and when, and the ear notes the last slider remix measured. 091: a job that
+    started at the operator's remembered level names the job it came from and keeps
+    that starting offset (the page's mark) after the slider moves it."""
 
     model_config = ConfigDict(extra="forbid")
 
     offset_db: float
     measure: str
-    set_by: Literal["default", "slider"]
+    set_by: Literal["default", "slider", "remembered"]
     set_at: datetime
     notes: list[str] = []
+    from_job: str | None = None
+    start_db: float = 0.0
 
 
 class JobRecord(BaseModel):
