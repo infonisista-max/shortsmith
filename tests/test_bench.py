@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from shortsmith import bench
+from shortsmith import bench, render
+from shortsmith.contracts import PICTURE_TREATMENTS, FaceBox
 from shortsmith.render import DriverResult
 
 
@@ -26,3 +27,21 @@ def test_bench_renders_the_fixture_and_prints_one_line(
     out = capsys.readouterr().out
     assert out.count("\n") == 1 and "s/frame" in out and "180 frames" in out
     assert (tmp_path / "bench" / "picture.mp4").is_file()
+
+
+def test_the_treatment_bench_draws_one_beat_per_picture_treatment() -> None:
+    """103: `python -m shortsmith.bench --treatments OUT` renders one short beat per
+    treatment over the fixture's presenter and saves each landed frame as a PNG."""
+    numbers = render.style_numbers("explainer")
+    face = FaceBox(left=400, top=150, width=120, height=140)
+    beats = bench.treatment_beats("image.jpg", (870, 614), numbers=numbers, pip_top=960,
+                                  face=face)  # fmt: skip
+    assert [b.visual.treatment for b in beats if b.visual] == list(PICTURE_TREATMENTS)
+    assert [b.start_frame for b in beats] == [i * bench.TREATMENT_FRAMES for i in range(5)]
+    assert all(b.end_frame - b.start_frame == bench.TREATMENT_FRAMES for b in beats)
+    pl = numbers.broll.polaroid
+    assert pl is not None and pl.drop_s < bench.TREATMENT_FRAMES / render.FPS  # landed
+    assert bench.parse_args(["--treatments", "out"]) == (render.CONCURRENCY, Path("out"), None)
+    with_image = bench.parse_args(["--treatments", "out", "--image", "a.jpg"])
+    assert with_image is not None and with_image[2] == Path("a.jpg")
+    assert bench.parse_args(["--bogus"]) is None

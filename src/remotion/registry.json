@@ -1,11 +1,13 @@
 {
   "components": [
+    "backdrop",
     "bubble",
     "captions",
     "card",
     "chart",
     "clip",
     "counter",
+    "crop_fill",
     "cut",
     "fade",
     "finale",
@@ -21,6 +23,7 @@
     "photo",
     "pin_drop",
     "pip",
+    "polaroid",
     "route_arrow",
     "split",
     "spring",

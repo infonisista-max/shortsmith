@@ -4,6 +4,13 @@ Renders the 12.1 fixture through the same spec builder and driver the pipeline u
 (fake transcriber and planner, real Remotion, concurrency 2) and prints one line:
 seconds per frame, frames, render seconds, bundle seconds, total seconds. Ticket 007
 records the figure per box in `docs/bench.md`; nothing is recorded here.
+
+`python -m shortsmith.bench --treatments OUT [--image PATH]` (ticket 103) renders one
+short beat per picture treatment (photo, crop_fill, backdrop, polaroid, card) of one
+image over the fixture's presenter - `PATH`, or a generated test pattern - and saves each
+beat's landed frame (two before its end) as `OUT/103_<treatment>.png`. The face
+`crop_fill` frames is the 3.3 detector's, or a box round the image's upper middle where
+it finds none.
 """
 
 from __future__ import annotations
@@ -13,13 +20,27 @@ import sys
 import tempfile
 from pathlib import Path
 
-from shortsmith import captions, fixture, jobs, render
-from shortsmith.contracts import Constraints, PlanRequest, PlanStyle
+from shortsmith import captions, ffmpeg, fixture, jobs, presenter, render
+from shortsmith.contracts import (
+    PICTURE_TREATMENTS,
+    BeatSpec,
+    Captions,
+    Constraints,
+    Crop,
+    FaceBox,
+    PicturePlan,
+    PlanRequest,
+    PlanStyle,
+    VisualSpec,
+)
 from shortsmith.planner import FakePlanner
 from shortsmith.render import DriverResult
 from shortsmith.transcriber import FakeTranscriber
 
 BRIEF = "Topic: the bench. Angle: seconds per frame on this box. Must-say: nothing."
+# 103: frames per treatment beat - long enough for the polaroid's drop to land.
+TREATMENT_FRAMES = 15
+TEST_PATTERN = (870, 614)  # run05's red-card owner photo: a low-res landscape
 
 
 def report(result: DriverResult, *, concurrency: int) -> str:
@@ -62,15 +83,130 @@ def run_bench(root: Path, *, concurrency: int = render.CONCURRENCY) -> DriverRes
     )
 
 
+def treatment_visual(name: str, src: str, size: tuple[int, int], *, face: FaceBox,
+                     numbers: render.StyleNumbers, pip_top: int) -> VisualSpec:  # fmt: skip
+    """103: `src` drawn as the treatment `name`, whatever the image allows."""
+    w, h = size
+    crop = Crop()
+    match name:
+        case "photo":
+            return render.photo_visual(src, w, h, index=0, crop=crop, numbers=numbers)
+        case "crop_fill":
+            return render.crop_fill_visual(src, w, h, face=face, numbers=numbers)
+        case "backdrop":
+            return render.backdrop_visual(src, w, h, ring=False, crop=crop, numbers=numbers,
+                                          pip_top=pip_top)  # fmt: skip
+        case "polaroid":
+            return render.polaroid_visual(src, w, h, label="polaroid 103", ring=False, use=1,
+                                          crop=crop, numbers=numbers, pip_top=pip_top)  # fmt: skip
+        case _:
+            return render.card_visual(src, w, h, strip_text="card 103", ring=True, index=0,
+                                      crop=Crop(focus_x=0.5, focus_y=0.45), numbers=numbers,
+                                      pip_top=pip_top)  # fmt: skip
+
+
+def treatment_beats(src: str, size: tuple[int, int], *, numbers: render.StyleNumbers,
+                    pip_top: int, face: FaceBox) -> list[BeatSpec]:  # fmt: skip
+    """103: one `TREATMENT_FRAMES`-frame `pip` beat per picture treatment, in order."""
+    return [
+        BeatSpec(
+            id=f"t_{name}", start_frame=i * TREATMENT_FRAMES,
+            end_frame=(i + 1) * TREATMENT_FRAMES, mode="pip", kind="photo",
+            visual=treatment_visual(name, src, size, face=face, numbers=numbers,
+                                    pip_top=pip_top),
+        )
+        for i, name in enumerate(PICTURE_TREATMENTS)
+    ]  # fmt: skip
+
+
+def _pattern(path: Path, size: tuple[int, int]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ffmpeg.run([ffmpeg.FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i",
+                f"testsrc2=s={size[0]}x{size[1]}", "-frames:v", "1", str(path)])  # fmt: skip
+    return path
+
+
+def _base_plan() -> PicturePlan:
+    """A one-second plan of one `pip` photo beat, the base the treatment beats replace."""
+    return PicturePlan.model_validate({
+        "prompt_version": "bench", "cut": {"keep": [{"start": 0.0, "end": 1.0}]},
+        "beats": [{"id": "b01", "start": 0.0, "end": 1.0, "mode": "pip", "kind": "photo"}],
+        "finale": {"beat_id": "none", "text": ""}, "title": "bench", "description": "bench",
+    })  # fmt: skip
+
+
+def run_treatments(root: Path, out: Path, *, image: Path | None = None,
+                   concurrency: int = render.CONCURRENCY) -> list[Path]:  # fmt: skip
+    """103: renders `treatment_beats` over the fixture's presenter and saves each beat's
+    landed frame as `out/103_<treatment>.png`; returns the PNGs."""
+    clip = fixture.make_fixture(root / "fixture" / "fixture.mp4")
+    if image is not None:  # the driver serves the presenter's and the images' common folder
+        src = Path(shutil.copyfile(image, root / f"image{image.suffix}")).resolve()
+    else:
+        src = _pattern(root / "pattern.png", TEST_PATTERN).resolve()
+    size = ffmpeg.video_size(src)
+    face = presenter.HaarDetector().detect(src) or FaceBox(
+        left=size[0] // 3, top=size[1] // 6, width=size[0] // 3, height=size[1] // 3
+    )
+    numbers = render.style_numbers("explainer")
+    base = render.build_spec(
+        _base_plan(), Captions(pages=[]), presenter=clip, source_size=ffmpeg.video_size(clip),
+        duration_s=1.0, numbers=numbers,
+    )  # fmt: skip
+    beats = treatment_beats(str(src), size, numbers=numbers, pip_top=base.pip.top, face=face)
+    spec = base.model_copy(update={"beats": beats, "frames": len(beats) * TREATMENT_FRAMES})
+    work = root / "treatments"
+    work.mkdir(parents=True, exist_ok=True)
+    render.run_driver(spec, spec_path=work / "render_spec.json", out_path=work / "picture.mp4",
+                      log_path=work / "render.log", concurrency=concurrency)  # fmt: skip
+    out.mkdir(parents=True, exist_ok=True)
+    stills: list[Path] = []
+    for beat in beats:
+        name = beat.id.removeprefix("t_")
+        at_s = (beat.end_frame - 2) / spec.fps  # landed, clear of the file's last frame
+        stills.append(ffmpeg.still(work / "picture.mp4", out / f"103_{name}.png", at_s=at_s))
+    return stills
+
+
+Args = tuple[int, Path | None, Path | None]
+
+
+def parse_args(args: list[str]) -> Args | None:
+    """(concurrency, treatments out dir, image), or None on a usage error."""
+    concurrency, out, image = render.CONCURRENCY, None, None
+    rest = list(args)
+    while rest:
+        flag = rest.pop(0)
+        if not rest:
+            return None
+        value = rest.pop(0)
+        if flag == "--concurrency" and value.isdigit():
+            concurrency = int(value)
+        elif flag == "--treatments":
+            out = Path(value)
+        elif flag == "--image":
+            image = Path(value)
+        else:
+            return None
+    if image is not None and out is None:
+        return None
+    return concurrency, out, image
+
+
 def main(argv: list[str] | None = None, *, root: Path | None = None) -> int:
-    concurrency = render.CONCURRENCY
-    args = list(argv or [])
-    if len(args) == 2 and args[0] == "--concurrency" and args[1].isdigit():
-        concurrency = int(args[1])
-    elif args:
-        print("usage: python -m shortsmith.bench [--concurrency N]", file=sys.stderr)
+    parsed = parse_args(list(argv or []))
+    if parsed is None:
+        print("usage: python -m shortsmith.bench [--concurrency N] "
+              "[--treatments OUT [--image PATH]]", file=sys.stderr)  # fmt: skip
         return 2
+    concurrency, out, image = parsed
     try:
+        if out is not None:
+            with tempfile.TemporaryDirectory(prefix="shortsmith-bench-") as tmp:
+                stills = run_treatments(root or Path(tmp), out, image=image,
+                                        concurrency=concurrency)  # fmt: skip
+            print(f"bench: {len(stills)} treatment stills in {out}")
+            return 0
         if root is not None:
             result = run_bench(root, concurrency=concurrency)
         else:

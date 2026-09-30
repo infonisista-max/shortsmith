@@ -262,7 +262,8 @@ test("Short.tsx draws every registered component", () => {
                   label_flyin: "LabelFlyin", counter: "Counter", map: "MapBase",
                   pin_drop: "PinDrop", route_arrow: "RouteArrow", object_path: "ObjectPath",
                   text_pop: "TextPop", bubble: "Bubble", sticker: "Sticker",
-                  title_strip: "TitleStrip" };
+                  title_strip: "TitleStrip", backdrop: "Backdrop", crop_fill: "CropFill",
+                  polaroid: "Polaroid" };
   // The transitions are drawn through the `Transition` dispatcher, one entry each.
   assert.match(short, /<Transition\b/, "Short.tsx never wraps a beat in a Transition");
   // 078: the highlight is drawn inside the screenshot's card, which Short.tsx draws.
@@ -375,4 +376,53 @@ test("the split frames each pane round its face with objectPosition (105)", () =
   }
   // the badge keeps its own centre crop; only the panes move
   assert.equal(source.match(/objectPosition:/g)?.length, 1);
+});
+
+const TREATMENTS = { backdrop: "Backdrop", crop_fill: "CropFill", polaroid: "Polaroid" };
+
+test("the picture treatments are registered and each is drawn for its treatment (103)", () => {
+  const short = readFileSync(join(root, "Short.tsx"), "utf-8");
+  for (const [name, tag] of Object.entries(TREATMENTS)) {
+    assert.ok(registry.components.includes(name), `${name} is not registered`);
+    assert.match(short, new RegExp(`treatment === "${name}"`), `Short.tsx never draws ${name}`);
+    assert.ok(short.includes(`<${tag} `), `Short.tsx never renders <${tag}>`);
+  }
+  // every treatment is drawn under the PIP circle, like the photo and the card
+  const pip = short.indexOf("<Pip ");
+  for (const tag of Object.values(TREATMENTS)) {
+    assert.ok(short.indexOf(`<${tag} `) < pip, `<${tag}> is drawn over the PIP circle`);
+  }
+});
+
+test("the treatments read every number from the spec, never a literal (103)", () => {
+  const rows = {
+    // the body the card, the backdrop and the polaroid share
+    card: ["cover_blur_px", "cover_brightness", "cover_scale_from", "cover_scale_to",
+           "scale_from", "scale_to", "rotate_deg", "border_px"],
+    polaroid: ["drop_px", "drop_s", "shadow_px", "rotate_deg"],
+    crop_fill: ["scale_from", "scale_to"],
+    // Framed: the objectPosition and transform origin crop_fill frames the face with
+    photo: ["focus_x", "focus_y"],
+  };
+  for (const [name, fields] of Object.entries(rows)) {
+    const source = readFileSync(join(root, "components", `${name}.tsx`), "utf-8");
+    for (const field of fields) {
+      assert.ok(source.includes(`.${field}`), `${name}.tsx never reads ${field}`);
+    }
+  }
+  // the backdrop and the polaroid stand over their own blurred copy (the card's body)
+  for (const name of ["backdrop", "polaroid"]) {
+    const source = readFileSync(join(root, "components", `${name}.tsx`), "utf-8");
+    assert.match(source, /<CardBody/, `${name}.tsx does not draw the shared card body`);
+    assert.match(source, new RegExp(`treatment !== "${name}"`), `${name}.tsx draws any box`);
+  }
+  // the print drops and settles with an overshoot, a soft shadow under it
+  const polaroid = readFileSync(join(root, "components", "polaroid.tsx"), "utf-8");
+  assert.match(polaroid, /Easing\.back\(/, "the polaroid drop has no settle");
+  assert.match(polaroid, /translateY\(/, "the polaroid never drops");
+  const card = readFileSync(join(root, "components", "card.tsx"), "utf-8");
+  assert.match(card, /\$\{lift\} rotate\(/, "the body never applies the polaroid's drop");
+  // crop_fill draws the framed image, full screen, pushing toward the face
+  const crop = readFileSync(join(root, "components", "crop_fill.tsx"), "utf-8");
+  assert.match(crop, /<Framed/, "crop_fill.tsx does not draw the framed image");
 });

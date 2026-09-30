@@ -27,7 +27,7 @@ NAMES = ("explainer", "educational", "animated", "hitech")
 RECIPES = ("fastfacts", "footage", "vishva")
 # 059 changed the explainer's aliases (1.1 as amended): its front matter was v11; 064's
 # 12 dB speech-band margin bumped every style once more.
-VERSIONS = {"explainer": "23", "educational": "19", "animated": "19", "hitech": "22"}  # 105
+VERSIONS = {"explainer": "24", "educational": "19", "animated": "19", "hitech": "23"}  # 103
 FORBIDDEN = ["sweep", "riser", "rumble_crescendo"]  # 7.1, operator rider; 070 lifts whoosh
 
 
@@ -94,7 +94,7 @@ def test_every_spec_names_a_default_bed_query_of_at_most_six_words(
     for spec in specs.values():
         words = spec.sound.default_bed_query.split()
         assert 1 <= len(words) <= 6, (spec.name, spec.sound.default_bed_query)
-        assert spec.version == VERSIONS.get(spec.name, "13"), spec.name
+        assert spec.version == VERSIONS.get(spec.name, "14"), spec.name
     assert specs["explainer"].sound.default_bed_query == "cinematic ambient documentary"
 
 
@@ -204,10 +204,11 @@ def test_explainer_numbers_are_the_grill_decisions(specs: dict[str, StyleSpec]) 
     # 030: the full tier-1 list, the two B-roll treatments and the six transitions (9.2, 9.4);
     # 055 removed `hook_cards`.
     # 058 adds `clip`, the moving footage kind.
+    # 103 adds the three picture treatments beside `photo` and `card`.
     assert ex.requires_components == [
         "captions", "pip", "photo", "card", "clip", "stamp", "lower_third", "finale",
         "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
-        "pin_drop", "route_arrow", "object_path",
+        "pin_drop", "route_arrow", "object_path", "crop_fill", "backdrop", "polaroid",
         "cut", "fade", "whip", "zoom", "spring", "wipe",
     ]  # fmt: skip
     # 029: the counter writes its digits in the audience's grouping.
@@ -711,7 +712,7 @@ def test_drafts_may_require_components_the_registry_lacks(specs: dict[str, Style
 HITECH_COMPONENTS = [
     "captions", "pip", "photo", "card", "clip", "stamp", "lower_third", "finale",
     "list", "chart", "split", "wall", "infographic", "label_flyin", "counter", "map",
-    "pin_drop", "route_arrow", "object_path",
+    "pin_drop", "route_arrow", "object_path", "crop_fill", "backdrop", "polaroid",
     "cut", "fade", "wipe", "zoom",
 ]  # fmt: skip
 

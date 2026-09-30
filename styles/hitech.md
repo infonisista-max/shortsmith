@@ -1,10 +1,11 @@
 ---
-version: "22"
+version: "23"
 status: draft
 aliases: [hitech, hi-tech, tech, techy, gadget, gadgets, product, futuristic, cyber]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
+                      crop_fill, backdrop, polaroid,
                       cut, fade, wipe, zoom]
 beats:
   min_s: 0.7
@@ -71,6 +72,22 @@ broll:
     # 078: the marker over an owner's article screenshot - the accent at about 45 %,
     # padded round each text line; the screenshot card pushes to push_to about the lines.
     highlight: {kind: sweep, color: "#22D3EE", opacity: 0.45, pad_px: 8, push_to: 1.12}
+    # 103: the picture treatments beside the full-bleed photo and the card. `backdrop`: the
+    # image sharp across the frame (at most width_px wide, never over max_upscale) between
+    # the safe top and the card line, over its own blurred, darkened, enlarged copy (the
+    # card's cover numbers: blur 36 px, brightness 0.45, the dark surround of the reference
+    # cards), pushing scale_from -> scale_to (the photo's +0.06). `crop_fill`: full screen
+    # cropped round the detected face (its centre at face_y of the height, as a split pane
+    # frames one), never over max_upscale, a slow push. `polaroid`: a print width_px wide,
+    # border_px white round the picture and bottom_px under it (the lower-third label sits
+    # there), dropping drop_px in drop_s (the wall's spring) under a shadow_px shadow, its
+    # tilt varied per use within tilt_min_deg-tilt_max_deg (the text pop's 6 degrees).
+    backdrop: {kind: push, scale_from: 1.0, scale_to: 1.06, width_px: 1080, max_upscale: 2.0,
+               blur_px: 36, brightness: 0.45}
+    crop_fill: {kind: push, scale_from: 1.0, scale_to: 1.08, max_upscale: 2.5, face_y: 0.38}
+    polaroid: {kind: drop, width_px: 760, border_px: 20, bottom_px: 84, max_upscale: 1.5,
+               tilt_min_deg: -6, tilt_max_deg: 6, drop_px: 240, drop_s: 0.3, shadow_px: 36,
+               blur_px: 36, brightness: 0.45}
     map: {kind: travel, markers_max: 6, duration_s: 0.45, padding: 0.15, land: "#3E6E96",
           coast: "#22D3EE", border: "#020617", coast_px: 2, border_px: 2,
           # 072: a pill over another pill or dot flips sides, then steps up or down
@@ -92,6 +109,12 @@ broll:
   stickers_max_per_60s: 0  # 062: off here
   highlights_max_per_60s: 0  # 078: off here
   clip_max_fraction: 0.35  # 058: the runtime share clips may take (reference median 31 %)
+  # 103: the treatments the planner picks per still, in the renderer's fallback order; a
+  # framed one never on two beats in a row; the red card at most card_max_per_60s (the
+  # approved references: NKB 2 archival cards in 60 s, Dyson 3 in 57.5 s).
+  treatments: [photo, crop_fill, backdrop, polaroid, card]
+  no_repeat_treatments: [backdrop, polaroid, card]
+  card_max_per_60s: 3
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}

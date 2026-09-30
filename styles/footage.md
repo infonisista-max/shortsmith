@@ -1,10 +1,11 @@
 ---
-version: "13"
+version: "14"
 status: shipped
 aliases: [footage, documentary, dhruv, cinematic]
 requires_components: [captions, pip, photo, card, clip, stamp, lower_third, finale, list,
                       chart, split, wall, infographic, label_flyin, counter, map,
                       pin_drop, route_arrow, object_path,
+                      crop_fill, backdrop, polaroid,
                       cut, fade, whip, zoom, spring, wipe, flash,
                       text_pop, sticker]
 beats:
@@ -94,6 +95,22 @@ broll:
     # 078: the marker over an owner's article screenshot - the accent at about 45 %,
     # padded round each text line; the screenshot card pushes to push_to about the lines.
     highlight: {kind: sweep, color: "#FFD60A", opacity: 0.45, pad_px: 8, push_to: 1.12}
+    # 103: the picture treatments beside the full-bleed photo and the card. `backdrop`: the
+    # image sharp across the frame (at most width_px wide, never over max_upscale) between
+    # the safe top and the card line, over its own blurred, darkened, enlarged copy (the
+    # card's cover numbers: blur 36 px, brightness 0.45, the dark surround of the reference
+    # cards), pushing scale_from -> scale_to (the photo's +0.06). `crop_fill`: full screen
+    # cropped round the detected face (its centre at face_y of the height, as a split pane
+    # frames one), never over max_upscale, a slow push. `polaroid`: a print width_px wide,
+    # border_px white round the picture and bottom_px under it (the lower-third label sits
+    # there), dropping drop_px in drop_s (the wall's spring) under a shadow_px shadow, its
+    # tilt varied per use within tilt_min_deg-tilt_max_deg (the text pop's 6 degrees).
+    backdrop: {kind: push, scale_from: 1.0, scale_to: 1.06, width_px: 1080, max_upscale: 2.0,
+               blur_px: 36, brightness: 0.45}
+    crop_fill: {kind: push, scale_from: 1.0, scale_to: 1.08, max_upscale: 2.5, face_y: 0.38}
+    polaroid: {kind: drop, width_px: 760, border_px: 20, bottom_px: 84, max_upscale: 1.5,
+               tilt_min_deg: -6, tilt_max_deg: 6, drop_px: 240, drop_s: 0.3, shadow_px: 36,
+               blur_px: 36, brightness: 0.45}
   enter_transitions: [cut, fade, whip, zoom, spring, flash]
   whip_max_per_3_beats: 1
   flash_max_per_60s: 5  # 060: never two in a row (refs: at most 4 a minute)
@@ -102,6 +119,12 @@ broll:
   stickers_max_per_60s: 3  # 062
   highlights_max_per_60s: 2  # 078: ATkSnL_CdLg sweeps a marker at 14 s
   clip_max_fraction: 0.75  # 058: the runtime share clips may take
+  # 103: the treatments the planner picks per still, in the renderer's fallback order; a
+  # framed one never on two beats in a row; the red card at most card_max_per_60s (the
+  # approved references: NKB 2 archival cards in 60 s, Dyson 3 in 57.5 s).
+  treatments: [photo, crop_fill, backdrop, polaroid, card]
+  no_repeat_treatments: [backdrop, polaroid, card]
+  card_max_per_60s: 3
   transitions:
     fade: {duration_s: 0.35}
     whip: {duration_s: 0.22, blur_px: 14}
@@ -219,7 +242,7 @@ Moving-footage documentary (recipe 059, the Dhruv Rathee move): full-screen stoc
 - Recipe: moving footage is the base. Ask `clip` on every concept beat you can - a thing, a kind of place, a process, nature - up to `clip_max_fraction` of the runtime (refs 49-82 %), a clip about 2 s long; named people, places, products and events keep the still ladder. Stamps or text pops on the numbers, about one every 10 s; a sticker at most every ~20 s.
 - Only kinds in `kinds` may be used; `tier2_kinds` is empty here, so parallax depth and vector-illustration looks are validation errors naming the nearest tier-1 substitute (4.1 as amended by 9.2). Every non-presenter beat has exactly one motion; there is never a static still.
 - Label every non-presenter beat with `subject_kind` and a `query` plus a broader `query_fallback` (4.2): `entity` beats get a card or photo from owner references first, then search, then generation as the last resort, plus a lower-third; `concept` beats get a Ken Burns photo and a stamp of the key word; `number` and `quote` beats reuse the previous asset with a stamp and add nothing to the asset count; a `number` beat may instead carry a `counter` that counts up to the real figure and lands on it like a stamp, its digits written in `motion.counter.grouping`.
-- Source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration (5.1). Every image, whatever its source, is re-dressed the same way (5.1 and 5.3 as amended by 057): a portrait or square image asked as `photo` that covers the frame at no more than `full_bleed_max_upscale` is drawn full-screen under the Ken Burns, the PIP circle and the captions; a landscape image, or one that cannot cover the frame at that upscale, is drawn as a card. Ask `photo` wherever a full-screen image would serve; code draws the card when the image cannot fill the frame. Generated depictions of a named person or product are illustration-style (`illustration_look`); scenes and unnamed people may be photoreal (`photo_look`).
+- Source order is owner references → web image search → Wikimedia Commons → Openverse → Pexels/Pixabay → generated illustration (5.1). Every image, whatever its source, is re-dressed the same way (5.1 and 5.3 as amended by 057): a portrait or square image asked as `photo` that covers the frame at no more than `full_bleed_max_upscale` is drawn full-screen under the Ken Burns, the PIP circle and the captions; an image that cannot cover the frame at that upscale is shown another way: cropped full-screen round a face (`crop_fill`), sharp over its own blurred copy (`backdrop`), as a dropped print (`polaroid`) or as the red-ringed archival `card`. Pick the `treatment` per image like an editor and vary it (103): never the same framed one on two beats in a row, the card at most `card_max_per_60s`; code draws another allowed one when the image cannot take the pick. Generated depictions of a named person or product are illustration-style (`illustration_look`); scenes and unnamed people may be photoreal (`photo_look`).
 - Moving footage (4.1 and 5.1 as amended by 058): a `clip` beat is a full-screen stock video clip, always muted, under the PIP circle and the captions exactly like a `photo`, drawn at `motion.clip.speed` with the push in `motion.clip` (none here: the clip's own movement is the motion). Ask `clip` on concept beats — a thing, a kind of place, a process, nature, science ("cheese", "the sun", "the brain") — on the opening when the topic is a concept; and on a named place, era, event or object in any story, a person's included ("a 1950s oil field", "an old Arabian palace", "a plane taking off"); never for a named person, who keeps the still ladder (a stock stranger is never King Saud; 099). On an era beat, period-looking footage comes first; a timeless shot (desert, sea, sky, sand dunes) is fine and may take a light film or sepia grade; never modern cars, skylines, phones or present-day clothes standing in for the old era, then a still (099). Clips come from Pexels video, then Pixabay video, judged on their preview image like any candidate; a clip shorter than its beat is skipped, and a beat that finds no usable clip is drawn from the still ladder instead, logged. Clip beats take at most `clip_max_fraction` of the runtime. A clip counts as an image for `reuse_max`; a set piece's items and the finale's cards are stills, so they never name a clip beat's asset.
 - Count unique assets, not beats: between `unique_assets_min_per_60s` and `unique_assets_max_per_60s` per minute, each reused at most `reuse_max` times (4.3). Reuse is encouraged for callbacks, payoffs and number beats; a short with no reused asset is a warning.
 - The three set pieces carry their own content: a `list` beat gets a `set_piece_title` header and up to `motion.list.items_max` `items`, each with text and optionally an asset; a `split` beat gets a title strip plus exactly `motion.split.panes` items, one per side, each naming an asset and labelled with the words the strip highlights; a `wall` beat gets `motion.wall.cells_min` to `cells_max` items, each naming an asset. Item assets are ids other beats already source — a montage of the plan's pictures, never new ones (4.3).

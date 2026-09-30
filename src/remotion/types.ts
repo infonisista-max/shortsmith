@@ -49,6 +49,11 @@ export type CardSpec = {
   origin_x: number;
   origin_y: number;
   highlight?: HighlightSpec | null;
+  // 103: a polaroid drops `drop_px` and settles in `drop_s` under a `shadow_px` shadow;
+  // 0 on every other box.
+  drop_px: number;
+  drop_s: number;
+  shadow_px: number;
 };
 
 // 078: one marker stroke in the card image's pixels, swept left to right over its seconds
@@ -69,7 +74,9 @@ export type HighlightSpec = {
 };
 
 export type VisualSpec = {
-  treatment: "photo" | "card" | "clip";
+  // 103: `backdrop` and `polaroid` carry their box in `card`; `crop_fill` is framed round
+  // the face through `focus_x` / `focus_y`, like a photo.
+  treatment: "photo" | "card" | "clip" | "backdrop" | "crop_fill" | "polaroid";
   src: string;
   width: number;
   height: number;

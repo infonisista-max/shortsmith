@@ -251,6 +251,51 @@ class PipNumbers:
 
 
 @dataclass(frozen=True)
+class BackdropNumbers:
+    """103: `broll.motion.backdrop` - the sharp image at most `width_px` wide and never
+    over `max_upscale`, pushing `scale_from` -> `scale_to`, over its own copy blurred
+    `blur_px` and darkened to `brightness`."""
+
+    scale_from: float
+    scale_to: float
+    width_px: float
+    max_upscale: float
+    blur_px: int
+    brightness: float
+
+
+@dataclass(frozen=True)
+class CropFillNumbers:
+    """103: `broll.motion.crop_fill` - full screen round the face (its centre at `face_y`
+    of the height), never over `max_upscale`, pushing `scale_from` -> `scale_to`."""
+
+    scale_from: float
+    scale_to: float
+    max_upscale: float
+    face_y: float
+
+
+@dataclass(frozen=True)
+class PolaroidNumbers:
+    """103: `broll.motion.polaroid` - the print `width_px` wide, `border_px` white round
+    the picture and `bottom_px` under it, the picture never over `max_upscale`; its tilt
+    within `tilt_min_deg`-`tilt_max_deg`, dropping `drop_px` in `drop_s` under a
+    `shadow_px` shadow, over its copy blurred `blur_px` and darkened to `brightness`."""
+
+    width_px: float
+    border_px: int
+    bottom_px: int
+    max_upscale: float
+    tilt_min_deg: float
+    tilt_max_deg: float
+    drop_px: float
+    drop_s: float
+    shadow_px: float
+    blur_px: int
+    brightness: float
+
+
+@dataclass(frozen=True)
 class BrollNumbers:
     """`broll.motion.*` and the geometry limits of 4.1 / 6.3: the photo and card
     motions, the card's bottom limit, and (026) the stamp, lower-third and finale
@@ -339,6 +384,15 @@ class BrollNumbers:
     highlight_opacity: float
     highlight_pad_px: float
     highlight_push_to: float
+    # 103: the treatments the planner may pick per still (the fallback order), the ones
+    # never drawn twice in a row, the card's cap per 60 s (None: none) and the rows of the
+    # three new treatments (None where the style does not offer it).
+    treatments: tuple[str, ...] = ("photo", "card")
+    no_repeat: frozenset[str] = frozenset()
+    card_max_per_60s: int | None = None
+    backdrop: BackdropNumbers | None = None
+    crop_fill: CropFillNumbers | None = None
+    polaroid: PolaroidNumbers | None = None
 
 
 @dataclass(frozen=True)
@@ -372,6 +426,7 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
         rows, split, wall = motion["list"], motion["split"], motion["wall"]
         pop, bubble, clip = motion["text_pop"], motion["bubble"], motion["clip"]
         sticker, highlight = motion["sticker"], motion["highlight"]
+        backdrop, crop_fill, polaroid = _treatment_rows(spec)
         size = int(sticker["size_px"])
         if not STICKER_SIZE_MIN_PX <= size <= STICKER_SIZE_MAX_PX:
             raise styles.StyleError(
@@ -443,9 +498,48 @@ def broll_numbers(spec: StyleSpec) -> BrollNumbers:
             highlight_opacity=float(highlight["opacity"]),
             highlight_pad_px=float(highlight["pad_px"]),
             highlight_push_to=float(highlight["push_to"]),
+            treatments=tuple(spec.broll.treatments),
+            no_repeat=frozenset(spec.broll.no_repeat_treatments),
+            card_max_per_60s=spec.broll.card_max_per_60s,
+            backdrop=backdrop,
+            crop_fill=crop_fill,
+            polaroid=polaroid,
         )
     except KeyError as exc:
         raise styles.StyleError(f"{spec.name}: broll.motion is missing {exc}") from None
+
+
+def _treatment_rows(
+    spec: StyleSpec,
+) -> tuple[BackdropNumbers | None, CropFillNumbers | None, PolaroidNumbers | None]:
+    """103: the rows of the new treatments the style offers; an offered one without its
+    `broll.motion` row is a KeyError the caller reports."""
+    offered, motion = set(spec.broll.treatments), spec.broll.motion
+    backdrop = crop_fill = polaroid = None
+    if "backdrop" in offered:
+        r = motion["backdrop"]
+        backdrop = BackdropNumbers(
+            scale_from=float(r["scale_from"]), scale_to=float(r["scale_to"]),
+            width_px=float(r["width_px"]), max_upscale=float(r["max_upscale"]),
+            blur_px=int(r["blur_px"]), brightness=float(r["brightness"]),
+        )  # fmt: skip
+    if "crop_fill" in offered:
+        r = motion["crop_fill"]
+        crop_fill = CropFillNumbers(
+            scale_from=float(r["scale_from"]), scale_to=float(r["scale_to"]),
+            max_upscale=float(r["max_upscale"]), face_y=float(r["face_y"]),
+        )  # fmt: skip
+    if "polaroid" in offered:
+        r = motion["polaroid"]
+        polaroid = PolaroidNumbers(
+            width_px=float(r["width_px"]), border_px=int(r["border_px"]),
+            bottom_px=int(r["bottom_px"]), max_upscale=float(r["max_upscale"]),
+            tilt_min_deg=float(r["tilt_min_deg"]), tilt_max_deg=float(r["tilt_max_deg"]),
+            drop_px=float(r["drop_px"]), drop_s=float(r["drop_s"]),
+            shadow_px=float(r["shadow_px"]), blur_px=int(r["blur_px"]),
+            brightness=float(r["brightness"]),
+        )  # fmt: skip
+    return backdrop, crop_fill, polaroid
 
 
 SPLIT_LAYOUTS = ("side", "stacked")  # 059
@@ -715,6 +809,132 @@ def clip_visual(src: str, width: int, height: int, *, crop: Crop, numbers: Style
     )  # fmt: skip
 
 
+# --- the picture treatments an editor picks (ticket 103) -----------------------------------
+
+GOLDEN = (math.sqrt(5) - 1) / 2  # 103: spreads the polaroid tilts over their range
+
+
+def pick_treatment(
+    planned: str | None, allowed: Sequence[str], *, previous: str | None,
+    no_repeat: frozenset[str], order: Sequence[str], cards_left: float,
+) -> str:  # fmt: skip
+    """103: the treatment drawn: the planner's pick when the image `allowed` it, it is not
+    the `previous` beat's in `no_repeat`, and (a card) the cap has `cards_left`; else the
+    first of `order` that passes the same test; else any allowed one that is not a repeat;
+    else the first allowed one. Never fails: a treatment is never a reason to stop."""
+
+    def ok(name: str) -> bool:
+        if name not in allowed:
+            return False
+        if name in no_repeat and name == previous:
+            return False
+        return name != "card" or cards_left > 0
+
+    if planned is not None and ok(planned):
+        return planned
+    for name in (*order, *allowed):
+        if ok(name):
+            return name
+    for name in allowed:
+        if not (name in no_repeat and name == previous):
+            return name
+    return allowed[0] if allowed else "card"
+
+
+def _band_centre(pip_top: int | None, b: BrollNumbers) -> tuple[float, float]:
+    """The band a framed picture is centred in: the safe top to the card line (051)."""
+    return float(SAFE_TOP_PX), _card_limit(b, pip_top)
+
+
+def backdrop_visual(src: str, width: int, height: int, *, ring: bool, crop: Crop,
+                    numbers: StyleNumbers, pip_top: int | None = None) -> VisualSpec:  # fmt: skip
+    """103: the image sharp across the frame - at most `width_px` wide, never over
+    `max_upscale`, never taller than the band from the safe top to the card line at full
+    push - centred in that band, over its own blurred, darkened copy filling 9:16 (the
+    card's cover push). No border, no tilt; the ring lands on it like on a card."""
+    b = numbers.broll
+    bd = b.backdrop
+    assert bd is not None, "the style does not offer the backdrop"
+    top, limit = _band_centre(pip_top, b)
+    aspect = width / height
+    image_w = min(bd.width_px, bd.max_upscale * width, WIDTH)
+    image_w = min(image_w, (limit - top) / bd.scale_to * aspect)
+    image_h = image_w / aspect
+    card = CardSpec(
+        left=(WIDTH - image_w) / 2, top=(top + limit) / 2 - image_h / 2, width=image_w,
+        height=image_h, image_width=image_w, image_height=image_h, border_px=0,
+        rotate_deg=0.0, strip_text="", strip_px=0, strip_font_px=STRIP_FONT_PX,
+        cover_scale_from=b.card_scale_from, cover_scale_to=b.card_scale_to,
+        cover_blur_px=bd.blur_px, cover_brightness=bd.brightness, ring=ring,
+        ring_color=b.card_ring_color, ring_diameter_px=RING_FRACTION * min(image_w, image_h),
+        ring_px=RING_PX, ring_at_s=RING_AT_S,
+    )  # fmt: skip
+    return VisualSpec(
+        treatment="backdrop", src=src, width=width, height=height, zoom=crop.zoom,
+        focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=bd.scale_from,
+        scale_to=bd.scale_to, pan_px=0.0, card=card,
+    )  # fmt: skip
+
+
+def polaroid_tilt(use: int, numbers: PolaroidNumbers) -> float:
+    """103: the `use`-th polaroid's tilt, spread over the style's range (golden-ratio
+    steps, so no two in a short sit at the same angle)."""
+    frac = (0.5 + use * GOLDEN) % 1.0
+    return round(numbers.tilt_min_deg + frac * (numbers.tilt_max_deg - numbers.tilt_min_deg), 2)
+
+
+def polaroid_visual(src: str, width: int, height: int, *, label: str, ring: bool, use: int,
+                    crop: Crop, numbers: StyleNumbers,
+                    pip_top: int | None = None) -> VisualSpec:  # fmt: skip
+    """103: the white-bordered print: `width_px` wide (narrower where the picture would
+    pass `max_upscale`), `border_px` round the picture and `bottom_px` under it, where a
+    lower-third label is written; its window keeps the image's aspect, cropped to fit the
+    band. Tilted per use, pushing like a card, placed so it ends above the card line; it
+    drops `drop_px` and settles in `drop_s` (the component animates it)."""
+    b = numbers.broll
+    pl = b.polaroid
+    assert pl is not None, "the style does not offer the polaroid"
+    aspect = width / height
+    image_w = min(pl.width_px - 2 * pl.border_px, pl.max_upscale * width)
+    strip = pl.bottom_px - pl.border_px
+    top, limit = _band_centre(pip_top, b)
+    ratio = b.photo_scale_to / b.photo_scale_from
+    room = (limit - top) / ratio - pl.border_px - pl.bottom_px
+    image_h = min(image_w / aspect, room)
+    outer_w, outer_h = image_w + 2 * pl.border_px, image_h + pl.border_px + pl.bottom_px
+    card = CardSpec(
+        left=(WIDTH - outer_w) / 2, top=0.0, width=outer_w, height=outer_h,
+        image_width=image_w, image_height=image_h, border_px=pl.border_px,
+        rotate_deg=polaroid_tilt(use, pl), strip_text=label, strip_px=strip,
+        strip_font_px=STRIP_FONT_PX, cover_scale_from=b.card_scale_from,
+        cover_scale_to=b.card_scale_to, cover_blur_px=pl.blur_px,
+        cover_brightness=pl.brightness, ring=ring, ring_color=b.card_ring_color,
+        ring_diameter_px=RING_FRACTION * min(image_w, image_h), ring_px=RING_PX,
+        ring_at_s=RING_AT_S, drop_px=pl.drop_px, drop_s=pl.drop_s, shadow_px=pl.shadow_px,
+    )  # fmt: skip
+    half = _half_extent(card, ratio)
+    card = card.model_copy(update={"top": limit - half - outer_h / 2})
+    return VisualSpec(
+        treatment="polaroid", src=src, width=width, height=height, zoom=crop.zoom,
+        focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=1.0, scale_to=ratio,
+        pan_px=0.0, card=card,
+    )  # fmt: skip
+
+
+def crop_fill_visual(src: str, width: int, height: int, *, face: FaceBox,
+                     numbers: StyleNumbers) -> VisualSpec:  # fmt: skip
+    """103: full screen, the image cropped round the detected face - its centre across the
+    middle and at `face_y` of the height, moved in just enough to keep a face that fits
+    whole (`pane_focus`) - pushing slowly toward it."""
+    cf = numbers.broll.crop_fill
+    assert cf is not None, "the style does not offer crop_fill"
+    fx, fy = pane_focus(face, width, height, float(WIDTH), float(HEIGHT), face_y=cf.face_y)
+    return VisualSpec(
+        treatment="crop_fill", src=src, width=width, height=height, zoom=1.0, focus_x=fx,
+        focus_y=fy, scale_from=cf.scale_from, scale_to=cf.scale_to, pan_px=0.0,
+    )  # fmt: skip
+
+
 # 4.2: a number or quote beat stamps over the asset already on screen, so its motion
 # carries on from the previous beat instead of restarting.
 CONTINUING_SUBJECTS = frozenset({"number", "quote"})
@@ -743,6 +963,7 @@ def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSp
         updates["card"] = card.model_copy(update={
             "cover_scale_from": card.cover_scale_to,
             "cover_scale_to": max(1.0, card.cover_scale_to + cover),
+            "drop_px": 0.0,  # 103: a print carried on has already landed
         })  # fmt: skip
     return previous.model_copy(update=updates)
 
@@ -750,17 +971,30 @@ def continued(previous: VisualSpec, previous_s: float, own_s: float) -> VisualSp
 def _visuals(
     plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None,
     numbers: StyleNumbers, *, pip_top: int, fps: int = FPS,
+    face_of: Callable[[str], FaceBox | None] | None = None,
 ) -> dict[str, tuple[Mode, VisualSpec | None]]:  # fmt: skip
     """Per beat id: the mode to draw (a rung-4 rescue becomes `pip`) and its visual;
-    `pip_top` is the top of the circle the spec draws, the cards' placement line."""
+    `pip_top` is the top of the circle the spec draws, the cards' placement line.
+    103: a still's treatment is the planner's pick among what the image allows
+    (`face_of` finds its face, for `crop_fill`), never a framed one twice in a row and
+    never more cards than the style's cap (`pick_treatment`)."""
     out: dict[str, tuple[Mode, VisualSpec | None]] = {}
     if manifest is None:
         return out
     if job_dir is None:
         raise ValueError("build_spec needs job_dir to resolve the manifest's asset files")
+    b = numbers.broll
+    runtime = plan.beats[-1].end if plan.beats else 0.0
+    cards_left = (
+        math.inf if b.card_max_per_60s is None
+        else math.ceil(b.card_max_per_60s * runtime / 60.0 - EPS)
+    )  # fmt: skip
+    polaroids = 0
+    drawn: str | None = None  # 103: the treatment the beat just before drew
     index = 0
     previous: tuple[Beat, VisualSpec, str] | None = None
     for beat in plan.beats:
+        last, drawn = drawn, None
         decided = manifest.beat(beat.id)
         if decided is None:
             continue
@@ -813,14 +1047,40 @@ def _visuals(
             # showing an earlier clip afresh plays it from its start).
             visual = clip_visual(src, record.width, record.height, crop=decided.crop,
                                  numbers=numbers)  # fmt: skip
-        elif decided.treatment == "photo":
-            visual = photo_visual(src, record.width, record.height, index=index,
-                                  crop=decided.crop, numbers=numbers)  # fmt: skip
         else:
-            label = beat.event.text if beat.event.kind == "lower_third" else None
-            visual = card_visual(src, record.width, record.height, strip_text=label or "",
-                                 ring=beat.event.kind == "ring", index=index,
-                                 crop=decided.crop, numbers=numbers, pip_top=pip_top)  # fmt: skip
+            face = face_of(src) if face_of is not None else None
+            allowed = assets.allowed_treatments(
+                record.width, record.height, fits=decided.treatment == "photo",
+                has_face=face is not None, offered=b.treatments,
+                crop_fill_max_upscale=b.crop_fill.max_upscale if b.crop_fill else 0.0,
+            )  # fmt: skip
+            chosen = pick_treatment(
+                beat.treatment or decided.treatment, allowed, previous=last,
+                no_repeat=b.no_repeat, order=b.treatments, cards_left=cards_left,
+            )  # fmt: skip
+            label = (beat.event.text if beat.event.kind == "lower_third" else None) or ""
+            ring = beat.event.kind == "ring"
+            if chosen == "photo":
+                visual = photo_visual(src, record.width, record.height, index=index,
+                                      crop=decided.crop, numbers=numbers)  # fmt: skip
+            elif chosen == "crop_fill" and face is not None:
+                visual = crop_fill_visual(src, record.width, record.height, face=face,
+                                          numbers=numbers)  # fmt: skip
+            elif chosen == "backdrop":
+                visual = backdrop_visual(src, record.width, record.height, ring=ring,
+                                         crop=decided.crop, numbers=numbers,
+                                         pip_top=pip_top)  # fmt: skip
+            elif chosen == "polaroid":
+                visual = polaroid_visual(src, record.width, record.height, label=label,
+                                         ring=ring, use=polaroids, crop=decided.crop,
+                                         numbers=numbers, pip_top=pip_top)  # fmt: skip
+                polaroids += 1
+            else:
+                visual = card_visual(src, record.width, record.height, strip_text=label,
+                                     ring=ring, index=index, crop=decided.crop,
+                                     numbers=numbers, pip_top=pip_top)  # fmt: skip
+                cards_left -= 1
+        drawn = visual.treatment if beat.highlight is None or visual.treatment != "card" else None
         out[beat.id] = (beat.mode, visual)
         if not carries_on:
             index += 1
@@ -2365,14 +2625,30 @@ def build_spec(
     numbers = numbers or style_numbers(styles.DEFAULT)
     frames = round(duration_s * fps)
     geometry = pip or fixed_pip(source_size, numbers)
-    visuals = _visuals(plan, manifest, job_dir, numbers, pip_top=geometry.top, fps=fps)
+    faces: dict[str, FaceBox | None] = {}
+
+    def face_in(src: str) -> FaceBox | None:
+        """105: the face on a split pane's file (103: on a still, for `crop_fill`), detected
+        once per file like `face_on`."""
+        if detector is None:
+            return None
+        if src not in faces:
+            try:
+                faces[src] = detector.detect(Path(src))
+            except RuntimeError as exc:
+                faces[src] = None
+                if log is not None:
+                    log(f"faces: face detection skipped on {Path(src).name}: {exc}")
+        return faces[src]
+
+    visuals = _visuals(plan, manifest, job_dir, numbers, pip_top=geometry.top, fps=fps,
+                       face_of=face_in)
     geocoder = geocoder or geo.GazetteerGeocoder()
     if job_dir is not None:
         geocoder = geocoder.for_job(job_dir)
     finale_beat = _check_finale(plan, captions, numbers)
     sources = card_sources(plan, manifest, job_dir, count=numbers.broll.finale_cards)
     two_lines = set(captions.beats_with_two_lines)
-    faces: dict[str, FaceBox | None] = {}
     # 059: the style's fixed title strip, shown until the finale; the overlays keep off it.
     strip = (
         title_strip_spec(
@@ -2401,19 +2677,6 @@ def build_spec(
                     log(f"stamp: face detection skipped on {Path(visual.src).name}: {exc}")
         face = faces[visual.src]
         return face_box_on(visual, face) if face is not None else None
-
-    def face_in(src: str) -> FaceBox | None:
-        """105: the face on a split pane's file, detected once per file like `face_on`."""
-        if detector is None:
-            return None
-        if src not in faces:
-            try:
-                faces[src] = detector.detect(Path(src))
-            except RuntimeError as exc:
-                faces[src] = None
-                if log is not None:
-                    log(f"split: face detection skipped on {Path(src).name}: {exc}")
-        return faces[src]
 
     def off_face[S: StampSpec](beat_id: str, placed: S, visual: VisualSpec | None) -> S:
         face = face_on(visual)

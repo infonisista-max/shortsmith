@@ -50,8 +50,9 @@ The opening (the first sentence)
 - The opening is the speaker's own first sentence, up to about `beats.opening_max_s`
   seconds, as `beats.opening_beats_min` to `beats.opening_beats_max` quick beats in
   `mode: presenter.opening_mode` (the speaker in the circle), each a `photo` with an
-  `asset_id`: full-screen images behind the speaker, normal captions. Code draws a
-  card only when the image cannot fill the frame at `broll.full_bleed_max_upscale`.
+  `asset_id`: full-screen images behind the speaker, normal captions. Code shows an
+  image that cannot fill the frame at `broll.full_bleed_max_upscale` another way (see
+  Picture treatments below).
   When the topic is a concept (a thing, a process, nature), an opening beat may be a
   `clip` instead: moving footage behind the speaker (see Moving footage below).
   There is no hook title and there are no hook cards. The `beats.opening_beats_min`-th
@@ -79,6 +80,25 @@ $tiers
   turn back to the presenter or a section change: at most `broll.flash_max_per_60s`
   per 60 s and never on two consecutive beats. A style without `flash` in the list
   never gets one.
+
+Picture treatments (`treatment`)
+- Every `photo` or `card` beat names how its picture is shown in `treatment`, one of the
+  style's `broll.treatments`; pick per image like an editor:
+  - `photo`: full screen under the Ken Burns; for an image that fills the frame (a
+    portrait or square covering 1080x1920 at `broll.full_bleed_max_upscale`).
+  - `crop_fill`: full screen, cropped round the face in it, moving slowly; for a
+    portrait of a person in a wider image.
+  - `backdrop`: the whole image sharp across the frame over its own blurred copy; for a
+    landscape, a document or a scene that must be seen whole.
+  - `polaroid`: a white-bordered print that drops and settles at a slight tilt, its
+    `lower_third` text written on its thick bottom; for a personal or archival photo, a
+    memory, a find.
+  - `card`: the framed archival card with the red `ring` on its detail; the rarest - at
+    most `broll.card_max_per_60s`, for the beat whose detail the viewer must spot.
+- Vary them: never the same treatment of `broll.no_repeat_treatments` on two
+  consecutive beats. Code draws another allowed treatment when the image cannot take
+  the pick (too small to fill the frame, no face found), so a pick never fails the
+  short. Every other kind leaves `treatment` empty.
 
 Moving footage (`clip`)
 - A `clip` beat is a full-screen stock video clip, always muted, drawn where a `photo`
@@ -180,12 +200,11 @@ Maps that are drawn from real map data (`map`)
 Subjects, queries and sources
 - Label every non-presenter beat with `subject_kind` and a concrete search `query`,
   plus a broader `query_fallback`:
-  - `entity` (a named person, place, product, organisation or event): `photo` (a
-    full-screen image; code draws it as a card when the image cannot fill the frame)
-    or `card` (a framed archival card by choice), usually with a `lower_third` naming
-    it, or `clip` (moving footage) when it depicts a place, an era, an event or an
-    object, never a person. At least one entity beat per 60 s unless the brief has no
-    proper noun.
+  - `entity` (a named person, place, product, organisation or event): a `photo` beat
+    with the `treatment` its image suits (Picture treatments above), usually with a
+    `lower_third` naming it, or `clip` (moving footage) when it depicts a place, an
+    era, an event or an object, never a person. At least one entity beat per 60 s
+    unless the brief has no proper noun.
   - `concept` (an idea, feeling, process or generic scene): `photo` with Ken Burns,
     or `clip` (moving footage) where the style's `broll.clip_max_fraction` leaves
     room, a `stamp` for the key word.

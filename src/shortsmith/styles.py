@@ -36,7 +36,14 @@ from typing import Any, Literal
 import yaml
 from pydantic import Field, ValidationError
 
-from shortsmith.contracts import CaptionStyle, Palette, StrictModel, Transition, Transitions
+from shortsmith.contracts import (
+    CaptionStyle,
+    Palette,
+    PictureTreatment,
+    StrictModel,
+    Transition,
+    Transitions,
+)
 from shortsmith.safe_area import BAND_LEFT, BAND_RIGHT, BAND_WIDTH
 
 STYLES_DIR = Path(__file__).resolve().parents[2] / "styles"
@@ -191,6 +198,16 @@ class Broll(StrictModel):
     scene_lighting: str
     # 059: the fixed title strip; only a style that draws one carries the row.
     title_strip: TitleStrip | None = None
+    # 103: the picture treatments the planner may pick per still, in the renderer's
+    # fallback order (a pick the image cannot take becomes the first allowed one); every
+    # one but `photo` and `card` has its `motion.<name>` row. A spec from before 103 offers
+    # the two it always had.
+    treatments: list[PictureTreatment] = Field(default_factory=lambda: ["photo", "card"])
+    # 103: the treatments never drawn on two consecutive beats (a grammar soft rule; the
+    # renderer falls back past a repeat).
+    no_repeat_treatments: list[PictureTreatment] = Field(default_factory=lambda: [])
+    # 103: at most this many red cards per 60 s of runtime, rounded up; None: no cap.
+    card_max_per_60s: int | None = Field(default=None, ge=0)
 
 
 class Captions(CaptionStyle):
@@ -438,6 +455,7 @@ def check(spec: StyleSpec, registry: Sequence[str]) -> None:
             "row (max_per_60s, min_gap_s, max_len_s, on) to bound it (060)"
         )
     _check_marks(spec)
+    _check_treatments(spec)
     if spec.status == "shipped":
         missing = [c for c in spec.requires_components if c not in registry]
         if missing:
@@ -445,6 +463,26 @@ def check(spec: StyleSpec, registry: Sequence[str]) -> None:
                 f"{spec.name}: shipped but requires_components {missing} are not in the "
                 f"renderer registry {list(registry)} (9.2)"
             )
+
+
+def _check_treatments(spec: StyleSpec) -> None:
+    """103: a treatment the style offers is a component it requires (a shipped spec), and
+    only an offered one may be kept from running twice in a row."""
+    b = spec.broll
+    stray = [t for t in b.no_repeat_treatments if t not in b.treatments]
+    if stray:
+        raise StyleError(
+            f"{spec.name}: broll.no_repeat_treatments {stray} are not in broll.treatments "
+            f"{b.treatments} (103)"
+        )
+    if spec.status != "shipped":
+        return
+    missing = [t for t in b.treatments if t not in spec.requires_components]
+    if missing:
+        raise StyleError(
+            f"{spec.name}: broll.treatments {missing} are not in requires_components; every "
+            "treatment the planner may pick is a registered component the style requires (103)"
+        )
 
 
 def mark_triggers(spec: StyleSpec) -> dict[str, tuple[str, ...]]:

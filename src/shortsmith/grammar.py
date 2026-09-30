@@ -234,6 +234,7 @@ def validate_picture(
     found += _opening(beats, spec, references)
     found += _kinds(beats, spec)
     found += _clips(beats, runtime, spec)
+    found += treatments(beats, runtime=runtime, spec=spec)
     found += _items(beats, spec)
     found += _charts(beats, spec)
     found += _maps(beats, spec)
@@ -733,6 +734,45 @@ def _kinds(beats: Sequence[Beat], spec: StyleSpec) -> list[Violation]:
 def clip_share(beats: Sequence[Beat]) -> float:
     """058 (6): the seconds of the plan its `clip` beats cover."""
     return round(sum(_len(b) for b in beats if b.kind == CLIP_KIND), 3)
+
+
+# 103: the kinds a planner's picture `treatment` belongs on (the still beats).
+TREATED_KINDS = frozenset({"photo", "card"})
+
+
+def treatments(beats: Sequence[Beat], *, runtime: float, spec: StyleSpec) -> list[Violation]:
+    """103 (4.1 as amended): the planner's picture treatments, every rule soft - a
+    treatment never fails a job (the renderer falls back to an allowed one; the editor
+    swaps a repeat). A treatment the style does not offer, one on a beat that is not a
+    still, the same `broll.no_repeat_treatments` one on two consecutive beats, and more
+    `card` treatments than `broll.card_max_per_60s` (scaled to the runtime, rounded up)."""
+    b = spec.broll
+    found: list[Violation] = []
+    for beat in beats:
+        if beat.treatment is None:
+            continue
+        if beat.kind not in TREATED_KINDS:
+            found.append(_v("4.1", beat.id, f"treatment {beat.treatment!r} is set on a "
+                            f"{beat.kind!r} beat; only a photo or card beat takes one "
+                            "(103)"))  # fmt: skip
+        elif beat.treatment not in b.treatments:
+            found.append(_v("4.1", beat.id, f"treatment {beat.treatment!r} is not one of the "
+                            f"style's broll.treatments {b.treatments} (103)"))  # fmt: skip
+    for before, beat in pairwise(beats):
+        if (
+            beat.treatment is not None and beat.treatment == before.treatment
+            and beat.treatment in b.no_repeat_treatments
+        ):  # fmt: skip
+            found.append(_v("4.1", beat.id, f"treatment {beat.treatment!r} runs back to back "
+                            f"after {before.id}; vary the picture treatment (103)"))  # fmt: skip
+    if b.card_max_per_60s is not None:
+        cap = math.ceil(b.card_max_per_60s * runtime / 60 - EPS)
+        cards = [beat.id for beat in beats if beat.treatment == "card"]
+        if len(cards) > cap:
+            found.append(_v("4.1", cards[cap], f"{len(cards)} card treatments; "
+                            f"broll.card_max_per_60s allows {cap} in {runtime:g} s, so another "
+                            "treatment here (103)"))  # fmt: skip
+    return found
 
 
 def _clips(beats: Sequence[Beat], runtime: float, spec: StyleSpec) -> list[Violation]:

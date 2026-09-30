@@ -245,6 +245,12 @@ SourceIntent = Literal["search", "generate", "reuse"]
 # on the cut (the picture layers only; the PIP circle and the captions never blink).
 Transition = Literal["cut", "fade", "whip", "zoom", "spring", "wipe", "flash"]
 EventKind = Literal["stamp", "ring", "lower_third", "none"]
+# 103: how a still beat's picture is shown, picked per image by the planner like an editor
+# (the style's `broll.treatments`): full-bleed `photo`, `crop_fill` (full screen cropped
+# round the face), `backdrop` (the image sharp over its own blurred, enlarged copy),
+# `polaroid` (a white-bordered print that drops and settles) or the framed `card`.
+PictureTreatment = Literal["photo", "crop_fill", "backdrop", "polaroid", "card"]
+PICTURE_TREATMENTS: tuple[PictureTreatment, ...] = get_args(PictureTreatment)
 
 
 class Span(StrictModel):
@@ -483,6 +489,14 @@ class Beat(StrictModel):
     # `broll.highlights_max_per_60s`.
     highlight: Highlight | None = None
     motion: Motion | None = None
+    # 103: the picture treatment of a still (`photo` / `card`) beat, one of the style's
+    # `broll.treatments`; None leaves it to code. Code draws another allowed one when the
+    # image cannot take it, and never the same framed treatment twice in a row.
+    treatment: PictureTreatment | None = Field(
+        default=None,
+        description="a photo or card beat only: how the picture is shown, one of the "
+        "style's broll.treatments; vary it from beat to beat, never the same twice in a row",
+    )
     subject_kind: SubjectKind | None = None
     depicts: Depicts | None = None
     query: str = ""
@@ -1274,6 +1288,11 @@ class CardSpec(StrictModel):
     origin_x: float = 0.5
     origin_y: float = 0.5
     highlight: HighlightSpec | None = None
+    # 103: a polaroid drops `drop_px` from above and settles in `drop_s` under a soft shadow
+    # `shadow_px` deep; 0 on every other box (and on a beat carrying the print on).
+    drop_px: float = 0.0
+    drop_s: float = 0.0
+    shadow_px: float = 0.0
 
 
 class VisualSpec(StrictModel):
@@ -1286,7 +1305,10 @@ class VisualSpec(StrictModel):
     file covering the frame, muted, played from `start_s` seconds into it at `speed`
     (the style's `broll.motion.clip.speed`), with the same slow push numbers."""
 
-    treatment: Literal["photo", "card", "clip"]
+    # 103: `backdrop` and `polaroid` carry their box in `card` (no border and no tilt on a
+    # backdrop; a print's border, thick bottom, tilt and drop on a polaroid); `crop_fill` is
+    # a full-screen still framed round the face, like a photo.
+    treatment: Literal["photo", "card", "clip", "backdrop", "crop_fill", "polaroid"]
     src: str
     width: int
     height: int

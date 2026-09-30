@@ -17,13 +17,29 @@ import { Framed, beatProgress } from "./photo";
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const RING_LAND_S = 0.16; // the ring lands like a stamp (4.1)
 
-export const Card: React.FC<{
+type CardProps = {
   beat: BeatSpec;
   frame: number;
   fps: number;
   width: number;
   height: number;
-}> = ({ beat, frame, fps, width, height }) => {
+};
+
+export const Card: React.FC<CardProps> = (props) => <CardBody {...props} />;
+
+// 103: the body the card, the backdrop and the polaroid share - the blurred, darkened
+// cover of the image filling the frame, and the boxed image over it (a backdrop's box has
+// no border and no tilt; a polaroid's is a print). `lift` is extra transform on the box
+// before its tilt (the polaroid's drop) and `shadow` replaces the card's shadow.
+export const CardBody: React.FC<CardProps & { lift?: string; shadow?: string }> = ({
+  beat,
+  frame,
+  fps,
+  width,
+  height,
+  lift = "",
+  shadow = "0 18px 48px rgba(0,0,0,0.55)",
+}) => {
   const visual = beat.visual;
   const card = visual?.card;
   if (!visual || !card) {
@@ -57,8 +73,8 @@ export const Card: React.FC<{
           boxSizing: "border-box",
           padding: card.border_px,
           background: "#fff",
-          boxShadow: "0 18px 48px rgba(0,0,0,0.55)",
-          transform: `rotate(${card.rotate_deg}deg) scale(${push})`,
+          boxShadow: shadow,
+          transform: `${lift} rotate(${card.rotate_deg}deg) scale(${push})`,
           transformOrigin: `${card.origin_x * 100}% ${card.origin_y * 100}%`,
         }}
       >

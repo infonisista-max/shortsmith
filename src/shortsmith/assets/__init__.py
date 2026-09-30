@@ -206,6 +206,7 @@ from shortsmith.contracts import (
     JudgeVerdict,
     Origin,
     PicturePlan,
+    PictureTreatment,
     ReferenceRecord,
     SearchOrigin,
     StickerRecord,
@@ -261,6 +262,7 @@ __all__ = [
     "VisionJudge",
     "VisionLineFinder",
     "WebImageSource",
+    "allowed_treatments",
     "card_border",
     "choose_file",
     "clip_need_s",
@@ -297,6 +299,8 @@ STOCK_ORIGINS: frozenset[str] = frozenset({"pexels", "pixabay"})
 # 058: the moving footage kind; its asset is a stock video file (`AssetRecord.kind` `clip`).
 CLIP_KIND = "clip"
 EPS = 1e-9
+# 103: the treatments sized to the image, never refused for its resolution.
+FRAMED_TREATMENTS = frozenset({"backdrop", "polaroid", "card"})
 
 # 4.4: a re-dress punches in a further step and moves the focus, so no framing repeats.
 REDRESS_ZOOM_STEP = 0.15
@@ -360,15 +364,44 @@ def classify(
 ) -> tuple[Treatment, bool]:
     """(treatment, downgraded) for an asset of the real `width` x `height`: `photo`
     when the planner asked `photo` or `auto` and the image can fill the frame, else a
-    card; a planned `photo` drawn as a card is the downgrade. The origin plays no part
-    (057)."""
+    card; a planned `photo` that cannot is the downgrade. The origin plays no part
+    (057). 103: this no longer decides the look - `photo` says the image fits full
+    screen, `card` that it does not; `allowed_treatments` lists what it may be shown as
+    and the renderer draws the planner's pick among them (`render.pick_treatment`)."""
     wants_photo = planned in ("photo", "auto")
     if wants_photo and full_bleed(width, height, max_upscale=max_upscale):
         return "photo", False
     return "card", planned == "photo"
 
 
+def allowed_treatments(
+    width: int, height: int, *, fits: bool, has_face: bool, offered: Sequence[str],
+    crop_fill_max_upscale: float,
+) -> tuple[PictureTreatment, ...]:  # fmt: skip
+    """103: the treatments an image of the real `width` x `height` allows, in the style's
+    `offered` order: `photo` when it fits the frame full screen (`classify`), `crop_fill`
+    when it has a face and covers 1080x1920 within `crop_fill_max_upscale`, and the three
+    framed ones (`backdrop`, `polaroid`, `card`) always - they are sized to the image's
+    resolution. Never empty: the card is what any still can be."""
+
+    def allows(name: str) -> bool:
+        if name == "photo":
+            return fits
+        if name == "crop_fill":
+            return has_face and covers_frame(width, height, crop_fill_max_upscale)
+        return name in FRAMED_TREATMENTS
+
+    allowed: tuple[PictureTreatment, ...] = tuple(
+        cast("PictureTreatment", t) for t in offered if allows(t)
+    )
+    return allowed or ("card",)
+
+
 def _planned(beat: Beat) -> Planned:
+    """103: a beat the planner gave a `treatment` is judged on size alone (`auto`); the
+    look is picked at render."""
+    if beat.treatment is not None:
+        return "auto"
     return beat.kind if beat.kind in ("photo", "card") else "auto"  # pyright: ignore[reportReturnType]
 
 

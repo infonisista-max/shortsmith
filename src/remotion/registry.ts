@@ -8,14 +8,18 @@
 // Emoji 3D pop above the PIP circle or near its subject. 059 adds `title_strip`, the fixed
 // topic bar a recipe style keeps at the top of the frame until the finale. 078 adds
 // `highlight`, the marker sweeping the spoken sentence on an owner's article screenshot,
-// drawn inside the screenshot's card.
+// drawn inside the screenshot's card. 103 adds the three picture treatments an editor picks
+// per still beside `photo` and `card`: `backdrop` (sharp over its own blurred copy),
+// `crop_fill` (full screen round the face) and `polaroid` (a dropped print).
 import type React from "react";
+import { Backdrop } from "./components/backdrop";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
 import { Clip } from "./components/clip";
 import { Counter } from "./components/counter";
+import { CropFill } from "./components/crop_fill";
 import { Cut } from "./components/cut";
 import { Fade } from "./components/fade";
 import { Finale } from "./components/finale";
@@ -30,6 +34,7 @@ import { MapBase } from "./components/map";
 import { ObjectPath } from "./components/object_path";
 import { Photo } from "./components/photo";
 import { PinDrop } from "./components/pin_drop";
+import { Polaroid } from "./components/polaroid";
 import { Pip } from "./components/pip";
 import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
@@ -45,12 +50,14 @@ import { Zoom } from "./components/zoom";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const REGISTRY: Record<string, React.ComponentType<any>> = {
+  backdrop: Backdrop,
   bubble: Bubble,
   captions: Captions,
   card: Card,
   chart: Chart,
   clip: Clip,
   counter: Counter,
+  crop_fill: CropFill,
   cut: Cut,
   fade: Fade,
   finale: Finale,
@@ -65,6 +72,7 @@ export const REGISTRY: Record<string, React.ComponentType<any>> = {
   object_path: ObjectPath,
   photo: Photo,
   pin_drop: PinDrop,
+  polaroid: Polaroid,
   pip: Pip,
   route_arrow: RouteArrow,
   split: Split,

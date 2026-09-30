@@ -11,10 +11,12 @@ snag's `fallback_id`, the most targeted fix code can infer from the problem text
 Options for a beat (`beat_options`): `keep` (only when the problem is soft), one drop
 per layer the beat carries, `plain_cut` when it enters on anything else, the map ones
 on a map beat (`frame_markers` only when every marker and route point resolves in the
-geocoder the renderer uses; `drop_route` when it has a route), and `replace_visual`
-last (never on the finale). `fallback_for` picks, in order: a layer word in the problem
--> drop that layer; an `enter` problem -> `plain_cut`; a map problem -> `frame_markers`
-when offered, else `replace_visual`; hard -> `replace_visual`; soft -> `keep`.
+geocoder the renderer uses; `drop_route` when it has a route), one `treatment:<name>` swap
+per other picture treatment on a beat the planner gave one (103; never its own, never a
+neighbour's), and `replace_visual` last (never on the finale). `fallback_for` picks, in
+order: a layer word in the problem -> drop that layer; an `enter` problem -> `plain_cut`;
+a `treatment` problem -> the first swap; a map problem -> `frame_markers` when offered,
+else `replace_visual`; hard -> `replace_visual`; soft -> `keep`.
 """
 
 from __future__ import annotations
@@ -29,7 +31,13 @@ from pydantic import BaseModel, ValidationError
 
 from shortsmith import geo, jobs
 from shortsmith.assets.generate import is_named
-from shortsmith.contracts import Beat, EditorDecision, PicturePlan, Transcript
+from shortsmith.contracts import (
+    PICTURE_TREATMENTS,
+    Beat,
+    EditorDecision,
+    PicturePlan,
+    Transcript,
+)
 from shortsmith.editor import repairs
 from shortsmith.editor.repairs import LAYERS, Layer, RepairError
 from shortsmith.jobs import Clock, Job
@@ -52,6 +60,7 @@ __all__ = [
 
 KEEP = "keep"
 REPLACE = "replace_visual"
+TREATMENT_PREFIX = "treatment:"  # 103: a picture-treatment swap
 DELIVER = "deliver_with_note"
 Patch = Callable[[PicturePlan], PicturePlan]
 
@@ -153,9 +162,11 @@ def beat_options(
     hard: bool,
     geocoder: geo.Geocoder | None = None,
     keep: bool = True,
+    treatments: Sequence[str] = PICTURE_TREATMENTS,
 ) -> list[Option]:
     """The real options for one beat (see the module docstring); `keep` False leaves the
-    keep option out even when the problem is soft (a render failure cannot be kept)."""
+    keep option out even when the problem is soft (a render failure cannot be kept).
+    `treatments` are the style's `broll.treatments`, the swaps offered in their order."""
     beat = repairs.beat_of(plan, beat_id)
     options: list[Option] = []
     if keep and not hard:
@@ -178,6 +189,8 @@ def beat_options(
                 lambda p: repairs.plain_cut(p, beat_id),
             )  # fmt: skip
         )
+    if beat.treatment is not None:
+        options += _treatment_swaps(plan, beat, treatments)
     if beat.kind == "map" and beat.map is not None:
         coder = geocoder or geo.GazetteerGeocoder()
         box = repairs.marker_bbox(beat, coder)
@@ -199,6 +212,23 @@ def beat_options(
     return options
 
 
+def _treatment_swaps(plan: PicturePlan, beat: Beat, treatments: Sequence[str]) -> list[Option]:
+    """103: one swap per treatment that is not the beat's own nor either neighbour's."""
+    ids = [b.id for b in plan.beats]
+    i = ids.index(beat.id)
+    taken = {plan.beats[j].treatment for j in (i - 1, i + 1) if 0 <= j < len(ids)}
+    taken.add(beat.treatment)
+    return [
+        Option(
+            f"{TREATMENT_PREFIX}{name}",
+            f"show this beat's picture as {name!r} instead of {beat.treatment!r}",
+            lambda p, name=name: repairs.set_treatment(p, beat.id, name),
+        )  # fmt: skip
+        for name in treatments
+        if name not in taken
+    ]
+
+
 def fallback_for(problem: str, options: Sequence[Option], *, hard: bool) -> str:
     """The most targeted fix code can infer from `problem` among `options` (module doc)."""
     ids = {o.id for o in options}
@@ -212,6 +242,9 @@ def fallback_for(problem: str, options: Sequence[Option], *, hard: bool) -> str:
             return f"drop_{layer}"
     if says("enter") and "plain_cut" in ids:
         return "plain_cut"
+    swaps = [o.id for o in options if o.id.startswith(TREATMENT_PREFIX)]
+    if says("treatment") and swaps:
+        return swaps[0]
     if any(says(w) for w in MAP_WORDS):
         if "frame_markers" in ids:
             return "frame_markers"

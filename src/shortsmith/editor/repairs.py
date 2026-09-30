@@ -15,6 +15,8 @@ plan already holds, or (`frame_markers`) frames a map by coordinates the geocode
 - `place_reference(plan, beat, ref)`: the beat shows the owner's reference.
 - `retile(plan, runtime)`: the beats tile 0..runtime with no gap or overlap.
 - `strip_overlays(plan)`: every overlay layer off every beat (the plain render fallback).
+- `set_treatment(plan, beat, treatment)`: the beat's picture treatment swapped for another
+  of the vocabulary (103: a treatment repeated on consecutive beats).
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from typing import Literal, get_args
 
 from shortsmith import geo
 from shortsmith.contracts import (
+    PICTURE_TREATMENTS,
     Beat,
     CutPlan,
     Event,
@@ -269,3 +272,11 @@ def strip_overlays(plan: PicturePlan, beat_ids: Sequence[str] | None = None) -> 
     wanted = set(beat_ids) if beat_ids is not None else None
     beats = [stripped(b) if wanted is None or b.id in wanted else b for b in plan.beats]
     return plan.model_copy(update={"beats": beats})
+
+
+def set_treatment(plan: PicturePlan, beat_id: str, treatment: str) -> PicturePlan:
+    """103: the beat shows its picture as `treatment` (one of `PICTURE_TREATMENTS`); the
+    renderer still falls back to an allowed one when the image cannot take it."""
+    if treatment not in PICTURE_TREATMENTS:
+        raise RepairError(f"{beat_id}: {treatment!r} is not a picture treatment")
+    return _with_beat(plan, beat_id, lambda b: b.model_copy(update={"treatment": treatment}))

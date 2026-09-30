@@ -39,16 +39,21 @@
 // Ticket 058 (4.1 as amended): a `clip` treatment is a full-screen muted stock video drawn
 // in the photo's layer, under the PIP circle, the overlays and the captions.
 //
+// Ticket 103: the picture treatments an editor picks per still (`backdrop`, `crop_fill`,
+// `polaroid`) are drawn in the same layer as the photo and the card they stand beside.
+//
 // Ticket 059: a recipe style's fixed title strip (`title_strip`) sits above the beat
 // overlays and under the captions from the first frame to the finale's first frame.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
+import { Backdrop } from "./components/backdrop";
 import { Bubble } from "./components/bubble";
 import { Captions } from "./components/captions";
 import { Card } from "./components/card";
 import { Chart } from "./components/chart";
 import { Clip } from "./components/clip";
 import { Counter } from "./components/counter";
+import { CropFill } from "./components/crop_fill";
 import { Finale } from "./components/finale";
 import { FlashOverlay, flashAt } from "./components/flash";
 import { HookCards } from "./components/hook_cards";
@@ -60,6 +65,7 @@ import { MapBase } from "./components/map";
 import { ObjectPath } from "./components/object_path";
 import { Photo } from "./components/photo";
 import { PinDrop } from "./components/pin_drop";
+import { Polaroid } from "./components/polaroid";
 import { Pip, Presenter } from "./components/pip";
 import { RouteArrow } from "./components/route_arrow";
 import { Split } from "./components/split";
@@ -94,6 +100,15 @@ const BeatLayers: React.FC<{ spec: RenderSpec; beat: BeatSpec; frame: number }> 
       ) : null}
       {visual?.treatment === "clip" ? (
         <Clip beat={beat} frame={frame} fps={spec.fps} width={spec.width} height={spec.height} />
+      ) : null}
+      {visual?.treatment === "backdrop" ? (
+        <Backdrop beat={beat} frame={frame} fps={spec.fps} width={spec.width} height={spec.height} />
+      ) : null}
+      {visual?.treatment === "crop_fill" ? (
+        <CropFill beat={beat} frame={frame} width={spec.width} height={spec.height} />
+      ) : null}
+      {visual?.treatment === "polaroid" ? (
+        <Polaroid beat={beat} frame={frame} fps={spec.fps} width={spec.width} height={spec.height} />
       ) : null}
       {beat.hook ? (
         <HookCards spec={beat.hook} style={spec.caption_style} frame={since} fps={spec.fps} />
