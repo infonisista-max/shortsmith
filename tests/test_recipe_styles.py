@@ -38,8 +38,9 @@ def test_the_three_recipes_load_shipped_at_version_3_with_every_component_regist
 ) -> None:
     for name in RECIPES:
         spec = specs[name]
-        # 064 v1 ... v15 102, v16 108 (the map's stamp margin); vishva v16 107, v17 108
-        want = "17" if name in ("vishva", "fastfacts") else "16"  # fastfacts v17 109
+        # 064 v1 ... v15 102, v16 108 (the map's stamp margin); vishva v16 107, v17 108,
+        # v18 110c (wipe, the stills-base prose gone)
+        want = {"vishva": "18", "fastfacts": "17"}.get(name, "16")  # fastfacts v17 109
         assert spec.status == "shipped" and spec.version == want, name
         missing = [c for c in spec.requires_components if c not in REGISTRY]
         assert not missing, (name, missing)
@@ -81,7 +82,9 @@ def test_each_recipe_flashes_and_allows_whooshes_under_the_060_rule(
     assert "flash" in spec.broll.enter_transitions
     assert styles.allows_whoosh(spec.sound)
     assert spec.sound.whoosh is not None
-    assert spec.sound.whoosh.model_dump() == WHOOSH
+    # 110c: a whoosh on every moving enter the style offers (vishva's wipe too)
+    moving = [t for t in spec.broll.enter_transitions if t != "cut"]
+    assert spec.sound.whoosh.model_dump() == {**WHOOSH, "on": [*moving, "pop"]}
     for banned in ("sweep", "riser", "rumble_crescendo"):
         assert banned in spec.sound.forbidden, banned
 

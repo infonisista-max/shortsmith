@@ -139,7 +139,7 @@ from shortsmith import planner as planner_module
 from shortsmith import transcriber as transcriber_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
 from shortsmith.config import Settings
-from shortsmith.contracts import AudioTags, CriticReport, ReferenceRecord
+from shortsmith.contracts import AudioTags, ComparisonRow, CriticReport, ReferenceRecord
 from shortsmith.editor import change
 from shortsmith.ingest import Limits, ReferenceUpload, Rejected, VideoUpload
 from shortsmith.jobs import RATING_MAX, RATING_MIN, SETTLED, STATUS_ORDER, Clock, Job, Status
@@ -1449,7 +1449,7 @@ def _inventory_block(job: Job) -> str:
         return ""
     head = "<h2>Against the references (advisory)</h2>\n"
     if found.status == "not_analysed" or found.comparison is None:
-        return f'{head}<p class="inventory-not-analysed">Not analysed: {html.escape(found.reason)}</p>\n'  # noqa: E501
+        return f'{head}<p class="inventory-not-analysed">Not analysed: {html.escape(found.reason)}</p>\n{_variety_table(found.variety)}'  # noqa: E501
     table = found.comparison
     note = (
         f'<p class="inventory-note">{html.escape(table.note)} for {html.escape(table.style)} '
@@ -1472,7 +1472,28 @@ def _inventory_block(job: Job) -> str:
     return (
         f'{head}{note}<table class="inventory">\n'
         "  <tr><th>row</th><th>ours</th><th>plan</th><th>median</th><th>range</th>"
-        f"<th>references</th></tr>\n{rows}\n</table>\n"
+        f"<th>references</th></tr>\n{rows}\n</table>\n{_variety_table(found.variety)}"
+    )
+
+
+def _variety_table(rows: list[ComparisonRow]) -> str:
+    """110c: the variety line of the final plan against the style's numbers; a red row
+    is logged only, never a gate. Nothing for a job with no plan."""
+    if not rows:
+        return ""
+    lines: list[str] = []
+    for row in rows:
+        red = ' class="outside"' if row.outside else ""
+        spread = "" if row.low is None else f"{_cell(row.low)}–{_cell(row.high)}"
+        lines.append(
+            f"  <tr{red}><td>{html.escape(row.name)}</td><td>{_cell(row.ours)}</td>"
+            f"<td>{spread}</td><td>{html.escape(row.refs)}</td></tr>"
+        )
+    body = "\n".join(lines)
+    return (
+        '<p class="inventory-note">Variety of the plan (logged, never a gate)</p>\n'
+        '<table class="variety">\n  <tr><th>row</th><th>ours</th><th>target</th>'
+        f"<th>style</th></tr>\n{body}\n</table>\n"
     )
 
 

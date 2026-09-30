@@ -18,20 +18,31 @@ the job stays where the verdict left it.
 `summary(job)` is what `meta.json` and the job page read: the comparison of the card
 with the style's reference cards (`reference.compare`), or the reason it is missing;
 the match-share row carries our plan's share too (077).
+
+110c: whatever the analysis did, the step adds the variety line of the job's final plan
+(`work/plan.json`, `reference.variety`) to `out/inventory.json` under `variety`; each
+red row is a `job.log` line, never a gate, and `summary` carries the rows.
 """
 
 from __future__ import annotations
 
+import json
 import math
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, ValidationError
 
 from shortsmith import jobs, render
 from shortsmith.config import Settings
-from shortsmith.contracts import STORY_PARTS, OwnInventory, PicturePlan, SoundStory
+from shortsmith.contracts import (
+    STORY_PARTS,
+    ComparisonRow,
+    OwnInventory,
+    PicturePlan,
+    SoundStory,
+)
 from shortsmith.jobs import Job
 from shortsmith.ledger import Ledger
 from shortsmith.reference import (
@@ -42,12 +53,15 @@ from shortsmith.reference import (
     examples,
     inventory,
     load_card,
+    variety,
 )
 from shortsmith.reference import compare as compare_module
 from shortsmith.reference.gemini import Answer, GeminiAnalyser, ReferenceAnalyser
+from shortsmith.styles import StyleSpec
 
 NAME = "inventory.json"
 VIDEO = "short.mp4"
+VARIETY = "variety"  # 110c: the key of the variety line in out/inventory.json
 STEP = "reference"
 PROVIDER = "reference"
 LOG_PREFIX = "inventory: "
@@ -110,8 +124,10 @@ class SelfInventory:
         ledger: Callable[[], Ledger] | None = None,
         registry: Collection[str] | None = None,
         components_md: Path = COMPONENTS_MD,
+        specs: Mapping[str, StyleSpec] | None = None,
     ) -> None:
         self.analyser = analyser
+        self._specs = specs
         self._ledger = ledger
         self._registry = registry
         self._components_md = components_md
@@ -120,7 +136,11 @@ class SelfInventory:
         try:
             made = self._analyse(job)
         except Exception as exc:  # noqa: BLE001 - advisory: any failure is `not_analysed`
-            return _not_analysed(job, str(exc).splitlines()[0] if str(exc) else repr(exc))
+            made = _not_analysed(job, str(exc).splitlines()[0] if str(exc) else repr(exc))
+        try:
+            _add_variety(job, self._specs if self._specs is not None else render.loaded_styles())
+        except Exception as exc:  # noqa: BLE001 - advisory: the line is logged, never a gate
+            jobs.note(job, f"{LOG_PREFIX}variety not measured: {str(exc).splitlines()[0]}")
         return made
 
     def _analyse(self, job: Job) -> ReferenceInventoryV2:
@@ -154,12 +174,49 @@ def _not_analysed(job: Job, reason: str) -> NotAnalysed:
     return result
 
 
+def _add_variety(job: Job, specs: Mapping[str, StyleSpec]) -> None:
+    """110c: the variety line of `work/plan.json` into `out/inventory.json`; a red row
+    is a job.log line only. No plan (a job that never planned): nothing."""
+    plan_path = job.work_dir / "plan.json"
+    if not plan_path.is_file():
+        return
+    plan = PicturePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+    rows = variety.rows(plan.beats, specs[job.record.style])
+    path = job.out_dir / NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data[VARIETY] = [row.model_dump(mode="json") for row in rows]
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    for row in rows:
+        if row.outside:
+            spread = "" if row.low is None else f" outside {row.low:g}-{row.high:g}"
+            jobs.note(job, f"{LOG_PREFIX}{row.name} {row.ours}{spread} ({row.refs}; logged, "
+                      "never a gate)")  # fmt: skip
+
+
+def load_variety(job: Job) -> list[ComparisonRow]:
+    """110c: the variety rows in `out/inventory.json`; none before the step or for a
+    job with no plan."""
+    path = job.out_dir / NAME
+    if not path.is_file():
+        return []
+    rows = _fields(path).get(VARIETY, [])
+    return [ComparisonRow.model_validate(row) for row in cast(list[object], rows)]
+
+
+def _fields(path: Path) -> dict[str, object]:
+    data: object = json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, object], data) if isinstance(data, dict) else {}
+
+
 def load(job: Job) -> ReferenceInventoryV2 | NotAnalysed | None:
-    """`out/inventory.json` as written: the card, the reason, or None before the step."""
+    """`out/inventory.json` as written: the card, the reason, or None before the step
+    (the 110c `variety` key beside them is `load_variety`'s)."""
     path = job.out_dir / NAME
     if not path.is_file():
         return None
-    text = path.read_text(encoding="utf-8")
+    data = _fields(path)
+    data.pop(VARIETY, None)
+    text = json.dumps(data)
     try:
         return NotAnalysed.model_validate_json(text)
     except ValidationError:
@@ -175,12 +232,13 @@ def summary(job: Job, inventory_dir: Path = INVENTORY_DIR) -> OwnInventory | Non
     the reason there is none; None before the step ran."""
     try:
         found = load(job)
+        lined = load_variety(job)
     except (ValueError, ValidationError) as exc:
         return OwnInventory(status="not_analysed", reason=f"out/{NAME} does not read: {exc}")
     if found is None:
         return None
     if isinstance(found, NotAnalysed):
-        return OwnInventory(status="not_analysed", reason=found.reason)
+        return OwnInventory(status="not_analysed", reason=found.reason, variety=lined)
     style = job.record.style
     cards = compare_module.references_for(style, inventory_dir)
     plan_path = job.work_dir / "plan.json"  # 077: the plan's match share, beside ours
@@ -200,6 +258,7 @@ def summary(job: Job, inventory_dir: Path = INVENTORY_DIR) -> OwnInventory | Non
         comparison=compare_module.compare(
             found, cards, style=style, plan_match=plan_match, plan_moods=plan_moods
         ),
+        variety=lined,
     )
 
 

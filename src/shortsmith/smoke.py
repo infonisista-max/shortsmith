@@ -133,7 +133,7 @@ from shortsmith.planner import FakePlanner, Planner, kinds_named
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa import technical
 from shortsmith.qa.critic import FakeCritic
-from shortsmith.reference import PROMPT_VERSION, ReferenceInventoryV2, own
+from shortsmith.reference import PROMPT_VERSION, ReferenceInventoryV2, own, variety
 from shortsmith.reference.gemini import FakeAnalyser
 from shortsmith.render import Renderer
 from shortsmith.transcriber import FakeTranscriber, Transcriber
@@ -478,7 +478,7 @@ def run_smoke(
         f"{len(manifest.assets)} assets, face {faces}/{presenter.STRIP_COUNT}, "
         f"{' '.join(TECHNICAL_CHECKS)} pass, "
         f"critic {verdict.overall}/10 {'advisory' if verdict.advisory else 'blocking'}, "
-        f"inventory {compared} rows, "
+        f"inventory {compared} rows (variety incl.), "
         f"contact {sheet.stat().st_size // 1024} KiB, "
         f"fixture {clip.stat().st_size // 1024} KiB, {elapsed:.1f}s"
     )
@@ -1563,7 +1563,13 @@ def check_inventory(job: jobs.Job, analyser: FakeAnalyser, style: str) -> int:
     rows = {row.name: row for row in found.comparison.rows}
     check("shots per 10 s" in rows, f"meta.json's comparison has no shots row: {sorted(rows)}")
     check(rows["shots per 10 s"].ours == 5.0, f"shots per 10 s is {rows['shots per 10 s'].ours}")
-    return len(rows)
+    # 110c: the variety line of the final plan, in out/inventory.json and meta.json
+    # (red rows are job.log lines only, never a gate).
+    lined = [row.name for row in own.load_variety(job)]
+    want = [variety.TREATMENTS, variety.CLIP_SHARE, variety.TRANSITIONS, variety.REPEATS]
+    check(lined == want, f"out/inventory.json's variety line is {lined}")
+    check([row.name for row in found.variety] == want, "meta.json carries no variety line")
+    return len(rows) + len(found.variety)
 
 
 def check_publishing(job: jobs.Job, plan: PicturePlan) -> None:

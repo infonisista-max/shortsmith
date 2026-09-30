@@ -28,7 +28,7 @@ RECIPES = ("fastfacts", "footage", "vishva")
 # 059 changed the explainer's aliases (1.1 as amended): its front matter was v11; 064's
 # 12 dB speech-band margin bumped every style once more.
 VERSIONS = {
-    "explainer": "28", "educational": "20", "animated": "20", "hitech": "25", "vishva": "17",
+    "explainer": "28", "educational": "20", "animated": "20", "hitech": "25", "vishva": "18",
     "fastfacts": "17",
 }  # fmt: skip  (107: explainer and vishva offer the banner)  # 102
 FORBIDDEN = ["sweep", "riser", "rumble_crescendo"]  # 7.1, operator rider; 070 lifts whoosh

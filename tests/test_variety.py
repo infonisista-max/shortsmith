@@ -75,8 +75,20 @@ def test_every_style_carries_the_variety_numbers() -> None:
         assert b.enter_run_max == 2, name  # never the same enter three beats running
 
 
-def test_vishva_takes_the_operators_clip_range_until_110c() -> None:
+def test_vishva_keeps_the_operators_clip_range_after_the_reference_check() -> None:
     assert _spec("vishva").broll.clip_share_target == (0.20, 0.40)
+
+
+def test_vishva_is_re_derived_wipe_offered_and_stills_no_longer_the_base() -> None:
+    """110c: `wipe` (built, in its `transitions` rows) is one of vishva's enters; its
+    prose no longer calls full-screen stills the base, nor leads a number beat to reuse
+    the previous asset."""
+    spec = _spec("vishva")
+    assert spec.version == "18"
+    assert "wipe" in spec.broll.enter_transitions
+    text = (Path("styles") / "vishva.md").read_text(encoding="utf-8")
+    assert "stills are the base" not in text
+    assert "beats reuse the previous asset" not in text
 
 
 def test_clip_max_fraction_is_retired_for_the_target_top() -> None:
@@ -252,3 +264,16 @@ def test_the_creative_editor_points_at_the_clip_share_target() -> None:
     assert "clip_share_target" in text
     assert "clip_max_fraction" not in text
 
+
+
+def test_the_styles_readme_says_where_the_creative_editor_rule_lives() -> None:
+    """110c: the operator's answer - the prompt section, the style keys and prose, the
+    grammar's soft rules and the cross-style worked examples, each named."""
+    text = (Path("styles") / "README.md").read_text(encoding="utf-8")
+    section = text.split("## Where the creative-editor rule lives", 1)[1]
+    for place in ("picture_v20.md:16", "The creative editor", "broll.clip_share_target",
+                  "B-roll", "grammar.py:1781", "grammar.variety", "grammar.reuse",
+                  "reference/examples.py:109", "reference/variety.py"):  # fmt: skip
+        assert place in section, place
+    prompt = (PROMPTS_DIR / "picture_v20.md").read_text(encoding="utf-8").splitlines()
+    assert prompt[15].startswith("The creative editor")

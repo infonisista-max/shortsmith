@@ -53,3 +53,14 @@ Three shipped styles built from the reference inventory (036: `docs/reference/in
 The prose sections are exactly, in order: **Beat grammar**, **B-roll**, **Captions**, **Sound**, **Finale**. The renderer and QA read only the numbers; the planner reads numbers and prose.
 
 Rules: numbers are contracts (a sweep, a tight PIP crop, a collision fails QC). Add a style by adding a file; never hard-code a style rule in code. Quote `"off"` in YAML (a bare `off` is a boolean). Every `sound.forbidden` list bans sweeps and risers; cues are the closed palette tick, whoosh, bass, drum, thump and ding, each with its row or length in `sound` (070), and never a ring, bell or chime.
+
+## Where the creative-editor rule lives (110)
+
+The operator's rule "plan like a creative human editor, never a template" lives in four places; change it there, never in other code:
+
+- **The prompt:** "The creative editor (the standing rule for every job)", `src/shortsmith/planner/prompts/picture_v20.md:16-51` - read the story, ask what each line needs, the full vocabulary, footage a range, the treatment and enter variety, a named person never a stranger.
+- **The style:** the front-matter keys `broll.clip_share_target`, `broll.treatments` / `no_repeat_treatments`, `broll.enter_transitions`, `broll.stamps_max_per_60s`, `broll.non_cut_min_share`, `broll.enter_run_max`, `broll.reuse_max` (the `broll` row above), and each spec's **B-roll** prose (its Recipe, Moving footage, Count unique assets and Transitions bullets, with their "Variety (110b)" sentence).
+- **The soft rules** (never a failure; the editor repairs): `grammar.variety` (`src/shortsmith/grammar.py:1781`, called at `:262`: stamps, non-cut share, enter runs), `grammar.reuse` (`:1745`: carry-ons and set pieces count), `grammar.treatments` (`:758`: no framed treatment back to back), the clip ceiling in `_clips` and the low-end note `clip_share_note` (`:852`).
+- **The worked examples:** `reference.examples.select` (`src/shortsmith/reference/examples.py:109`) adds one Tier A card of another style that shows footage (`shows_footage` `:129`, `is_vocabulary` `:136`) when fewer than `FOOTAGE_EXAMPLES_MIN` (`:58`) of the own-style picks do.
+
+What a job did against it is the variety line (110c, `src/shortsmith/reference/variety.py`): treatments used, clip share against the target, transitions used, repeats, in `out/inventory.json` (`variety`), `meta.json` and the job page; a red row is a `job.log` line only, never a gate.

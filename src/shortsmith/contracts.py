@@ -2385,6 +2385,10 @@ class OwnInventory(StrictModel):
     status: Literal["analysed", "not_analysed"]
     reason: str = ""
     comparison: InventoryComparison | None = None
+    # 110c: the variety line of the job's final plan against the style (analysed or
+    # not): treatments, clip share against the target, transitions, repeats; red is
+    # logged only, never a gate (`reference.variety`).
+    variety: list[ComparisonRow] = []
 
 
 class Meta(StrictModel):

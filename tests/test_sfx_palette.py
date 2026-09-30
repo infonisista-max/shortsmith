@@ -190,8 +190,8 @@ def _front(name: str) -> str:
         ('tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop]}',
          'tick: {max_per_60s: 6, min_gap_s: 2.0, max_len_s: 0.25, "on": [pop, flash]}',
          "sound.tick.on"),
-        ('"on": [fade, whip, zoom, spring, flash, pop]}',
-         '"on": [fade, whip, zoom, spring, flash, wipe, pop]}', "sound.whoosh.on"),
+        ('"on": [fade, whip, zoom, spring, wipe, flash, pop]}',  # 110c: vishva's wipe
+         '"on": [fade, whip, zoom, spring, wipe, flash, light_flare, pop]}', "sound.whoosh.on"),
         ('"on": [idea_sticker]}', '"on": [pop]}', "sound.ding.on"),
     ],
 )  # fmt: skip

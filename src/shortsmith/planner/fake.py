@@ -150,9 +150,10 @@ ENTER_FALLBACKS: Mapping[Transition, tuple[Transition, ...]] = {
     "wipe": ("fade",),
     "zoom": ("fade",),
     "flash": ("fade",),  # 060: the turn back to the presenter fades where no style flashes
-    # 107, 110b: the wall springs where the style has no flare (not a cut: the variety
-    # numbers' non-cut share and enter runs)
-    "light_flare": ("spring", "wipe", "fade", "zoom"),
+    # 107, 110b: the wall wipes or springs where the style has no flare (not a cut: the
+    # variety numbers' non-cut share and enter runs); 110c: wipe first, so vishva's new
+    # wipe is drawn (b08 already springs)
+    "light_flare": ("wipe", "spring", "fade", "zoom"),
     "fade": (),
 }
 WHOOSH = "whoosh"

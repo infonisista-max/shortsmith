@@ -20,7 +20,14 @@ from pydantic import SecretStr
 
 from shortsmith import app, jobs, ledger, meta, pipeline, presenter, render
 from shortsmith.config import Settings
-from shortsmith.contracts import ComparisonRow, InventoryComparison
+from shortsmith.contracts import (
+    Beat,
+    ComparisonRow,
+    InventoryComparison,
+    Kind,
+    PictureTreatment,
+    Transition,
+)
 from shortsmith.jobs import Job
 from shortsmith.ledger import Caps, Ledger, Prices
 from shortsmith.planner import FakePlanner
@@ -35,6 +42,7 @@ from shortsmith.reference import (
     Tier,
     own,
     parse_answer,
+    variety,
 )
 from shortsmith.reference import __main__ as cli
 from shortsmith.reference import compare as compare_module
@@ -521,3 +529,85 @@ def test_the_job_page_shows_the_reason_when_not_analysed(tmp_path: Path) -> None
     meta.write(job)
     page = app.render_job_page(jobs.load(job.path))
     assert "Not analysed: " in page and "upload refused" in page
+
+
+# --- 110c: the variety line ----------------------------------------------------------------
+
+VISHVA = render.loaded_styles()["vishva"]
+
+
+def _beat(i: int, kind: Kind = "photo", *, enter: Transition = "cut",
+          treatment: PictureTreatment | None = None, asset: str | None = None) -> Beat:  # fmt: skip
+    return Beat(id=f"b{i:02d}", start=2.0 * i, end=2.0 * (i + 1), mode="pip", kind=kind,
+                enter=enter, treatment=treatment, asset_id=asset)  # fmt: skip
+
+
+def test_the_variety_line_names_treatments_clip_share_transitions_and_repeats() -> None:
+    beats = [
+        _beat(0, "clip", asset="c1"),
+        _beat(1, treatment="photo", enter="fade", asset="a"),
+        _beat(2, treatment="crop_fill", enter="wipe", asset="b"),
+        _beat(3, "clip", enter="whip", asset="c2"),
+        _beat(4, treatment="backdrop", enter="fade", asset="a"),
+    ]
+    rows = {row.name: row for row in variety.rows(beats, VISHVA)}
+    assert list(rows) == [variety.TREATMENTS, variety.CLIP_SHARE, variety.TRANSITIONS,
+                          variety.REPEATS]  # fmt: skip
+    treatments = rows[variety.TREATMENTS]
+    assert treatments.ours == "photo 1, crop_fill 1, backdrop 1"
+    assert "photo, crop_fill, backdrop, polaroid, card" in treatments.refs
+    clip = rows[variety.CLIP_SHARE]
+    assert (clip.ours, clip.low, clip.high, clip.outside) == (0.4, 0.2, 0.4, False)
+    enters = rows[variety.TRANSITIONS]
+    assert enters.ours == "fade 2, cut 1, wipe 1, whip 1"
+    assert "wipe" in enters.refs and not enters.outside
+    repeats = rows[variety.REPEATS]
+    assert (repeats.ours, repeats.outside) == (0, False)
+    assert not any(row.outside for row in rows.values())
+
+
+def test_a_same_looking_plan_turns_the_variety_rows_red() -> None:
+    beats = [_beat(i, treatment="photo", asset="a") for i in range(4)]
+    rows = {row.name: row for row in variety.rows(beats, VISHVA)}
+    assert rows[variety.CLIP_SHARE].ours == 0.0 and rows[variety.CLIP_SHARE].outside
+    assert rows[variety.TRANSITIONS].outside  # no enter but a cut: under non_cut_min_share
+    repeats = rows[variety.REPEATS]
+    # reuse_max 2: two showings past it; photo back to back 3 times; a run of cuts past
+    # enter_run_max 2 on b02 and b03.
+    assert (repeats.ours, repeats.high, repeats.outside) == (7, 0, True)
+    assert repeats.refs == "asset reuse 2, treatment back to back 3, enter runs 2"
+
+
+def test_the_pipeline_job_carries_the_variety_line_in_inventory_meta_and_page(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    done = _pipeline_run(_uploaded(tmp_path, fixture_clip), own.SelfInventory(
+        FakeAnalyser([_answer_text()])))  # fmt: skip
+    assert isinstance(own.load(done), ReferenceInventoryV2)  # the card still reads
+    on_disk = json.loads((done.out_dir / own.NAME).read_text("utf-8"))
+    names = [row["name"] for row in on_disk["variety"]]
+    assert names == [variety.TREATMENTS, variety.CLIP_SHARE, variety.TRANSITIONS,
+                     variety.REPEATS]  # fmt: skip
+    recorded = meta.load(done)
+    assert recorded is not None and recorded.inventory is not None
+    assert [row.name for row in recorded.inventory.variety] == names
+    page = app.render_job_page(jobs.load(done.path))
+    assert '<table class="variety">' in page and variety.CLIP_SHARE in page
+    red = [row for row in recorded.inventory.variety if row.outside]
+    log = done.log_path.read_text("utf-8")
+    for row in red:  # red rows are logged only; the job is delivered all the same
+        assert f"inventory: variety: {row.name}" in log
+    assert done.status == "delivered"
+
+
+def test_the_variety_line_is_kept_when_the_short_is_not_analysed(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    done = _pipeline_run(_uploaded(tmp_path, fixture_clip), own.SelfInventory(
+        FakeAnalyser([AnalyserError("upload refused")])))  # fmt: skip
+    assert isinstance(own.load(done), own.NotAnalysed)
+    recorded = meta.load(done)
+    assert recorded is not None and recorded.inventory is not None
+    assert recorded.inventory.status == "not_analysed"
+    assert len(recorded.inventory.variety) == 4
+    assert '<table class="variety">' in app.render_job_page(jobs.load(done.path))
