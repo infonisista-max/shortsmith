@@ -27,3 +27,18 @@ AFK. Part of 111. The last one (after 111g).
 ## Files
 
 `tests/test_render_safety.py` (new), maybe a fixture helper in `tests/conftest.py`.
+
+## Done (111f)
+
+- `tests/test_render_safety.py`: a full job (real driver, real mux, fixture clip) whose
+  spec draws every `contracts.Kind` (11 planned beats, 6 overlays/events, 3 split-off
+  beats: parallax, vector_illustration, presenter_pip with a lower third); completeness
+  is asserted against `TIER1_KINDS + TIER2_KINDS`. Three variants break every sourced
+  file on disk (clip for a still; WebP as .jpg / PNG as .mp4; missing): each delivers,
+  6 s with audio, `check:` lines, the page warning, and the net never fires. b52 itself
+  (a clip in a wall cell, check off) is simplified by the net; every file missing with
+  the check off ends in the plain reel. 6 tests, about 4 min.
+- Gap found and fixed: a dropped list-row icon kept its icon box, so `<Img src="">`
+  threw in Chrome ("No src prop was passed to <Img>"); `render_check` now drops the box
+  and moves the text into its place.
+- Not added to smoke.py: each case is a 40-60 s real render; smoke stays fast.

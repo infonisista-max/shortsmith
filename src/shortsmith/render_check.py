@@ -210,7 +210,13 @@ class _Checker:
                     row = row.model_copy(update={"icon_src": fixed.src}) if fixed.changed else row
                 elif row.icon_src:
                     self.dropped(b, "row icon", row.icon_src, "the row drawn without it")
-                    row = row.model_copy(update={"icon_src": ""})
+                    # 111f: no icon box either (an empty <Img> src throws); the text
+                    # takes the icon's place.
+                    row = row.model_copy(update={
+                        "icon_src": "", "icon_size": 0.0, "icon_width": 0, "icon_height": 0,
+                        "text_left": row.icon_left if row.icon_size else row.text_left,
+                        "icon_left": 0.0,
+                    })  # fmt: skip
                 rows.append(row)
             if rows != beat.list.rows:
                 update["list"] = beat.list.model_copy(update={"rows": rows})

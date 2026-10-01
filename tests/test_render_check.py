@@ -216,6 +216,20 @@ def test_bad_items_are_dropped_or_blanked(tmp_path: Path) -> None:
     assert beat.list is not None and beat.list.rows[0].icon_src == ""
 
 
+def test_a_dropped_row_icon_leaves_no_empty_picture_in_the_row(tmp_path: Path) -> None:
+    """111f: a row drawn without its icon draws no icon box (an empty `<Img>` src
+    throws in the browser) and its text moves to where the icon was."""
+    row = ListRow(text="x", font_px=10, left=0, top=0, width=300, height=100, text_left=114,
+                  icon_src=str(tmp_path / "gone.jpg"), icon_width=320, icon_height=400,
+                  icon_left=24, icon_size=80)  # fmt: skip
+    listed = ListSpec.model_construct(rows=[row])
+    spec = _with_beat(_base_spec(), visual=_visual(_image(tmp_path / "ok.jpg")), list=listed)
+    beat = render_check.check(spec).spec.beats[0]
+    assert beat.list is not None
+    fixed = beat.list.rows[0]
+    assert (fixed.icon_src, fixed.icon_size, fixed.text_left) == ("", 0.0, 24)
+
+
 def test_a_conversion_goes_to_the_cache_dir_when_one_is_given(tmp_path: Path) -> None:
     gif = _image(tmp_path / "job" / "anim.gif", fmt="GIF")
     cache = tmp_path / "scratch"
