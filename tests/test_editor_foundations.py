@@ -200,6 +200,7 @@ def test_a_warn_check_passes_the_report() -> None:
         QaCheck(name="T8", passed=False, status="warn", detail="x")
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_waived_check_is_delivered_as_warn_and_the_run_goes_on(
     media: Media, tmp_path: Path
 ) -> None:

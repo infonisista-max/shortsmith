@@ -228,6 +228,7 @@ class _BrokenRenderer(_NoPlain):
         raise render.RenderError("remotion driver exited 1:\nno frame found")
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_failing_render_with_no_plain_reel_fails_the_job_at_rendering(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -388,6 +389,7 @@ class _RightslessGate(FakeGate):
         return super().contact_sheet(job)
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_delivered_requires_rights_and_credits(tmp_path: Path, fixture_clip: Path) -> None:
     assert pipeline.DELIVERABLES == ("short.mp4", "contact.jpg", "rights.json", "credits.md")
     done = _run(_uploaded(tmp_path, fixture_clip), gate=_RightslessGate())
@@ -396,6 +398,7 @@ def test_delivered_requires_rights_and_credits(tmp_path: Path, fixture_clip: Pat
     assert "missing out/rights.json" in done.log_path.read_text(encoding="utf-8")
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_failed_check_naming_no_beat_is_delivered_with_a_note(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -423,6 +426,7 @@ class _SheetlessGate(FakeGate):
         return job.out_dir / "contact.jpg"  # never written
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_missing_deliverables_deliver_the_plain_reel(tmp_path: Path, fixture_clip: Path) -> None:
     done = _run(_uploaded(tmp_path, fixture_clip), gate=_SheetlessGate())
     assert done.status == "delivered"  # 111g: never `failed` after planning
@@ -555,6 +559,7 @@ class _OverBudgetCritic(FakeCritic):
         raise BudgetExceeded("qa", spent_inr=70.0, estimated_inr=20.0, hard_inr=80.0)
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_the_critics_hard_cap_fails_the_job_at_qa_like_any_refused_paid_call(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -566,6 +571,7 @@ def test_the_critics_hard_cap_fails_the_job_at_qa_like_any_refused_paid_call(
     assert "plain reel: qa could not finish" in done.log_path.read_text(encoding="utf-8")
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_failed_check_never_reaches_the_critic(tmp_path: Path, fixture_clip: Path) -> None:
     """The failing gate run stops before the critic; only the re-run with the check
     waived (097) reaches it, once."""
@@ -646,6 +652,7 @@ def test_plan_request_is_built_from_the_job_files(
     assert req.asset_policy in ("any", "rights_safe")
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_job_whose_style_is_unknown_runs_with_the_default_and_says_so(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -806,6 +813,7 @@ def test_a_rejected_sound_story_is_resent_once(tmp_path: Path, fixture_clip: Pat
     assert all(c.beat_id != "b99" for c in story.cues)
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_picture_plan_rejected_twice_goes_to_the_editor_and_is_delivered(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -832,6 +840,7 @@ def test_a_picture_plan_rejected_twice_goes_to_the_editor_and_is_delivered(
     assert (job.work_dir / "plan.raw.json").is_file()  # the planner's output stays on disk
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_sound_story_rejected_twice_drops_the_named_cues_and_is_delivered(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -1455,6 +1464,7 @@ class _RenderTakes(Renderer):
         return FakeRenderer().render_plain(job, on_progress=on_progress, library=library)
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_retry_from_rendering_gets_the_full_rendering_budget(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -1703,6 +1713,7 @@ def test_the_worker_runs_a_requeued_job_from_its_step(tmp_path: Path, fixture_cl
 # --- 110b: variety breaks never fail the job ------------------------------------------------------
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_plan_of_nothing_but_cuts_is_repaired_by_the_editor_and_delivered(
     tmp_path: Path, fixture_clip: Path
 ) -> None:

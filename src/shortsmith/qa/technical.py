@@ -71,6 +71,7 @@ from shortsmith import (
     jobs,
     ledger,
     presenter,
+    quality,
     render,
     rights,
     sound,
@@ -97,6 +98,7 @@ from shortsmith.contracts import (
 )
 from shortsmith.ffmpeg import FrameStat, Loudness
 from shortsmith.jobs import Job, JobRecord
+from shortsmith.quality import QualityStop
 from shortsmith.safe_area import HEIGHT, SAFE_BOTTOM_PX, SAFE_RIGHT_PX, SAFE_TOP_PX, WIDTH
 from shortsmith.sound import sweep
 from shortsmith.styles import Budget, StyleSpec
@@ -116,6 +118,18 @@ MAX_TRUE_PEAK_DBTP = -1.5
 # with its detail kept for the page.
 CheckStatus = Literal["pass", "fail", "warn", "not_implemented"]
 WAIVED_PREFIX = "kept by the editor: "
+
+
+
+def waive(job: Job, failed: QaCheck) -> QaCheck:
+    """094: a failing check the editor waived is delivered as `warn` (forgiving); 112:
+    strict stops on it, naming the check (`QualityStop`)."""
+    return quality.downgrade(
+        job, None, f"the {failed.name} check failed", failed.detail,
+        lambda: QaCheck(name=failed.name, passed=True, status="warn",
+                        detail=WAIVED_PREFIX + failed.detail),
+    )  # fmt: skip
+
 
 CHECK_ORDER: tuple[str, ...] = (
     "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12", "T13",
@@ -1075,10 +1089,11 @@ def run(job: Job, *, specs: Mapping[str, StyleSpec] | None = None) -> QaReport:
     ):
         result = check()
         if result.status == "fail" and result.name in record.waived_checks:
-            result = QaCheck(
-                name=result.name, passed=True, status="warn",
-                detail=WAIVED_PREFIX + result.detail,
-            )  # fmt: skip
+            try:
+                result = waive(job, result)
+            except QualityStop:
+                write_report(job, report([*checks, result]))
+                raise
         checks.append(result)
         if result.status == "fail":
             break

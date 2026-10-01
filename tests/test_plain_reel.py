@@ -32,6 +32,9 @@ from shortsmith.render import FakeRenderer, Renderer
 from shortsmith.transcriber import FakeTranscriber
 from tests.test_pipeline import BRIEF
 
+# 112: the plain reel is a forgiving-mode net; strict mode fails loudly instead.
+pytestmark = pytest.mark.usefixtures("forgiving")
+
 SPECS = fixture.smoke_specs(styles.load_all(render.registry()))
 Progress = Callable[[int], None] | None
 

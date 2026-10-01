@@ -774,6 +774,7 @@ class _DeafGate(FakeGate):
         return report
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
     tmp_path: Path, media: Media
 ) -> None:
@@ -1640,3 +1641,32 @@ def test_without_the_background_task_nothing_is_swept(tmp_path: Path) -> None:
         login(client)
         assert 'name="video"' in client.get("/").text
         assert (job_dir / "work" / "work.txt").is_file()
+
+
+def _stopped(data_dir: Path, *, step: str, picture: bool, short: bool) -> jobs.Job:
+    """112: a job a strict stop failed, with what it had rendered."""
+    job = jobs.transition(jobs.create(data_dir), "transcribing")
+    finding = jobs.QualityFinding(beat=None, cause="the edit would not render", detail="mux")
+    if picture:
+        (job.work_dir / "picture.mp4").write_bytes(b"picture")
+    if short:
+        (job.out_dir / "short.mp4").write_bytes(b"short")
+    return jobs.fail(job, step=step, message="Strict mode stopped the job.", findings=[finding])
+
+
+def test_a_strict_stop_serves_the_picture_only_and_nothing_else(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("QUALITY_MODE", "strict")
+    data = tmp_path / "data"
+    silent = _stopped(data, step="rendering", picture=True, short=False)
+    response = client.get(f"/jobs/{silent.id}/picture-only.mp4")
+    assert response.status_code == 200 and response.content == b"picture"
+    page = client.get(f"/jobs/{silent.id}").text
+    assert "picture only, no sound" in page and "Quality mode: strict" in page
+    muxed = _stopped(data, step="qa", picture=True, short=True)
+    assert client.get(f"/jobs/{muxed.id}/picture-only.mp4").status_code == 404
+    assert "rendered, not passed" in client.get(f"/jobs/{muxed.id}").text
+    early = _stopped(data, step="sourcing", picture=True, short=False)
+    assert client.get(f"/jobs/{early.id}/picture-only.mp4").status_code == 404
+    assert "<video" not in client.get(f"/jobs/{early.id}").text

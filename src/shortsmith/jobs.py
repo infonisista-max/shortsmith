@@ -49,6 +49,8 @@ from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
+from shortsmith import config
+
 # 034 / 035: the ledger row, the phone rating, the critic summary and the audience are
 # defined in `contracts` so `Meta` can carry them; they keep their old names here
 # (`jobs.CostRow`, `jobs.Rating`, ...), as do the slider's bounds.
@@ -116,10 +118,28 @@ class IllegalTransition(Exception):
         self.requested = requested
 
 
+class QualityFinding(BaseModel):
+    """112: one problem strict mode stopped on (or forgiving mode repaired): the beat
+    (None for a step or a check), its kind, the cause in plain words and the technical
+    detail the page folds away."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    beat: str | None = None
+    kind: str = ""
+    cause: str
+    detail: str = ""
+
+    def line(self) -> str:
+        where = f"beat {self.beat}" + (f" ({self.kind})" if self.kind else "")
+        return f"{where}: {self.cause}" if self.beat else self.cause
+
+
 class JobError(BaseModel):
     """The 11.1 failure payload. `message` is user-facing; `detail` stays in job.json/log.
     `violations` is the grammar's list when the planner was rejected twice (8.2): the
-    page renders it, one line per beat id and rule."""
+    page renders it, one line per beat id and rule. `findings` is a strict stop's list
+    (112): the page shows every one, its technical detail under a fold."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -127,6 +147,7 @@ class JobError(BaseModel):
     message: str
     detail: str = ""
     violations: list[str] = []
+    findings: list[QualityFinding] = []
 
 
 class InputSummary(BaseModel):
@@ -222,6 +243,9 @@ class JobRecord(BaseModel):
     # 111g: the plain reel's page warning when this short is the plain reel (the full
     # edit failed after planning); None for a full edit. Retry re-runs the full edit.
     plain_reel: str | None = None
+    # 112: the quality mode stamped at creation; None (a job made before 112) reads
+    # `QUALITY_MODE` (`quality.mode_of`).
+    quality_mode: config.QualityMode | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -303,6 +327,7 @@ def create(
         style_notice=style_notice,
         input=input,
         warnings=list(warnings or []),
+        quality_mode=config.load().quality_mode,  # 112: the job keeps the mode it began in
     )
     job = Job(path=path, record=record)
     _write_json(job)
@@ -426,9 +451,11 @@ def fail(
     message: str,
     detail: str = "",
     violations: Sequence[str] = (),
+    findings: Sequence[QualityFinding] = (),
     now: Clock = _utc_now,
 ) -> Job:
-    error = JobError(step=step, message=message, detail=detail, violations=list(violations))
+    error = JobError(step=step, message=message, detail=detail, violations=list(violations),
+                     findings=list(findings))  # fmt: skip
     return transition(job, "failed", error=error, now=now)
 
 

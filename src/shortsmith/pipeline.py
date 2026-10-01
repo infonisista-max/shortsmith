@@ -172,6 +172,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 from pydantic import BaseModel, TypeAdapter
@@ -185,6 +186,7 @@ from shortsmith import (
     media,
     meta,
     presenter,
+    quality,
     render,
     sound,
     styles,
@@ -220,7 +222,7 @@ from shortsmith.editor import (
     reference_options,
     repairs,
 )
-from shortsmith.jobs import Clock, Job, Status
+from shortsmith.jobs import Clock, Job, QualityFinding, Status
 from shortsmith.ledger import BudgetExceeded, LedgerError
 from shortsmith.planner import PlanInvalid, Planner, PlannerError, PlannerUnavailable
 from shortsmith.planner.claude_code import QUOTA_SENTENCE, QuotaSpent
@@ -228,6 +230,7 @@ from shortsmith.qa import calibration
 from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import Gate, TechnicalGate
+from shortsmith.quality import QualityStop
 from shortsmith.reference import INVENTORY_DIR, examples, music, own
 from shortsmith.render import NetExhausted, RemotionRenderer, Renderer
 from shortsmith.styles import StyleError, StyleSpec
@@ -351,22 +354,33 @@ def run_job(
                         for line in media.normalise_refs(job.path):
                             jobs.note(job, line, now=clock)
                     step(job)
+            except QualityStop as stop:  # 112: never rescued; the job fails loudly here
+                return strict_stop(job, status, stop, f"{stop}\n{traceback.format_exc()}", clock)
             except Exception as exc:  # noqa: BLE001 - every step failure lands in job.json the same way
                 detail = f"{exc}\n{traceback.format_exc()}"
-                if watchdog is None or not watchdog.check():
-                    resume = rescue.attempt(job, status, exc)
-                    if resume is not None:
-                        job = jobs.rewind(job, resume, rescue.why)
-                        index = jobs.STEPS.index(resume)
-                        continue
-                if status in RESCUED_STEPS:  # 111g: the last rung, never `failed`
-                    timed_out = watchdog is not None and watchdog.check()
-                    job = _plain_reel(job, status, exc, timed_out=timed_out,
-                                      renderer=renderer, gate=gate, library=library,
-                                      watchdog=watchdog, budgets=budgets, clock=clock)  # fmt: skip
-                    if job.status == "failed":
-                        return job
-                    break
+                try:
+                    if watchdog is None or not watchdog.check():
+                        resume = rescue.attempt(job, status, exc)
+                        if resume is not None:
+                            job = jobs.rewind(job, resume, rescue.why)
+                            index = jobs.STEPS.index(resume)
+                            continue
+                    if status in RESCUED_STEPS:  # 111g: the last rung, never `failed`
+                        timed_out = watchdog is not None and watchdog.check()
+                        cause = plain_cause(status, exc, timed_out=timed_out, watchdog=watchdog,
+                                            budgets=budgets, step_s=step_s)  # fmt: skip
+                        job = quality.downgrade(
+                            job, None, cause, f"{type(exc).__name__}: {exc}",
+                            partial(_plain_reel, job, status, exc, timed_out=timed_out,
+                                    renderer=renderer, gate=gate, library=library,
+                                    watchdog=watchdog, budgets=budgets, clock=clock),
+                            now=clock,
+                        )  # fmt: skip
+                        if job.status == "failed":
+                            return job
+                        break
+                except QualityStop as stop:  # 112: strict mode, where a net would deliver less
+                    return strict_stop(job, status, stop, detail, clock)
                 if watchdog is None or not watchdog.check():
                     violations = exc.violations if isinstance(exc, PlanRejected) else []
                     return jobs.fail(
@@ -376,14 +390,21 @@ def run_job(
                         detail=detail,
                         violations=violations,
                     )
-            # 111g: a sourcing, rendering or qa step that finished late goes on.
-            if (watchdog is not None and budgets is not None and status not in RESCUED_STEPS
-                    and watchdog.check()):  # fmt: skip
+            if watchdog is not None and budgets is not None and watchdog.check():
                 message = timeout_message(
                     status, watchdog.reason, step_s=step_s, stall_s=budgets.stall_s,
                     backstop_s=budgets.backstop_s(),
                 )  # fmt: skip
-                return jobs.fail(job, step=status, message=message, detail=detail)
+                if status not in RESCUED_STEPS:
+                    return jobs.fail(job, step=status, message=message, detail=detail)
+                # 111g: a sourcing, rendering or qa step that finished late goes on
+                # (forgiving); 112: strict stops, naming the step.
+                late = f"the {status} step finished after its time budget ran out " \
+                    f"({watchdog.reason})"  # fmt: skip
+                try:
+                    quality.downgrade(job, None, message, late, lambda: None, now=clock)
+                except QualityStop as stop:
+                    return strict_stop(job, status, stop, late, clock)
             index += 1
     finally:
         if watchdog is not None:
@@ -492,13 +513,20 @@ def style_of(job: Job, specs: Specs) -> StyleSpec:
             f"(loaded: {sorted(specs)}) and neither is the default {styles.DEFAULT!r}"
         )
     notice = f"{current.style} is not available, using {fallback.name}"
-    jobs.amend(job, style=fallback.name, style_notice=notice)
-    jobs.note(
-        job,
-        f"style: {current.style!r} is not a loaded spec (loaded: {sorted(specs)}); the job "
-        f"runs with the default {fallback.name!r} (plain fallback)",
-    )
-    return fallback
+
+    def run_with_default() -> StyleSpec:
+        jobs.amend(job, style=fallback.name, style_notice=notice)
+        jobs.note(
+            job,
+            f"style: {current.style!r} is not a loaded spec (loaded: {sorted(specs)}); the "
+            f"job runs with the default {fallback.name!r} (plain fallback)",
+        )
+        return fallback
+
+    return quality.downgrade(  # 112: strict never swaps the style the operator chose
+        job, None, f"the style {current.style!r} is not available",
+        f"{current.style!r} is not a loaded spec (loaded: {sorted(specs)})", run_with_default,
+    )  # fmt: skip
 
 
 def build_plan_request(
@@ -523,13 +551,29 @@ def build_plan_request(
     try:
         topic, worked = examples.for_job(brief, transcript, spec.name, inventory_dir)
     except Exception as exc:  # noqa: BLE001 - 097: plan without examples rather than fail
-        topic, worked = examples.TopicPick(name=None, source="none"), []
-        tell(f"worked examples: none ({_first_line(exc)}; plain fallback)")
+        failed = exc
+
+        def no_examples() -> tuple[examples.TopicPick, list[WorkedExample]]:
+            tell(f"worked examples: none ({_first_line(failed)}; plain fallback)")
+            return examples.TopicPick(name=None, source="none"), []
+
+        topic, worked = quality.downgrade(  # 112: strict never plans without them
+            job, None, "the worked examples for the planner could not be picked",
+            f"{type(exc).__name__}: {exc}", no_examples,
+        )  # fmt: skip
     try:
         pairings = music.for_job(inventory_dir)
     except Exception as exc:  # noqa: BLE001 - 097: plan without pairings rather than fail
-        pairings = []
-        tell(f"music pairings: none ({_first_line(exc)}; plain fallback)")
+        failed = exc
+
+        def no_pairings() -> list[str]:
+            tell(f"music pairings: none ({_first_line(failed)}; plain fallback)")
+            return []
+
+        pairings = quality.downgrade(  # 112: strict never plans without them
+            job, None, "the music pairings for the planner could not be read",
+            f"{type(exc).__name__}: {exc}", no_pairings,
+        )  # fmt: skip
     tell(examples_line(topic, worked))
     tell(music_line(pairings))
     return PlanRequest(
@@ -922,8 +966,35 @@ def _force_hard(
     fallback (a beat -> `replace_visual`; the cut or a beat with no length on it -> keep
     the whole recording; an unused must-use reference -> its safest beat), pass after
     pass, until the plan passes or nothing more can be done."""
-    captions_of = {r.id: r.caption for r in references}
     result = check(plan, keep_soft=True)
+    hard = [v for v in result.items if v.hard] if isinstance(result, grammar.Violations) else []
+    if not hard:
+        return result
+    kinds = {b.id: b.kind for b in plan.beats}
+    findings = [
+        QualityFinding(beat=v.beat_id, kind=kinds.get(v.beat_id or "", ""), cause=v.message,
+                       detail=str(v))
+        for v in hard
+    ]  # fmt: skip
+    return quality.downgrade_all(  # 112: strict never forces a hard truth's fallback
+        job, findings,
+        lambda: _force_passes(job, plan, result, check, transcript, references, step, clock),
+        now=clock,
+    )  # fmt: skip
+
+
+def _force_passes(
+    job: Job,
+    plan: PicturePlan,
+    result: grammar.PictureCheck | grammar.Violations,
+    check: PictureCheckFn,
+    transcript: Transcript,
+    references: Sequence[PlanReference],
+    step: str,
+    clock: Clock,
+) -> grammar.PictureCheck | grammar.Violations:
+    """097: `_force_hard`'s passes, from the first check's `result`."""
+    captions_of = {r.id: r.caption for r in references}
     for _ in range(FORCE_PASSES):
         if isinstance(result, grammar.PictureCheck):
             return result
@@ -1126,6 +1197,41 @@ def _plain_reel(
     return jobs.load(job.path)
 
 
+def plain_cause(
+    status: str,
+    exc: Exception,
+    *,
+    timed_out: bool,
+    watchdog: subproc.Watchdog | None,
+    budgets: Budgets | None,
+    step_s: float,
+) -> str:
+    """112: the plain words for a step that could not finish (what the plain reel
+    would cover for): the page's timeout sentence when its budget ran out."""
+    words = STEP_WORDS.get(status, status)
+    if timed_out and watchdog is not None and budgets is not None:
+        return timeout_message(status, watchdog.reason, step_s=step_s, stall_s=budgets.stall_s,
+                               backstop_s=budgets.backstop_s())  # fmt: skip
+    if isinstance(exc, subproc.Killed):
+        return f"the {words} step ran out of time and was stopped"
+    return f"{PLAIN_WHY.get(status, 'the edit could not finish')} (the {words} step failed)"
+
+
+def strict_stop(job: Job, status: Status, stop: QualityStop, detail: str, clock: Clock) -> Job:
+    """112: the loud failure. The job ends `failed` at `status` with every finding on
+    `error.findings` for the page, one `strict stop:` job.log line each; Retry re-enters
+    at `status` as for any failure."""
+    for finding in stop.findings:
+        jobs.note(job, f"strict stop: {finding.line()}", now=clock)
+    words = STEP_WORDS.get(status, status)
+    if len(stop.findings) == 1:
+        message = f"Strict mode stopped the job at {words}: {stop.findings[0].line()}."
+    else:
+        message = f"Strict mode stopped the job at {words}: {len(stop.findings)} problems."
+    return jobs.fail(job, step=status, message=message, detail=detail,
+                     findings=stop.findings, now=clock)  # fmt: skip
+
+
 def _progress(job: Job, clock: Clock) -> Callable[[int], None]:
     def on_progress(pct: int) -> None:
         jobs.set_progress(job, pct, now=clock)
@@ -1163,6 +1269,7 @@ NOT_RESCUED: tuple[type[BaseException], ...] = (
     PlanRejected,
     presenter.NoFace,
     subproc.Killed,
+    QualityStop,  # 112: strict mode's loud failure
 )
 _BEAT = re.compile(r"(?:^|[\s'\"(\[])(b\d+):")
 _BEAT_WORD = re.compile(r"\b(b\d+)\b")
@@ -1213,11 +1320,48 @@ class Rescue:
     why: str = ""
 
     def attempt(self, job: Job, status: str, exc: Exception) -> Status | None:
+        """112: a rescue with something to try is a downgrade: strict stops on it
+        (`QualityStop`), forgiving runs it as before."""
         if not rescuable(status, exc):
             return None
         validated = load_validated(job)
         if validated is None:
             return None
+        finding = self._finding(job, status, exc, validated)
+        if finding is None:
+            return self._attempt(job, status, exc, validated)
+        return quality.downgrade_all(
+            job, [finding], lambda: self._attempt(job, status, exc, validated), now=self.clock
+        )
+
+    def _finding(
+        self, job: Job, status: str, exc: Exception, validated: ValidatedPlan
+    ) -> QualityFinding | None:
+        """What this rescue would repair, in plain words; None when it has nothing to
+        try (the failure then goes on to the plain reel, itself a downgrade)."""
+        problem = _first_line(exc)
+        if isinstance(exc, QaFailed):
+            if exc.check in jobs.load(job.path).record.waived_checks:
+                return None
+            return QualityFinding(cause=f"the {exc.check} check failed",
+                                  detail=f"{exc.check}: {exc.detail}")  # fmt: skip
+        if isinstance(exc, NetExhausted):
+            if exc.unnamed and not self.stripped:
+                return QualityFinding(cause="the picture would not render and no beat was "
+                                      "named", detail=problem)  # fmt: skip
+            return None
+        kinds = {b.id: b.kind for b in validated.picture.beats}
+        beat_id = named_beat(str(exc), list(kinds))
+        if beat_id is None:
+            return None
+        words = STEP_WORDS.get(status, status)
+        return QualityFinding(beat=beat_id, kind=kinds[beat_id],
+                              cause=f"{words} failed on it: {_problem_key(problem)}",
+                              detail=f"{type(exc).__name__}: {exc}")  # fmt: skip
+
+    def _attempt(
+        self, job: Job, status: str, exc: Exception, validated: ValidatedPlan
+    ) -> Status | None:
         if self.count >= MAX_RESCUES:
             jobs.note(job, f"rescue: the {MAX_RESCUES} rescues of this run are spent; the "
                       "job fails")  # fmt: skip
@@ -1234,6 +1378,8 @@ class Rescue:
             beat_id = named_beat(str(exc), ids)
             if beat_id is not None:
                 return self._beat(job, status, beat_id, problem, validated)
+        except QualityStop:
+            raise
         except Exception as err:  # noqa: BLE001 - a rescue that breaks fails the job as before
             jobs.note(job, f"rescue: could not apply ({type(err).__name__}: {_first_line(err)})")
             return None

@@ -46,6 +46,7 @@ def _settings(
         "PIXABAY_API_KEY",
         "PLANNER_CLI_MODEL",
         "PLANNER_MODEL",
+        "QUALITY_MODE",
         "RELEVANCE_JUDGE",
         "RELEVANCE_JUDGE_MODEL",
         "SHORTSMITH_DATA_DIR",
@@ -366,6 +367,18 @@ def test_the_planner_model_defaults_to_the_current_sonnet(monkeypatch: pytest.Mo
     assert _settings(monkeypatch, PLANNER_MODEL="claude-opus-5").planner_model == "claude-opus-5"
 
 
+def test_quality_mode_defaults_to_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """112: a crash or a missing thing fails loudly unless the operator says otherwise."""
+    assert _settings(monkeypatch).quality_mode == "strict"
+
+
+@pytest.mark.parametrize("mode", ["strict", "forgiving"])
+def test_quality_mode_accepts_strict_and_forgiving(
+    monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    assert _settings(monkeypatch, QUALITY_MODE=mode).quality_mode == mode
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     [
@@ -374,6 +387,7 @@ def test_the_planner_model_defaults_to_the_current_sonnet(monkeypatch: pytest.Mo
         ("IMAGE_GEN", "dalle"),
         ("RELEVANCE_JUDGE", "gpt4v"),
         ("TRANSCRIBER", "whisper_local"),
+        ("QUALITY_MODE", "lenient"),
     ],
 )
 def test_unknown_choice_is_a_config_error(

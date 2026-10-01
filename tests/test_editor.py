@@ -267,6 +267,7 @@ def _trail(job: jobs.Job) -> list[str]:
     return [line.split(" ", 1)[1] for line in job.log_path.read_text("utf-8").splitlines()]
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_render_failure_naming_a_map_beat_is_rescued_and_delivered(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -292,6 +293,7 @@ def test_a_render_failure_naming_a_map_beat_is_rescued_and_delivered(
     assert trail.count("planning -> sourcing") == 2  # the rewind re-enters sourcing
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_the_same_beat_failing_twice_is_replaced_and_marked_for_the_ladder(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -308,6 +310,7 @@ def test_the_same_beat_failing_twice_is_replaced_and_marked_for_the_ladder(
     assert repairs.beat_of(plan, "b04").kind == "photo"
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_render_engine_that_is_missing_is_not_rescued_but_delivers_the_plain_reel(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -319,6 +322,7 @@ def test_a_render_engine_that_is_missing_is_not_rescued_but_delivers_the_plain_r
     assert [d.choice for d in done.record.decisions] == [pipeline.PLAIN_CHOICE]
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_render_failure_naming_no_beat_is_left_to_the_render_net(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -330,6 +334,7 @@ def test_a_render_failure_naming_no_beat_is_left_to_the_render_net(
     assert [d.choice for d in done.record.decisions] == [pipeline.PLAIN_CHOICE]
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_an_exhausted_render_net_delivers_the_plain_reel_with_one_rescue_line(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -343,6 +348,7 @@ def test_an_exhausted_render_net_delivers_the_plain_reel_with_one_rescue_line(
     assert "rescue: the render net is exhausted" in job.log_path.read_text("utf-8")
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_net_that_could_name_no_beat_strips_every_overlay_once(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
@@ -369,6 +375,7 @@ class _FailsCheckOnce(FakeGate):
         return report
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_check_naming_a_beat_offers_its_options_and_falls_back_to_a_note(
     tmp_path: Path, fixture_clip: Path
 ) -> None:

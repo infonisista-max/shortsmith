@@ -67,16 +67,39 @@ AFK. Part of 112 (read it for the line between strict and forgiving).
 
 ## Acceptance
 
-- `QUALITY_MODE` defaults to strict; a job stamps its mode, and the page shows it.
-- Strict: a stubbed render failure, a mux crash, a QA failure and an expired step budget
+- [x] `QUALITY_MODE` defaults to strict; a job stamps its mode, and the page shows it.
+- [x] Strict: a stubbed render failure, a mux crash, a QA failure and an expired step budget
   each fail loudly, naming the beat or step or check. No plain reel is made and no beat is
   simplified.
-- Forgiving: the same four cases behave exactly as on `9e28146`.
-- A strict QA failure shows the rendered reel on the failure page, labelled.
-- Each case appends its rows to `data/quality-log.tsv`; a second job appends, never overwrites.
-- Every test file is green; smoke delivers in strict mode.
+- [x] Forgiving: the same four cases behave exactly as on `9e28146`.
+- [x] A strict QA failure shows the rendered reel on the failure page, labelled.
+- [x] Each case appends its rows to `data/quality-log.tsv`; a second job appends, never overwrites.
+- [x] Every test file is green; smoke delivers in strict mode.
 
 ## Files
 
 `config.py`, `quality.py` (new), `jobs.py`, `app.py` (job page), `pipeline.py`,
 `editor/` (repairs and the fallback), `qa/gate.py`, tests.
+
+## Done (2 Oct 2026)
+
+- `config.Settings.quality_mode` (`QUALITY_MODE`, default `strict`). `jobs.create` stamps
+  `job.json.quality_mode`, and a job with no stamp reads the setting (`quality.mode_of`). The job
+  page shows "Quality mode: ..." under the status.
+- `src/shortsmith/quality.py`: `downgrade` / `downgrade_all` / `stop`, `QualityStop` (a list of
+  `jobs.QualityFinding`: beat, kind, cause, detail), and the append-only `data/quality-log.tsv`
+  (header written once; columns date_utc, job, beat, beat_kind, outcome, cause).
+- The loud failure is `pipeline.strict_stop`. The job fails at its step, with `error.findings`
+  and one `strict stop:` job.log line per finding. The page lists every finding with a
+  details fold. A stop at rendering or qa shows `out/short.mp4` ("rendered, not passed"),
+  or `work/picture.mp4` through `/jobs/{id}/picture-only.mp4` ("picture only, no sound").
+- Gated: `Rescue.attempt`, which covers every editor option, the second-time replace_visual,
+  the third-time gradient, the strip-all-overlays and QA's "deliver with a note";
+  the 111g plain reel; the late-finishing step; `style_of`'s default style;
+  `build_plan_request` (examples and pairings); `_force_hard`; and the waived check in
+  `technical.waive`, used by both `technical.run` and `FakeGate`. `QualityStop` is in
+  `NOT_RESCUED`.
+- Not gated, as the ticket says: `keep_soft`, 095's transient retry and `_rescue_sound`
+  (112c). The planning editor's rounds are left for 112c too (questions file, item 6).
+- Tests: `tests/test_quality.py` (25) and one route test in `test_app.py`. Every test file is
+  green, in chunks; smoke delivers in strict mode.

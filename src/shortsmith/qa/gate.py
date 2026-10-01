@@ -18,6 +18,7 @@ from shortsmith import contact_sheet, jobs
 from shortsmith.jobs import Job
 from shortsmith.qa import technical
 from shortsmith.qa.technical import QaCheck, QaReport
+from shortsmith.quality import QualityStop
 from shortsmith.styles import StyleSpec
 
 
@@ -57,11 +58,15 @@ class FakeGate(Gate):
         checks: list[QaCheck] = []
         for name in technical.CHECK_ORDER:
             failed = name == self.fail
+            result = QaCheck(name=name, passed=not failed, detail=f"fake {name}")
             if failed and name in waived:
-                checks.append(QaCheck(name=name, passed=True, status="warn",
-                                      detail=f"{technical.WAIVED_PREFIX}fake {name}"))  # fmt: skip
+                try:
+                    checks.append(technical.waive(job, result))
+                except QualityStop:  # 112: strict; the report still shows the failed check
+                    technical.write_report(job, technical.report([*checks, result]))
+                    raise
                 continue
-            checks.append(QaCheck(name=name, passed=not failed, detail=f"fake {name}"))
+            checks.append(result)
             if failed:
                 break
         report = technical.report(checks)

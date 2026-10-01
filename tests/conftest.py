@@ -69,6 +69,15 @@ def sticker_style(spec: styles.StyleSpec) -> styles.StyleSpec:
     return fixture.stickers_on(spec)
 
 
+@pytest.fixture
+def forgiving(monkeypatch: pytest.MonkeyPatch) -> str:
+    """112: `QUALITY_MODE=forgiving` for one test. A test that relies on a rescue net (a
+    downgrade the default `strict` mode turns into a loud failure) asks for it by name,
+    `@pytest.mark.usefixtures("forgiving")`; every other test runs in the default."""
+    monkeypatch.setenv("QUALITY_MODE", "forgiving")
+    return "forgiving"
+
+
 @pytest.fixture(scope="session")
 def fixture_clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
     path = tmp_path_factory.mktemp("fixture") / "fixture.mp4"

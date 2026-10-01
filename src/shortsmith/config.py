@@ -31,6 +31,7 @@ ImageGen = Literal["none", "fake", "gemini"]
 RelevanceJudge = Literal["none", "fake", "api"]
 Critic = Literal["fake", "api"]
 GeocoderFallback = Literal["none", "nominatim"]
+QualityMode = Literal["strict", "forgiving"]
 
 # 5.1: the source order, written out in full. `owner` and `generate` are the fixed
 # bookends of the ladder (owner references always first, generation always last, 4.4),
@@ -63,6 +64,9 @@ class Settings(BaseSettings):
     # 065: PLANNER=claude_code's model, passed as `--model` on every call so the CLI's own
     # default never decides; re-read when each job's planning starts (no restart needed).
     planner_cli_model: str = "claude-opus-5-5"
+    # 112: `strict` (the default) fails a job loudly where a rescue net would deliver a
+    # downgraded reel; `forgiving` keeps every net as on 9e28146. Each job stamps it.
+    quality_mode: QualityMode = "strict"
     # 8.3 / 11.3: the subscription planner is for a single-operator deployment only.
     shortsmith_single_operator: bool = False
     anthropic_api_key: SecretStr | None = None

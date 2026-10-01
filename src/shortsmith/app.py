@@ -128,6 +128,7 @@ from shortsmith import (
     pipeline,
     presenter,
     publishing,
+    quality,
     render,
     sound,
     stickers,
@@ -849,6 +850,18 @@ def create_app(
             headers = {"Content-Disposition": f'attachment; filename="{job.id}-previous.mp4"'}
         return FileResponse(path, media_type="video/mp4", headers=headers)
 
+    @app.get(f"/jobs/{{job_id}}/{PICTURE_ONLY}")
+    async def picture_only(job_id: str, download: bool = False) -> Response:
+        """112: the silent picture a strict stop left when the mux crashed."""
+        job = jobs.find(data_dir, job_id)
+        shown = stopped_reel(job) if job is not None else None
+        if job is None or shown is None or shown[0] != PICTURE_ONLY:
+            return JSONResponse({"error": "no such file"}, status_code=404)
+        headers = None
+        if download:
+            headers = {"Content-Disposition": f'attachment; filename="{job.id}-picture.mp4"'}
+        return FileResponse(job.work_dir / "picture.mp4", media_type="video/mp4", headers=headers)
+
     @app.get("/jobs/{job_id}/{name}")
     async def job_file(job_id: str, name: str, download: bool = False) -> Response:
         """One of the `out/` deliverables (10.4); `?download=1` makes it an attachment."""
@@ -1308,6 +1321,7 @@ def render_job_page(
             f'<p class="error">Failed at {html.escape(record.error.step)}: '
             f"{html.escape(record.error.message)}</p>"
         )
+        error += _findings_block(job)  # 112: a strict stop's list, and the reel it made
         if record.error.violations:  # 8.2: the grammar's list, one line per beat and rule
             items = "\n".join(
                 f"  <li>{html.escape(line)}</li>" for line in record.error.violations
@@ -1334,6 +1348,7 @@ def render_job_page(
     return _template("job.html").substitute(
         job_id=html.escape(job.id),
         status=html.escape(record.status),
+        quality_mode=html.escape(quality.mode_of(job)),  # 112: stamped at creation
         elapsed=_elapsed(job, now),
         steps=_step_items(job),
         warnings=warnings,
@@ -1365,6 +1380,52 @@ def render_job_page(
         position=f" (queued, position {position})" if position is not None else "",
         position_json=json.dumps(position),
     )
+
+
+PICTURE_ONLY = "picture-only.mp4"  # 112: work/picture.mp4, when the mux crashed
+STOPPED_REEL_STEPS = frozenset({"rendering", "qa"})
+
+
+def stopped_reel(job: Job) -> tuple[str, str] | None:
+    """112: what a strict stop at rendering or qa still made, as (file name, label):
+    the muxed short ("rendered, not passed"), else the silent picture ("picture only,
+    no sound"); None when nothing was rendered."""
+    error = job.record.error
+    if job.status != "failed" or error is None or not error.findings:
+        return None
+    if error.step not in STOPPED_REEL_STEPS:
+        return None
+    if (job.out_dir / "short.mp4").is_file():
+        return "short.mp4", "rendered, not passed"
+    if error.step == "rendering" and (job.work_dir / "picture.mp4").is_file():
+        return PICTURE_ONLY, "picture only, no sound"
+    return None
+
+
+def _findings_block(job: Job) -> str:
+    """112: every finding of a strict stop, its technical detail under a fold, and the
+    reel the job made before it stopped, labelled."""
+    error = job.record.error
+    if error is None or not error.findings:
+        return ""
+    items = "\n".join(
+        f"  <li>{html.escape(f.line())}"
+        + (f"<details><summary>details</summary><pre>{html.escape(f.detail)}</pre></details>"
+           if f.detail else "")
+        + "</li>"
+        for f in error.findings
+    )  # fmt: skip
+    out = f'<ul class="findings">\n{items}\n</ul>\n'
+    shown = stopped_reel(job)
+    if shown is not None:
+        name, label = shown
+        base = f"/jobs/{html.escape(job.id)}/{name}"
+        out += (
+            f'<p class="notice">{html.escape(label)}</p>\n'
+            f'<video controls playsinline src="{base}" width="270" height="480"></video>\n'
+            f'<p><a href="{base}?download=1">Download {html.escape(name)}</a></p>\n'
+        )
+    return out
 
 
 # `not_implemented` only appears in a qa.json written before 032: neither a pass nor a FAIL.

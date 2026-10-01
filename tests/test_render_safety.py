@@ -264,6 +264,7 @@ def test_b52_a_clip_as_a_wall_cell_is_simplified_by_the_net(run: Run) -> None:
     _assert_short(done)
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_a_picture_broken_on_every_beat_delivers_the_plain_reel(run: Run) -> None:
     """Every sourced file gone and nothing to repair it before node: each beat that
     draws one fails in Chrome, more than the net's rounds can simplify."""
