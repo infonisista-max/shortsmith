@@ -344,3 +344,75 @@ def test_accept_rejects_a_short_reference_image(tmp_path: Path, fixture_clip: Pa
             limits=Limits(min_duration_s=1.0),
         )
     assert not (tmp_path / "data").exists()
+
+
+# --- 111a: every image ref is a real JPG/PNG by content -------------------------
+
+
+@pytest.mark.parametrize("fmt", ["WEBP", "AVIF"])
+def test_accept_converts_a_mislabelled_image_ref_to_a_real_jpg(
+    tmp_path: Path, fixture_clip: Path, fmt: str
+) -> None:
+    from PIL import Image
+
+    from shortsmith.presenter import HaarDetector
+
+    src = tmp_path / "up" / "x.jpg"
+    src.parent.mkdir(parents=True)
+    Image.new("RGB", (700, 900), (20, 40, 60)).save(src, format=fmt)
+    job = ingest.accept(
+        tmp_path / "data",
+        video=VideoUpload(path=fixture_clip, original_name="f.mp4"),
+        brief="x" * 40,
+        style=EXPLAINER,
+        references=[ReferenceUpload(path=src, original_name="Sri Sri.jpg", caption="")],
+        limits=Limits(min_duration_s=1.0),
+    )
+    rows = json.loads((job.input_dir / "refs.json").read_text(encoding="utf-8"))
+    assert rows[0]["file"] == "refs/1_sri-sri.jpg"
+    saved = job.input_dir / rows[0]["file"]
+    with Image.open(saved) as im:
+        assert (im.format, im.size) == ("JPEG", (700, 900))
+    assert rows[0]["size_bytes"] == saved.stat().st_size
+    assert HaarDetector().detect_all(saved) == []
+
+
+def test_accept_saves_an_avif_upload_as_a_jpg_keeping_the_slug(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    from PIL import Image
+
+    src = tmp_path / "up" / "Portrait.avif"
+    src.parent.mkdir(parents=True)
+    Image.new("RGB", (700, 900), (20, 40, 60)).save(src, format="AVIF")
+    job = ingest.accept(
+        tmp_path / "data",
+        video=VideoUpload(path=fixture_clip, original_name="f.mp4"),
+        brief="x" * 40,
+        style=EXPLAINER,
+        references=[ReferenceUpload(path=src, original_name="Portrait.avif", caption="")],
+        limits=Limits(min_duration_s=1.0),
+    )
+    rows = json.loads((job.input_dir / "refs.json").read_text(encoding="utf-8"))
+    assert rows[0]["file"] == "refs/1_portrait.jpg"
+    assert sorted(p.name for p in (job.input_dir / "refs").iterdir()) == ["1_portrait.jpg"]
+
+
+def test_accept_refuses_a_text_file_named_jpg(tmp_path: Path, fixture_clip: Path) -> None:
+    fake = tmp_path / "fake.jpg"
+    fake.write_text("I am a text file, not a photo", encoding="utf-8")
+    with pytest.raises(ingest.Rejected, match="Reference fake.jpg must be a jpg"):
+        ingest.accept(
+            tmp_path / "data",
+            video=VideoUpload(path=fixture_clip, original_name="f.mp4"),
+            brief="x" * 40,
+            style=EXPLAINER,
+            references=[ReferenceUpload(path=fake, original_name="fake.jpg", caption="")],
+            limits=Limits(min_duration_s=1.0),
+        )
+    assert not (tmp_path / "data").exists()
+
+
+@pytest.mark.parametrize("name", ["a.avif", "a.HEIC"])
+def test_avif_and_heic_pass_the_extension_filter(name: str) -> None:
+    assert ingest.reference_kind(name) == "image"

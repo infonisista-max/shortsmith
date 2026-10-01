@@ -88,6 +88,9 @@ builds the worker (`create_app`, smoke) and passed in; a job naming a style that
 not loaded runs with the default style (`styles.DEFAULT`), noted in `job.log` and in
 `job.json.style_notice` (097).
 
+Entering `sourcing` or `rendering` first normalises the job's refs (`media.normalise_refs`,
+111a), so a retry on a job uploaded before intake converted them is fixed too.
+
 `sourcing` runs the asset step (`assets.Sourcing`, ticket 016): every sourced beat
 gets its asset through the 4.4 ladder, and the step writes `work/assets.json`,
 `out/rights.json` and `out/credits.md`; a configured source with no adapter yet is
@@ -163,6 +166,7 @@ from shortsmith import (
     geo,
     grammar,
     jobs,
+    media,
     meta,
     presenter,
     render,
@@ -216,6 +220,8 @@ log = logging.getLogger(__name__)
 DEFAULT_MAX_QUEUE = 3
 DEFAULT_MAX_JOB_MINUTES = 30
 MAX_RESCUES = 12  # 097: step rescues per run
+# 111a: the steps that first read the refs; entering either normalises them (idempotent).
+NORMALISED_STEPS: frozenset[str] = frozenset({"sourcing", "rendering"})
 MAX_EDITOR_ROUNDS = 3  # 097: editor rounds on a picture plan rejected twice
 FORCE_PASSES = 4  # 097: forced fallbacks on hard survivors, pass after pass
 
@@ -306,6 +312,9 @@ def run_job(
             detail = ""
             try:
                 with subproc.guarded(watchdog):
+                    if status in NORMALISED_STEPS:  # 111a: an old job's refs, made real
+                        for line in media.normalise_refs(job.path):
+                            jobs.note(job, line, now=clock)
                     step(job)
             except Exception as exc:  # noqa: BLE001 - every step failure lands in job.json the same way
                 detail = f"{exc}\n{traceback.format_exc()}"

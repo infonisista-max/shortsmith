@@ -341,6 +341,27 @@ def test_a_missing_reference_file_is_a_logged_gradient_not_a_failure(
     assert "refs/1_gone.png is missing" in log and "plain fallback" in log
 
 
+def test_an_old_jobs_mislabelled_ref_is_normalised_once_on_entering_sourcing(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """111a: a job uploaded before intake converted refs (an AVIF named .jpg) is fixed
+    when it enters sourcing; rendering finds it fixed, so the log says so once."""
+    from PIL import Image
+
+    job = _uploaded(tmp_path, fixture_clip)
+    (job.input_dir / "refs").mkdir()
+    Image.new("RGB", (700, 900), (9, 9, 9)).save(job.input_dir / "refs/7_sri.jpg", format="AVIF")
+    ref = {"id": "r1", "file": "refs/7_sri.jpg", "kind": "image", "caption": "Sri Sri",
+           "original_name": "Sri.jpg", "width": 700, "height": 900, "size_bytes": 1}  # fmt: skip
+    (job.input_dir / "refs.json").write_text(json.dumps([ref]), encoding="utf-8")
+    done = _run(job)
+    assert done.status == "delivered"
+    with Image.open(job.input_dir / "refs/7_sri.jpg") as im:
+        assert im.format == "JPEG"
+    log = job.log_path.read_text("utf-8")
+    assert log.count("7_sri.jpg converted to a real jpg") == 1
+
+
 class _RightslessGate(FakeGate):
     def contact_sheet(self, job: jobs.Job) -> Path:
         (job.out_dir / "rights.json").unlink()

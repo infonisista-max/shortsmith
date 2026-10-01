@@ -50,7 +50,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
+import numpy as np
 from cv2 import data as cv2_data  # the bundled cascades' directory (`haarcascades`)
+from cv2.typing import MatLike
+from PIL import Image, ImageOps
 
 from shortsmith import ffmpeg, jobs
 from shortsmith.contracts import (
@@ -155,6 +158,20 @@ class FaceDetector(ABC):
         return [found] if found is not None else []
 
 
+def _read_grey(still: Path) -> MatLike:
+    """111a: the still as OpenCV greyscale. OpenCV reads it first; a file it cannot
+    read (an AVIF or WebP under a .jpg name, a non-ASCII path) goes through Pillow.
+    Any failure is one RuntimeError, which the render logs and skips."""
+    image = cv2.imread(str(still))
+    if image is not None:
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    try:
+        with Image.open(still) as im:
+            return np.asarray(ImageOps.exif_transpose(im).convert("L"))
+    except Exception as exc:  # noqa: BLE001 - every unreadable still is the same skip
+        raise RuntimeError(f"could not read {still.name}: {exc}") from exc
+
+
 class HaarDetector(FaceDetector):
     """OpenCV's bundled frontal-face Haar cascade at its documented defaults."""
 
@@ -170,10 +187,7 @@ class HaarDetector(FaceDetector):
         return max(boxes, key=lambda b: b.width * b.height)
 
     def detect_all(self, still: Path) -> list[FaceBox]:
-        image = cv2.imread(str(still))
-        if image is None:
-            raise RuntimeError(f"OpenCV could not read {still}")
-        grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        grey = _read_grey(still)
         found = self._cascade.detectMultiScale(
             grey,
             scaleFactor=SCALE_FACTOR,

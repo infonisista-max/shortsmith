@@ -19,14 +19,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from shortsmith import ffmpeg, jobs
+from PIL import Image, ImageOps
+
+from shortsmith import ffmpeg, jobs, media
 from shortsmith.contracts import ReferenceRecord
 from shortsmith.jobs import InputSummary, Job
 from shortsmith.presenter import TARGET_HEIGHT, TARGET_WIDTH, upscale_factor  # one geometry (005)
 from shortsmith.styles import Resolution
 
 VIDEO_EXTENSIONS = frozenset({".mp4", ".mov"})
-IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+# 111a: only a first filter; the content decides (`media.probe`).
+IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp", ".avif", ".heic"})
 MIB = 1024 * 1024
 
 ReferenceKind = Literal["image", "clip", "unknown"]
@@ -199,20 +202,21 @@ def probe_video(path: Path, *, original_name: str | None = None) -> VideoInfo:
 
 
 def probe_reference(path: Path, *, original_name: str, caption: str) -> ReferenceInfo:
+    """111a: the name is a first filter only; the content decides. An "image" that
+    Pillow cannot read, or a "clip" with no moving picture, is `unknown` (refused)."""
     kind = reference_kind(original_name)
     width = height = 0
-    if kind != "unknown":
-        try:
-            data = ffmpeg.probe(path)
-        except ffmpeg.FFmpegError:
-            kind = "unknown"
+    if kind == "image":
+        if media.probe(path) == "image":
+            with Image.open(path) as im:
+                width, height = ImageOps.exif_transpose(im).size
         else:
-            video = [s for s in data.get("streams", []) if s.get("codec_type") == "video"]
-            if video:
-                width = int(video[0].get("width", 0))
-                height = int(video[0].get("height", 0))
-            else:
-                kind = "unknown"
+            kind = "unknown"
+    elif kind == "clip":
+        if media.probe(path) == "video":
+            width, height = ffmpeg.video_size(path)
+        else:
+            kind = "unknown"
     return ReferenceInfo(
         original_name=original_name,
         caption=caption,
@@ -288,7 +292,14 @@ def accept(
     for n, (upload, ref) in enumerate(zip(references, ref_infos, strict=True), start=1):
         ext = Path(upload.original_name).suffix.lower()
         rel = f"refs/{n}_{slug(upload.original_name)}{ext}"
-        shutil.copyfile(upload.path, job.input_dir / rel)
+        size_bytes = ref.size_bytes
+        if ref.kind == "image" and not media.is_real_still(upload.path, suffix=ext):
+            # 111a: anything but a true .jpg/.png is saved as one (same slug)
+            saved = media.as_still(upload.path, job.input_dir / rel)
+            rel = saved.relative_to(job.input_dir).as_posix()
+            size_bytes = saved.stat().st_size
+        else:
+            shutil.copyfile(upload.path, job.input_dir / rel)
         records.append(
             ReferenceRecord(
                 id=f"ref{n}",
@@ -298,7 +309,7 @@ def accept(
                 original_name=upload.original_name,
                 width=ref.width,
                 height=ref.height,
-                size_bytes=ref.size_bytes,
+                size_bytes=size_bytes,
             )
         )
     (job.input_dir / "refs.json").write_text(
