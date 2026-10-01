@@ -143,6 +143,7 @@ from shortsmith import (
     geo,
     infographics,
     jobs,
+    media,
     presenter,
     rights,
     sound,
@@ -153,6 +154,7 @@ from shortsmith.assets.generate import never_stock
 from shortsmith.captions import measure
 from shortsmith.contracts import (
     AssetManifest,
+    AssetRecord,
     AudioEntry,
     BadgeSpec,
     Banner,
@@ -684,16 +686,23 @@ def photo_visual(src: str, width: int, height: int, *, index: int, crop: Crop,
 
 
 def base_visual(src: str, width: int, height: int, *, crop: Crop, scale_from: float,
-                scale_to: float, dim: float) -> VisualSpec:  # fmt: skip
+                scale_to: float, dim: float, clip_speed: float | None = None,
+                start_s: float = 0.0) -> VisualSpec:  # fmt: skip
     """The still a `list` or `wall` set piece is built over (027): the full-bleed photo
     with the piece's own Ken Burns from the style and a black scrim at `dim`, so the
     rows or cells above it read (nkb_04: dim 0.45, nkb_09: 0.65). It never alternates
-    and never drifts: the set piece on top carries the movement."""
-    return VisualSpec(
+    and never drifts: the set piece on top carries the movement. 111b: a base that is a
+    clip (`clip_speed` given) is the moving clip from `start_s`, with the same push and
+    the same scrim - never the clip's file drawn as a photo."""
+    visual = VisualSpec(
         treatment="photo", src=src, width=width, height=height, zoom=crop.zoom,
         focus_x=crop.focus_x, focus_y=crop.focus_y, scale_from=scale_from, scale_to=scale_to,
         pan_px=0.0, dim=dim,
     )  # fmt: skip
+    if clip_speed is None:
+        return visual
+    return visual.model_copy(update={"treatment": "clip", "speed": clip_speed,
+                                     "start_s": start_s})  # fmt: skip
 
 
 def _half_extent(card: CardSpec, scale: float) -> float:
@@ -1023,13 +1032,56 @@ def moved(visual: VisualSpec, move: styles.MoveRow, *,
     return visual.model_copy(update=updates)
 
 
+# --- what an asset file is (ticket 111b) ---------------------------------------------------
+
+
+def is_video(path: Path, *, claimed_clip: bool = False) -> bool:
+    """111b: whether the file is a video, read from its content (`media.probe`), never
+    from its record or name; a file not on disk (a spec built without the asset step's
+    files) is what its record claims."""
+    if path.is_file():
+        return media.probe(path) == "video"
+    return claimed_clip
+
+
+def still_path(path: Path, *, claimed_clip: bool = False, what: str = "",
+               log: Callable[[str], None] | None = None) -> Path | None:  # fmt: skip
+    """111b: `path` as a file an <Img> can draw: itself when it is a still, else a frame
+    grab of the clip (`media.as_still`, made once beside it), logged; None, logged,
+    when no frame can be had (the caller leaves the picture out, never fails)."""
+    if not is_video(path, claimed_clip=claimed_clip):
+        return path
+    grab = path.with_name(f"{path.stem}-frame.jpg")
+    if not grab.is_file():
+        try:
+            grab = media.as_still(path, grab)
+        except (media.MediaError, ffmpeg.FFmpegError, OSError) as exc:
+            if log is not None:
+                log(f"media: {what}: {path.name} is a clip with no frame to grab; "
+                    f"left out (111b): {exc}")  # fmt: skip
+            return None
+    if log is not None:
+        log(f"media: {what}: {path.name} is a clip; its frame grab {grab.name} is drawn "
+            "where a still goes (111b)")  # fmt: skip
+    return grab
+
+
+def asset_still(job_dir: Path, record: AssetRecord, *, what: str,
+                log: Callable[[str], None] | None = None) -> str | None:  # fmt: skip
+    """111b: the record's file as a still an <Img> can draw (`still_path`), absolute;
+    `what` names the beat for the log line."""
+    found = still_path((job_dir / record.file).resolve(), claimed_clip=record.kind == "clip",
+                       what=f"{what} asset {record.id!r}", log=log)  # fmt: skip
+    return str(found) if found is not None else None
+
+
 # 4.2: a number or quote beat stamps over the asset already on screen, so its motion
 # carries on from the previous beat instead of restarting.
 CONTINUING_SUBJECTS = frozenset({"number", "quote"})
 # The kinds whose own asset is drawn behind them: the two B-roll treatments, the moving
-# clip (058), and (027) the dimmed base still of a `list` or a `wall`. A `split` fills its
-# card instead.
-BASE_STILL_KINDS = frozenset({"photo", "card", "clip", "list", "wall"})
+# clip (058), and (027) the dimmed base of a `list` or a `wall` - a still, or (111b) the
+# moving clip when the file is one. A `split` fills its card instead.
+BASE_ASSET_KINDS = frozenset({"photo", "card", "clip", "list", "wall"})
 # 102: the treatments a planner's camera move is drawn on (the framed ones keep their push).
 FULL_SCREEN_STILLS = frozenset({"photo", "crop_fill"})
 
@@ -1064,6 +1116,7 @@ def _visuals(
     numbers: StyleNumbers, *, pip_top: int, fps: int = FPS,
     face_of: Callable[[str], FaceBox | None] | None = None,
     faces_of: Callable[[str], list[FaceBox]] | None = None,
+    log: Callable[[str], None] | None = None,
 ) -> dict[str, tuple[Mode, VisualSpec | None]]:  # fmt: skip
     """Per beat id: the mode to draw (a rung-4 rescue becomes `pip`) and its visual;
     `pip_top` is the top of the circle the spec draws, the cards' placement line.
@@ -1109,20 +1162,25 @@ def _visuals(
             # 021 / 9.3: a diagram base is drawn by its own layer, under the labels,
             # never as a bare photo or card.
             continue
-        if beat.kind not in BASE_STILL_KINDS or record is None:
+        if beat.kind not in BASE_ASSET_KINDS or record is None:
             continue
-        src = str((job_dir / record.file).resolve())
+        path = (job_dir / record.file).resolve()
+        src = str(path)
+        video = is_video(path, claimed_clip=record.kind == "clip")  # 111b: by content
         if beat.kind in ("list", "wall"):
-            # 027: the beat's own asset is the set piece's dimmed base, never a card.
+            # 027: the beat's own asset is the set piece's dimmed base, never a card;
+            # 111b: a clip there plays, with the same push and scrim.
             b = numbers.broll
             low, high, dim = (
                 (b.list_scale_from, b.list_scale_to, b.list_dim)
                 if beat.kind == "list"
                 else (b.wall_scale_from, b.wall_scale_to, b.wall_dim)
             )
-            out[beat.id] = (beat.mode, base_visual(src, record.width, record.height,
-                                                   crop=decided.crop, scale_from=low,
-                                                   scale_to=high, dim=dim))  # fmt: skip
+            out[beat.id] = (beat.mode, base_visual(
+                src, record.width, record.height, crop=decided.crop, scale_from=low,
+                scale_to=high, dim=dim, clip_speed=b.clip_speed if video else None,
+                start_s=decided.clip_start_s,
+            ))  # fmt: skip
             previous = None
             continue
         carries_on = (
@@ -1133,7 +1191,7 @@ def _visuals(
         found = manifest.highlight(beat.id)
         if (
             beat.highlight is not None and found is not None
-            and found.asset_id == decided.asset_id and record.kind != "clip"
+            and found.asset_id == decided.asset_id and not video
         ):  # fmt: skip
             # 078: the owner's screenshot as the straight card the marker sweeps.
             carries_on = False
@@ -1144,12 +1202,19 @@ def _visuals(
         elif carries_on and previous is not None:
             earlier, visual, _ = previous
             visual = continued(visual, earlier.end - earlier.start, beat.end - beat.start)
-        elif decided.treatment == "clip":
+        elif decided.treatment == "clip" and video:
             # 058: the moving clip, whatever kind the beat was planned as (a number beat
             # showing an earlier clip afresh plays it from its start).
             visual = clip_visual(src, record.width, record.height, crop=decided.crop,
                                  numbers=numbers, start_s=decided.clip_start_s)  # fmt: skip
         else:
+            # 111b: a still treatment draws a still: a clip's frame grab, else nothing
+            grabbed = still_path(path, claimed_clip=video, what=beat.id, log=log)
+            if grabbed is None:
+                out[beat.id] = ("pip", None)
+                previous = None
+                continue
+            src = str(grabbed)
             face = subject_face(faces_in(src), subject_point(beat, decided.crop),
                                 record.width, record.height)  # fmt: skip
             allowed = assets.allowed_treatments(
@@ -2245,10 +2310,12 @@ def opening_asset_ids(plan: PicturePlan, manifest: AssetManifest, count: int) ->
 
 
 def card_sources(
-    plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None, *, count: int
+    plan: PicturePlan, manifest: AssetManifest | None, job_dir: Path | None, *, count: int,
+    log: Callable[[str], None] | None = None,
 ) -> list[CardSource]:
     """The finale's cards (055): the short's first `count` distinct assets, labelled
-    with the lower-third the beat that sourced them carries."""
+    with the lower-third the beat that sourced them carries; 111b: always a still file
+    (a clip under a still's record shows its frame grab, `asset_still`)."""
     if manifest is None or job_dir is None:
         return []
     labels: dict[str, str] = {}
@@ -2262,9 +2329,12 @@ def card_sources(
     for asset_id in opening_asset_ids(plan, manifest, count):
         record = manifest.asset(asset_id)
         assert record is not None  # opening_asset_ids keeps only assets with a record
+        src = asset_still(job_dir, record, what="finale", log=log)
+        if src is None:
+            continue
         out.append(
             CardSource(
-                src=str((job_dir / record.file).resolve()),
+                src=src,
                 width=record.width,
                 height=record.height,
                 label=labels.get(asset_id, ""),
@@ -2774,13 +2844,15 @@ def wall_spec(items: Sequence[ItemSource], *, numbers: StyleNumbers) -> WallSpec
 
 
 def item_sources(
-    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None
-) -> list[ItemSource]:
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *,
+    log: Callable[[str], None] | None = None,
+) -> list[ItemSource]:  # fmt: skip
     """A set-piece beat's items resolved through the manifest's aliases (027). An item
     naming an id the asset step never saw is a render-spec error - the plan and the
     manifest disagree. An id the asset step resolved to nothing (a rung-4 rescue of the
     beat that sourced it) leaves the item without a picture: a list row draws as text,
-    and a pane or a cell is left out rather than drawn blank."""
+    and a pane or a cell is left out rather than drawn blank. 111b: an item resolving
+    to a clip shows its frame grab (`asset_still`), logged; never a build failure."""
     out: list[ItemSource] = []
     for item in beat.items:
         if item.asset_id is None or manifest is None or job_dir is None:
@@ -2793,18 +2865,14 @@ def item_sources(
             )
         asset_id = manifest.aliases.get(item.asset_id, item.asset_id)
         record = manifest.asset(asset_id) if asset_id is not None else None
-        if record is not None and record.kind == "clip":
-            raise RenderError(
-                f"{beat.id}: set-piece item asset {item.asset_id!r} is a clip; a set piece "
-                "shows stills (058)"
-            )
+        src = asset_still(job_dir, record, what=beat.id, log=log) if record else None
         out.append(
             ItemSource(
                 text=item.text,
                 card=(
-                    CardSource(src=str((job_dir / record.file).resolve()), width=record.width,
-                               height=record.height, label=item.text)  # fmt: skip
-                    if record is not None
+                    CardSource(src=src, width=record.width, height=record.height,
+                               label=item.text)  # fmt: skip
+                    if record is not None and src is not None
                     else None
                 ),
             )
@@ -2813,35 +2881,37 @@ def item_sources(
 
 
 def badge_source(
-    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None
-) -> CardSource | None:
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *,
+    log: Callable[[str], None] | None = None,
+) -> CardSource | None:  # fmt: skip
     """The split's circular badge (5.2): the beat's own sourced asset, the mark the
-    two panes belong to. None where the beat was rescued onto the gradient (4.4)."""
+    two panes belong to. None where the beat was rescued onto the gradient (4.4).
+    111b: a clip there is its frame grab (`asset_still`)."""
     if manifest is None or job_dir is None:
         return None
     decided = manifest.beat(beat.id)
     record = manifest.asset(decided.asset_id) if decided and decided.asset_id else None
-    if record is None:
+    src = asset_still(job_dir, record, what=beat.id, log=log) if record else None
+    if record is None or src is None:
         return None
-    return CardSource(
-        src=str((job_dir / record.file).resolve()), width=record.width, height=record.height
-    )
+    return CardSource(src=src, width=record.width, height=record.height)
 
 
 def set_piece(
     beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *,
     numbers: StyleNumbers, pip_top: int | None = None, face_of: FaceOf | None = None,
+    log: Callable[[str], None] | None = None,
 ) -> tuple[ListSpec | None, SplitSpec | None, WallSpec | None]:  # fmt: skip
     """The `list`, `split` or `wall` this beat draws, already measured and placed; the
     split ends above `pip_top`, the top of the circle the spec draws (051), its panes
     framed round the faces `face_of` finds (105)."""
     if beat.kind not in ("list", "split", "wall"):
         return None, None, None
-    items = item_sources(beat, manifest, job_dir)
+    items = item_sources(beat, manifest, job_dir, log=log)
     if beat.kind == "list":
         return list_spec(beat.set_piece_title, items, numbers=numbers), None, None
     if beat.kind == "split":
-        badge = badge_source(beat, manifest, job_dir)
+        badge = badge_source(beat, manifest, job_dir, log=log)
         split = split_spec(beat.set_piece_title, items, badge, numbers=numbers, pip_top=pip_top,
                            face_of=face_of)
         return None, split, None
@@ -2852,25 +2922,31 @@ def set_piece(
 
 
 def diagram_base(
-    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None
-) -> infographics.DiagramAsset | None:
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *,
+    log: Callable[[str], None] | None = None,
+) -> infographics.DiagramAsset | None:  # fmt: skip
     """The label-free base of an `infographic` beat: the beat's own asset as the step
     classified it (5.3). None where the beat was rescued onto the gradient (4.4) - a
-    diagram with no picture under it is the PIP and its stamp word, not blank labels."""
+    diagram with no picture under it is the PIP and its stamp word, not blank labels.
+    111b: a clip there is its frame grab (`asset_still`)."""
     if manifest is None or job_dir is None:
         return None
     decided = manifest.beat(beat.id)
     record = manifest.asset(decided.asset_id) if decided and decided.asset_id else None
     if decided is None or record is None or decided.treatment == "gradient":
         return None
+    src = asset_still(job_dir, record, what=beat.id, log=log)
+    if src is None:
+        return None
     return infographics.DiagramAsset(
-        src=str((job_dir / record.file).resolve()), width=record.width, height=record.height,
+        src=src, width=record.width, height=record.height,
         treatment=decided.treatment, crop=decided.crop,
     )  # fmt: skip
 
 
 def infographic(
-    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *, numbers: StyleNumbers
+    beat: Beat, manifest: AssetManifest | None, job_dir: Path | None, *, numbers: StyleNumbers,
+    log: Callable[[str], None] | None = None,
 ) -> tuple[ChartLayout | None, DiagramLayout | None]:
     """The `chart` drawn from the beat's series, or the labelled diagram drawn over its
     base (021). A recipe the frame cannot hold is a build failure with the numbers in the
@@ -2885,7 +2961,7 @@ def infographic(
                 ),
                 None,
             )
-        base = diagram_base(beat, manifest, job_dir)
+        base = diagram_base(beat, manifest, job_dir, log=log)
         if base is None:
             return None, None
         return None, infographics.resolve_diagram(
@@ -2997,7 +3073,7 @@ def build_spec(
         if src not in faces:
             try:
                 faces[src] = detector.detect(Path(src))
-            except RuntimeError as exc:
+            except Exception as exc:  # noqa: BLE001 - 111b: any unreadable still is no face
                 faces[src] = None
                 if log is not None:
                     log(f"faces: face detection skipped on {Path(src).name}: {exc}")
@@ -3013,19 +3089,20 @@ def build_spec(
         if src not in every_face:
             try:
                 every_face[src] = detector.detect_all(Path(src))
-            except RuntimeError as exc:
+            except Exception as exc:  # noqa: BLE001 - 111b: any unreadable still is no face
                 every_face[src] = []
                 if log is not None:
                     log(f"faces: face detection skipped on {Path(src).name}: {exc}")
         return every_face[src]
 
     visuals = _visuals(plan, manifest, job_dir, numbers, pip_top=geometry.top, fps=fps,
-                       faces_of=faces_all)
+                       faces_of=faces_all, log=log)
     geocoder = geocoder or geo.GazetteerGeocoder()
     if job_dir is not None:
         geocoder = geocoder.for_job(job_dir)
     finale_beat = _check_finale(plan, captions, numbers)
-    sources = card_sources(plan, manifest, job_dir, count=numbers.broll.finale_cards)
+    sources = card_sources(plan, manifest, job_dir, count=numbers.broll.finale_cards,
+                           log=log)
     two_lines = set(captions.beats_with_two_lines)
     # 059: the style's fixed title strip, shown until the finale; the overlays keep off it.
     strip = (
@@ -3053,7 +3130,7 @@ def build_spec(
         if visual.src not in faces:
             try:
                 faces[visual.src] = detector.detect(Path(visual.src))
-            except RuntimeError as exc:
+            except Exception as exc:  # noqa: BLE001 - 111b: any unreadable still is no face
                 faces[visual.src] = None
                 if log is not None:
                     log(f"stamp: face detection skipped on {Path(visual.src).name}: {exc}")
@@ -3241,8 +3318,9 @@ def build_spec(
         labelled = visual is not None and visual.card is not None and visual.card.strip_px > 0
         label = b.event.text if b.event.kind == "lower_third" and b.event.text else None
         rows, split, wall = set_piece(b, manifest, job_dir, numbers=numbers,
-                                      pip_top=geometry.top, face_of=face_in)  # fmt: skip
-        chart, diagram = infographic(b, manifest, job_dir, numbers=numbers)
+                                      pip_top=geometry.top, face_of=face_in,
+                                      log=log)  # fmt: skip
+        chart, diagram = infographic(b, manifest, job_dir, numbers=numbers, log=log)
         start_frame, end_frame = round(b.start * fps), round(b.end * fps)
         placed_stamp = off_face(b.id, stamp_spec(stamp, numbers=numbers), visual) if stamp else None
         if placed_stamp is not None and split is not None:

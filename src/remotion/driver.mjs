@@ -32,14 +32,20 @@ const ENTRY = path.join(HERE, "index.ts");
 const BUNDLE_DIR = path.join(ROOT, "build", "remotion");
 const STAMP = path.join(BUNDLE_DIR, ".shortsmith-stamp");
 const COMPOSITION_ID = "Short";
+// 111b: .gif/.webm/.avif/.bmp are a backstop only - the pre-render check (111c) sends
+// nothing but jpg/png/webp/mp4 here, but a stray file is served with its real type.
 const MIME = {
   ".mp4": "video/mp4",
+  ".webm": "video/webm",
   ".mov": "video/quicktime",
   ".m4v": "video/mp4",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
 };
 
 function log(line) {

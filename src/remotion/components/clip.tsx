@@ -8,6 +8,8 @@
 // (1.0 -> 1.0 in every existing style: the clip's own movement is the motion). Nothing
 // is measured here. Ticket 102: `start_s` is the clip's most moving stretch (measured by
 // the asset step), and a clip the era judge found `timeless` carries the style's film grade.
+// Ticket 111b: a `list` or `wall` whose base is a clip is drawn here too, with the set
+// piece's push and its scrim (`dim`, the same black layer `photo` draws over a still base).
 import { Video } from "@remotion/media";
 import React from "react";
 import { AbsoluteFill, interpolate } from "remotion";

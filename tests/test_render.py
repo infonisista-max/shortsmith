@@ -63,6 +63,7 @@ from shortsmith.contracts import (
     ValidatedPlan,
     WordBox,
 )
+from shortsmith.media import probe as probe_media
 from shortsmith.planner import FakePlanner
 from shortsmith.qa import technical
 from shortsmith.transcriber import FakeTranscriber
@@ -2456,9 +2457,12 @@ def test_a_number_beat_carries_the_clip_on_from_where_it_stopped(tmp_path: Path)
     assert second.speed == first.speed
 
 
-def test_the_finale_cards_and_set_pieces_never_show_a_clip(tmp_path: Path) -> None:
+def test_the_finale_cards_pass_a_clip_over_and_a_set_piece_item_shows_its_frame(
+    tmp_path: Path,
+) -> None:
     """058 (7): the finale's cards are the short's first stills, so a clip record is
-    passed over; a set-piece item resolving to a clip fails the build naming it."""
+    passed over. 111b: a set-piece item resolving to a clip never fails the build: it
+    shows a frame grab of the clip (a real JPG, never an .mp4 in an <Img>), logged."""
     plan = _plan()
     beats = [_clip_beat(1, length=0.5), *plan.beats[1:]]
     plan = plan.model_copy(update={"beats": beats})
@@ -2467,11 +2471,111 @@ def test_the_finale_cards_and_set_pieces_never_show_a_clip(tmp_path: Path) -> No
     assert first is not None and first.kind == "clip"
     ids = render.opening_asset_ids(plan, manifest, 3)
     assert "a1" not in ids and len(ids) == 3
-    with pytest.raises(render.RenderError, match="clip"):
-        render.item_sources(
-            plan.beats[-2].model_copy(update={"items": [SetPieceItem(text="x", asset_id="a1")]}),
-            manifest, tmp_path / "job",
-        )  # fmt: skip
+    log: list[str] = []
+    (item,) = render.item_sources(
+        plan.beats[-2].model_copy(update={"items": [SetPieceItem(text="x", asset_id="a1")]}),
+        manifest, tmp_path / "job", log=log.append,
+    )  # fmt: skip
+    assert item.card is not None
+    _assert_frame_grab(item.card.src)
+    assert any("frame" in line and "a1" in line for line in log)
+
+
+def _assert_frame_grab(src: str) -> None:
+    path = Path(src)
+    assert path.suffix == ".jpg" and path.is_file() and probe_media(path) == "image"
+
+
+def _clip_on(manifest: AssetManifest, *beat_ids: str) -> tuple[AssetManifest, str]:
+    """`manifest` with the named beats' own asset swapped for its clip (111b: what the
+    asset step did to job 20261001-082005-826f78's wall beat b52)."""
+    clip = next(a for a in manifest.assets if a.kind == "clip")
+    beats = [
+        b.model_copy(update={"asset_id": clip.id}) if b.beat_id in beat_ids else b
+        for b in manifest.beats
+    ]
+    return manifest.model_copy(update={"beats": beats}), clip.id
+
+
+def test_a_list_or_wall_over_a_clip_draws_the_moving_clip_dimmed_and_zoomed(
+    tmp_path: Path,
+) -> None:
+    """111b: a set piece's base that is a clip is drawn as the clip, playing, with the
+    still base's own push and scrim from the style - never the clip's file as a photo."""
+    plan = _plan()
+    manifest, clip_id = _clip_on(_clip_sourced(tmp_path, plan), "b08", "b10")
+    spec = _visual_spec(tmp_path, plan, manifest)
+    b = EXPLAINER.broll
+    rows = {"b08": (b.list_scale_from, b.list_scale_to, b.list_dim),
+            "b10": (b.wall_scale_from, b.wall_scale_to, b.wall_dim)}  # fmt: skip
+    record = manifest.asset(clip_id)
+    assert record is not None
+    for beat_id, (low, high, dim) in rows.items():
+        visual = next(x for x in spec.beats if x.id == beat_id).visual
+        assert visual is not None and visual.treatment == "clip", beat_id
+        assert Path(visual.src) == (tmp_path / "job" / record.file).resolve()
+        assert (visual.scale_from, visual.scale_to, visual.dim) == (low, high, dim)
+        assert visual.speed == b.clip_speed and visual.pan_px == 0.0
+
+
+def test_a_split_badge_and_a_diagram_base_given_a_clip_show_a_frame_grab(
+    tmp_path: Path,
+) -> None:
+    """111b: the split's badge and an infographic's base are drawn in an <Img>, so a
+    clip there becomes a frame grab of it, logged."""
+    plan = _plan()
+    manifest, _ = _clip_on(_clip_sourced(tmp_path, plan), "b07", "b09")
+    log: list[str] = []
+    job_dir = tmp_path / "job"
+    badge = render.badge_source(_piece_beat(plan, "split"), manifest, job_dir, log=log.append)
+    assert badge is not None
+    _assert_frame_grab(badge.src)
+    base = render.diagram_base(_piece_beat(plan, "infographic"), manifest, job_dir,
+                               log=log.append)  # fmt: skip
+    assert base is not None
+    _assert_frame_grab(base.src)
+    assert sum("frame" in line for line in log) >= 2
+
+
+def test_a_still_beat_given_a_clip_file_draws_a_frame_grab(tmp_path: Path) -> None:
+    """111b: a photo or card beat whose file turns out to be a video (the record or the
+    decision said still) draws a frame grab of it; the type is read from the file."""
+    plan = _plan()
+    sourced = _clip_sourced(tmp_path, plan)
+    manifest, clip_id = _clip_on(sourced, "b01", "b02")
+    clip = manifest.asset(clip_id)
+    assert clip is not None
+    # the record claims an image: the renderer must not trust it
+    manifest = manifest.model_copy(update={"assets": [
+        a.model_copy(update={"kind": "image"}) if a.id == clip_id else a
+        for a in manifest.assets
+    ]})  # fmt: skip
+    spec = _visual_spec(tmp_path, plan, manifest)
+    for beat_id in ("b01", "b02"):
+        visual = next(x for x in spec.beats if x.id == beat_id).visual
+        assert visual is not None and visual.treatment != "clip", beat_id
+        _assert_frame_grab(visual.src)
+
+
+class _Unreadable(presenter.FaceDetector):
+    def detect(self, still: Path) -> FaceBox | None:
+        raise ValueError(f"cannot read {still.name}")
+
+
+def test_a_detector_failing_on_a_file_means_no_faces_and_never_fails_the_render(
+    tmp_path: Path,
+) -> None:
+    """111b: a still the detector cannot read is logged and treated as having no
+    faces, whatever the detector raises."""
+    plan = _plan()
+    log: list[str] = []
+    spec = render.build_spec(
+        plan, _captions(plan), presenter=Path("work/cut.mp4"),
+        source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+        manifest=_sourced(tmp_path, plan), job_dir=tmp_path / "job", detector=_Unreadable(),
+        log=log.append,
+    )  # fmt: skip
+    assert spec.beats and any("face detection skipped" in line for line in log)
 
 
 def test_no_face_detection_runs_on_a_clip_and_its_overlays_stay_placed(tmp_path: Path) -> None:
@@ -2551,6 +2655,55 @@ def test_a_clip_beat_renders_moving_muted_footage(tmp_path: Path, fixture_clip: 
     # the stems are the voice, the bed and the cues; no clip audio reaches the mix
     stems = sorted(p.name for p in (job.work_dir / "stems").glob("*.wav"))
     assert "voice.wav" in stems and "mix.wav" in stems and not any("clip" in s for s in stems)
+
+
+# 111b: above the list's header and the wall's grid, under nothing but the base.
+BASE_REGION = (120, 60, 960, 200)
+
+
+def _mean_luma(frame: tuple[int, int, bytes], box: tuple[int, int, int, int]) -> float:
+    left, top, right, bottom = box
+    values = [sum(_pixel(frame, x, y)) / 3 for y in range(top, bottom, 4)
+              for x in range(left, right, 4)]  # fmt: skip
+    return sum(values) / len(values)
+
+
+def test_a_list_and_a_wall_over_a_clip_render_a_moving_dimmed_base(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """111b end to end through Remotion (job 20261001-082005-826f78's b52): a list beat
+    and a wall beat whose base is a stock clip render it moving under the style's scrim
+    - a frame at the beat's middle differs from its first, and the base is darker than
+    the clip itself - where the render used to die on an .mp4 in an <Img>."""
+    plan = _plan()
+    job = _job_with(tmp_path, fixture_clip, plan)
+    validated = ValidatedPlan(picture=plan, sound=SoundStory(
+        prompt_version="t", theme="t", mood_curve=[],
+        bed_query=BedQuery(theme="t", mood="t", energy=3), cues=[]))  # fmt: skip
+    manifest = assets.source_assets(
+        validated, [], "any", spec=SPECS["explainer"], job_dir=job.path,
+        sources={
+            "web": assets.FakeImageSource("web", nothing_for={PORTRAIT_SKY}),
+            "commons": assets.FakeImageSource("commons", sizes={PORTRAIT_SKY: (1080, 1920)}),
+        },
+        clips={"pexels": assets.FakeClipSource("pexels")},
+    )  # fmt: skip
+    manifest, clip_id = _clip_on(manifest, "b08", "b10")
+    assets.write_manifest(job.path, manifest)
+    render.RemotionRenderer().render(job)
+    picture = job.work_dir / "picture.mp4"
+    spec = RenderSpec.model_validate_json((job.work_dir / "render_spec.json").read_text("utf-8"))
+    record = manifest.asset(clip_id)
+    assert record is not None
+    source = ffmpeg.frame_rgb(job.path / record.file, at_s=0.5)
+    for beat_id in ("b08", "b10"):
+        beat = next(b for b in spec.beats if b.id == beat_id)
+        assert beat.visual is not None and beat.visual.treatment == "clip", beat_id
+        first = ffmpeg.frame_rgb(picture, at_s=beat.start_frame / spec.fps + 1 / spec.fps)
+        middle = ffmpeg.frame_rgb(picture, at_s=(beat.start_frame + beat.end_frame) / 2 / spec.fps)
+        assert _region_motion(first, middle, BASE_REGION) > 0.01, beat_id
+        scrimmed = _mean_luma(source, (0, 0, source[0], source[1])) * (1 - beat.visual.dim)
+        assert _mean_luma(middle, BASE_REGION) < scrimmed + 25, beat_id
 
 
 def test_registry_exports_clip_after_058() -> None:

@@ -1,7 +1,8 @@
 // `list` (decisions 4.1, 9.2): the list set piece of nkb_04 - a header in the style's
 // accent over one pill per item, each springing in from an alternating side one after
 // another, with the item's asset as a circular icon on its left. The beat's own still
-// is drawn behind this by `photo`, dimmed by the style's `broll.motion.list.dim`.
+// is drawn behind this by `photo` (111b: a clip base by `clip`, playing), dimmed by the
+// style's `broll.motion.list.dim`.
 // `render.list_spec` measured and placed everything; this file only animates it.
 import React from "react";
 import { AbsoluteFill, Img, interpolate, spring } from "remotion";

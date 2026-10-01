@@ -528,3 +528,26 @@ test("the cash and brain particles are drawn in code inside their box (109)", ()
   assert.ok(particles < short.indexOf("<Pip "), "the particles are drawn over the PIP circle");
   assert.ok(particles < short.indexOf("<Captions "), "the particles are drawn over the captions");
 });
+
+test("the driver serves every media type a stray asset could carry (111b)", () => {
+  const driver = readFileSync(join(root, "driver.mjs"), "utf-8");
+  const types = {
+    ".gif": "image/gif",
+    ".webm": "video/webm",
+    ".avif": "image/avif",
+    ".bmp": "image/bmp",
+    ".mp4": "video/mp4",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+  };
+  for (const [ext, type] of Object.entries(types)) {
+    assert.ok(driver.includes(`"${ext}": "${type}"`), `${ext} is not served as ${type}`);
+  }
+});
+
+test("a list or wall base that is a clip plays under the same scrim (111b)", () => {
+  const clip = readFileSync(join(root, "components", "clip.tsx"), "utf-8");
+  assert.match(clip, /<Video/);
+  assert.match(clip, /visual\.dim > 0/);
+});
