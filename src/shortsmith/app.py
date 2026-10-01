@@ -929,8 +929,9 @@ def create_app(
 def retry_refusal(job: Job) -> str:
     """Why this job cannot be retried (043), or "" when it can. The page hides the
     button for the same reason, so the route and the button always agree."""
-    if job.status != "failed":
-        return NOT_FAILED_SENTENCE
+    if job.status != "failed" and not (job.status in jobs.VERDICTS
+                                       and job.record.plain_reel is not None):  # fmt: skip
+        return NOT_FAILED_SENTENCE  # 111g: a plain reel retries the full edit
     if job.record.swept_at is not None:
         return SWEPT_RETRY_SENTENCE
     return ""
@@ -1295,6 +1296,12 @@ def render_job_page(
     if record.swept_at is not None:  # 2.2: say why the brief and the references are gone
         lines.append(SWEPT_SENTENCE)
     warnings = "\n".join(f'<p class="warning">{html.escape(w)}</p>' for w in lines)
+    if record.plain_reel is not None and not retry_refusal(job):  # 111g: try the full edit
+        warnings += (
+            f'\n<form class="retry" method="post" action="/jobs/{html.escape(job.id)}/retry">\n'
+            '  <button type="submit">Retry the full edit</button>\n'
+            "</form>"
+        )
     error = ""
     if record.error is not None:
         error = (

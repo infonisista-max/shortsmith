@@ -8,6 +8,8 @@ Layout per decision 2.2: `<data_dir>/jobs/<job_id>/{job.json, input/, work/, out
     any non-terminal -> failed, carrying error {step, message, detail}; its job.log
         line ends with the detail's first line (065)
     failed -> uploaded, by `requeue` only (043: the retry), carrying `retry_from`
+    delivered | passed | rejected -> uploaded, by `requeue` too when the short is the
+        plain reel (111g: the retry runs the full edit again from `rendering`)
     in-flight step -> the status before an earlier (or the same) step, by `rewind`
         only (094: the editor's rescue re-runs from that step)
     delivered | passed | rejected -> uploaded, by `rework` only (094: a change),
@@ -217,6 +219,9 @@ class JobRecord(BaseModel):
     replaced: list[str] = []
     waived_checks: list[str] = []
     changes: list[ChangeRequest] = []
+    # 111g: the plain reel's page warning when this short is the plain reel (the full
+    # edit failed after planning); None for a full edit. Retry re-runs the full edit.
+    plain_reel: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -436,6 +441,9 @@ def requeue(job: Job, *, now: Clock = _utc_now) -> Job:
     but job.log keeps it, so a job that fails twice at the same step keeps both. An
     error naming something that is not a step (there is none today) re-runs from the
     first step rather than refusing the retry."""
+    plain = load(job.path).record.plain_reel
+    if job.status in VERDICTS and plain is not None:
+        return _retry_plain(job, plain, now=now)
     if job.status != "failed":
         raise IllegalTransition(job.id, job.status, "uploaded")
     step = job.record.error.step if job.record.error is not None else ""
@@ -489,6 +497,14 @@ def rewind(job: Job, to_step: Status, reason: str, *, now: Clock = _utc_now) -> 
     updated = amend(job, status=before, updated_at=stamp, progress=None)
     _append_log(updated, stamp, f"{current.status} -> {to_step} rewind: {reason}")
     return updated
+
+
+def _retry_plain(job: Job, plain: str, *, now: Clock) -> Job:
+    """111g: a plain-reel short's retry runs the full edit again from `rendering`; the
+    plain reel's warning leaves the page with the flag."""
+    warnings = [w for w in load(job.path).record.warnings if w != plain]
+    job = amend(job, plain_reel=None, warnings=warnings)
+    return rework(job, "rendering", "retry the full edit after the plain reel", now=now)
 
 
 def rework(job: Job, from_step: Status, reason: str, *, now: Clock = _utc_now) -> Job:

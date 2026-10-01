@@ -308,33 +308,38 @@ def test_the_same_beat_failing_twice_is_replaced_and_marked_for_the_ladder(
     assert repairs.beat_of(plan, "b04").kind == "photo"
 
 
-def test_a_render_engine_that_is_missing_still_fails_the_job(
+def test_a_render_engine_that_is_missing_is_not_rescued_but_delivers_the_plain_reel(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
+    """111g: no editor rescue for a missing engine; the plain reel (ffmpeg alone when
+    node is missing) is the last rung."""
     job = _uploaded(tmp_path, fixture_clip)
     done = _run(job, renderer=_FailsOnce("node is not on PATH; the picture engine needs Node"))
-    assert done.status == "failed" and done.record.decisions == []
+    assert done.status == "delivered" and done.record.plain_reel
+    assert [d.choice for d in done.record.decisions] == [pipeline.PLAIN_CHOICE]
 
 
 def test_a_render_failure_naming_no_beat_is_left_to_the_render_net(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
     """111d: a raw driver failure is the render net's (inside `render_picture`); one that
-    reaches the rescue naming no beat is not stripped again - the job fails."""
+    reaches the rescue naming no beat is not stripped again - the plain reel (111g)."""
     job = _uploaded(tmp_path, fixture_clip)
     done = _run(job, renderer=_FailsOnce("remotion driver exited 1:\nno frame found"))
-    assert done.status == "failed" and done.record.decisions == []
+    assert done.status == "delivered" and done.record.plain_reel
+    assert [d.choice for d in done.record.decisions] == [pipeline.PLAIN_CHOICE]
 
 
-def test_an_exhausted_render_net_fails_the_job_with_one_rescue_line(
+def test_an_exhausted_render_net_delivers_the_plain_reel_with_one_rescue_line(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    """111d: the net's one exit (111g hooks the plain reel here)."""
+    """111d: the net's one exit; 111g: the plain reel follows."""
     job = _uploaded(tmp_path, fixture_clip)
     exhausted = NetExhausted("beat 3 still failed drawn plain: boom", beats=["b03"],
                              unnamed=False)  # fmt: skip
     done = _run(job, renderer=_FailsOnce(exhausted))
-    assert done.status == "failed" and done.record.decisions == []
+    assert done.status == "delivered" and done.record.plain_reel
+    assert [d.choice for d in done.record.decisions] == [pipeline.PLAIN_CHOICE]
     assert "rescue: the render net is exhausted" in job.log_path.read_text("utf-8")
 
 

@@ -39,7 +39,7 @@ from shortsmith.qa import technical
 from shortsmith.qa.critic import FakeCritic, VisionCritic
 from shortsmith.qa.gate import FakeGate
 from shortsmith.qa.technical import QaCheck
-from shortsmith.render import FakeRenderer
+from shortsmith.render import FakeRenderer, PlainImpossible, PlainReel
 from shortsmith.transcriber import FakeTranscriber, GroqTranscriber
 from tests.conftest import Media
 from tests.test_auth import Ticker
@@ -781,7 +781,7 @@ def test_a_failed_check_shows_the_sentence_and_the_check_on_the_page(
         _settings(tmp_path),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), detector=FakeFaceDetector(),
+        renderer=_NoPlainRenderer(), detector=FakeFaceDetector(),
         gate=_DeafGate(fail="T3"),
         start_worker=False,
     )
@@ -814,12 +814,19 @@ class _HealingGate(FakeGate):
         return super().contact_sheet(job)
 
 
+class _NoPlainRenderer(FakeRenderer):
+    """111g: the plain reel cannot be made, so a failure after planning stays `failed`."""
+
+    def render_plain(self, job: jobs.Job, **_kwargs: object) -> PlainReel:
+        raise PlainImpossible("work/cut.mp4 is missing and could not be made: test")
+
+
 def _retrying_app(tmp_path: Path, **kwargs: Any) -> FastAPI:
     return app_module.create_app(
         _settings(tmp_path, **kwargs),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
-        renderer=FakeRenderer(), detector=FakeFaceDetector(),
+        renderer=_NoPlainRenderer(), detector=FakeFaceDetector(),
         gate=_HealingGate(),
         start_worker=False,
     )

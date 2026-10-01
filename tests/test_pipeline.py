@@ -209,7 +209,18 @@ def test_rendering_step_reports_progress_into_job_json(
     assert (job.out_dir / "short.mp4").is_file()
 
 
-class _BrokenRenderer(FakeRenderer):
+class _NoPlain(FakeRenderer):
+    """111g: a renderer whose plain reel cannot be made, so a failure after planning
+    still ends `failed` (the honest last case)."""
+
+    def render_plain(
+        self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> render.PlainReel:  # fmt: skip
+        raise render.PlainImpossible("work/cut.mp4 is missing and could not be made: test")
+
+
+class _BrokenRenderer(_NoPlain):
     def render(
         self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None,
         library: sound.Library | None = None,
@@ -217,12 +228,18 @@ class _BrokenRenderer(FakeRenderer):
         raise render.RenderError("remotion driver exited 1:\nno frame found")
 
 
-def test_a_failing_render_fails_the_job_at_rendering(tmp_path: Path, fixture_clip: Path) -> None:
+def test_a_failing_render_with_no_plain_reel_fails_the_job_at_rendering(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """111g: a failing render delivers the plain reel (test_plain_reel); only a plain
+    reel that cannot be made fails the job, honestly."""
     done = _run(_uploaded(tmp_path, fixture_clip), renderer=_BrokenRenderer())
     assert done.status == "failed"
     assert done.record.error is not None
     assert done.record.error.step == "rendering"
-    assert done.record.error.message == pipeline.ERROR_TEXT["rendering"]
+    assert done.record.error.message == (
+        f"{pipeline.ERROR_TEXT['rendering']} {pipeline.PLAIN_FAILED_TEXT}"
+    )
     assert "no frame found" in done.record.error.detail
 
 
@@ -374,9 +391,9 @@ class _RightslessGate(FakeGate):
 def test_delivered_requires_rights_and_credits(tmp_path: Path, fixture_clip: Path) -> None:
     assert pipeline.DELIVERABLES == ("short.mp4", "contact.jpg", "rights.json", "credits.md")
     done = _run(_uploaded(tmp_path, fixture_clip), gate=_RightslessGate())
-    assert done.status == "failed"
-    assert done.record.error is not None
-    assert "rights.json" in done.record.error.detail
+    assert done.status == "delivered"  # 111g: as the plain reel, the gap in job.log
+    assert done.record.plain_reel
+    assert "missing out/rights.json" in done.log_path.read_text(encoding="utf-8")
 
 
 def test_a_failed_check_naming_no_beat_is_delivered_with_a_note(
@@ -406,12 +423,11 @@ class _SheetlessGate(FakeGate):
         return job.out_dir / "contact.jpg"  # never written
 
 
-def test_missing_deliverables_fail_the_job_at_qa(tmp_path: Path, fixture_clip: Path) -> None:
+def test_missing_deliverables_deliver_the_plain_reel(tmp_path: Path, fixture_clip: Path) -> None:
     done = _run(_uploaded(tmp_path, fixture_clip), gate=_SheetlessGate())
-    assert done.status == "failed"
-    assert done.record.error is not None
-    assert done.record.error.step == "qa"
-    assert "contact.jpg" in done.record.error.detail
+    assert done.status == "delivered"  # 111g: never `failed` after planning
+    assert done.record.plain_reel
+    assert "missing out/contact.jpg" in done.log_path.read_text(encoding="utf-8")
 
 
 def test_the_worker_gates_through_the_technical_gate_by_default() -> None:
@@ -542,11 +558,12 @@ class _OverBudgetCritic(FakeCritic):
 def test_the_critics_hard_cap_fails_the_job_at_qa_like_any_refused_paid_call(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    """11.3: the hard cap is not an API failure; the job fails visibly at `qa`."""
+    """11.3: the hard cap is not an API failure; 111g: past planning it delivers the
+    plain reel (which pays for nothing), and job.log says the cap stopped the edit."""
     done = _run(_uploaded(tmp_path, fixture_clip), critic=_OverBudgetCritic())
-    assert done.status == "failed"
-    assert done.record.error is not None and done.record.error.step == "qa"
-    assert done.record.error.message == "Budget exceeded at step qa."
+    assert done.status == "delivered"
+    assert done.record.plain_reel
+    assert "plain reel: qa could not finish" in done.log_path.read_text(encoding="utf-8")
 
 
 def test_a_failed_check_never_reaches_the_critic(tmp_path: Path, fixture_clip: Path) -> None:
@@ -1431,6 +1448,12 @@ class _RenderTakes(Renderer):
         subproc.run([sys.executable, "-c", f"import time; time.sleep({self.child_s})"])
         return FakeRenderer().render(job, on_progress=on_progress, library=library)
 
+    def render_plain(
+        self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> render.PlainReel:  # fmt: skip
+        return FakeRenderer().render_plain(job, on_progress=on_progress, library=library)
+
 
 def test_a_retry_from_rendering_gets_the_full_rendering_budget(
     tmp_path: Path, fixture_clip: Path
@@ -1449,10 +1472,9 @@ def test_a_retry_from_rendering_gets_the_full_rendering_budget(
         )  # fmt: skip
 
     first = attempt(job, _RenderTakes(clock, seconds=601, child_s=60))
-    assert first.status == "failed"
-    assert first.record.error is not None
-    assert first.record.error.step == "rendering"
-    assert "Retry starts rendering fresh" in first.record.error.message
+    assert first.status == "delivered"  # 111g: the plain reel, under its own budget
+    assert first.record.plain_reel is not None
+    assert "rendering step ran out of time" in first.record.plain_reel
 
     retried = attempt(jobs.requeue(first, now=clock), _RenderTakes(clock, 599, child_s=0))
     assert retried.status == "delivered", retried.record.error
@@ -1584,7 +1606,7 @@ def test_retry_from_sourcing_searches_only_the_beats_the_cache_does_not_have(
     """5.6: the per-job asset cache is what makes the retry cheap - the beats the first
     run already fetched are read off disk and only the rest are searched again."""
     job = _uploaded(tmp_path, fixture_clip)
-    failed = _run(job, sourcing=_with_source(_FlakySource(fail_after=2)))
+    failed = _run(job, sourcing=_with_source(_FlakySource(fail_after=2)), renderer=_NoPlain())
     assert failed.record.error is not None and failed.record.error.step == "sourcing"
 
     web, planner = assets.FakeImageSource("web"), _CountingPlanner()
@@ -1661,7 +1683,7 @@ def test_a_retry_adds_ledger_rows_and_keeps_the_ones_already_paid_for(
 def test_the_worker_runs_a_requeued_job_from_its_step(tmp_path: Path, fixture_clip: Path) -> None:
     job = _uploaded(tmp_path, fixture_clip)
     stopped = pipeline.Worker(
-        transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=FakeRenderer(),
+        transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=_NoPlain(),
         gate=_SheetlessGate(), sourcing=_sourcing(), specs=SPECS,
         detector=presenter.FakeFaceDetector(),
     )  # fmt: skip  # 097: a missing deliverable still fails qa; a failed check is rescued

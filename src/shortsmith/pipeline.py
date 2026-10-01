@@ -27,17 +27,26 @@ that breaks the picture render once node runs is the render net's (111d, inside
 `render.render_picture`: the failing beats simplified and the picture rendered again);
 when the net gives up (`render.NetExhausted`) naming no beat at all, the rescue takes
 one plain fallback - every overlay layer stripped from every beat, rewound to
-`rendering` - and any other exhausted net fails the job (111g's hook). A failed technical
+`rendering` - and any other exhausted net goes to the plain reel (111g). A failed technical
 check (`QaFailed`) offers the beats its detail names plus "deliver with a note" (the
 fallback: the check joins `job.json.waived_checks` and `qa` runs again, the check
 delivered as `warn`). At most `MAX_RESCUES` rescues per run; every decision is a
 `job.json.decisions` row and an `editor:` job.log line, every rescue a `rescue:` line.
 
+111g, the last rung: whatever still stops `sourcing`, `rendering` or `qa` after the
+rescues (an exhausted render net, a mux or QA crash, the hard cap, a step budget
+running out, a missing deliverable) delivers the plain reel (`render.render_plain`:
+the speaker with the captions, voice and music, no b-roll or overlays; ffmpeg alone
+with no captions when that render fails too) under a fresh budget, QA in warn mode,
+one page warning saying what was dropped, `job.json.plain_reel`, a `plain_reel`
+decision and `plain reel:` job.log lines. Retry on it runs the full edit again from
+`rendering` (`jobs.requeue`).
+
 A job still fails when there is nothing to deliver: any exception in `transcribing` or
-`planning` (no usable recording, face or transcript; both planners down), the hard cap
-(`ledger.BudgetExceeded`) or a missing price (`LedgerError`), the watchdog's kill, the
-render engine missing (`node`), `work/cut.mp4`, a stem or the picture missing before
-the mux, deliverables missing after the gate, or a rescue that ran out of options. A
+`planning` (no usable recording, face or transcript; both planners down; the hard cap
+or a missing price there), the watchdog's kill there, or a plain reel that cannot be
+made (`render.PlainImpossible`: no cut and none can be cut, no voice stem, ffmpeg
+unable to write it; `PLAIN_FAILED_TEXT`, at the step that failed). A
 failure marks the job `failed` at that step with the fixed user-facing sentence from
 `ERROR_TEXT` and the exception text as `detail` (11.1), whose first line also ends the
 job.log failure line (065); a failed technical check adds its name to the sentence
@@ -181,7 +190,7 @@ from shortsmith import (
     styles,
     subproc,
 )
-from shortsmith.budgets import MAX_FRAMES, Budgets, timeout_message
+from shortsmith.budgets import MAX_FRAMES, STEP_WORDS, Budgets, timeout_message
 from shortsmith.budgets import defaults as default_budgets
 from shortsmith.contracts import (
     PICTURE_TREATMENTS,
@@ -321,6 +330,7 @@ def run_job(
         ("rendering", lambda j: _render(j, renderer, clock, library)),
         ("qa", lambda j: _qa(j, gate, critic)),
     ]
+    _clear_plain(job)  # 111g: this run is the full edit again
     rescue = Rescue(editor=editor, specs=specs, clock=clock)
     index = jobs.STEPS.index(start_step(job))
     watchdog: subproc.Watchdog | None = None
@@ -349,6 +359,15 @@ def run_job(
                         job = jobs.rewind(job, resume, rescue.why)
                         index = jobs.STEPS.index(resume)
                         continue
+                if status in RESCUED_STEPS:  # 111g: the last rung, never `failed`
+                    timed_out = watchdog is not None and watchdog.check()
+                    job = _plain_reel(job, status, exc, timed_out=timed_out,
+                                      renderer=renderer, gate=gate, library=library,
+                                      watchdog=watchdog, budgets=budgets, clock=clock)  # fmt: skip
+                    if job.status == "failed":
+                        return job
+                    break
+                if watchdog is None or not watchdog.check():
                     violations = exc.violations if isinstance(exc, PlanRejected) else []
                     return jobs.fail(
                         job,
@@ -357,7 +376,9 @@ def run_job(
                         detail=detail,
                         violations=violations,
                     )
-            if watchdog is not None and budgets is not None and watchdog.check():
+            # 111g: a sourcing, rendering or qa step that finished late goes on.
+            if (watchdog is not None and budgets is not None and status not in RESCUED_STEPS
+                    and watchdog.check()):  # fmt: skip
                 message = timeout_message(
                     status, watchdog.reason, step_s=step_s, stall_s=budgets.stall_s,
                     backstop_s=budgets.backstop_s(),
@@ -1008,6 +1029,123 @@ def _qa(job: Job, gate: Gate, critic: Critic) -> None:
     gate.contact_sheet(job)
 
 
+# --- 111g: the plain reel, the last rung ------------------------------------------------
+
+PLAIN_CHOICE = "plain_reel"
+PLAIN_LEAD = "We could not finish the edit, so this is the plain version"
+# 111g: appended to the step's own sentence when even the plain reel cannot be made.
+PLAIN_FAILED_TEXT = "We could not make the plain version of your video either."
+PLAIN_WHY: dict[str, str] = {
+    "sourcing": "the pictures could not be found or made",
+    "rendering": "the edit would not render",
+    "qa": "the finished edit could not be checked",
+}
+
+
+def _and(words: Sequence[str]) -> str:
+    return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
+
+
+def plain_warning(status: str, reel: render.PlainReel, *, timed_out: bool) -> str:
+    """The job page's one line for a plain reel: what it keeps, what was dropped, why."""
+    kept = [w for w, on in (("captions", reel.captions), ("music", reel.music)) if on]
+    has = f"your video with {_and(kept)}" if kept else "your video and voice"
+    dropped = ["pictures", "effects"] + [w for w in ("captions", "music") if w not in kept]
+    why = (f"the {STEP_WORDS.get(status, status)} step ran out of time" if timed_out
+           else PLAIN_WHY.get(status, "the edit could not finish"))  # fmt: skip
+    return f"{PLAIN_LEAD}: {has}. The {_and(dropped)} were dropped ({why})."
+
+
+def _clear_plain(job: Job) -> None:
+    """A run that starts over drops an earlier plain reel's flag and warning."""
+    record = jobs.load(job.path).record
+    if record.plain_reel is not None:
+        jobs.amend(job, plain_reel=None,
+                   warnings=[w for w in record.warnings if w != record.plain_reel])  # fmt: skip
+
+
+def _plain_guard(
+    watchdog: subproc.Watchdog | None, budgets: Budgets | None, job: Job, step: str
+) -> subproc.Watchdog | None:
+    """A fresh budget for the plain reel's step (111e); with the job's backstop spent,
+    no watchdog, so each tool's own fixed timeout stops a hang."""
+    if watchdog is None or budgets is None:
+        return None
+    arm_step(watchdog, budgets, job, step)
+    return None if watchdog.check() else watchdog
+
+
+def _plain_reel(
+    job: Job,
+    status: Status,
+    exc: Exception,
+    *,
+    timed_out: bool,
+    renderer: Renderer,
+    gate: Gate,
+    library: sound.Library,
+    watchdog: subproc.Watchdog | None,
+    budgets: Budgets | None,
+    clock: Clock,
+) -> Job:
+    """111g: `status` failed after every rescue; render the plain reel (`render_plain`),
+    check it in warn mode and leave the job at `qa` with the page warning and
+    `plain_reel` set - or `failed` at `status` (so Retry re-enters there), the step's
+    sentence plus `PLAIN_FAILED_TEXT`, when even it cannot be made."""
+    why = _first_line(exc)
+    if timed_out and watchdog is not None:
+        why = f"ran out of time ({watchdog.reason}): {why}"
+    jobs.note(job, f"plain reel: {status} could not finish ({why}); rendering the plain "
+              "reel (the speaker, captions and music)", now=clock)  # fmt: skip
+    jobs.decide(job, EditorDecision(
+        at=clock(), step=status, beat_id=None, problem=why[:400], choice=PLAIN_CHOICE,
+        reason="the edit could not finish after every rescue", by="fallback",
+    ), now=clock)  # fmt: skip
+    if status != "sourcing":
+        job = jobs.rewind(job, "rendering", "the plain reel", now=clock)
+    job = jobs.transition(job, "rendering", now=clock)
+    try:
+        with subproc.guarded(_plain_guard(watchdog, budgets, job, "rendering")):
+            reel = renderer.render_plain(job, on_progress=_progress(job, clock), library=library)
+    except Exception as err:  # noqa: BLE001 - nothing left to deliver: the honest failure
+        jobs.note(job, f"plain reel: could not be made ({_first_line(err)})", now=clock)
+        detail = f"{exc}\nthe plain reel could not be made: {err}\n{traceback.format_exc()}"
+        message = f"{failure_message(status, exc)} {PLAIN_FAILED_TEXT}"
+        return jobs.fail(job, step=status, message=message, detail=detail, now=clock)
+    job = jobs.transition(job, "qa", now=clock)
+    try:
+        with subproc.guarded(_plain_guard(watchdog, budgets, job, "qa")):
+            _plain_qa(job, gate, clock)
+    except Exception as err:  # noqa: BLE001 - QA warns only on the plain reel
+        jobs.note(job, f"plain reel: qa could not run ({_first_line(err)}); delivered "
+                  "unchecked", now=clock)  # fmt: skip
+    warning = plain_warning(status, reel, timed_out=timed_out)
+    current = jobs.load(job.path).record.warnings
+    jobs.amend(job, plain_reel=warning,
+               warnings=[*current, warning] if warning not in current else current)  # fmt: skip
+    return jobs.load(job.path)
+
+
+def _progress(job: Job, clock: Clock) -> Callable[[int], None]:
+    def on_progress(pct: int) -> None:
+        jobs.set_progress(job, pct, now=clock)
+
+    return on_progress
+
+
+def _plain_qa(job: Job, gate: Gate, clock: Clock) -> None:
+    """The plain reel's QA in warn mode: a failed check or a missing deliverable is a
+    job.log line, never a block."""
+    failed = gate.check(job).failed
+    if failed is not None:
+        jobs.note(job, f"plain reel: qa {failed.name} failed ({failed.detail}); delivered "
+                  "as warn", now=clock)  # fmt: skip
+    gate.contact_sheet(job)
+    missing = [name for name in DELIVERABLES if not (job.out_dir / name).is_file()]
+    if missing:
+        jobs.note(job, f"plain reel: qa: missing out/{', out/'.join(missing)}", now=clock)
+
+
 # --- 097: the step rescue ------------------------------------------------------------------
 
 RESCUED_STEPS: frozenset[str] = frozenset({"sourcing", "rendering", "qa"})
@@ -1150,13 +1288,13 @@ class Rescue:
         self, job: Job, exc: NetExhausted, problem: str, validated: ValidatedPlan
     ) -> Status | None:
         """111d: the render net (`render.render_picture`) gave up. Naming no beat (no
-        frame, no failing still): the 097 strip of every overlay, once. Else this is the
-        net's one exit, where 111g hooks the plain reel; today the job fails."""
+        frame, no failing still): the 097 strip of every overlay, once. Else the net's
+        one exit: no rescue, and the run goes on to the plain reel (111g)."""
         if exc.unnamed and not self.stripped:
             return self._strip(job, problem, validated)
         jobs.note(job, "rescue: the render net is exhausted"
                   + (f" ({', '.join(exc.beats)})" if exc.beats else "")
-                  + "; the job fails")  # fmt: skip
+                  + "; the plain reel follows")  # fmt: skip
         return None
 
     def _strip(self, job: Job, problem: str, validated: ValidatedPlan) -> Status | None:

@@ -182,6 +182,7 @@ from shortsmith.contracts import (
     DiagramLayout,
     EditorDecision,
     FaceBox,
+    Finale,
     FinaleCardSpec,
     GradeSpec,
     Highlight,
@@ -4314,6 +4315,124 @@ def render_short(
         return mux(job, library=library, search=search)
 
 
+# --- 111g: the plain reel, the last rung ------------------------------------------------
+
+PLAIN_BEAT_ID = "plain"
+
+
+class PlainImpossible(RenderError):
+    """Even the plain reel cannot be made: no presenter cut and none can be cut, or no
+    voice stem and none can be made, or ffmpeg cannot write the picture or the mix."""
+
+
+@dataclass(frozen=True)
+class PlainReel:
+    """The plain reel `render_plain` delivered: `captions` False when the Remotion render
+    failed too and ffmpeg alone made the picture; `music` False when the mix crashed and
+    the reel carries the voice alone."""
+
+    path: Path
+    captions: bool
+    music: bool
+
+
+def plain_spec(job: Job) -> RenderSpec:
+    """The spec builder over one `presenter_full` beat the length of the cut: the speaker
+    with the captions, in the style's caption look, and nothing else (no b-roll, no
+    overlay, no finale, no title strip)."""
+    plan = _load_plan(job)
+    duration = presenter.total_duration(presenter.cut_list(plan))
+    beat = Beat(id=PLAIN_BEAT_ID, start=0.0, end=duration, mode="full", kind="presenter_full")
+    plain = plan.model_copy(update={
+        "beats": [beat], "finale": Finale(beat_id="", text=""), "title_strip": "",
+    })  # fmt: skip
+    cut = _cut_path(job)
+    return build_spec(
+        plain, load_captions(job), presenter=cut, source_size=ffmpeg.video_size(cut),
+        duration_s=duration, numbers=style_numbers(job.record.style), pip=measured_pip(job),
+    )  # fmt: skip
+
+
+def ffmpeg_picture(cut: Path, out: Path) -> Path:
+    """The very last resort: the presenter cut's picture stream copied, silent."""
+    ffmpeg.run(
+        [ffmpeg.FFMPEG, "-v", "error", "-y", "-i", str(cut), "-map", "0:v:0", "-an",
+         "-c:v", "copy", "-movflags", "+faststart", str(out)],  # fmt: skip
+        timeout_s=FFMPEG_TIMEOUT_S,
+    )
+    return out
+
+
+def _made(what: str, path: Path, make: Callable[[], object]) -> None:
+    if path.is_file():
+        return
+    try:
+        make()
+    except Exception as exc:  # noqa: BLE001 - whatever stops it, the plain reel cannot be made
+        raise PlainImpossible(f"{what} is missing and could not be made: {_first_error(str(exc))}"
+                              ) from exc  # fmt: skip
+    if not path.is_file():
+        raise PlainImpossible(f"{what} is missing and could not be made")
+
+
+def render_plain(
+    job: Job,
+    *,
+    on_progress: Callable[[int], None] | None = None,
+    library: sound.Library | None = None,
+    search: sound.AudioSearch | None = None,
+) -> PlainReel:
+    """111g: the plain reel - the presenter cut with the captions (the Remotion render of
+    `plain_spec`), the voice and the music (`mux`). The Remotion render failing too falls
+    back to ffmpeg alone with no captions; the mix crashing falls back to the voice alone.
+    `PlainImpossible` when the cut or the voice stem is missing and cannot be made, or
+    ffmpeg cannot write the picture or the voice-only mix."""
+    job.work_dir.mkdir(parents=True, exist_ok=True)
+    log = RenderLog(job.work_dir / "render.log")
+    log.write("plain reel: start")
+    cut = _cut_path(job)
+    with log.phase("plain cut"):
+        _made("work/cut.mp4", cut, lambda: cut_presenter(job))
+    voice = _stems_dir(job) / "voice.wav"
+    with log.phase("plain voice"):
+        _made("work/stems/voice.wav", voice, lambda: voice_stem(job))
+    picture = job.work_dir / "picture.mp4"
+    captions = True
+    with log.phase("plain picture"):
+        log.write(f"{ATTEMPT}plain reel: the presenter with captions")
+        try:
+            run_driver(plain_spec(job), spec_path=job.work_dir / "render_spec.plain.json",
+                       out_path=picture, log_path=job.work_dir / "render.log",
+                       on_progress=on_progress)  # fmt: skip
+        except Exception as exc:  # noqa: BLE001 - the ffmpeg reel is the very last resort
+            jobs.note(job, "plain reel: the captioned render failed "
+                      f"({_first_error(str(exc))}); the picture is the cut alone")  # fmt: skip
+            log.write("plain reel: ffmpeg alone, no captions")
+            captions = False
+            try:
+                ffmpeg_picture(cut, picture)
+            except Exception as err:  # noqa: BLE001 - nothing left to draw the picture with
+                raise PlainImpossible(f"ffmpeg could not copy the cut: {_first_error(str(err))}"
+                                      ) from err  # fmt: skip
+    music = True
+    with log.phase("plain mux"):
+        try:
+            out = mux(job, library=library, search=search)
+        except Exception as exc:  # noqa: BLE001 - the voice alone is still a reel
+            jobs.note(job, f"plain reel: the mix failed ({_first_error(str(exc))}); "
+                      "the voice alone")  # fmt: skip
+            music = False
+            try:
+                mix = _stems_dir(job) / "mix.wav"
+                master(voice, mix)
+                job.out_dir.mkdir(parents=True, exist_ok=True)
+                out = remux(picture, mix, job.out_dir / "short.mp4")
+            except Exception as err:  # noqa: BLE001 - no audio, no reel
+                raise PlainImpossible(f"ffmpeg could not mux the voice: {_first_error(str(err))}"
+                                      ) from err  # fmt: skip
+    return PlainReel(path=out, captions=captions, music=music)
+
+
 # --- the interface the pipeline uses ---------------------------------------------------
 
 
@@ -4335,6 +4454,16 @@ class Renderer(ABC):
         return the short. `on_progress` gets the picture render's 0-100, and `library` is
         the audio catalogue the sound director mixes from (022); None loads the shipped
         one."""
+
+    def render_plain(
+        self,
+        job: Job,
+        *,
+        on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> PlainReel:
+        """111g: the plain reel (`render_plain`), the last rung after any failure."""
+        return render_plain(job, on_progress=on_progress, library=library)
 
 
 class RemotionRenderer(Renderer):
@@ -4375,6 +4504,15 @@ class RemotionRenderer(Renderer):
             geocoder=self.geocoder, detector=self.detector(),
         )  # fmt: skip
 
+    def render_plain(
+        self,
+        job: Job,
+        *,
+        on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> PlainReel:
+        return render_plain(job, on_progress=on_progress, library=library, search=self._search)
+
 
 class FakeRenderer(Renderer):
     """Builds the same RenderSpec (so a bad plan still fails here), reports 0, 50 and
@@ -4382,6 +4520,7 @@ class FakeRenderer(Renderer):
 
     def __init__(self) -> None:
         self.jobs: list[Path] = []
+        self.plain_jobs: list[Path] = []
 
     def render(
         self,
@@ -4422,3 +4561,22 @@ class FakeRenderer(Renderer):
         out = job.out_dir / "short.mp4"
         out.write_bytes(b"")
         return out
+
+    def render_plain(
+        self,
+        job: Job,
+        *,
+        on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> PlainReel:
+        """111g: placeholders for every file the plain reel leaves; none is media."""
+        self.plain_jobs.append(job.path)
+        for path in (_cut_path(job), _stems_dir(job) / "voice.wav",
+                     job.work_dir / "picture.mp4", _stems_dir(job) / "mix.wav"):  # fmt: skip
+            if not path.is_file():
+                path.write_bytes(b"")
+        (job.work_dir / "render.log").write_text("fake plain reel\n", encoding="utf-8")
+        job.out_dir.mkdir(parents=True, exist_ok=True)
+        out = job.out_dir / "short.mp4"
+        out.write_bytes(b"")
+        return PlainReel(path=out, captions=True, music=True)
