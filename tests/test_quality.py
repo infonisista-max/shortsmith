@@ -174,6 +174,14 @@ def test_a_stop_carries_every_finding_and_a_second_job_appends(tmp_path: Path) -
     ]  # fmt: skip
 
 
+@pytest.mark.usefixtures("strict")
+def test_a_pass_with_no_findings_goes_ahead_in_strict_mode(tmp_path: Path) -> None:
+    """112b: a pass that found nothing (a check with only true fixes) never stops."""
+    job = jobs.create(tmp_path)
+    assert quality.downgrade_all(job, [], lambda: 7) == 7
+    assert not quality.log_path(job).exists()
+
+
 # --- the four cases, strict -----------------------------------------------------------------
 
 
@@ -430,3 +438,31 @@ def test_the_plain_reel_choice_is_never_a_strict_option() -> None:
     assert issubclass(quality.QualityStop, Exception)
     assert quality.QualityStop in pipeline.NOT_RESCUED
     assert not pipeline.rescuable("rendering", quality.QualityStop([]))
+
+
+@pytest.mark.usefixtures("strict")
+def test_strict_the_pre_render_gate_stop_heads_the_page_and_lists_every_beat(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """112b: the gate's one stop carries its own headline; the page and job.log list
+    every settled beat with what it wanted, used and why."""
+    headline = ("stopped before rendering: 2 of 4 picture beats settled for a gradient or a "
+                "generated image")  # fmt: skip
+    findings = [
+        jobs.QualityFinding(beat="b01", kind="photo",
+                            cause="settled for the gradient; wanted 'a dam'; why: no hits"),
+        jobs.QualityFinding(beat="b03", kind="photo",
+                            cause="settled for a generated image (g1); wanted 'a map'; why: x"),
+    ]  # fmt: skip
+    renderer = _Raises(quality.QualityStop(findings, headline=headline))
+
+    done = _run(_uploaded(tmp_path, fixture_clip), renderer)
+
+    assert done.status == "failed" and done.record.error is not None
+    assert headline in done.record.error.message
+    assert [f.beat for f in done.record.error.findings] == ["b01", "b03"]
+    page = render_job_page(done)
+    assert headline in page
+    assert "wanted &#x27;a dam&#x27;; why: no hits" in page
+    log = done.log_path.read_text(encoding="utf-8")
+    assert "strict stop: beat b03 (photo): settled for a generated image" in log

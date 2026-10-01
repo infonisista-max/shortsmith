@@ -19,7 +19,17 @@ and never a failure:
    probes good (its own record, then any record of the same picture by `sha256`), else
    the gradient (096 rung 4: no visual, the beat drawn `pip`). A wall cell, finale card,
    sticker, row icon or badge is dropped; a split whose pane fails, or a diagram whose
-   base fails, is left out (the beat keeps its own visual).
+   base fails, is left out (the beat keeps its own visual). A drop's line names its true
+   cause (112b): missing or unreadable with no other asset, a failed frame grab, or a
+   failed conversion.
+
+112b: a repair that draws something worse - a clip's frame grab in a still's slot, a
+still in a clip's slot, another picture in a missing file's place, anything dropped -
+is also a `QualityFinding` on `Checked.findings` (the caller hands them to
+`quality.downgrade_all`: strict stops, forgiving keeps the repair). The true fixes are
+not findings: a format conversion and a replacement by the same picture (same
+`sha256`). `record_only` returns the findings without applying them: every such item
+is left as it is and has no `check:` line, while the true fixes are still applied.
 
 Conversions are cached next to the asset, or in `cache_dir` when one is given (a
 read-only job folder checked from a script). Apart from them it is pure over (spec,
@@ -45,6 +55,7 @@ from shortsmith.contracts import (
     SplitPane,
     VisualSpec,
 )
+from shortsmith.jobs import QualityFinding
 
 Slot = Literal["image", "video"]
 _CONVERT_ERRORS = (media.MediaError, ffmpeg.FFmpegError, OSError, ValueError)
@@ -52,10 +63,12 @@ _CONVERT_ERRORS = (media.MediaError, ffmpeg.FFmpegError, OSError, ValueError)
 
 @dataclass
 class Checked:
-    """The repaired spec and one `check:` line per repair."""
+    """The repaired spec, one `check:` line per repair, and (112b) every repair that
+    draws something worse as a finding."""
 
     spec: RenderSpec
     lines: list[str] = field(default_factory=lambda: [])
+    findings: list[QualityFinding] = field(default_factory=lambda: [])
 
     @property
     def repairs(self) -> int:
@@ -80,14 +93,32 @@ class _Fixed:
 
 class _Checker:
     def __init__(self, manifest: AssetManifest | None, job_dir: Path | None,
-                 cache_dir: Path | None) -> None:  # fmt: skip
+                 cache_dir: Path | None, *, kinds: dict[str, str],
+                 record_only: bool) -> None:  # fmt: skip
         self.manifest = manifest
         self.job_dir = job_dir
         self.cache_dir = cache_dir
+        self.kinds = kinds
+        self.record_only = record_only
         self.lines: list[str] = []
+        self.findings: list[QualityFinding] = []
 
     def note(self, beat_id: str, what: str, repair: str) -> None:
         self.lines.append(f"check: {beat_id}: {what} -> {repair}")
+
+    def downgrade(self, beat_id: str, cause: str, repair: str) -> bool:
+        """112b: a repair that draws something worse, as a finding; noted as a repair
+        unless record-only. True when record-only (the caller keeps the item as it is)."""
+        self.findings.append(QualityFinding(beat=beat_id, kind=self.kinds.get(beat_id, ""),
+                                            cause=cause, detail=f"repair: {repair}"))  # fmt: skip
+        if not self.record_only:
+            self.note(beat_id, cause, repair)
+        return self.record_only
+
+    def failed(self, beat_id: str, cause: str, dropped: str, keep: _Fixed) -> _Fixed | None:
+        """Nothing usable is left: `cause` is the true reason, `dropped` what the caller
+        does about it (None tells it to); record-only keeps the item as it is."""
+        return keep if self.downgrade(beat_id, cause, dropped) else None
 
     def _dest(self, path: Path, tag: str) -> Path:
         if self.cache_dir is None:
@@ -112,53 +143,72 @@ class _Checker:
             if path != bad.resolve():
                 yield path
 
-    def fix(self, beat_id: str, what: str, src: str, slot: Slot) -> _Fixed | None:
-        """`src` as a file its slot can draw, or None when nothing usable is left."""
+    def _sha256(self, path: Path) -> str | None:
+        """The sha256 of the manifest record whose file is `path`, if one is."""
+        if self.manifest is None or self.job_dir is None:
+            return None
+        target = path.resolve()
+        return next((a.sha256 for a in self.manifest.assets
+                     if (self.job_dir / a.file).resolve() == target), None)  # fmt: skip
+
+    def fix(self, beat_id: str, what: str, src: str, slot: Slot,
+            dropped: str) -> _Fixed | None:  # fmt: skip
+        """`src` as a file its slot can draw, or None when nothing usable is left (the
+        caller then does what `dropped` says)."""
         path = Path(src)
+        keep = _Fixed(src, slot, False)
         kind = media.probe(path)
         changed = False
         if kind is None:
+            state = "unreadable" if path.is_file() else "missing"
             found = next((p for p in self._alternates(beat_id, path) if media.probe(p)), None)
             if found is None:
-                return None
-            self.note(beat_id, f"{what} {path.name} is missing or unreadable",
-                      f"the beat's next asset {found.name}")  # fmt: skip
+                return self.failed(beat_id, f"{what} {path.name}: {state} and no other "
+                                   "asset for this beat", dropped, keep)  # fmt: skip
+            repair = f"the beat's next asset {found.name}"
+            sha = self._sha256(path)
+            if sha is not None and sha == self._sha256(found):  # the same picture: a true fix
+                self.note(beat_id, f"{what} {path.name} is {state}", repair)
+            elif self.downgrade(beat_id, f"{what} {path.name} is {state}", repair):
+                return keep
             path, kind, changed = found, media.probe(found), True
         if kind == "video" and slot == "image":
+            cause = f"{what} {path.name} is a clip in a still's place"
+            if self.record_only:
+                return keep if self.downgrade(beat_id, cause, "its frame grab") else None
             grab = self._dest(path, "frame").with_suffix(".jpg")
             if media.probe(grab) != "image":
                 try:
                     grab = media.as_still(path, grab)
-                except _CONVERT_ERRORS:
-                    return None
-            self.note(beat_id, f"{what} {path.name} is a clip in a still's place",
-                      f"its frame grab {grab.name}")  # fmt: skip
+                except _CONVERT_ERRORS as exc:
+                    return self.failed(beat_id, f"{what} {path.name}: frame grab failed: {exc}",
+                                       dropped, keep)  # fmt: skip
+            self.downgrade(beat_id, cause, f"its frame grab {grab.name}")
             path, kind, changed = grab, "image", True
         elif kind == "image" and slot == "video":
-            self.note(beat_id, f"{what} {path.name} is a still in a clip's place",
-                      "drawn as a photo with the beat's camera move")  # fmt: skip
+            if self.downgrade(beat_id, f"{what} {path.name} is a still in a clip's place",
+                              "drawn as a photo with the beat's camera move"):  # fmt: skip
+                return keep
         if not media.is_browser_safe(path):
             try:
                 if kind == "image":
                     safe = media.as_still(path, self._dest(path, "safe"))
                 else:
                     safe = media.as_clip(path, self._dest(path, "safe"))
-            except _CONVERT_ERRORS:
-                return None
+            except _CONVERT_ERRORS as exc:
+                target = "a JPG/PNG" if kind == "image" else "H.264"
+                return self.failed(beat_id, f"{what} {path.name}: conversion to {target} "
+                                   f"failed: {exc}", dropped, keep)  # fmt: skip
             self.note(beat_id, f"{what} {path.name} is a format the browser cannot draw",
                       f"converted to {safe.name}")  # fmt: skip
             path, changed = safe, True
         assert kind is not None
         return _Fixed(str(path), kind, changed)
 
-    def dropped(self, beat_id: str, what: str, src: str, repair: str) -> None:
-        self.note(beat_id, f"{what} {Path(src).name} is missing or unreadable", repair)
-
     def visual(self, beat: BeatSpec, visual: VisualSpec) -> BeatSpec:
         slot: Slot = "video" if visual.treatment == "clip" else "image"
-        fixed = self.fix(beat.id, "visual", visual.src, slot)
+        fixed = self.fix(beat.id, "visual", visual.src, slot, "the gradient")
         if fixed is None:
-            self.dropped(beat.id, "visual", visual.src, "the gradient")
             mode = "pip" if beat.mode == "off" else beat.mode
             return beat.model_copy(update={"visual": None, "mode": mode})
         update: dict[str, object] = {}
@@ -172,9 +222,11 @@ class _Checker:
             return beat
         return beat.model_copy(update={"visual": visual.model_copy(update=update)})
 
-    def item[T: BaseModel](self, beat_id: str, what: str, item: T, src: str) -> T | None:
-        """An image item with its src (and real size, where it has one) repaired."""
-        fixed = self.fix(beat_id, what, src, "image")
+    def item[T: BaseModel](self, beat_id: str, what: str, item: T, src: str,
+                           dropped: str) -> T | None:  # fmt: skip
+        """An image item with its src (and real size, where it has one) repaired; None
+        when it is to be dropped (`dropped` says how)."""
+        fixed = self.fix(beat_id, what, src, "image", dropped)
         if fixed is None:
             return None
         if not fixed.changed:
@@ -206,10 +258,11 @@ class _Checker:
         if beat.list is not None:
             rows: list[ListRow] = []
             for row in beat.list.rows:
-                if row.icon_src and (fixed := self.fix(b, "row icon", row.icon_src, "image")):
+                fixed = (self.fix(b, "row icon", row.icon_src, "image", "the row drawn without it")
+                         if row.icon_src else None)  # fmt: skip
+                if fixed is not None:
                     row = row.model_copy(update={"icon_src": fixed.src}) if fixed.changed else row
                 elif row.icon_src:
-                    self.dropped(b, "row icon", row.icon_src, "the row drawn without it")
                     # 111f: no icon box either (an empty <Img> src throws); the text
                     # takes the icon's place.
                     row = row.model_copy(update={
@@ -222,9 +275,7 @@ class _Checker:
                 update["list"] = beat.list.model_copy(update={"rows": rows})
         if beat.infographic is not None:
             src = beat.infographic.src
-            diagram = self.item(b, "diagram base", beat.infographic, src)
-            if diagram is None:
-                self.dropped(b, "diagram base", src, "the diagram left out")
+            diagram = self.item(b, "diagram base", beat.infographic, src, "the diagram left out")
             if diagram is not beat.infographic:
                 update["infographic"] = diagram
         return beat.model_copy(update=update) if update else beat
@@ -233,10 +284,8 @@ class _Checker:
         kept: list[T] = []
         for item in items:
             src = str(item.model_dump(include={"src"})["src"])
-            fixed = self.item(beat_id, what, item, src)
-            if fixed is None:
-                self.dropped(beat_id, what, src, f"the {what} dropped")
-            else:
+            fixed = self.item(beat_id, what, item, src, f"the {what} dropped")
+            if fixed is not None:
                 kept.append(fixed)
         return kept
 
@@ -245,17 +294,13 @@ class _Checker:
         assert split is not None
         panes: list[SplitPane] = []
         for pane in split.panes:
-            fixed = self.item(beat.id, "split pane", pane, pane.src)
+            fixed = self.item(beat.id, "split pane", pane, pane.src, "the split left out")
             if fixed is None:
-                self.dropped(beat.id, "split pane", pane.src, "the split left out")
                 return {"split": None}
             panes.append(fixed)
         badge = split.badge
         if badge is not None:
-            badge = self.item(beat.id, "badge", badge, badge.src)
-            if badge is None:
-                self.dropped(beat.id, "badge", split.badge.src if split.badge else "",
-                             "the badge dropped")  # fmt: skip
+            badge = self.item(beat.id, "badge", badge, badge.src, "the badge dropped")
         if panes == split.panes and badge is split.badge:
             return {}
         return {"split": split.model_copy(update={"panes": panes, "badge": badge})}
@@ -276,16 +321,18 @@ def check(
     job_dir: Path | None = None,
     cache_dir: Path | None = None,
     log: Callable[[str], None] | None = None,
+    record_only: bool = False,
 ) -> Checked:
-    """`spec` with every asset repaired to fit its slot, and the `check:` lines (each
-    also handed to `log`). `manifest` and `job_dir` let a missing base visual take the
-    beat's next good asset; `cache_dir` takes the conversions instead of the asset's
-    own folder."""
-    checker = _Checker(manifest, job_dir, cache_dir)
+    """`spec` with every asset repaired to fit its slot, the `check:` lines (each also
+    handed to `log`) and (112b) the findings. `manifest` and `job_dir` let a missing base
+    visual take the beat's next good asset; `cache_dir` takes the conversions instead of
+    the asset's own folder; `record_only` applies only the true fixes."""
+    kinds = {beat.id: str(beat.kind) for beat in spec.beats}
+    checker = _Checker(manifest, job_dir, cache_dir, kinds=kinds, record_only=record_only)
     beats = [checker.beat(beat) for beat in spec.beats]
     if log is not None:
         for line in checker.lines:
             log(line)
     if not checker.lines:
-        return Checked(spec)
-    return Checked(spec.model_copy(update={"beats": beats}), checker.lines)
+        return Checked(spec, findings=checker.findings)
+    return Checked(spec.model_copy(update={"beats": beats}), checker.lines, checker.findings)

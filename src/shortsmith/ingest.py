@@ -294,7 +294,7 @@ def accept(
         rel = f"refs/{n}_{slug(upload.original_name)}{ext}"
         size_bytes = ref.size_bytes
         if ref.kind == "image" and not media.is_real_still(upload.path, suffix=ext):
-            # 111a: anything but a true .jpg/.png is saved as one (same slug)
+            # 111a: anything but a true .jpg/.png/.webp (112b) is saved as a JPG/PNG (same slug)
             saved = media.as_still(upload.path, job.input_dir / rel)
             rel = saved.relative_to(job.input_dir).as_posix()
             size_bytes = saved.stat().st_size

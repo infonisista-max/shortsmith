@@ -51,6 +51,7 @@ def _settings(
         "RELEVANCE_JUDGE_MODEL",
         "SHORTSMITH_DATA_DIR",
         "SHORTSMITH_SINGLE_OPERATOR",
+        "STRICT_SETTLED_MAX_SHARE",
         "TRANSCRIBER",
         "TRANSCRIBER_LANGUAGE",
         "TRANSCRIBER_MODEL",
@@ -370,6 +371,15 @@ def test_the_planner_model_defaults_to_the_current_sonnet(monkeypatch: pytest.Mo
 def test_quality_mode_defaults_to_strict(monkeypatch: pytest.MonkeyPatch) -> None:
     """112: a crash or a missing thing fails loudly unless the operator says otherwise."""
     assert _settings(monkeypatch).quality_mode == "strict"
+
+
+def test_the_strict_settled_share_defaults_to_a_quarter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """112b: the pre-render gate's line; a setting so the operator moves it without code."""
+    assert _settings(monkeypatch).strict_settled_max_share == 0.25
+    assert _settings(monkeypatch, STRICT_SETTLED_MAX_SHARE="0.4").strict_settled_max_share == 0.4
+    for bad in ("-0.1", "1.5"):
+        with pytest.raises(ValidationError):
+            _settings(monkeypatch, STRICT_SETTLED_MAX_SHARE=bad)
 
 
 @pytest.mark.parametrize("mode", ["strict", "forgiving"])

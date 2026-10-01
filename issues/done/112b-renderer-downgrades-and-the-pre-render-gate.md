@@ -79,15 +79,33 @@ After this ticket, **stop**: the operator runs one fresh strict job before 112c/
 
 ## Acceptance
 
-- In strict mode, today's b52 case (a clip under a still-only slot, a missing file) fails
+- [x] In strict mode, today's b52 case (a clip under a still-only slot, a missing file) fails
   in seconds, before node, naming the beat. The wall/list clip case delivers.
-- A strict spec with three bad beats stops once, listing all three, each with its true cause.
-- A good WebP ref is not re-encoded.
-- The gate stops a job with too many fallbacks before rendering and shows the list.
-- Every test file is green; smoke delivers in strict mode; `npm` checks run if
+- [x] A strict spec with three bad beats stops once, listing all three, each with its true cause.
+- [x] A good WebP ref is not re-encoded.
+- [x] The gate stops a job with too many fallbacks before rendering and shows the list.
+- [x] Every test file is green; smoke delivers in strict mode; `npm` checks run if
   `src/remotion/` was touched.
 
 ## Files
 
 `render.py`, `render_check.py`, `pipeline.py` (the gate between sourcing and rendering),
 `config.py` (`STRICT_SETTLED_MAX_SHARE`), `app.py` (the stop page lists the beats), tests.
+
+## Done (2 Oct 2026)
+
+- Phase 1: the true cause on every `render_check` drop; a real WebP kept byte for byte;
+  the 111b/111c repairs and the face-read error as findings (`render.recording()`,
+  `check(record_only=True)`), one strict stop before node in `render_picture`.
+- Phase 2: the 111d net in strict runs the diagnosis, then one still per beat over every
+  beat, and stops once (`_Net.diagnose`) naming each failing beat with Remotion's error
+  (`run_stills(errors=)`); it never simplifies or re-renders. `STRICT_SETTLED_MAX_SHARE`
+  (default 0.25) and the strict pre-render gate (`prerender.py`), run inside
+  `render_picture` after the check and before node: over the line, one `QualityStop`
+  with the gate's list plus the build and check findings, headed "stopped before
+  rendering: N of M picture beats settled for a gradient or a generated image"; at or
+  under it, `settled:` job.log lines and `settled` quality-log rows. The smoke always
+  runs strict and checks the gate (the fixture settles 0 of 8).
+- The gate sits in `render_picture`, not `pipeline.py`: that is where the build and check
+  findings exist, so the one stop can carry all three (after the cut and voice, still
+  before node). See work/questions-for-shubham.md 9-12.

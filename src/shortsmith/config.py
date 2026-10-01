@@ -21,7 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Planner = Literal["fake", "claude_code", "api"]
@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # 112: `strict` (the default) fails a job loudly where a rescue net would deliver a
     # downgraded reel; `forgiving` keeps every net as on 9e28146. Each job stamps it.
     quality_mode: QualityMode = "strict"
+    # 112b: the strict pre-render gate - the share of b-roll beats that may settle for a
+    # gradient or a generated image before the job stops ahead of rendering.
+    strict_settled_max_share: float = Field(default=0.25, ge=0.0, le=1.0)
     # 8.3 / 11.3: the subscription planner is for a single-operator deployment only.
     shortsmith_single_operator: bool = False
     anthropic_api_key: SecretStr | None = None

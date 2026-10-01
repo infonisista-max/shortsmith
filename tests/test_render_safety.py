@@ -206,6 +206,7 @@ def test_the_kind_list_is_complete() -> None:
     assert planned | carried | split_off == ALL_KINDS
 
 
+@pytest.mark.usefixtures("forgiving")  # 112b: the strict variant follows
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_every_kind_with_a_bad_asset_still_delivers(run: Run, variant: Variant) -> None:
     broken: list[int] = []
@@ -225,6 +226,31 @@ def test_every_kind_with_a_bad_asset_still_delivers(run: Run, variant: Variant) 
     )
 
 
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_strict_a_format_fix_delivers_and_a_clip_or_missing_file_stops_naming_the_beat(
+    run: Run, variant: Variant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """112b: the same job in strict mode. A lying extension is a format conversion, a
+    true fix, so the job delivers; a clip in a still's place or a missing file stops
+    once before node, every finding naming its beat."""
+    monkeypatch.setenv("QUALITY_MODE", "strict")
+
+    done = run.go(before=lambda job: _break(job.path, variant, run.tmp))
+
+    if variant == "lying_extension":
+        assert done.status == "delivered", done.record.error
+        _assert_short(done)
+        assert "strict stop" not in _log(done)
+        return
+    assert done.status == "failed", done.record
+    error = done.record.error
+    assert error is not None and error.step == "rendering"
+    assert error.findings and all(f.beat for f in error.findings), error.findings
+    assert not (done.work_dir / "picture.mp4").exists()  # stopped before node
+    assert "rescue: render net" not in _log(done)
+    assert not done.record.plain_reel
+
+
 # --- with the check taken away: the rungs behind it -------------------------------------------
 
 
@@ -235,6 +261,7 @@ def _no_check(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(render_check, "check", unchecked)
 
 
+@pytest.mark.usefixtures("forgiving")
 def test_b52_a_clip_as_a_wall_cell_is_simplified_by_the_net(run: Run) -> None:
     """Today's job in small: Chrome cannot draw an .mp4 in a wall cell's <Img>."""
     _no_check(run.monkeypatch)

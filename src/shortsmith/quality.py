@@ -56,8 +56,11 @@ def _utc_now() -> datetime:
 class QualityStop(Exception):
     """Strict mode stopped the job; `findings` lists every problem the pass found."""
 
-    def __init__(self, findings: Sequence[QualityFinding]) -> None:
+    def __init__(self, findings: Sequence[QualityFinding], *, headline: str = "") -> None:
         self.findings = list(findings)
+        # 112b: the stop's own sentence for the page (the pre-render gate's count);
+        # empty, the page says how many problems the step found.
+        self.headline = headline
         super().__init__("; ".join(f.line() for f in self.findings) or "strict stop")
 
 
@@ -92,11 +95,12 @@ def log(job: Job, outcome: Outcome, finding: QualityFinding, *, now: Clock = _ut
         f.write("\t".join(_cell(c) for c in row) + "\n")
 
 
-def stop(job: Job, findings: Sequence[QualityFinding], *, now: Clock = _utc_now) -> NoReturn:
+def stop(job: Job, findings: Sequence[QualityFinding], *, headline: str = "",
+         now: Clock = _utc_now) -> NoReturn:  # fmt: skip
     """Log every finding as `stop` and raise one `QualityStop` carrying them all."""
     for finding in findings:
         log(job, "stop", finding, now=now)
-    raise QualityStop(findings)
+    raise QualityStop(findings, headline=headline)
 
 
 def downgrade_all[T](
@@ -104,8 +108,8 @@ def downgrade_all[T](
     now: Clock = _utc_now,
 ) -> T:  # fmt: skip
     """Strict: `stop`. Forgiving: run `apply` (today's repair), log each finding as
-    `repair`, and return what `apply` returned."""
-    if mode_of(job) == "strict":
+    `repair`, and return what `apply` returned. No findings: `apply` in either mode."""
+    if findings and mode_of(job) == "strict":
         stop(job, findings, now=now)
     result = apply()
     for finding in findings:

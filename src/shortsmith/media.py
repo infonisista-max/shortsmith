@@ -9,8 +9,9 @@ A file's kind is decided by its **content**, never by its extension: an upload n
 - `is_browser_safe(path) -> bool`: what Chrome decodes in the render: a JPEG, PNG or
   WebP image, or an H.264 video in an mp4 container (the codec is probed). A file whose
   extension names another format than its content is not safe.
-- `is_real_still(path, suffix=None) -> bool`: a JPEG or PNG by content under its own suffix (what
-  intake and `normalise_refs` keep byte for byte; anything else goes through `as_still`).
+- `is_real_still(path, suffix=None) -> bool`: a JPEG, PNG or (112b) WebP by content under its
+  own suffix (what intake and `normalise_refs` keep byte for byte; anything else goes
+  through `as_still`).
 - `as_still(path, dest) -> Path`: a real JPG (a PNG when the image has alpha) from any
   image Pillow reads (WebP, AVIF, GIF first frame, BMP, TIFF; HEIC only if Pillow has
   it), EXIF rotation applied, written at `dest` with its suffix set to `.jpg`/`.png`.
@@ -18,7 +19,7 @@ A file's kind is decided by its **content**, never by its extension: an upload n
 - `as_clip(path, dest) -> Path`: an H.264 mp4 of any video, at `dest` with the suffix
   `.mp4`; an H.264 mp4 already is returned unchanged and nothing is written.
 - `normalise_refs(job_dir) -> list[str]`: every image row of `input/refs.json` that is
-  not a real `.jpg`/`.png` (content and suffix agreeing) becomes one, keeping the slug;
+  not a real `.jpg`/`.png`/`.webp` (content and suffix agreeing) becomes one, keeping the slug;
   `refs.json` then points at it with its new size. Idempotent. It returns one job.log
   line per conversion, and per unreadable ref (left as it is: the render skips it);
   a missing ref is skipped silently (sourcing logs it). Clips are left to 111c.
@@ -46,8 +47,9 @@ _BROWSER_IMAGES: dict[str, frozenset[str]] = {
     "PNG": frozenset({".png"}),
     "WEBP": frozenset({".webp"}),
 }
-# What a normalised ref is: a JPG or a PNG under its own suffix.
-_REF_IMAGES = {fmt: _BROWSER_IMAGES[fmt] for fmt in ("JPEG", "PNG")}
+# What a normalised ref is: an image the browser draws under its own suffix (112b: a
+# real WebP is kept byte for byte, never re-encoded to a lossy JPEG).
+_REF_IMAGES = _BROWSER_IMAGES
 # ffprobe demuxers that read stills or text, never a moving picture.
 _STILL_DEMUXERS = ("image2", "tty", "_pipe")
 STILL_QUALITY = 92
@@ -183,7 +185,7 @@ def as_clip(path: Path, dest: Path) -> Path:
 
 
 def is_real_still(path: Path, *, suffix: str | None = None) -> bool:
-    """A JPG or PNG by content, under its own suffix (`suffix` stands in for the
+    """A JPG, PNG or WebP by content, under its own suffix (`suffix` stands in for the
     path's own, e.g. an upload's original name): what a ref is saved as."""
     fmt = _image_format(path)
     named = (suffix if suffix is not None else path.suffix).lower()

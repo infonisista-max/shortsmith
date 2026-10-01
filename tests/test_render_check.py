@@ -282,3 +282,212 @@ def test_two_assets_of_one_name_stay_apart_in_the_cache_dir(tmp_path: Path) -> N
     assert beat.wall is not None
     assert [(c.width, c.height) for c in beat.wall.cells] == [(100, 100), (200, 100)]
     assert beat.wall.cells[0].src != beat.wall.cells[1].src
+
+
+# --- 112b: every line names its true cause; the downgrades are findings ---------------
+
+
+def _boom(*_: object) -> Path:
+    raise media.MediaError("boom")
+
+
+def test_a_missing_file_with_no_other_asset_names_that_cause(tmp_path: Path) -> None:
+    spec = _with_beat(_base_spec(), visual=_visual(tmp_path / "gone.jpg"))
+    checked = render_check.check(spec)
+    b = spec.beats[0].id
+    assert checked.lines == [
+        f"check: {b}: visual gone.jpg: missing and no other asset for this beat -> the gradient"
+    ]
+    [finding] = checked.findings
+    assert (finding.beat, finding.kind) == (b, spec.beats[0].kind)
+    assert finding.cause == "visual gone.jpg: missing and no other asset for this beat"
+
+
+def test_a_failed_frame_grab_names_that_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clip = _clip(tmp_path / "clip.mp4")
+    monkeypatch.setattr(media, "as_still", _boom)
+    spec = _with_beat(_base_spec(), visual=_visual(clip))
+    checked = render_check.check(spec)
+    b = spec.beats[0].id
+    assert checked.spec.beats[0].visual is None
+    assert checked.lines == [
+        f"check: {b}: visual clip.mp4: frame grab failed: boom -> the gradient"
+    ]
+    assert [f.cause for f in checked.findings] == ["visual clip.mp4: frame grab failed: boom"]
+
+
+def test_a_failed_conversion_names_that_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gif = _image(tmp_path / "anim.gif", fmt="GIF")
+    monkeypatch.setattr(media, "as_still", _boom)
+    wall = WallSpec(cells=[_card(gif)], columns=1, spring_s=0.4)
+    spec = _with_beat(_base_spec(), visual=_visual(_image(tmp_path / "ok.jpg")), wall=wall)
+    checked = render_check.check(spec)
+    b = spec.beats[0].id
+    assert checked.lines == [
+        f"check: {b}: wall cell anim.gif: conversion to a JPG/PNG failed: boom "
+        "-> the wall cell dropped"
+    ]
+    assert [f.cause for f in checked.findings] == [
+        "wall cell anim.gif: conversion to a JPG/PNG failed: boom"
+    ]
+
+
+def test_the_downgrades_are_findings_and_the_true_fixes_are_not(tmp_path: Path) -> None:
+    """A clip in a still's slot, a still in a clip's slot and a missing file are each a
+    finding naming the beat; a format conversion and a mislabelled WebP are true fixes."""
+    base = _base_spec()
+    one, two, three, four = (b.id for b in base.beats[:4])
+    clip = _clip(tmp_path / "clip.mp4")
+    still = _image(tmp_path / "still.jpg")
+    gif = _image(tmp_path / "anim.gif", fmt="GIF")
+    webp = _image(tmp_path / "webp.jpg", fmt="WEBP")
+    beats = [
+        base.beats[0].model_copy(update={"mode": "off", "visual": _visual(clip)}),
+        base.beats[1].model_copy(update={"mode": "off", "visual": _visual(still, "clip")}),
+        base.beats[2].model_copy(update={"mode": "off", "visual": _visual(tmp_path / "x.jpg")}),
+        base.beats[3].model_copy(update={"mode": "off", "visual": _visual(gif), "stickers": (
+            _sticker(webp),)}),
+    ]  # fmt: skip
+    spec = base.model_copy(update={"beats": [*beats, *base.beats[4:]]})
+
+    checked = render_check.check(spec)
+
+    assert [(f.beat, f.cause) for f in checked.findings] == [
+        (one, "visual clip.mp4 is a clip in a still's place"),
+        (two, "visual still.jpg is a still in a clip's place"),
+        (three, "visual x.jpg: missing and no other asset for this beat"),
+    ]
+    assert all(f.kind for f in checked.findings)
+    assert [f.detail for f in checked.findings] == [
+        "repair: its frame grab clip-frame.jpg",
+        "repair: drawn as a photo with the beat's camera move",
+        "repair: the gradient",
+    ]
+    assert sum(line.startswith(f"check: {four}: ") for line in checked.lines) == 2
+
+
+def test_record_only_returns_the_findings_and_applies_only_the_true_fixes(
+    tmp_path: Path,
+) -> None:
+    clip = _clip(tmp_path / "clip.mp4")
+    gif = _image(tmp_path / "anim.gif", fmt="GIF")
+    wall = WallSpec(cells=[_card(gif), _card(tmp_path / "gone.jpg")], columns=2, spring_s=0.4)
+    spec = _with_beat(_base_spec(), visual=_visual(clip), wall=wall)
+    b = spec.beats[0].id
+
+    checked = render_check.check(spec, record_only=True)
+
+    beat = checked.spec.beats[0]
+    assert beat.visual == spec.beats[0].visual  # the clip left as it is
+    assert beat.wall is not None and len(beat.wall.cells) == 2  # nothing dropped
+    assert media.is_browser_safe(Path(beat.wall.cells[0].src))  # the GIF converted
+    assert [line.split(" -> ")[0] for line in checked.lines] == [
+        f"check: {b}: wall cell anim.gif is a format the browser cannot draw"
+    ]
+    assert [f.cause for f in checked.findings] == [
+        "visual clip.mp4 is a clip in a still's place",
+        "wall cell gone.jpg: missing and no other asset for this beat",
+    ]
+
+
+def _two_records(tmp_path: Path, b: str, *, bad: str, sha: str) -> AssetManifest:
+    _image(tmp_path / "work" / "assets" / "h" / "copy.jpg")
+    record = {"origin": "web", "width": 320, "height": 400,
+              "fetched_at": "2026-10-01T00:00:00Z"}  # fmt: skip
+    return AssetManifest(
+        assets=[AssetRecord.model_validate({**record, "id": "a1", "sha256": "abc",
+                                            "file": bad}),
+                AssetRecord.model_validate({**record, "id": "a2", "sha256": sha,
+                                            "file": "work/assets/h/copy.jpg"})],
+        beats=[BeatAsset(beat_id=b, asset_id="a1", treatment="photo", fallback_rung=0)],
+        runtime_s=6.0, rescued_max=1,
+    )  # fmt: skip
+
+
+def test_a_same_sha256_replacement_is_a_true_fix(tmp_path: Path) -> None:
+    spec = _base_spec()
+    b = spec.beats[0].id
+    manifest = _two_records(tmp_path, b, bad="work/gone.jpg", sha="abc")
+    spec = _with_beat(spec, visual=_visual(tmp_path / "work" / "gone.jpg"))
+    checked = render_check.check(spec, manifest=manifest, job_dir=tmp_path, record_only=True)
+    visual = checked.spec.beats[0].visual
+    assert visual is not None and Path(visual.src).name == "copy.jpg"
+    assert checked.findings == []
+
+
+def test_another_picture_in_a_missing_files_place_is_a_downgrade(tmp_path: Path) -> None:
+    """The spec draws a file no record owns (a dressed copy): the beat's own record is
+    another picture, so taking it is a finding."""
+    spec = _base_spec()
+    b = spec.beats[0].id
+    manifest = _two_records(tmp_path, b, bad="work/assets/h/copy.jpg", sha="abc")
+    spec = _with_beat(spec, visual=_visual(tmp_path / "work" / "dressed.jpg"))
+    checked = render_check.check(spec, manifest=manifest, job_dir=tmp_path)
+    visual = checked.spec.beats[0].visual
+    assert visual is not None and Path(visual.src).name == "copy.jpg"
+    assert [f.cause for f in checked.findings] == ["visual dressed.jpg is missing"]
+    assert checked.findings[0].detail == "repair: the beat's next asset copy.jpg"
+
+
+def _render_picture_with(spec: RenderSpec, monkeypatch: pytest.MonkeyPatch) -> list[RenderSpec]:
+    seen: list[RenderSpec] = []
+
+    def spec_for_job(*_: object, **__: object) -> RenderSpec:
+        return spec
+
+    def run_driver(s: RenderSpec, **_: object) -> None:
+        seen.append(s)
+
+    monkeypatch.setattr(render, "spec_for_job", spec_for_job)
+    monkeypatch.setattr(render, "run_driver", run_driver)
+    return seen
+
+
+def test_strict_render_picture_stops_on_every_downgrade_before_the_driver(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shortsmith import jobs, quality
+
+    monkeypatch.setenv("QUALITY_MODE", "strict")
+    job = jobs.create(tmp_path)
+    clip = _clip(job.path / "work" / "assets" / "h" / "clip.mp4")
+    base = _base_spec()
+    beats = [
+        base.beats[0].model_copy(update={"mode": "off", "visual": _visual(clip)}),
+        base.beats[1].model_copy(update={"mode": "off", "visual": _visual(tmp_path / "x.jpg")}),
+    ]  # fmt: skip
+    spec = base.model_copy(update={"beats": [*beats, *base.beats[2:]]})
+    seen = _render_picture_with(spec, monkeypatch)
+
+    with pytest.raises(quality.QualityStop) as stop:
+        render.render_picture(job)
+
+    assert seen == []
+    assert [f.beat for f in stop.value.findings] == [base.beats[0].id, base.beats[1].id]
+    assert not (clip.parent / "clip-frame.jpg").exists()  # record-only: nothing repaired
+    assert "check: " not in (job.path / "job.log").read_text(encoding="utf-8")
+
+
+@pytest.mark.usefixtures("forgiving")
+def test_forgiving_render_picture_repairs_and_logs_each_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shortsmith import jobs, quality
+
+    job = jobs.create(tmp_path)
+    clip = _clip(job.path / "work" / "assets" / "h" / "clip.mp4")
+    spec = _with_beat(_base_spec(), visual=_visual(clip))
+    seen = _render_picture_with(spec, monkeypatch)
+
+    render.render_picture(job)
+
+    visual = seen[0].beats[0].visual
+    assert visual is not None and Path(visual.src).name == "clip-frame.jpg"
+    rows = quality.log_path(job).read_text(encoding="utf-8").splitlines()[1:]
+    assert [row.split("\t")[4:] for row in rows] == [
+        ["repair", "visual clip.mp4 is a clip in a still's place"]
+    ]

@@ -104,6 +104,7 @@ from shortsmith import (
     jobs,
     meta,
     pipeline,
+    prerender,
     presenter,
     publishing,
     render,
@@ -348,6 +349,7 @@ def run_smoke(
         err = reloaded.record.error
         raise SmokeFailure(f"job failed at {err.step}: {err.message} ({err.detail.strip()})")
     check(reloaded.status == LAST_STATUS, f"job status is {reloaded.status}")
+    check_strict_gate(reloaded)
     # 097: the fixture plan needs no rescue; a decision here means the editor hid a
     # regression the smoke used to fail on.
     rescued = [f"{d.step} {d.beat_id or 'plan'}: {d.problem}" for d in reloaded.record.decisions]
@@ -1642,6 +1644,21 @@ def keep_requested() -> bool:
 
 
 @contextmanager
+def strict_mode() -> Generator[None]:
+    """112b: the smoke runs strict whatever the operator's QUALITY_MODE says - it must
+    deliver with no downgrade and pass the pre-render gate. The setting is restored."""
+    before = os.environ.get("QUALITY_MODE")
+    os.environ["QUALITY_MODE"] = "strict"
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop("QUALITY_MODE", None)
+        else:
+            os.environ["QUALITY_MODE"] = before
+
+
+@contextmanager
 def workspace(keep: bool) -> Generator[Path]:
     """The smoke's root: a system temp directory removed on exit, or, in keep mode,
     a fresh directory under `work/smoke/` that is never removed."""
@@ -1685,6 +1702,16 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv if argv is not None else [])
 
 
+def check_strict_gate(job: jobs.Job) -> None:
+    """112b: a strict job (the smoke's) passed the pre-render gate: its settled share is
+    at or under STRICT_SETTLED_MAX_SHARE and nothing stopped it."""
+    if job.record.quality_mode != "strict":
+        return
+    settled = prerender.gate(job)
+    check(not settled.over(prerender.max_share()),
+          f"the fixture trips the pre-render gate: {settled.headline()}")  # fmt: skip
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -1693,7 +1720,7 @@ def main(
 ) -> int:
     args = parse_args(argv)
     keep = keep_requested()
-    with workspace(keep) as root:
+    with workspace(keep) as root, strict_mode():
         try:
             result = run_smoke(
                 root, style=args.style, text_pops=args.text_pops, bubbles=args.bubbles,

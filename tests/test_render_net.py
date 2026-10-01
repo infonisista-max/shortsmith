@@ -32,6 +32,9 @@ from shortsmith.jobs import Job, JobRecord
 from shortsmith.planner import FakePlanner
 from shortsmith.transcriber import FakeTranscriber
 
+# 112b: the net simplifies beats, a downgrade forgiving keeps (strict is 112b phase 2's).
+pytestmark = pytest.mark.usefixtures("forgiving")
+
 BEATS = 5
 STUB = r"""
 import fs from "node:fs";
@@ -46,6 +49,7 @@ const broken = (b) =>
 if (argv[0] === "still") {
   for (const f of arg("frames").split(",").map(Number)) {
     const beat = spec.beats.find((b) => b.start_frame <= f && f < b.end_frame);
+    if (beat && broken(beat)) console.error(`still frame=${f}: Error loading image ${beat.id}.jpg`);
     console.log(`still frame=${f} ${beat && broken(beat) ? "failed" : "ok"}`);
   }
   process.exit(0);
@@ -161,6 +165,17 @@ class Net:
 
 @pytest.fixture
 def net(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Net:
+    return _net(tmp_path, monkeypatch)
+
+
+@pytest.fixture
+def strict_net(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Net:
+    """112b: a job stamped strict (the module's `forgiving` pin is overridden first)."""
+    monkeypatch.setenv("QUALITY_MODE", "strict")
+    return _net(tmp_path, monkeypatch)
+
+
+def _net(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Net:
     job = jobs.create(tmp_path / "job")
     stub_dir = tmp_path / "stub"
     stub_dir.mkdir()
@@ -273,3 +288,66 @@ def test_an_unknown_frame_no_still_explains_is_unnamed(
 
     assert caught.value.unnamed
     assert caught.value.beats == ()
+
+
+# --- 112b: strict mode - the diagnosis runs, the job stops once, nothing is simplified ------
+
+
+def _asked_frames(net: Net) -> list[int]:
+    log = (net.job.work_dir / "render-stills.log").read_text(encoding="utf-8")
+    argv = next(line for line in log.splitlines() if "--frames" in line)
+    return [int(f) for f in argv.split("--frames ")[1].split()[0].split(",")]
+
+
+def test_strict_a_render_failure_stops_naming_the_beat_after_a_stills_pass_over_every_beat(
+    strict_net: Net,
+) -> None:
+    from shortsmith import quality
+
+    strict_net.script(bad=["b3"])
+
+    with pytest.raises(quality.QualityStop) as stop:
+        render.render_picture(strict_net.job)
+
+    assert strict_net.calls() == ["render", "still"]  # the diagnosis; never a re-render
+    assert len(_asked_frames(strict_net)) == BEATS  # every beat, not only those near it
+    [finding] = stop.value.findings
+    assert finding.beat == "b3" and finding.kind == "card"
+    assert "Error loading image b3.jpg" in finding.cause
+    assert not _plain(strict_net.sent(), "b3")
+    assert strict_net.record().decisions == []
+    assert "render net: the render failed at frame" in strict_net.log()
+
+
+def test_strict_every_failing_beat_is_named_in_one_stop(strict_net: Net) -> None:
+    from shortsmith import quality
+
+    strict_net.script(bad=[], mode="unknown", always=["b2", "b4"])
+
+    with pytest.raises(quality.QualityStop) as stop:
+        render.render_picture(strict_net.job)
+
+    assert strict_net.calls() == ["render", "still"]
+    assert [f.beat for f in stop.value.findings] == ["b2", "b4"]
+    assert all("Error loading image" in f.cause for f in stop.value.findings)
+
+
+def test_strict_a_failure_no_still_explains_stops_with_the_renders_error(
+    strict_net: Net, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shortsmith import quality
+
+    strict_net.script(bad=["b2"], mode="unknown")
+
+    def no_failing_still(*_a: object, **_k: object) -> set[int]:
+        return set()
+
+    monkeypatch.setattr(render, "run_stills", no_failing_still)
+
+    with pytest.raises(quality.QualityStop) as stop:
+        render.render_picture(strict_net.job)
+
+    [finding] = stop.value.findings
+    assert finding.beat is None
+    assert "Error loading image with src" in finding.cause
+    assert strict_net.calls() == ["render"]

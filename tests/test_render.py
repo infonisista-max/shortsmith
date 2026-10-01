@@ -2457,6 +2457,7 @@ def test_a_number_beat_carries_the_clip_on_from_where_it_stopped(tmp_path: Path)
     assert second.speed == first.speed
 
 
+@pytest.mark.usefixtures("forgiving")  # 112b: a downgrade forgiving keeps
 def test_the_finale_cards_pass_a_clip_over_and_a_set_piece_item_shows_its_frame(
     tmp_path: Path,
 ) -> None:
@@ -2518,6 +2519,7 @@ def test_a_list_or_wall_over_a_clip_draws_the_moving_clip_dimmed_and_zoomed(
         assert visual.speed == b.clip_speed and visual.pan_px == 0.0
 
 
+@pytest.mark.usefixtures("forgiving")  # 112b: a downgrade forgiving keeps
 def test_a_split_badge_and_a_diagram_base_given_a_clip_show_a_frame_grab(
     tmp_path: Path,
 ) -> None:
@@ -2537,6 +2539,7 @@ def test_a_split_badge_and_a_diagram_base_given_a_clip_show_a_frame_grab(
     assert sum("frame" in line for line in log) >= 2
 
 
+@pytest.mark.usefixtures("forgiving")  # 112b: a downgrade forgiving keeps
 def test_a_still_beat_given_a_clip_file_draws_a_frame_grab(tmp_path: Path) -> None:
     """111b: a photo or card beat whose file turns out to be a video (the record or the
     decision said still) draws a frame grab of it; the type is read from the file."""
@@ -2562,6 +2565,7 @@ class _Unreadable(presenter.FaceDetector):
         raise ValueError(f"cannot read {still.name}")
 
 
+@pytest.mark.usefixtures("forgiving")  # 112b: a downgrade forgiving keeps
 def test_a_detector_failing_on_a_file_means_no_faces_and_never_fails_the_render(
     tmp_path: Path,
 ) -> None:
@@ -2576,6 +2580,110 @@ def test_a_detector_failing_on_a_file_means_no_faces_and_never_fails_the_render(
         log=log.append,
     )  # fmt: skip
     assert spec.beats and any("face detection skipped" in line for line in log)
+
+
+# --- 112b: the build's downgrades are findings naming the beat ------------------------------
+
+
+def test_a_clip_in_each_still_slot_is_a_finding_naming_its_beat(tmp_path: Path) -> None:
+    plan = _plan()
+    manifest, _ = _clip_on(_clip_sourced(tmp_path, plan), "b01", "b07", "b09")
+    with render.recording() as found:
+        spec = _visual_spec(tmp_path, plan, manifest)
+    findings = found.findings(spec, plan)
+    kinds = {b.id: b.kind for b in plan.beats}
+    assert {"b01", "b07", "b09"} <= {f.beat for f in findings}
+    assert all("is a clip in a still's place" in f.cause for f in findings)
+    assert all(f.beat is not None and f.kind == kinds[f.beat] for f in findings)
+    visual = next(x for x in spec.beats if x.id == "b01").visual
+    assert visual is not None
+    _assert_frame_grab(visual.src)
+
+
+def test_a_clip_with_no_frame_to_grab_is_a_finding_naming_its_beat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _plan()
+    manifest, _ = _clip_on(_clip_sourced(tmp_path, plan), "b01")
+
+    def boom(*_: object) -> Path:
+        raise render.media.MediaError("boom")
+
+    monkeypatch.setattr(render.media, "as_still", boom)
+    with render.recording() as found:
+        spec = _visual_spec(tmp_path, plan, manifest)
+    [finding] = [f for f in found.findings(spec, plan) if f.beat == "b01"]
+    assert "no frame to grab: boom" in finding.cause
+
+
+def test_a_face_read_error_is_a_finding_naming_the_beat_and_the_file(tmp_path: Path) -> None:
+    plan = _plan()
+    with render.recording() as found:
+        spec = render.build_spec(
+            plan, _captions(plan), presenter=Path("work/cut.mp4"),
+            source_size=(fixture.WIDTH, fixture.HEIGHT), duration_s=fixture.DURATION_S,
+            manifest=_sourced(tmp_path, plan), job_dir=tmp_path / "job",
+            detector=_Unreadable(),
+        )  # fmt: skip
+    findings = found.findings(spec, plan)
+    assert findings and all(f.cause.startswith("face detection failed on image.png: cannot "
+                                                "read image.png") for f in findings)  # fmt: skip
+    with_visual = {b.id for b in spec.beats if b.visual is not None}
+    assert {f.beat for f in findings} & with_visual
+    assert {f.beat for f in findings} <= {b.id for b in spec.beats}
+
+
+def test_outside_a_recording_the_build_records_nothing(tmp_path: Path) -> None:
+    plan = _plan()
+    manifest, _ = _clip_on(_clip_sourced(tmp_path, plan), "b01")
+    with render.recording() as found:
+        pass
+    _visual_spec(tmp_path, plan, manifest)
+    assert found.findings(_spec(), plan) == []
+
+
+def _job_building(tmp_path: Path, clip: Path, monkeypatch: pytest.MonkeyPatch) -> jobs.Job:
+    """A job whose `build_spec` draws a clip in a still's place on b03."""
+    job = _job_with(tmp_path, clip)
+    render.cut_presenter(job)
+    grabbed = shutil.copyfile(clip, tmp_path / "b03.mp4")
+    spec = _spec()
+
+    def build_spec(*_: object, **__: object) -> RenderSpec:
+        render.still_path(grabbed, what="b03", beat="b03")
+        return spec
+
+    monkeypatch.setattr(render, "build_spec", build_spec)
+    return job
+
+
+def test_strict_spec_for_job_stops_naming_the_beat(
+    tmp_path: Path, fixture_clip: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shortsmith import quality
+
+    monkeypatch.setenv("QUALITY_MODE", "strict")
+    job = _job_building(tmp_path, fixture_clip, monkeypatch)
+    with pytest.raises(quality.QualityStop) as stop:
+        render.spec_for_job(job)
+    assert [(f.beat, f.cause) for f in stop.value.findings] == [
+        ("b03", "b03.mp4 is a clip in a still's place")
+    ]
+    collected: list[jobs.QualityFinding] = []
+    render.spec_for_job(job, findings=collected)  # the caller's one stop
+    assert [f.beat for f in collected] == ["b03"]
+
+
+@pytest.mark.usefixtures("forgiving")
+def test_forgiving_spec_for_job_keeps_the_frame_grab_and_logs_a_repair(
+    tmp_path: Path, fixture_clip: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shortsmith import quality
+
+    job = _job_building(tmp_path, fixture_clip, monkeypatch)
+    assert render.spec_for_job(job).beats
+    rows = quality.log_path(job).read_text(encoding="utf-8").splitlines()[1:]
+    assert [(r.split("\t")[2], r.split("\t")[4]) for r in rows] == [("b03", "repair")]
 
 
 def test_no_face_detection_runs_on_a_clip_and_its_overlays_stay_placed(tmp_path: Path) -> None:

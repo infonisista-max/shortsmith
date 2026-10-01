@@ -1224,7 +1224,9 @@ def strict_stop(job: Job, status: Status, stop: QualityStop, detail: str, clock:
     for finding in stop.findings:
         jobs.note(job, f"strict stop: {finding.line()}", now=clock)
     words = STEP_WORDS.get(status, status)
-    if len(stop.findings) == 1:
+    if stop.headline:  # 112b: the pre-render gate's count heads the page
+        message = f"Strict mode {stop.headline}."
+    elif len(stop.findings) == 1:
         message = f"Strict mode stopped the job at {words}: {stop.findings[0].line()}."
     else:
         message = f"Strict mode stopped the job at {words}: {len(stop.findings)} problems."

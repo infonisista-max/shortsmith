@@ -132,6 +132,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
@@ -147,7 +148,9 @@ from shortsmith import (
     infographics,
     jobs,
     media,
+    prerender,
     presenter,
+    quality,
     render_check,
     rights,
     sound,
@@ -217,7 +220,7 @@ from shortsmith.contracts import (
     VisualSpec,
     WallSpec,
 )
-from shortsmith.jobs import Job
+from shortsmith.jobs import Job, QualityFinding
 from shortsmith.safe_area import (  # 067: the one 6.2/6.3 definition
     HEIGHT,
     SAFE_BOTTOM_PX,
@@ -1074,11 +1077,82 @@ def is_video(path: Path, *, claimed_clip: bool = False) -> bool:
     return claimed_clip
 
 
+@dataclass(frozen=True)
+class _Downgrade:
+    beat: str | None
+    src: str  # the file it is about: a finding with no beat names the beats drawing it
+    cause: str
+    repair: str
+
+
+@dataclass
+class Recorded:
+    """112b: the downgrades `build_spec` made while `recording` - a clip's frame grab in
+    a still's place, a picture left out for want of a frame, a face read that failed
+    (read as no face). The build always applies today's repair; the job-aware caller
+    hands `findings` to `quality.downgrade_all` (strict stops, forgiving keeps it)."""
+
+    made: list[_Downgrade] = field(default_factory=lambda: [])
+
+    def findings(self, spec: RenderSpec, plan: PicturePlan) -> list[QualityFinding]:
+        """One finding per downgrade, per beat: one made with no beat (a face read) is
+        named on every beat of `spec` that draws its file."""
+        kinds = {b.id: str(b.kind) for b in plan.beats}
+        out: list[QualityFinding] = []
+        for made in self.made:
+            beats = [made.beat] if made.beat else _beats_drawing(spec, made.src) or [None]
+            for beat in beats:
+                finding = QualityFinding(beat=beat, kind=kinds.get(beat or "", ""),
+                                         cause=made.cause, detail=f"repair: {made.repair}")
+                if finding not in out:
+                    out.append(finding)
+        return out
+
+
+_RECORDING: ContextVar[Recorded | None] = ContextVar("render_recording", default=None)
+
+
+@contextmanager
+def recording() -> Generator[Recorded, None, None]:
+    """112b: collect the downgrades every build in this block makes; outside one (the
+    bench, a test calling `build_spec`) nothing is collected and the repairs are only
+    logged, as before."""
+    recorded = Recorded()
+    token = _RECORDING.set(recorded)
+    try:
+        yield recorded
+    finally:
+        _RECORDING.reset(token)
+
+
+def _downgraded(beat: str | None, src: Path | str, cause: str, repair: str) -> None:
+    recorded = _RECORDING.get()
+    if recorded is not None:
+        recorded.made.append(_Downgrade(beat, str(src), cause, repair))
+
+
+def _beats_drawing(spec: RenderSpec, src: str) -> list[str | None]:
+    """The ids of the beats whose spec draws the file `src` anywhere."""
+
+    def has(value: object) -> bool:
+        if isinstance(value, str):
+            return value == src
+        if isinstance(value, dict):
+            return any(has(v) for v in cast(dict[str, object], value).values())
+        if isinstance(value, list | tuple):
+            return any(has(v) for v in cast(Sequence[object], value))
+        return False
+
+    return [beat.id for beat in spec.beats if has(beat.model_dump())]
+
+
 def still_path(path: Path, *, claimed_clip: bool = False, what: str = "",
-               log: Callable[[str], None] | None = None) -> Path | None:  # fmt: skip
+               log: Callable[[str], None] | None = None,
+               beat: str | None = None) -> Path | None:  # fmt: skip
     """111b: `path` as a file an <Img> can draw: itself when it is a still, else a frame
     grab of the clip (`media.as_still`, made once beside it), logged; None, logged,
-    when no frame can be had (the caller leaves the picture out, never fails)."""
+    when no frame can be had (the caller leaves the picture out, never fails). 112b:
+    either is a downgrade on `beat` (`recording`)."""
     if not is_video(path, claimed_clip=claimed_clip):
         return path
     grab = path.with_name(f"{path.stem}-frame.jpg")
@@ -1089,19 +1163,24 @@ def still_path(path: Path, *, claimed_clip: bool = False, what: str = "",
             if log is not None:
                 log(f"media: {what}: {path.name} is a clip with no frame to grab; "
                     f"left out (111b): {exc}")  # fmt: skip
+            _downgraded(beat, path, f"{path.name} is a clip in a still's place, with no "
+                        f"frame to grab: {exc}", "left out")  # fmt: skip
             return None
     if log is not None:
         log(f"media: {what}: {path.name} is a clip; its frame grab {grab.name} is drawn "
             "where a still goes (111b)")  # fmt: skip
+    _downgraded(beat, grab, f"{path.name} is a clip in a still's place",
+                f"its frame grab {grab.name}")  # fmt: skip
     return grab
 
 
 def asset_still(job_dir: Path, record: AssetRecord, *, what: str,
-                log: Callable[[str], None] | None = None) -> str | None:  # fmt: skip
+                log: Callable[[str], None] | None = None,
+                beat: str | None = None) -> str | None:  # fmt: skip
     """111b: the record's file as a still an <Img> can draw (`still_path`), absolute;
-    `what` names the beat for the log line."""
+    `what` names the beat for the log line, `beat` (112b) for a downgrade."""
     found = still_path((job_dir / record.file).resolve(), claimed_clip=record.kind == "clip",
-                       what=f"{what} asset {record.id!r}", log=log)  # fmt: skip
+                       what=f"{what} asset {record.id!r}", log=log, beat=beat)  # fmt: skip
     return str(found) if found is not None else None
 
 
@@ -1239,7 +1318,7 @@ def _visuals(
                                  numbers=numbers, start_s=decided.clip_start_s)  # fmt: skip
         else:
             # 111b: a still treatment draws a still: a clip's frame grab, else nothing
-            grabbed = still_path(path, claimed_clip=video, what=beat.id, log=log)
+            grabbed = still_path(path, claimed_clip=video, what=beat.id, log=log, beat=beat.id)
             if grabbed is None:
                 out[beat.id] = ("pip", None)
                 previous = None
@@ -2355,11 +2434,12 @@ def card_sources(
             continue
         if beat.event.kind == "lower_third" and beat.event.text:
             labels.setdefault(decided.asset_id, beat.event.text)
+    finale = next((b.id for b in plan.beats if b.kind == "finale"), None)
     out: list[CardSource] = []
     for asset_id in opening_asset_ids(plan, manifest, count):
         record = manifest.asset(asset_id)
         assert record is not None  # opening_asset_ids keeps only assets with a record
-        src = asset_still(job_dir, record, what="finale", log=log)
+        src = asset_still(job_dir, record, what="finale", log=log, beat=finale)
         if src is None:
             continue
         out.append(
@@ -2895,7 +2975,7 @@ def item_sources(
             )
         asset_id = manifest.aliases.get(item.asset_id, item.asset_id)
         record = manifest.asset(asset_id) if asset_id is not None else None
-        src = asset_still(job_dir, record, what=beat.id, log=log) if record else None
+        src = asset_still(job_dir, record, what=beat.id, log=log, beat=beat.id) if record else None
         out.append(
             ItemSource(
                 text=item.text,
@@ -2921,7 +3001,7 @@ def badge_source(
         return None
     decided = manifest.beat(beat.id)
     record = manifest.asset(decided.asset_id) if decided and decided.asset_id else None
-    src = asset_still(job_dir, record, what=beat.id, log=log) if record else None
+    src = asset_still(job_dir, record, what=beat.id, log=log, beat=beat.id) if record else None
     if record is None or src is None:
         return None
     return CardSource(src=src, width=record.width, height=record.height)
@@ -2965,7 +3045,7 @@ def diagram_base(
     record = manifest.asset(decided.asset_id) if decided and decided.asset_id else None
     if decided is None or record is None or decided.treatment == "gradient":
         return None
-    src = asset_still(job_dir, record, what=beat.id, log=log)
+    src = asset_still(job_dir, record, what=beat.id, log=log, beat=beat.id)
     if src is None:
         return None
     return infographics.DiagramAsset(
@@ -3095,6 +3175,11 @@ def build_spec(
     geometry = pip or fixed_pip(source_size, numbers)
     faces: dict[str, FaceBox | None] = {}
 
+    def face_failed(src: str, exc: Exception) -> None:
+        # 112b: after 111a every still is readable, so a failed read is a corrupt file.
+        _downgraded(None, src, f"face detection failed on {Path(src).name}: {exc}",
+                    "read as no face")  # fmt: skip
+
     def face_in(src: str) -> FaceBox | None:
         """105: the face on a split pane's file (103: on a still, for `crop_fill`), detected
         once per file like `face_on`."""
@@ -3105,6 +3190,7 @@ def build_spec(
                 faces[src] = detector.detect(Path(src))
             except Exception as exc:  # noqa: BLE001 - 111b: any unreadable still is no face
                 faces[src] = None
+                face_failed(src, exc)
                 if log is not None:
                     log(f"faces: face detection skipped on {Path(src).name}: {exc}")
         return faces[src]
@@ -3121,6 +3207,7 @@ def build_spec(
                 every_face[src] = detector.detect_all(Path(src))
             except Exception as exc:  # noqa: BLE001 - 111b: any unreadable still is no face
                 every_face[src] = []
+                face_failed(src, exc)
                 if log is not None:
                     log(f"faces: face detection skipped on {Path(src).name}: {exc}")
         return every_face[src]
@@ -3162,6 +3249,7 @@ def build_spec(
                 faces[visual.src] = detector.detect(Path(visual.src))
             except Exception as exc:  # noqa: BLE001 - 111b: any unreadable still is no face
                 faces[visual.src] = None
+                face_failed(visual.src, exc)
                 if log is not None:
                     log(f"stamp: face detection skipped on {Path(visual.src).name}: {exc}")
         face = faces[visual.src]
@@ -3488,6 +3576,7 @@ _DONE = re.compile(r"^done frames=(\d+) render_s=([\d.]+) bundle_s=([\d.]+)\s*$"
 # 111d: the driver's failure line, and one line per still in `still` mode.
 _FAILED = re.compile(r"^failed frame=(\d+|unknown)(?: via=(error|progress))?\s*$")
 _STILL = re.compile(r"^still frame=(\d+) (ok|failed)\s*$")
+_STILL_ERROR = re.compile(r"^still frame=(\d+): (.+?)\s*$")  # 112b: the driver's stderr
 
 
 def parse_progress(line: str) -> tuple[int, int] | None:
@@ -3673,19 +3762,35 @@ def spec_for_job(
     numbers: StyleNumbers | None = None,
     geocoder: geo.Geocoder | None = None,
     detector: presenter.FaceDetector | None = None,
+    findings: list[QualityFinding] | None = None,
 ) -> RenderSpec:
     """The RenderSpec from the job's files: plan.json, captions.json, the presenter cut
     (`work/cut.mp4`, 005) and the measured PIP geometry (`job.json.presenter`, 013),
     with the numbers of the job's resolved style (`job.json.style`, 008). The short is
     as long as the cut list. `geocoder` places the map markers (020); `detector` keeps
     the stamps off faces (056 (4)), its lines going to `job.log`; a text pop on a `full`
-    beat is kept off the measured presenter face the same way (061)."""
+    beat is kept off the measured presenter face the same way (061). 112b: the build's
+    downgrades (`Recorded`) go onto `findings` when given, for the caller's one stop;
+    else to `quality.downgrade_all` here (strict stops naming each beat)."""
     numbers = numbers or style_numbers(job.record.style)
     plan = _load_plan(job)
     captions = load_captions(job)
     cut = _cut_path(job)
     if not cut.is_file():
         raise RenderError("work/cut.mp4 is missing: cut_presenter runs before the picture")
+    with recording() as recorded:
+        spec = _build_for_job(job, plan, captions, cut, numbers, geocoder, detector)
+    built = recorded.findings(spec, plan)
+    if findings is not None:
+        findings.extend(built)
+        return spec
+    return quality.downgrade_all(job, built, lambda: spec)
+
+
+def _build_for_job(
+    job: Job, plan: PicturePlan, captions: Captions, cut: Path, numbers: StyleNumbers,
+    geocoder: geo.Geocoder | None, detector: presenter.FaceDetector | None,
+) -> RenderSpec:  # fmt: skip
     return build_spec(
         plan,
         captions,
@@ -3712,16 +3817,31 @@ def render_picture(
 ) -> Path:
     """The `rendering` step's picture half: `work/picture.mp4`, silent H.264. 111c: the
     finished spec goes through `render_check` first (a `check:` job.log line per repair,
-    one page warning with the count)."""
-    spec = spec_for_job(job, geocoder=geocoder, detector=detector)
+    one page warning with the count). 112b: in strict mode the check only records, and
+    every downgrade it found stops the job once, before node (`quality.downgrade_all`),
+    together with the pre-render gate's list when too many beats settled for a gradient
+    or a generated image (`prerender`); a driver failure is diagnosed over every beat
+    and stops once (`_Net.diagnose`), never simplified. Forgiving keeps the repairs,
+    each a `repair` row of the quality log, and the 111d net."""
+    built: list[QualityFinding] = []
+    spec = spec_for_job(job, geocoder=geocoder, detector=detector, findings=built)
     manifest = assets.load_manifest(job.path)
     log = RenderLog(job.work_dir / "render.log")
-    # 111c: every asset fits its component before node starts; repairs, never a failure.
+    # 111c: every asset fits its component before node starts.
     with log.phase("check"):
         checked = render_check.check(
             spec, manifest=manifest, job_dir=job.path, log=lambda line: jobs.note(job, line),
+            record_only=quality.mode_of(job) == "strict",
         )  # fmt: skip
-    spec = checked.spec
+    found = [*built, *checked.findings]
+    if quality.mode_of(job) == "strict":
+        # 112b: the pre-render gate, strict only. Over the line, one stop before node
+        # with the gate's list, the build's and the check's findings together.
+        settled = prerender.gate(job)
+        if settled.over(prerender.max_share()):
+            quality.stop(job, [*settled.findings, *found], headline=settled.headline())
+        settled.note(job)
+    spec = quality.downgrade_all(job, found, lambda: checked.spec)
     notice = render_check.warning(checked.repairs)
     if notice is not None:
         _page_notice(job, notice)
@@ -3743,6 +3863,8 @@ def render_picture(
                 on_progress=on_progress,
             )
         except DriverFailed as exc:
+            if quality.mode_of(job) == "strict":  # 112b: diagnose, then one loud stop
+                quality.stop(job, net.diagnose(spec, exc))
             spec = net.simplify(spec, exc, last=round_ == MAX_NET_ROUNDS)
             continue
         net.delivered()
@@ -3775,11 +3897,13 @@ def beats_near(
 
 
 def run_stills(
-    spec: RenderSpec, *, spec_path: Path, frames: Sequence[int], log_path: Path
-) -> set[int]:
+    spec: RenderSpec, *, spec_path: Path, frames: Sequence[int], log_path: Path,
+    errors: dict[int, str] | None = None,
+) -> set[int]:  # fmt: skip
     """111d: render `frames` one still each through the driver's `still` mode; the
     frames whose still failed. A driver that dies before answering a frame counts that
-    frame as passing (it named nothing)."""
+    frame as passing (it named nothing). 112b: `errors` collects Remotion's message for
+    each failed frame (the driver's `still frame=<n>: <error>` stderr line)."""
     spec_path.write_text(spec.model_dump_json(indent=2), encoding="utf-8")
     argv = [node_binary(), str(DRIVER), "still", "--spec", str(spec_path),
             "--frames", ",".join(str(f) for f in frames)]  # fmt: skip
@@ -3792,6 +3916,9 @@ def run_stills(
             match = _STILL.match(line) if stream == "out" else None
             if match and match.group(2) == "failed":
                 failed.add(int(match.group(1)))
+            error = _STILL_ERROR.match(line) if stream == "err" else None
+            if error and errors is not None:
+                errors[int(error.group(1))] = error.group(2)[:300]
 
         subproc.stream(argv, on_line, timeout_s=_unguarded(STILL_TIMEOUT_S), cwd=REPO_ROOT,
                        progress=True)  # fmt: skip
@@ -3865,8 +3992,7 @@ class _Net:
             how = "at" if exc.exact else "near"
             self.note(f"the render failed {how} frame {exc.frame}: {', '.join(named) or '-'}")
             return named
-        frames = {(b.start_frame + b.end_frame - 1) // 2: b.id
-                  for b in spec.beats if b.end_frame > b.start_frame}  # fmt: skip
+        frames = {f: b.id for f, b in _middle_frames(spec).items()}
         self.note(f"the render failed at no known frame; one still per beat ({len(frames)})")
         work = self.job.work_dir
         failed = run_stills(spec, spec_path=work / "render_spec.stills.json",
@@ -3874,6 +4000,40 @@ class _Net:
         named = [frames[f] for f in sorted(failed) if f in frames]
         self.note(f"the stills failed for: {', '.join(named) or 'no beat'}")
         return named
+
+    def diagnose(self, spec: RenderSpec, exc: DriverFailed) -> list[QualityFinding]:
+        """112b, strict: the failing frame and its beats as in forgiving, then one still
+        per beat over every beat (not only those near the frame). A finding per beat
+        whose still failed, with Remotion's error for it; else the frame's beats with
+        the render's own error; else one finding naming no beat. Never simplifies."""
+        problem = _first_error(str(exc))
+        near: list[str] = []
+        if exc.frame is not None:
+            near = beats_near(spec.beats, exc.frame, exact=exc.exact)
+            how = "at" if exc.exact else "near"
+            self.note(f"the render failed {how} frame {exc.frame}: {', '.join(near) or '-'}")
+        frames = _middle_frames(spec)
+        self.note(f"strict: one still per beat ({len(frames)}) to name every failing beat")
+        work = self.job.work_dir
+        errors: dict[int, str] = {}
+        failed = run_stills(spec, spec_path=work / "render_spec.stills.json",
+                            frames=sorted(frames), log_path=work / "render-stills.log",
+                            errors=errors)  # fmt: skip
+        detail = str(exc)[:2000]
+        findings = [
+            QualityFinding(beat=frames[f].id, kind=frames[f].kind,
+                           cause=f"the render failed: {errors.get(f) or problem}", detail=detail)
+            for f in sorted(failed) if f in frames
+        ]  # fmt: skip
+        if not findings:
+            kinds = {b.id: b.kind for b in spec.beats}
+            findings = [QualityFinding(beat=b, kind=kinds.get(b, ""),
+                                       cause=f"the render failed: {problem}", detail=detail)
+                        for b in near]  # fmt: skip
+        named = ", ".join(f.beat or "" for f in findings)
+        self.note(f"the stills failed for: {named or 'no beat'}")
+        return findings or [QualityFinding(cause=f"the render failed naming no beat: {problem}",
+                                           detail=detail)]  # fmt: skip
 
     def simplify(self, spec: RenderSpec, exc: DriverFailed, *, last: bool) -> RenderSpec:
         """`spec` with the beats `exc` names drawn simpler, or NetExhausted."""
@@ -3921,6 +4081,12 @@ class _Net:
         _page_notice(self.job, f"{_beat_words(beats)} {'were' if many else 'was'} shown as "
                      f"{'simple pictures' if many else 'a simple picture'} because "
                      f"{'their effects' if many else 'its effect'} would not render")  # fmt: skip
+
+
+def _middle_frames(spec: RenderSpec) -> dict[int, BeatSpec]:
+    """111d: each drawn beat's middle frame, the frame its still is rendered at."""
+    return {(b.start_frame + b.end_frame - 1) // 2: b
+            for b in spec.beats if b.end_frame > b.start_frame}  # fmt: skip
 
 
 def _first_error(text: str) -> str:

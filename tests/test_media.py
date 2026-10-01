@@ -196,6 +196,25 @@ def test_normalise_refs_without_refs_json_does_nothing(tmp_path: Path) -> None:
     assert media.normalise_refs(tmp_path) == []
 
 
+def test_a_real_webp_is_a_real_still_and_a_mislabelled_one_is_not(tmp_path: Path) -> None:
+    """112b: a WebP by content under a `.webp` name is what the browser draws; only a
+    mislabelled one is converted."""
+    assert media.is_real_still(_image(tmp_path / "a.webp", fmt="WEBP"))
+    assert not media.is_real_still(_image(tmp_path / "b.jpg", fmt="WEBP"))
+    assert media.is_real_still(tmp_path / "b.jpg", suffix=".webp")
+    assert not media.is_real_still(_image(tmp_path / "c.webp", fmt="AVIF"))
+
+
+def test_normalise_refs_keeps_a_real_webp_byte_for_byte(tmp_path: Path) -> None:
+    job_dir = _job_with_refs(tmp_path, {"4_logo.webp": "WEBP"})
+    ref = job_dir / "input" / "refs" / "4_logo.webp"
+    before = ref.read_bytes()
+    refs_json = (job_dir / "input" / "refs.json").read_bytes()
+    assert media.normalise_refs(job_dir) == []
+    assert ref.read_bytes() == before
+    assert (job_dir / "input" / "refs.json").read_bytes() == refs_json
+
+
 # --- faces read the normalised file -----------------------------------------------
 
 
@@ -204,6 +223,13 @@ def test_the_face_detector_reads_a_converted_ref(tmp_path: Path, fmt: str) -> No
     src = _image(tmp_path / "x.jpg", fmt=fmt)
     out = media.as_still(src, src)
     assert HaarDetector().detect_all(out) == []  # read, no face on a flat colour
+
+
+def test_the_face_detector_reads_a_real_webp(tmp_path: Path) -> None:
+    """112b: a WebP ref is kept as it is, so the detector must read one."""
+    src = _image(tmp_path / "x.webp", fmt="WEBP")
+    assert HaarDetector().detect_all(src) == []
+    assert HaarDetector().detect(src) is None
 
 
 def test_the_face_detector_reads_a_mislabelled_ref_through_pillow(tmp_path: Path) -> None:

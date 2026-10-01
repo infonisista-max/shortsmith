@@ -377,6 +377,28 @@ def test_accept_converts_a_mislabelled_image_ref_to_a_real_jpg(
     assert HaarDetector().detect_all(saved) == []
 
 
+def test_accept_keeps_a_real_webp_upload_byte_for_byte(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """112b: a WebP by content under a `.webp` name is browser-safe; no lossy re-encode."""
+    from PIL import Image
+
+    src = tmp_path / "up" / "Logo.webp"
+    src.parent.mkdir(parents=True)
+    Image.new("RGB", (700, 900), (20, 40, 60)).save(src, format="WEBP")
+    job = ingest.accept(
+        tmp_path / "data",
+        video=VideoUpload(path=fixture_clip, original_name="f.mp4"),
+        brief="x" * 40,
+        style=EXPLAINER,
+        references=[ReferenceUpload(path=src, original_name="Logo.webp", caption="")],
+        limits=Limits(min_duration_s=1.0),
+    )
+    rows = json.loads((job.input_dir / "refs.json").read_text(encoding="utf-8"))
+    assert rows[0]["file"] == "refs/1_logo.webp"
+    assert (job.input_dir / rows[0]["file"]).read_bytes() == src.read_bytes()
+
+
 def test_accept_saves_an_avif_upload_as_a_jpg_keeping_the_slug(
     tmp_path: Path, fixture_clip: Path
 ) -> None:

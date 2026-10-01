@@ -213,6 +213,31 @@ def test_main_passes_the_style_flag_to_run_smoke(
     assert capsys.readouterr().out == "smoke ok: faked\n" * 5
 
 
+def test_main_runs_in_strict_mode_whatever_the_setting(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """112b: the smoke must deliver with no downgrade and pass the pre-render gate, so it
+    runs strict even when the operator's QUALITY_MODE says forgiving."""
+    from shortsmith import config
+
+    modes: list[str] = []
+
+    def fake_run(root: Path, **_k: object) -> smoke.SmokeResult:
+        modes.append(config.load().quality_mode)
+        picture = root / "picture.mp4"
+        picture.write_bytes(b"")
+        return smoke.SmokeResult(job_dir=root, summary="smoke ok: faked", picture=picture)
+
+    monkeypatch.setattr(smoke, "run_smoke", fake_run)
+    monkeypatch.delenv(smoke.KEEP_ENV, raising=False)
+    monkeypatch.setenv("QUALITY_MODE", "forgiving")
+
+    assert smoke.main([]) == 0
+    assert modes == ["strict"]
+    assert config.load().quality_mode == "forgiving"  # restored after the run
+    capsys.readouterr()
+
+
 def test_module_entry_point() -> None:
     proc = subprocess.run(
         [sys.executable, "-m", "shortsmith.smoke"], capture_output=True, text=True, timeout=120
