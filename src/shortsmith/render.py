@@ -145,6 +145,7 @@ from shortsmith import (
     jobs,
     media,
     presenter,
+    render_check,
     rights,
     sound,
     styles,
@@ -3617,8 +3618,19 @@ def render_picture(
     geocoder: geo.Geocoder | None = None,
     detector: presenter.FaceDetector | None = None,
 ) -> Path:
-    """The `rendering` step's picture half: `work/picture.mp4`, silent H.264."""
+    """The `rendering` step's picture half: `work/picture.mp4`, silent H.264. 111c: the
+    finished spec goes through `render_check` first (a `check:` job.log line per repair,
+    one page warning with the count)."""
     spec = spec_for_job(job, geocoder=geocoder, detector=detector)
+    # 111c: every asset fits its component before node starts; repairs, never a failure.
+    checked = render_check.check(
+        spec, manifest=assets.load_manifest(job.path), job_dir=job.path,
+        log=lambda line: jobs.note(job, line),
+    )
+    spec = checked.spec
+    notice = render_check.warning(checked.repairs)
+    if notice is not None:
+        _page_notice(job, notice)
     out = job.work_dir / "picture.mp4"
     run_driver(
         spec,
