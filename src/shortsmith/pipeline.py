@@ -22,9 +22,12 @@ timeline with the soft rules kept, `work/captions.json` rebuilt), a replaced bea
 added to `job.json.replaced` so sourcing re-sources it with the replacement ladder
 (096), and the job is rewound (`jobs.rewind`) to `sourcing` and runs on. The same beat
 failing the same way a second time takes `replace_visual` without asking, a third time
-the gradient (the beat marked replaced with no query), a fourth fails the job. A render
-failure naming no beat takes one plain fallback - every overlay layer stripped from
-every beat, rewound to `rendering` - and a second one fails the job. A failed technical
+the gradient (the beat marked replaced with no query), a fourth fails the job. A beat
+that breaks the picture render once node runs is the render net's (111d, inside
+`render.render_picture`: the failing beats simplified and the picture rendered again);
+when the net gives up (`render.NetExhausted`) naming no beat at all, the rescue takes
+one plain fallback - every overlay layer stripped from every beat, rewound to
+`rendering` - and any other exhausted net fails the job (111g's hook). A failed technical
 check (`QaFailed`) offers the beats its detail names plus "deliver with a note" (the
 fallback: the check joins `job.json.waived_checks` and `qa` runs again, the check
 delivered as `warn`). At most `MAX_RESCUES` rescues per run; every decision is a
@@ -211,7 +214,7 @@ from shortsmith.qa import critic as critic_module
 from shortsmith.qa.critic import Critic, FakeCritic
 from shortsmith.qa.gate import Gate, TechnicalGate
 from shortsmith.reference import INVENTORY_DIR, examples, music, own
-from shortsmith.render import RemotionRenderer, Renderer
+from shortsmith.render import NetExhausted, RemotionRenderer, Renderer
 from shortsmith.styles import StyleError, StyleSpec
 from shortsmith.transcriber import Transcriber
 
@@ -1064,12 +1067,12 @@ class Rescue:
         try:
             if isinstance(exc, QaFailed):
                 return self._qa(job, exc, validated)
+            if isinstance(exc, NetExhausted):
+                return self._net_exhausted(job, exc, problem, validated)
             ids = [b.id for b in validated.picture.beats]
             beat_id = named_beat(str(exc), ids)
             if beat_id is not None:
                 return self._beat(job, status, beat_id, problem, validated)
-            if status == "rendering" and not self.stripped:
-                return self._strip(job, problem, validated)
         except Exception as err:  # noqa: BLE001 - a rescue that breaks fails the job as before
             jobs.note(job, f"rescue: could not apply ({type(err).__name__}: {_first_line(err)})")
             return None
@@ -1119,6 +1122,19 @@ class Rescue:
             _mark_replaced(job, option.replaces)
         self.why = f"the editor fixed {beat_id} ({option.id})"
         return "sourcing"
+
+    def _net_exhausted(
+        self, job: Job, exc: NetExhausted, problem: str, validated: ValidatedPlan
+    ) -> Status | None:
+        """111d: the render net (`render.render_picture`) gave up. Naming no beat (no
+        frame, no failing still): the 097 strip of every overlay, once. Else this is the
+        net's one exit, where 111g hooks the plain reel; today the job fails."""
+        if exc.unnamed and not self.stripped:
+            return self._strip(job, problem, validated)
+        jobs.note(job, "rescue: the render net is exhausted"
+                  + (f" ({', '.join(exc.beats)})" if exc.beats else "")
+                  + "; the job fails")  # fmt: skip
+        return None
 
     def _strip(self, job: Job, problem: str, validated: ValidatedPlan) -> Status | None:
         self.stripped = True

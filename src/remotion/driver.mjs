@@ -2,6 +2,7 @@
 //
 //   node src/remotion/driver.mjs render --spec <render_spec.json> --out <picture.mp4>
 //                                      [--concurrency 2]
+//   node src/remotion/driver.mjs still --spec <render_spec.json> --frames <n,n,...>
 //   node src/remotion/driver.mjs bundle
 //
 // `render` bundles the composition once into build/remotion/ (reused while the
@@ -13,6 +14,14 @@
 // Protocol on stdout, one line each, nothing else:
 //   progress <rendered>/<total>      whenever the rendered frame count changes
 //   done frames=<n> render_s=<x> bundle_s=<y>
+//   failed frame=<n|unknown> via=<error|progress>   (111d) once, when the render fails:
+//                                    the frame from Remotion's error when it names one
+//                                    (via=error), else the last finished-frame count
+//                                    (via=progress; the failing frame is at most a few
+//                                    past it at concurrency 2); unknown before any frame
+//   still frame=<n> ok|failed        (111d, `still` mode) one per asked frame: each beat's
+//                                    middle still rendered on its own, so a failure
+//                                    with no frame can still be pinned to a beat
 // Everything else (Remotion logs, bundler output) goes to stderr.
 
 import { execFileSync } from "node:child_process";
@@ -24,7 +33,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const { ensureBrowser, renderMedia, selectComposition } = require("@remotion/renderer");
+const {
+  ensureBrowser,
+  openBrowser,
+  renderMedia,
+  renderStill,
+  selectComposition,
+} = require("@remotion/renderer");
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -201,15 +216,8 @@ function serve(dir) {
 
 // --- render ---------------------------------------------------------------------------
 
-async function render(args) {
-  const specPath = path.resolve(args.spec);
-  const outPath = path.resolve(args.out);
-  const concurrency = Number(args.concurrency ?? 2);
-  const spec = JSON.parse(fs.readFileSync(specPath, "utf-8"));
-
-  const bundleSeconds = ensureBundle();
-  await ensureBrowser();
-
+// The spec's input props with every file served over loopback; `close` stops the server.
+async function servedProps(spec) {
   let server = null;
   const inputProps = { ...spec };
   // Every file the composition reads: the presenter cut, each beat's B-roll (016), the
@@ -273,6 +281,22 @@ async function render(args) {
         : {}),
     }));
   }
+  return { inputProps, close: () => server?.close() };
+}
+
+// 111d: the one parseable failure line (see the protocol above).
+let failure = { started: false, frame: null };
+
+async function render(args) {
+  const specPath = path.resolve(args.spec);
+  const outPath = path.resolve(args.out);
+  const concurrency = Number(args.concurrency ?? 2);
+  const spec = JSON.parse(fs.readFileSync(specPath, "utf-8"));
+
+  const bundleSeconds = ensureBundle();
+  await ensureBrowser();
+
+  const { inputProps, close } = await servedProps(spec);
   const started = performance.now();
   try {
     const composition = await selectComposition({
@@ -286,11 +310,13 @@ async function render(args) {
     const report = (n) => {
       if (n !== last) {
         last = n;
+        failure.frame = n;
         out(`progress ${n}/${total}`);
       }
     };
     report(0);
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    failure.started = true;
     await renderMedia({
       composition,
       serveUrl: BUNDLE_DIR,
@@ -312,7 +338,51 @@ async function render(args) {
       `done frames=${total} render_s=${renderSeconds.toFixed(3)} bundle_s=${bundleSeconds.toFixed(3)}`,
     );
   } finally {
-    if (server) server.close();
+    close();
+  }
+}
+
+// --- still (111d): each asked frame rendered on its own -----------------------------------
+
+async function still(args) {
+  const spec = JSON.parse(fs.readFileSync(path.resolve(args.spec), "utf-8"));
+  const frames = String(args.frames ?? "")
+    .split(",")
+    .filter((f) => f !== "")
+    .map(Number);
+  ensureBundle();
+  await ensureBrowser();
+  const { inputProps, close } = await servedProps(spec);
+  let browser = null;
+  try {
+    const composition = await selectComposition({
+      serveUrl: BUNDLE_DIR,
+      id: COMPOSITION_ID,
+      inputProps,
+      logLevel: "error",
+    });
+    browser = await openBrowser("chrome", { logLevel: "error" });
+    for (const frame of frames) {
+      try {
+        await renderStill({
+          composition,
+          serveUrl: BUNDLE_DIR,
+          inputProps,
+          frame,
+          output: null,
+          imageFormat: "jpeg",
+          puppeteerInstance: browser,
+          logLevel: "error",
+        });
+        out(`still frame=${frame} ok`);
+      } catch (err) {
+        log(`still frame=${frame}: ${err && err.message ? err.message : String(err)}`);
+        out(`still frame=${frame} failed`);
+      }
+    }
+  } finally {
+    if (browser) await browser.close({ silent: true });
+    close();
   }
 }
 
@@ -328,10 +398,26 @@ async function main() {
     await render(args);
     return;
   }
-  throw new Error(`unknown command ${command ?? "(none)"}; use render or bundle`);
+  if (command === "still") {
+    if (!args.spec || !args.frames) throw new Error("still needs --spec and --frames");
+    await still(args);
+    return;
+  }
+  throw new Error(`unknown command ${command ?? "(none)"}; use render, still or bundle`);
 }
 
 main().catch((err) => {
-  log(err && err.stack ? err.stack : String(err));
+  // 111d: the message on its own line (the stack alone can bury it), then the stack,
+  // then the one parseable failure line.
+  const message = err && err.message ? err.message : String(err);
+  log(`error: ${message}`);
+  if (err && err.stack) log(err.stack);
+  if (Number.isInteger(err?.frame)) {
+    out(`failed frame=${err.frame} via=error`);
+  } else if (failure.started && failure.frame !== null) {
+    out(`failed frame=${failure.frame} via=progress`);
+  } else {
+    out("failed frame=unknown");
+  }
   process.exit(1);
 });

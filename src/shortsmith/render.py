@@ -137,6 +137,8 @@ from functools import cache
 from pathlib import Path
 from typing import Literal, cast
 
+from PIL import Image
+
 from shortsmith import (
     assets,
     ffmpeg,
@@ -177,6 +179,7 @@ from shortsmith.contracts import (
     CounterSpec,
     Crop,
     DiagramLayout,
+    EditorDecision,
     FaceBox,
     FinaleCardSpec,
     GradeSpec,
@@ -246,6 +249,30 @@ SAMPLE_RATE = 48000
 
 class RenderError(RuntimeError):
     """The driver failed; the message carries the tail of its output."""
+
+
+class DriverFailed(RenderError):
+    """111d: the driver ran and failed; `frame` is the frame its `failed frame=` line
+    named (None: unknown), `exact` whether Remotion's error named it (else it is the
+    last finished-frame count and the failing frame is a few past it)."""
+
+    def __init__(self, message: str, *, frame: int | None, exact: bool) -> None:
+        super().__init__(message)
+        self.frame = frame
+        self.exact = exact
+
+
+class NetExhausted(RenderError):
+    """111d: the render-time net gave up - the one exit of `render_picture` when the
+    picture cannot be rendered even with the failing beats simplified. `beats` are the
+    beats named last (already as plain as they get, or the rounds spent); `unnamed` is
+    true when neither a frame nor a still named any beat. 111g hooks the plain reel
+    here."""
+
+    def __init__(self, message: str, *, beats: Sequence[str], unnamed: bool) -> None:
+        super().__init__(message)
+        self.beats = tuple(beats)
+        self.unnamed = unnamed
 
 
 # --- style numbers (decision 1.2: read from front matter, never from code) --------------
@@ -3456,6 +3483,9 @@ def build_spec(
 
 _PROGRESS = re.compile(r"^progress (\d+)/(\d+)\s*$")
 _DONE = re.compile(r"^done frames=(\d+) render_s=([\d.]+) bundle_s=([\d.]+)\s*$")
+# 111d: the driver's failure line, and one line per still in `still` mode.
+_FAILED = re.compile(r"^failed frame=(\d+|unknown)(?: via=(error|progress))?\s*$")
+_STILL = re.compile(r"^still frame=(\d+) (ok|failed)\s*$")
 
 
 def parse_progress(line: str) -> tuple[int, int] | None:
@@ -3507,15 +3537,21 @@ def run_driver(
         str(concurrency),
     ]
     done: DriverResult | None = None
+    failed: tuple[int | None, bool] = (None, False)
     last_pct = -1
     started = time.perf_counter()
     with log_path.open("w", encoding="utf-8") as log:
         log.write(" ".join(argv) + "\n")
 
         def on_line(stream: str, line: str) -> None:
-            nonlocal done, last_pct
+            nonlocal done, failed, last_pct
             log.write(f"[{stream}] {line}\n")
             if stream != "out":
+                return
+            fail = _FAILED.match(line)
+            if fail:
+                frame = None if fail.group(1) == "unknown" else int(fail.group(1))
+                failed = (frame, fail.group(2) == "error")
                 return
             progress = parse_progress(line)
             if progress is not None and on_progress is not None:
@@ -3537,7 +3573,8 @@ def run_driver(
         proc = subproc.stream(argv, on_line, timeout_s=DRIVER_TIMEOUT_S, cwd=REPO_ROOT)
     if proc.returncode != 0 or done is None or not out_path.is_file():
         tail = log_path.read_text(encoding="utf-8")[-4000:]
-        raise RenderError(f"remotion driver exited {proc.returncode}:\n{tail}")
+        raise DriverFailed(f"remotion driver exited {proc.returncode}:\n{tail}",
+                           frame=failed[0], exact=failed[1])  # fmt: skip
     if on_progress is not None and last_pct != 100:
         on_progress(100)
     return DriverResult(
@@ -3622,24 +3659,209 @@ def render_picture(
     finished spec goes through `render_check` first (a `check:` job.log line per repair,
     one page warning with the count)."""
     spec = spec_for_job(job, geocoder=geocoder, detector=detector)
+    manifest = assets.load_manifest(job.path)
     # 111c: every asset fits its component before node starts; repairs, never a failure.
     checked = render_check.check(
-        spec, manifest=assets.load_manifest(job.path), job_dir=job.path,
-        log=lambda line: jobs.note(job, line),
-    )
+        spec, manifest=manifest, job_dir=job.path, log=lambda line: jobs.note(job, line),
+    )  # fmt: skip
     spec = checked.spec
     notice = render_check.warning(checked.repairs)
     if notice is not None:
         _page_notice(job, notice)
     out = job.work_dir / "picture.mp4"
-    run_driver(
-        spec,
-        spec_path=job.work_dir / "render_spec.json",
-        out_path=out,
-        log_path=job.work_dir / "render.log",
-        on_progress=on_progress,
-    )
-    return out
+    net = _Net(job)
+    for round_ in range(MAX_NET_ROUNDS + 1):
+        if round_:
+            # 111c on every render: a simplified beat's still is checked like any other.
+            spec = render_check.check(spec, manifest=manifest, job_dir=job.path).spec
+        try:
+            run_driver(
+                spec,
+                spec_path=job.work_dir / "render_spec.json",
+                out_path=out,
+                log_path=job.work_dir / "render.log",
+                on_progress=on_progress,
+            )
+        except DriverFailed as exc:
+            spec = net.simplify(spec, exc, last=round_ == MAX_NET_ROUNDS)
+            continue
+        net.delivered()
+        return out
+    raise AssertionError("unreachable: the net raises on its last round")  # pragma: no cover
+
+
+# --- 111d: the render-time net ------------------------------------------------------------
+
+MAX_NET_ROUNDS = 3  # 111d: re-renders after the first; a fourth never happens
+PLAIN, GRADIENT = 1, 2  # 111d: how simple a beat is drawn (0: as planned)
+STILL_TIMEOUT_S = 15 * 60
+
+
+def beats_near(
+    beats: Sequence[BeatSpec], frame: int, *, exact: bool, concurrency: int = CONCURRENCY
+) -> list[str]:
+    """111d: the beats a failing frame may be in. An exact frame (Remotion's error named
+    it) is in one beat; the last finished-frame count is fuzzy, the failing frame up to
+    `concurrency * 2` past it, so every beat overlapping that window is named."""
+    hi = frame if exact else frame + concurrency * 2
+    return [b.id for b in beats if b.start_frame <= hi and b.end_frame > frame]
+
+
+def run_stills(
+    spec: RenderSpec, *, spec_path: Path, frames: Sequence[int], log_path: Path
+) -> set[int]:
+    """111d: render `frames` one still each through the driver's `still` mode; the
+    frames whose still failed. A driver that dies before answering a frame counts that
+    frame as passing (it named nothing)."""
+    spec_path.write_text(spec.model_dump_json(indent=2), encoding="utf-8")
+    argv = [node_binary(), str(DRIVER), "still", "--spec", str(spec_path),
+            "--frames", ",".join(str(f) for f in frames)]  # fmt: skip
+    failed: set[int] = set()
+    with log_path.open("w", encoding="utf-8") as log:
+        log.write(" ".join(argv) + "\n")
+
+        def on_line(stream: str, line: str) -> None:
+            log.write(f"[{stream}] {line}\n")
+            match = _STILL.match(line) if stream == "out" else None
+            if match and match.group(2) == "failed":
+                failed.add(int(match.group(1)))
+
+        subproc.stream(argv, on_line, timeout_s=STILL_TIMEOUT_S, cwd=REPO_ROOT)
+    return failed
+
+
+def _beat_words(beat_ids: Sequence[str]) -> str:
+    """b3, b52 -> "beat 3" / "beats 3 and 52" (the job page's plain words)."""
+    numbers = [b[1:] if re.fullmatch(r"b\d+", b) else b for b in beat_ids]
+    if len(numbers) == 1:
+        return f"beat {numbers[0]}"
+    return f"beats {', '.join(numbers[:-1])} and {numbers[-1]}"
+
+
+def plain_beat(beat: BeatSpec, level: int, *, log: Callable[[str], None] | None = None,
+               ) -> BeatSpec:  # fmt: skip
+    """111d: `beat` drawn at `level`: every overlay, set piece and transition dropped
+    (captions and voice live outside the beat and stay). PLAIN keeps its own picture as
+    a still photo (its asset when it is a still, else the clip's frame grab), or the
+    presenter on a `full` beat; GRADIENT, or a PLAIN beat with no picture, is the
+    gradient with the presenter in the PIP (096 rung 4)."""
+    update: dict[str, object] = {
+        "enter": "cut", "punch_in": None, "stamp": None, "lower_third": None,
+        "text_pops": (), "bubbles": (), "stickers": (), "banner": None, "calendar": None,
+        "particles": None, "finale": None, "split": None, "wall": None, "list": None,
+        "chart": None, "infographic": None, "map": None, "counter": None,
+    }  # fmt: skip
+    visual = beat.visual
+    still: Path | None = None
+    if level == PLAIN and beat.mode != "full" and visual is not None:
+        still = still_path(Path(visual.src), claimed_clip=visual.treatment == "clip",
+                           what=beat.id, log=log)  # fmt: skip
+    if level == PLAIN and beat.mode == "full":
+        update.update(kind="presenter_full", visual=None)
+    elif still is not None and visual is not None:
+        width, height = _image_size(still, visual)
+        update.update(kind="photo", visual=VisualSpec(
+            treatment="photo", src=str(still), width=width, height=height, zoom=1.0,
+            focus_x=0.5, focus_y=0.5, scale_from=visual.scale_from,
+            scale_to=visual.scale_to, pan_px=0.0,
+        ))  # fmt: skip
+    else:
+        update.update(kind="photo", visual=None, mode="pip")
+    return beat.model_copy(update=update)
+
+
+def _image_size(still: Path, visual: VisualSpec) -> tuple[int, int]:
+    try:
+        with Image.open(still) as im:
+            return im.size
+    except (OSError, ValueError):
+        return visual.width, visual.height
+
+
+class _Net:
+    """111d: one `render_picture`'s net - how simple each named beat is drawn so far
+    (it only ever grows), and the job page, decisions and job.log lines it leaves."""
+
+    def __init__(self, job: Job) -> None:
+        self.job = job
+        self.levels: dict[str, int] = {}
+        self.round = 0
+        self._named: Sequence[str] = ()
+
+    def note(self, line: str) -> None:
+        jobs.note(self.job, f"rescue: render net: {line}")
+
+    def name(self, spec: RenderSpec, exc: DriverFailed) -> list[str]:
+        if exc.frame is not None:
+            named = beats_near(spec.beats, exc.frame, exact=exc.exact)
+            how = "at" if exc.exact else "near"
+            self.note(f"the render failed {how} frame {exc.frame}: {', '.join(named) or '-'}")
+            return named
+        frames = {(b.start_frame + b.end_frame - 1) // 2: b.id
+                  for b in spec.beats if b.end_frame > b.start_frame}  # fmt: skip
+        self.note(f"the render failed at no known frame; one still per beat ({len(frames)})")
+        work = self.job.work_dir
+        failed = run_stills(spec, spec_path=work / "render_spec.stills.json",
+                            frames=sorted(frames), log_path=work / "render-stills.log")  # fmt: skip
+        named = [frames[f] for f in sorted(failed) if f in frames]
+        self.note(f"the stills failed for: {', '.join(named) or 'no beat'}")
+        return named
+
+    def simplify(self, spec: RenderSpec, exc: DriverFailed, *, last: bool) -> RenderSpec:
+        """`spec` with the beats `exc` names drawn simpler, or NetExhausted."""
+        problem = _first_error(str(exc))
+        if last:
+            self.note(f"the {MAX_NET_ROUNDS} re-renders are spent; {problem}")
+            raise NetExhausted(
+                f"the render net is exhausted after {MAX_NET_ROUNDS} re-renders: {problem}",
+                beats=self._named, unnamed=False,
+            )  # fmt: skip
+        named = self.name(spec, exc)
+        self._named = named
+        if not named:
+            raise NetExhausted(f"the render failed naming no beat: {problem}", beats=(),
+                               unnamed=True)  # fmt: skip
+        movable = [b for b in named if self.levels.get(b, 0) < GRADIENT]
+        if not movable:
+            self.note(f"{', '.join(named)} already drawn as plain as it gets and still fails")
+            raise NetExhausted(f"{_beat_words(named)} still failed drawn plain: {problem}",
+                               beats=named, unnamed=False)  # fmt: skip
+        self.round += 1
+        beats: list[BeatSpec] = []
+        for beat in spec.beats:
+            if beat.id in movable:
+                level = self.levels.get(beat.id, 0) + 1
+                beat = plain_beat(beat, level, log=lambda line: jobs.note(self.job, line))
+                self.levels[beat.id] = GRADIENT if beat.visual is None else level
+                choice = ("show the beat over the gradient" if beat.visual is None
+                          else "show the beat as a simple picture")  # fmt: skip
+                jobs.decide(self.job, EditorDecision(
+                    at=datetime.now(UTC), step="rendering", beat_id=beat.id,
+                    problem=problem[:400], choice=choice,
+                    reason="its effect would not render", by="fallback",
+                ))  # fmt: skip
+            beats.append(beat)
+        self.note(f"round {self.round}/{MAX_NET_ROUNDS}: {', '.join(movable)} simplified; "
+                  "rendering again")  # fmt: skip
+        return spec.model_copy(update={"beats": beats})
+
+    def delivered(self) -> None:
+        if not self.levels:
+            return
+        beats = sorted(self.levels, key=lambda b: (len(b), b))
+        many = len(beats) > 1
+        _page_notice(self.job, f"{_beat_words(beats)} {'were' if many else 'was'} shown as "
+                     f"{'simple pictures' if many else 'a simple picture'} because "
+                     f"{'their effects' if many else 'its effect'} would not render")  # fmt: skip
+
+
+def _first_error(text: str) -> str:
+    """The driver's own `error:` line (111d), else the first line of the message."""
+    for line in text.splitlines():
+        found = re.search(r"\berror: (.+)$", line, re.IGNORECASE)
+        if found:
+            return found.group(1).strip()[:300]
+    return (text.strip().splitlines() or [""])[0][:300]
 
 
 # --- the ffmpeg half (ticket 005; decisions 2.1, 7.3, 9.1, 10.1) -----------------------

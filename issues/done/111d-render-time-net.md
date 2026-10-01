@@ -45,3 +45,21 @@ AFK. Part of 111. Needs 111c.
 `driver.mjs`, `render.py` (`run_driver` parse and simplify helper), `pipeline.py`
 (Rescue render branch), `tests/test_render_net.py`, and the `test_editor.py` cases that
 change.
+
+## Done (111d)
+
+- The net lives in `render.render_picture` (it has the job; `run_driver` stays job-free for
+  bench). A re-render re-runs only the picture (driver + the silent 111c re-check), never
+  cut, voice or mux.
+- `driver.mjs`: `failed frame=<n|unknown> via=<error|progress>` on stdout, `error: <message>`
+  then the stack on stderr; a `still` mode (`--frames a,b,c`, one `still frame=<n> ok|failed`
+  each, one shared browser). Checked against the real driver with an mp4 in a photo slot:
+  `failed frame=72 via=progress` named b3 alone, and the stills failed only b3's frame.
+- Levels per beat only ever rise: as planned -> PLAIN (still photo of its own asset or the
+  clip's frame grab, every overlay/set piece/transition dropped; the presenter on a `full`
+  beat) -> GRADIENT (pip over the gradient). A named beat already at GRADIENT, or the 3
+  re-renders spent, raises `render.NetExhausted` - the one exit. No frame and no failing
+  still raises it with `unnamed=True`, and the rescue takes the 097 strip-all once.
+- `pipeline.Rescue._net_exhausted` is the hook for 111g: today it logs
+  `rescue: the render net is exhausted (...); the job fails` and returns None. A raw
+  RenderError naming no beat is no longer stripped by the rescue.

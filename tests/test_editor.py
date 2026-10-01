@@ -27,7 +27,7 @@ from shortsmith.planner import FakePlanner
 from shortsmith.qa import technical
 from shortsmith.qa.gate import FakeGate
 from shortsmith.qa.technical import QaCheck, QaReport
-from shortsmith.render import FakeRenderer, RenderError
+from shortsmith.render import FakeRenderer, NetExhausted, RenderError
 from shortsmith.transcriber import FakeTranscriber
 from tests.test_pipeline import SPECS, _run, _uploaded  # pyright: ignore[reportPrivateUsage]
 
@@ -249,7 +249,7 @@ def test_the_fake_planner_answers_every_snag_with_its_fallback(tmp_path: Path) -
 class _FailsOnce(FakeRenderer):
     """Raises `messages` in turn on the first renders, then renders like the fake."""
 
-    def __init__(self, *messages: str) -> None:
+    def __init__(self, *messages: str | RenderError) -> None:
         super().__init__()
         self.messages = list(messages)
 
@@ -258,7 +258,8 @@ class _FailsOnce(FakeRenderer):
         library: sound.Library | None = None,
     ) -> Path:  # fmt: skip
         if self.messages:
-            raise RenderError(self.messages.pop(0))
+            message = self.messages.pop(0)
+            raise message if isinstance(message, RenderError) else RenderError(message)
         return super().render(job, on_progress=on_progress, library=library)
 
 
@@ -313,6 +314,40 @@ def test_a_render_engine_that_is_missing_still_fails_the_job(
     job = _uploaded(tmp_path, fixture_clip)
     done = _run(job, renderer=_FailsOnce("node is not on PATH; the picture engine needs Node"))
     assert done.status == "failed" and done.record.decisions == []
+
+
+def test_a_render_failure_naming_no_beat_is_left_to_the_render_net(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """111d: a raw driver failure is the render net's (inside `render_picture`); one that
+    reaches the rescue naming no beat is not stripped again - the job fails."""
+    job = _uploaded(tmp_path, fixture_clip)
+    done = _run(job, renderer=_FailsOnce("remotion driver exited 1:\nno frame found"))
+    assert done.status == "failed" and done.record.decisions == []
+
+
+def test_an_exhausted_render_net_fails_the_job_with_one_rescue_line(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """111d: the net's one exit (111g hooks the plain reel here)."""
+    job = _uploaded(tmp_path, fixture_clip)
+    exhausted = NetExhausted("beat 3 still failed drawn plain: boom", beats=["b03"],
+                             unnamed=False)  # fmt: skip
+    done = _run(job, renderer=_FailsOnce(exhausted))
+    assert done.status == "failed" and done.record.decisions == []
+    assert "rescue: the render net is exhausted" in job.log_path.read_text("utf-8")
+
+
+def test_a_net_that_could_name_no_beat_strips_every_overlay_once(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """111d: no frame and no failing still: the 097 strip-all-overlays, once."""
+    job = _uploaded(tmp_path, fixture_clip)
+    unnamed = NetExhausted("the render failed naming no beat: boom", beats=[], unnamed=True)
+    done = _run(job, renderer=_FailsOnce(unnamed))
+    assert done.status == "delivered"
+    (decision,) = done.record.decisions
+    assert decision.choice.startswith("strip every overlay layer")
 
 
 class _FailsCheckOnce(FakeGate):
