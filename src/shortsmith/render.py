@@ -130,7 +130,8 @@ import re
 import shutil
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
@@ -3501,6 +3502,58 @@ class DriverResult:
     wall_s: float
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class RenderLog:
+    """111e: `work/render.log` (and `render-stills.log`), appended to and never
+    overwritten, so a retry, every net round and the stills pass all stay readable in
+    order. Every line starts with a UTC ISO timestamp, like job.log."""
+
+    def __init__(self, path: Path, *, now: Callable[[], datetime] = _utc_now) -> None:
+        self.path = path
+        self._now = now
+
+    def write(self, text: str) -> None:
+        with self.lines() as write:
+            write(text)
+
+    @contextmanager
+    def lines(self) -> Generator[Callable[[str], None]]:
+        """One open file for many lines (the driver's output)."""
+        with self.path.open("a", encoding="utf-8") as fh:
+
+            def write(text: str) -> None:
+                fh.write(f"{self._now().isoformat()} {text}\n")
+                fh.flush()
+
+            yield write
+
+    @contextmanager
+    def phase(self, name: str) -> Generator[None]:
+        """A start line, and an end line with the elapsed seconds (also on a failure)."""
+        self.write(f"phase {name}: start")
+        started = self._now()
+        outcome = "failed"
+        try:
+            yield
+            outcome = "end"
+        finally:
+            elapsed = (self._now() - started).total_seconds()
+            self.write(f"phase {name}: {outcome} after {elapsed:.1f} s")
+
+
+ATTEMPT = "picture attempt "  # 111e: render.log's header line before each driver run
+
+
+def last_attempt(text: str) -> str:
+    """111e: render.log from the last attempt's header on (all of it with none): the
+    run that made the picture, not the failed ones the net or a retry replaced."""
+    start = text.rfind(ATTEMPT)
+    return text if start < 0 else text[text.rfind("\n", 0, start) + 1 :]
+
+
 def registry() -> list[str]:
     """The component names the Node project exports (9.2)."""
     return list(json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))["components"])
@@ -3540,12 +3593,12 @@ def run_driver(
     failed: tuple[int | None, bool] = (None, False)
     last_pct = -1
     started = time.perf_counter()
-    with log_path.open("w", encoding="utf-8") as log:
-        log.write(" ".join(argv) + "\n")
+    with RenderLog(log_path).lines() as log:  # 111e: appended, every line stamped
+        log(" ".join(argv))
 
         def on_line(stream: str, line: str) -> None:
             nonlocal done, failed, last_pct
-            log.write(f"[{stream}] {line}\n")
+            log(f"[{stream}] {line}")
             if stream != "out":
                 return
             fail = _FAILED.match(line)
@@ -3570,9 +3623,10 @@ def run_driver(
                     wall_s=0.0,
                 )
 
-        proc = subproc.stream(argv, on_line, timeout_s=DRIVER_TIMEOUT_S, cwd=REPO_ROOT)
+        proc = subproc.stream(argv, on_line, timeout_s=_unguarded(DRIVER_TIMEOUT_S),
+                              cwd=REPO_ROOT, progress=True)  # fmt: skip
     if proc.returncode != 0 or done is None or not out_path.is_file():
-        tail = log_path.read_text(encoding="utf-8")[-4000:]
+        tail = log_path.read_text(encoding="utf-8")[-4000:]  # this attempt's end
         raise DriverFailed(f"remotion driver exited {proc.returncode}:\n{tail}",
                            frame=failed[0], exact=failed[1])  # fmt: skip
     if on_progress is not None and last_pct != 100:
@@ -3660,10 +3714,12 @@ def render_picture(
     one page warning with the count)."""
     spec = spec_for_job(job, geocoder=geocoder, detector=detector)
     manifest = assets.load_manifest(job.path)
+    log = RenderLog(job.work_dir / "render.log")
     # 111c: every asset fits its component before node starts; repairs, never a failure.
-    checked = render_check.check(
-        spec, manifest=manifest, job_dir=job.path, log=lambda line: jobs.note(job, line),
-    )  # fmt: skip
+    with log.phase("check"):
+        checked = render_check.check(
+            spec, manifest=manifest, job_dir=job.path, log=lambda line: jobs.note(job, line),
+        )  # fmt: skip
     spec = checked.spec
     notice = render_check.warning(checked.repairs)
     if notice is not None:
@@ -3674,6 +3730,9 @@ def render_picture(
         if round_:
             # 111c on every render: a simplified beat's still is checked like any other.
             spec = render_check.check(spec, manifest=manifest, job_dir=job.path).spec
+        simplified = ", ".join(sorted(b for b, level in net.levels.items() if level))
+        log.write(f"{ATTEMPT}{round_ + 1}/{MAX_NET_ROUNDS + 1}: "
+                  f"{simplified + ' simplified' if simplified else 'as planned'}")  # fmt: skip
         try:
             run_driver(
                 spec,
@@ -3691,6 +3750,13 @@ def render_picture(
 
 
 # --- 111d: the render-time net ------------------------------------------------------------
+
+def _unguarded(timeout_s: float) -> float | None:
+    """111e: a driver run under a job's watchdog has no fixed timeout - the stall clock
+    kills a stuck one and a progressing one is never killed; outside a job (the bench,
+    the renderer's own tests) the fixed timeout still stops a hang."""
+    return None if subproc.current() is not None else timeout_s
+
 
 MAX_NET_ROUNDS = 3  # 111d: re-renders after the first; a fourth never happens
 PLAIN, GRADIENT = 1, 2  # 111d: how simple a beat is drawn (0: as planned)
@@ -3717,16 +3783,17 @@ def run_stills(
     argv = [node_binary(), str(DRIVER), "still", "--spec", str(spec_path),
             "--frames", ",".join(str(f) for f in frames)]  # fmt: skip
     failed: set[int] = set()
-    with log_path.open("w", encoding="utf-8") as log:
-        log.write(" ".join(argv) + "\n")
+    with RenderLog(log_path).lines() as log:  # 111e: appended, every line stamped
+        log(" ".join(argv))
 
         def on_line(stream: str, line: str) -> None:
-            log.write(f"[{stream}] {line}\n")
+            log(f"[{stream}] {line}")
             match = _STILL.match(line) if stream == "out" else None
             if match and match.group(2) == "failed":
                 failed.add(int(match.group(1)))
 
-        subproc.stream(argv, on_line, timeout_s=STILL_TIMEOUT_S, cwd=REPO_ROOT)
+        subproc.stream(argv, on_line, timeout_s=_unguarded(STILL_TIMEOUT_S), cwd=REPO_ROOT,
+                       progress=True)  # fmt: skip
     return failed
 
 
@@ -4232,11 +4299,19 @@ def render_short(
     geocoder: geo.Geocoder | None = None,
     detector: presenter.FaceDetector | None = None,
 ) -> Path:
-    """The whole `rendering` step (9.1): cut, voice stem, picture, sound and mux."""
-    cut_presenter(job)
-    voice_stem(job)
-    render_picture(job, on_progress=on_progress, geocoder=geocoder, detector=detector)
-    return mux(job, library=library, search=search)
+    """The whole `rendering` step (9.1): cut, voice stem, picture, sound and mux. 111e:
+    each phase writes its start and end (with the elapsed seconds) to render.log."""
+    job.work_dir.mkdir(parents=True, exist_ok=True)
+    log = RenderLog(job.work_dir / "render.log")
+    log.write("rendering: start")
+    with log.phase("cut"):
+        cut_presenter(job)
+    with log.phase("voice"):
+        voice_stem(job)
+    with log.phase("picture"):
+        render_picture(job, on_progress=on_progress, geocoder=geocoder, detector=detector)
+    with log.phase("mux"):
+        return mux(job, library=library, search=search)
 
 
 # --- the interface the pipeline uses ---------------------------------------------------

@@ -1126,16 +1126,17 @@ def test_day_limit_closes_the_form_until_midnight_ist(tmp_path: Path, media: Med
         assert app.state.worker.depth() == 3
 
 
-def test_max_job_minutes_reaches_the_worker_from_settings(tmp_path: Path) -> None:
+def test_the_step_budgets_reach_the_worker_from_settings(tmp_path: Path) -> None:
     app = app_module.create_app(
-        _settings(tmp_path, max_job_minutes=7, max_queue=2),
+        _settings(tmp_path, planning_minutes=7, render_seconds_per_frame=0.5, max_queue=2),
         transcriber=FakeTranscriber(),
         planner=FakePlanner(), specs=SPECS,
         renderer=FakeRenderer(), gate=FakeGate(), detector=FakeFaceDetector(),
         start_worker=False,
     )
     worker = app.state.worker
-    assert worker._max_job_minutes == 7  # pyright: ignore[reportPrivateUsage]
+    budgets = worker._budgets  # pyright: ignore[reportPrivateUsage]
+    assert (budgets.planning_s, budgets.render_seconds_per_frame) == (7 * 60, 0.5)  # 111e
     assert worker._max_queue == 2  # pyright: ignore[reportPrivateUsage]
 
 

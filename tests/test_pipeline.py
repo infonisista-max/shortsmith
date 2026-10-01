@@ -8,6 +8,7 @@ paths are covered by test_render, test_qa_technical, test_contact_sheet and smok
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shutil
 import subprocess
@@ -22,6 +23,7 @@ import pytest
 
 from shortsmith import (
     assets,
+    budgets,
     fixture,
     jobs,
     pipeline,
@@ -33,6 +35,7 @@ from shortsmith import (
     styles,
     subproc,
 )
+from shortsmith.budgets import Budgets
 from shortsmith.contracts import (
     CRITIC_LINES,
     Candidate,
@@ -1321,14 +1324,20 @@ class _SleepsInAChild(Transcriber):
         return FakeTranscriber().transcribe(audio)
 
 
-def test_past_max_job_minutes_the_step_process_is_killed_and_the_next_job_starts(
+def _budgets(**seconds: float) -> Budgets:
+    """111e: the default budgets with the named ones replaced."""
+    return dataclasses.replace(budgets.defaults(), **seconds)
+
+
+def test_past_its_step_budget_the_step_process_is_killed_and_the_next_job_starts(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
     clock = _JumpingClock(minutes=31)
     transcriber = _SleepsInAChild(clock)
     worker = _worker(
-        transcriber=transcriber, max_job_minutes=30, clock=clock, watchdog_interval_s=0.02
-    )
+        transcriber=transcriber, budgets=_budgets(transcribing_s=30 * 60), clock=clock,
+        watchdog_interval_s=0.02,
+    )  # fmt: skip
     first, second = _uploaded(tmp_path, fixture_clip), _uploaded(tmp_path, fixture_clip)
     worker.submit(first.path)
     worker.submit(second.path)
@@ -1341,7 +1350,10 @@ def test_past_max_job_minutes_the_step_process_is_killed_and_the_next_job_starts
     assert failed.status == "failed"
     assert failed.record.error is not None
     assert failed.record.error.step == "transcribing"
-    assert "job exceeded 30 minutes" in failed.record.error.message
+    assert failed.record.error.message == (
+        "The transcribing step ran out of its 30-minute time budget and was stopped. "
+        "Retry starts transcribing fresh, with its full budget."
+    )
 
     worker._transcriber = FakeTranscriber()  # pyright: ignore[reportPrivateUsage]
     assert worker.run_next() is True
@@ -1359,10 +1371,10 @@ class _SlowInProcess(Transcriber):
         return FakeTranscriber().transcribe(audio)
 
 
-def test_a_step_that_returns_after_the_deadline_still_fails_the_job(
+def test_a_step_that_returns_after_its_budget_still_fails_the_job(
     tmp_path: Path, fixture_clip: Path
 ) -> None:
-    clock = _JumpingClock(minutes=30)  # exactly the limit counts as exceeded
+    clock = _JumpingClock(minutes=30)  # exactly the budget counts as exceeded
     job = _uploaded(tmp_path, fixture_clip)
     result = pipeline.run_job(
         job,
@@ -1370,25 +1382,80 @@ def test_a_step_that_returns_after_the_deadline_still_fails_the_job(
         planner=FakePlanner(),
         renderer=FakeRenderer(),
         detector=presenter.FakeFaceDetector(),
-        max_job_minutes=30,
+        budgets=_budgets(transcribing_s=30 * 60),
         clock=clock,
     )
     assert result.status == "failed"
     assert result.record.error is not None
     assert result.record.error.step == "transcribing"
-    assert "job exceeded 30 minutes" in result.record.error.message
+    assert "transcribing step ran out of its 30-minute" in result.record.error.message
     assert not (job.work_dir / "plan.json").exists()
 
 
-def test_a_job_within_the_limit_is_untouched(tmp_path: Path, fixture_clip: Path) -> None:
+def test_a_job_within_its_budgets_is_untouched(tmp_path: Path, fixture_clip: Path) -> None:
     clock = _JumpingClock(minutes=29.9)
     job = _uploaded(tmp_path, fixture_clip)
     result = pipeline.run_job(
         job, transcriber=_SlowInProcess(clock), planner=FakePlanner(), renderer=FakeRenderer(),
         gate=FakeGate(), sourcing=_sourcing(), specs=SPECS,
-        detector=presenter.FakeFaceDetector(), max_job_minutes=30, clock=clock,
+        detector=presenter.FakeFaceDetector(), budgets=_budgets(transcribing_s=30 * 60),
+        clock=clock,
     )  # fmt: skip  # 055: the opening needs a source that answers, or the job fails there
     assert result.status == "delivered", result.record.error
+
+
+class _SteppingClock:
+    """A fake clock a step moves forward by hand."""
+
+    def __init__(self) -> None:
+        self.now = T0
+
+    def __call__(self) -> datetime:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += timedelta(seconds=seconds)
+
+
+class _RenderTakes(Renderer):
+    """A render that spends `seconds` of the fake clock, then runs a child for `child_s`."""
+
+    def __init__(self, clock: _SteppingClock, seconds: float, child_s: float) -> None:
+        self.clock, self.seconds, self.child_s = clock, seconds, child_s
+
+    def render(
+        self, job: jobs.Job, *, on_progress: Callable[[int], None] | None = None,
+        library: sound.Library | None = None,
+    ) -> Path:  # fmt: skip
+        self.clock.advance(self.seconds)
+        subproc.run([sys.executable, "-c", f"import time; time.sleep({self.child_s})"])
+        return FakeRenderer().render(job, on_progress=on_progress, library=library)
+
+
+def test_a_retry_from_rendering_gets_the_full_rendering_budget(
+    tmp_path: Path, fixture_clip: Path
+) -> None:
+    """111e: the second attempt is measured from its own start, not the first's."""
+    clock = _SteppingClock()
+    limits = _budgets(render_base_s=600, render_seconds_per_frame=0.0)
+    job = _uploaded(tmp_path, fixture_clip)
+
+    def attempt(job: jobs.Job, renderer: Renderer) -> jobs.Job:
+        return pipeline.run_job(
+            job, transcriber=FakeTranscriber(), planner=FakePlanner(), renderer=renderer,
+            gate=FakeGate(), sourcing=_sourcing(), specs=SPECS,
+            detector=presenter.FakeFaceDetector(), budgets=limits, clock=clock,
+            watchdog_interval_s=0.02,
+        )  # fmt: skip
+
+    first = attempt(job, _RenderTakes(clock, seconds=601, child_s=60))
+    assert first.status == "failed"
+    assert first.record.error is not None
+    assert first.record.error.step == "rendering"
+    assert "Retry starts rendering fresh" in first.record.error.message
+
+    retried = attempt(jobs.requeue(first, now=clock), _RenderTakes(clock, 599, child_s=0))
+    assert retried.status == "delivered", retried.record.error
 
 
 class _OverBudgetPlanner(FakePlanner):

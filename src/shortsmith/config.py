@@ -71,7 +71,22 @@ class Settings(BaseSettings):
     shortsmith_max_upload_mb: int = 500
     max_queue: int = 3  # 11.2: running + waiting jobs; one more is refused
     max_jobs_per_day: int = 10  # 11.2: global, counted since midnight IST
-    max_job_minutes: int = 30  # 11.2: the worker kills the step and fails the job
+    # 111e: no longer read; the job's cap is a backstop computed from the step budgets
+    # below. Kept so an existing MAX_JOB_MINUTES key stays a known setting.
+    max_job_minutes: int = 30
+    # 111e: a time budget per step, each a fresh one on a retry or a rescue rewind.
+    transcribing_minutes: float = 10
+    planning_minutes: float = 20
+    sourcing_minutes: float = 15
+    qa_minutes: float = 10
+    # rendering: base + seconds_per_frame * frames * margin. 0.104 s/frame is
+    # `python -m shortsmith.bench` on the operator's box (1 Oct 2026, concurrency 2);
+    # the margin covers real beats being heavier than the bench fixture.
+    render_base_minutes: float = 10
+    render_seconds_per_frame: float = 0.104
+    render_margin: float = 3.0
+    # a render still printing progress is never killed: only this long with no new frame.
+    render_stall_minutes: float = 5
     asset_policy: AssetPolicy = "any"
     # 5.1: the searched sources in order, comma-separated; a misbehaving source is
     # removed here without code. Owner references always come first and generation

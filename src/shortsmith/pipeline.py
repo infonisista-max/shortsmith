@@ -143,9 +143,13 @@ code's fallback.
 Limits (11.2): the queue depth counts the running job, the waiting jobs and the
 slots the upload route has reserved; `submit`/`reserve` raise `QueueFull` at
 `max_queue`. A waiting job's position is its 1-based place among the waiting jobs.
-`max_job_minutes` arms a `subproc.Watchdog` per job that kills the running step's
-subprocesses at the deadline; whichever way the step then ends, the job is `failed`
-at that step with "job exceeded N minutes" and the worker moves on.
+111e: time budgets per step (`budgets.Budgets`): one `subproc.Watchdog` per job,
+armed afresh as each step is entered (so a retry or a rescue rewind gets the full
+budget of its step), the rendering budget scaled to the short's frames, a render that
+still prints progress killed only by the stall clock, and the job's backstop computed
+from the step budgets. Whichever limit fires, the running step's subprocesses are
+killed, the job is `failed` at that step with a sentence naming the step and saying
+Retry starts it fresh, and the worker moves on.
 """
 
 from __future__ import annotations
@@ -158,7 +162,7 @@ import traceback
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, TypeAdapter
@@ -177,6 +181,8 @@ from shortsmith import (
     styles,
     subproc,
 )
+from shortsmith.budgets import MAX_FRAMES, Budgets, timeout_message
+from shortsmith.budgets import defaults as default_budgets
 from shortsmith.contracts import (
     PICTURE_TREATMENTS,
     Constraints,
@@ -221,7 +227,6 @@ from shortsmith.transcriber import Transcriber
 log = logging.getLogger(__name__)
 
 DEFAULT_MAX_QUEUE = 3
-DEFAULT_MAX_JOB_MINUTES = 30
 MAX_RESCUES = 12  # 097: step rescues per run
 # 111a: the steps that first read the refs; entering either normalises them (idempotent).
 NORMALISED_STEPS: frozenset[str] = frozenset({"sourcing", "rendering"})
@@ -233,9 +238,24 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def timeout_message(max_job_minutes: float) -> str:
-    minutes = int(max_job_minutes) if float(max_job_minutes).is_integer() else max_job_minutes
-    return f"The job exceeded {minutes} minutes and was stopped."
+def step_frames(job: Job) -> int:
+    """111e: the frames the rendering budget scales with - the plan's cut list at the
+    render's frame rate, or the longest short when the plan cannot be read."""
+    try:
+        plan = PicturePlan.model_validate_json(
+            (job.work_dir / "plan.json").read_text(encoding="utf-8")
+        )
+        return round(presenter.total_duration(presenter.cut_list(plan)) * render.FPS)
+    except (OSError, ValueError):
+        return MAX_FRAMES
+
+
+def arm_step(watchdog: subproc.Watchdog, budgets: Budgets, job: Job, step: str) -> float:
+    """111e: a fresh budget for `step` on the job's watchdog; its seconds. Entering a
+    step, a retry and a rescue rewind all come through here (111g's plain reel too)."""
+    frames = step_frames(job) if step == "rendering" else 0
+    budgets.arm(watchdog, step, frames=frames)
+    return budgets.step_s(step, frames=frames)
 
 ERROR_TEXT: dict[str, str] = {
     "transcribing": "We could not transcribe the recording.",
@@ -277,7 +297,7 @@ def run_job(
     critic: Critic | None = None,
     inventory: own.SelfInventory | None = None,
     inventory_dir: Path = INVENTORY_DIR,
-    max_job_minutes: float | None = None,
+    budgets: Budgets | None = None,
     clock: Clock = _utc_now,
     watchdog_interval_s: float = 1.0,
     editor: Editor | None = None,
@@ -304,15 +324,17 @@ def run_job(
     rescue = Rescue(editor=editor, specs=specs, clock=clock)
     index = jobs.STEPS.index(start_step(job))
     watchdog: subproc.Watchdog | None = None
-    if max_job_minutes is not None:
-        deadline = clock() + timedelta(minutes=max_job_minutes)
-        watchdog = subproc.Watchdog(deadline=deadline, clock=clock, interval_s=watchdog_interval_s)
+    if budgets is not None:
+        watchdog = budgets.watchdog(clock=clock, interval_s=watchdog_interval_s)
         watchdog.start()
     try:
         while index < len(steps):
             status, step = steps[index]
             job = jobs.transition(job, status)
             detail = ""
+            step_s = 0.0
+            if watchdog is not None and budgets is not None:
+                step_s = arm_step(watchdog, budgets, job, status)  # 111e: fresh each entry
             try:
                 with subproc.guarded(watchdog):
                     if status in NORMALISED_STEPS:  # 111a: an old job's refs, made real
@@ -335,11 +357,12 @@ def run_job(
                         detail=detail,
                         violations=violations,
                     )
-            if watchdog is not None and watchdog.check():
-                assert max_job_minutes is not None
-                return jobs.fail(
-                    job, step=status, message=timeout_message(max_job_minutes), detail=detail
-                )
+            if watchdog is not None and budgets is not None and watchdog.check():
+                message = timeout_message(
+                    status, watchdog.reason, step_s=step_s, stall_s=budgets.stall_s,
+                    backstop_s=budgets.backstop_s(),
+                )  # fmt: skip
+                return jobs.fail(job, step=status, message=message, detail=detail)
             index += 1
     finally:
         if watchdog is not None:
@@ -1304,7 +1327,7 @@ class Worker:
         critic: Critic | None = None,
         inventory: own.SelfInventory | None = None,
         max_queue: int = DEFAULT_MAX_QUEUE,
-        max_job_minutes: float | None = DEFAULT_MAX_JOB_MINUTES,
+        budgets: Budgets | None = None,
         clock: Clock = _utc_now,
         watchdog_interval_s: float = 1.0,
         editor: Editor | None = None,
@@ -1323,7 +1346,7 @@ class Worker:
         # 097: the editor on the job's planner and the renderer's geocoder.
         self._editor = editor or default_editor(planner, self._renderer, clock=clock)
         self._max_queue = max_queue
-        self._max_job_minutes = max_job_minutes
+        self._budgets = budgets if budgets is not None else default_budgets()  # 111e
         self._clock = clock
         self._watchdog_interval_s = watchdog_interval_s
         self._queue: queue.Queue[Path | None] = queue.Queue()
@@ -1418,7 +1441,7 @@ class Worker:
                 detector=self._detector,
                 critic=self._critic,
                 inventory=self._inventory,
-                max_job_minutes=self._max_job_minutes,
+                budgets=self._budgets,
                 clock=self._clock,
                 watchdog_interval_s=self._watchdog_interval_s,
                 editor=self._editor,

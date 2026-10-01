@@ -1015,6 +1015,8 @@ def revalidate(job: Job, specs: Mapping[str, StyleSpec]) -> list[str] | None:
 def _t8(job: Job, specs: Mapping[str, StyleSpec]) -> QaCheck:
     log = job.work_dir / "render.log"
     log_text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else None
+    if log_text is not None:  # 111e: the log is appended; judge the run that made it
+        log_text = render.last_attempt(log_text)
     plan_path = job.work_dir / "plan.json"
     plan = (
         PicturePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))

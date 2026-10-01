@@ -82,7 +82,12 @@ def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     # 11.2 limits
     assert s.max_queue == 3
     assert s.max_jobs_per_day == 10
-    assert s.max_job_minutes == 30
+    # 111e: the step budgets; 0.104 s/frame is the operator box's bench (1 Oct 2026)
+    steps = (s.transcribing_minutes, s.planning_minutes, s.sourcing_minutes, s.qa_minutes)
+    assert steps == (10, 20, 15, 10)
+    rendering = (s.render_base_minutes, s.render_seconds_per_frame, s.render_margin)
+    assert rendering == (10, 0.104, 3.0)
+    assert s.render_stall_minutes == 5
     # 5.1 source order, written out in full: owner references first, generation last
     assert s.asset_sources == "owner,web,commons,openverse,pexels,pixabay,generate"
     assert s.pexels_api_key is None
@@ -200,12 +205,14 @@ def test_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
         GROQ_API_KEY="gsk_secret_value",
         MAX_QUEUE="5",
         MAX_JOBS_PER_DAY="2",
-        MAX_JOB_MINUTES="1",
+        RENDER_SECONDS_PER_FRAME="0.25",
+        RENDER_STALL_MINUTES="2",
     )
     assert s.planner == "fake"
     assert s.asset_policy == "rights_safe"
     assert s.shortsmith_max_upload_mb == 42
-    assert (s.max_queue, s.max_jobs_per_day, s.max_job_minutes) == (5, 2, 1)
+    assert (s.max_queue, s.max_jobs_per_day) == (5, 2)
+    assert (s.render_seconds_per_frame, s.render_stall_minutes) == (0.25, 2)
     assert s.shortsmith_data_dir == Path("C:/tmp/shortsmith-data")
     assert s.groq_api_key is not None
     assert s.groq_api_key.get_secret_value() == "gsk_secret_value"

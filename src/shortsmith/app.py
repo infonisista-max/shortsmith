@@ -27,8 +27,8 @@ Retry-After for the queue and the day limit, 413 for the size. A waiting job's p
 shows "queued, position N" and the JSON carries `queue_position` so the poll reloads
 as jobs finish. The daily cash budget (11.3, ticket 044) closes the form the same way
 as the day limit, until midnight IST, once `BUDGET_INR_PER_DAY` of cash rows is spent
-today. `MAX_JOB_MINUTES` reaches the worker. The disk guard (11.2, ticket 042) sits above
-all of them: under 5 GB free beneath the data directory the form is replaced by one
+today. The step time budgets (111e) reach the worker. The disk guard (11.2, ticket
+042) sits above all of them: under 5 GB free beneath the data directory the form is replaced by one
 plain sentence, `POST /jobs` answers 503 with Retry-After, and the sweeper runs at
 once so the next visit may find room.
 
@@ -138,6 +138,7 @@ from shortsmith import (
 from shortsmith import planner as planner_module
 from shortsmith import transcriber as transcriber_module
 from shortsmith.auth import COOKIE_NAME, FailureLog
+from shortsmith.budgets import Budgets
 from shortsmith.config import Settings
 from shortsmith.contracts import AudioTags, ComparisonRow, CriticReport, ReferenceRecord
 from shortsmith.editor import change
@@ -358,7 +359,7 @@ def create_app(
         # settings); with no GEMINI_API_KEY it sends nothing and says so.
         inventory=inventory or own.from_settings(settings, ledger=_book),
         max_queue=settings.max_queue,
-        max_job_minutes=settings.max_job_minutes,
+        budgets=Budgets.from_settings(settings),  # 111e
         clock=clock,
         # 097: the editor asks the configured planner and frames maps with the
         # renderer's geocoder; the fake planner makes every decision the fallback.
